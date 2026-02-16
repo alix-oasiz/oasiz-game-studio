@@ -9,6 +9,7 @@ import { createLobbyUI } from "./ui/lobby";
 import { createLeaveModal } from "./ui/modals";
 import { createSettingsUI } from "./ui/settings";
 import { createAdvancedSettingsUI } from "./ui/advancedSettings";
+import { createMapPreviewUI } from "./ui/mapPreview";
 
 // Declare platform-injected variables
 declare global {
@@ -42,6 +43,7 @@ async function init(): Promise<void> {
   const leaveModal = createLeaveModal(game);
   const settingsUI = createSettingsUI(leaveModal.openLeaveModal);
   const advancedSettingsUI = createAdvancedSettingsUI(game);
+  const mapPreviewUI = createMapPreviewUI(game);
   const startUI = createStartScreenUI(game);
   const lobbyUI = createLobbyUI(game, viewport.isMobile);
   bindEndScreenUI(game);
@@ -59,6 +61,7 @@ async function init(): Promise<void> {
           screenController.showScreen("lobby");
           lobbyUI.updateRoomCode(game.getRoomCode());
           lobbyUI.updateMapSelector();
+          mapPreviewUI.updateMapPreview();
           screenController.resetEndScreenButtons();
           break;
         case "COUNTDOWN":
@@ -124,6 +127,7 @@ async function init(): Promise<void> {
     onMapChange: (mapId: MapId) => {
       lobbyUI.setMapUI(mapId, "remote");
       lobbyUI.updateMapSelector();
+      mapPreviewUI.updateMapPreview(mapId);
     },
   });
 

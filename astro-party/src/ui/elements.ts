@@ -68,7 +68,7 @@ export const elements = {
   addAIBotBtn: getElement<HTMLButtonElement>("addAIBotBtn"),
   addLocalPlayerBtn: getElement<HTMLButtonElement>("addLocalPlayerBtn"),
   advancedSettingsBtn: getElement<HTMLButtonElement>("advancedSettingsBtn"),
-  advancedSummaryChips: getElement<HTMLElement>("advancedSummaryChips"),
+  mapPreviewCanvas: getElement<HTMLCanvasElement>("mapPreviewCanvas"),
 
   // Game mode toggle
   gameModeSection: getElement<HTMLElement>("gameModeSection"),

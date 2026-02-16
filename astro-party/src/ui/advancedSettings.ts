@@ -149,16 +149,8 @@ export function createAdvancedSettingsUI(game: Game): AdvancedSettingsUI {
       },
     ];
 
-    elements.advancedSummaryChips.innerHTML = chips
-      .map(
-        (chip) =>
-          '<div class="summary-chip"><span class="summary-key">' +
-          chip.label +
-          ':</span><span class="summary-value">' +
-          chip.value +
-          "</span></div>",
-      )
-      .join("");
+    // Map preview replaced the summary chips panel
+    // This function is kept for compatibility but no longer displays chips
   }
 
   function updateAdvancedSettingsUI(settings?: AdvancedSettings): void {
