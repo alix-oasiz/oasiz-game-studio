@@ -275,16 +275,6 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     mapId: MapId,
     source: "local" | "remote" = "local",
   ): void {
-    console.log(
-      "[LobbyUI] setMapUI source=" +
-        source +
-        " mapId=" +
-        mapId.toString() +
-        " gameMapId=" +
-        game.getMapId().toString() +
-        " isLeader=" +
-        game.isLeader().toString(),
-    );
     elements.mapBtn0.classList.toggle("active", mapId === 0);
     elements.mapBtn1.classList.toggle("active", mapId === 1);
     elements.mapBtn2.classList.toggle("active", mapId === 2);
@@ -419,14 +409,6 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
 
   function handleMapButtonClick(mapId: MapId): void {
     triggerHaptic("light");
-    console.log(
-      "[LobbyUI] map button clicked mapId=" +
-        mapId.toString() +
-        " isLeader=" +
-        game.isLeader().toString() +
-        " phase=" +
-        game.getPhase(),
-    );
     setMapUI(mapId, "local");
   }
 

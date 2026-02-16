@@ -125,6 +125,7 @@ export class ColyseusTransport implements NetworkTransport {
   private playerMetaById: PlayerMetaMap = new Map();
   private playerRefs = new Map<string, ColyseusPlayerState>();
   private playerListRevision = 0;
+  private lastPlayerListSignature: string | null = null;
   private lastAdvancedSettingsSignature: string | null = null;
   private lastDevModeEnabled: boolean | null = null;
   private lastMapId: number | null = null;
@@ -973,7 +974,34 @@ export class ColyseusTransport implements NetworkTransport {
     }
 
     this.hostId = payload.hostId ?? this.hostId;
+
+    const signature = this.buildPlayerListSignature(payload);
+    if (this.lastPlayerListSignature === signature) {
+      return;
+    }
+    this.lastPlayerListSignature = signature;
     this.callbacks?.onPlayerListReceived(this.playerOrder, this.playerMetaById);
+  }
+
+  private buildPlayerListSignature(payload: PlayerListPayload): string {
+    const orderPart = payload.order.join(",");
+    const metaPart = payload.meta
+      .map((meta) =>
+        [
+          meta.id,
+          meta.customName ?? "",
+          meta.profileName ?? "",
+          meta.botType ?? "",
+          (meta.colorIndex ?? 0).toString(),
+          (meta.keySlot ?? -1).toString(),
+          (meta.kills ?? 0).toString(),
+          (meta.roundWins ?? 0).toString(),
+          meta.playerState ?? "ACTIVE",
+          meta.isBot ? "1" : "0",
+        ].join("~"),
+      )
+      .join("|");
+    return orderPart + "||" + metaPart;
   }
 
   private async cleanupConnection(): Promise<void> {
@@ -992,6 +1020,7 @@ export class ColyseusTransport implements NetworkTransport {
     this.hostId = null;
     this.myPlayerId = null;
     this.playerListRevision = 0;
+    this.lastPlayerListSignature = null;
     this.lastAdvancedSettingsSignature = null;
     this.lastDevModeEnabled = null;
     this.lastMapId = null;

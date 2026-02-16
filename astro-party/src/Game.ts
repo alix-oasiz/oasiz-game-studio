@@ -62,6 +62,7 @@ export class Game {
   private lastPredictedFireAtMs = 0;
   private lastPredictedDashAtMs = 0;
   private controlledInputSequenceByPlayer = new Map<string, number>();
+  private isIntentionalDisconnect = false;
 
   private _originalHostLeft = false;
 
@@ -239,6 +240,9 @@ export class Game {
       },
 
       onDisconnected: () => {
+        if (this.isIntentionalDisconnect) {
+          return;
+        }
         console.log("[Game] Disconnected from room");
         this.handleDisconnected();
       },
@@ -246,13 +250,16 @@ export class Game {
       onGamePhaseReceived: (phase, winnerId, winnerName) => {
         console.log("[Game] Phase received:", phase);
         if (!this.network.isSimulationAuthority()) {
+          const oldPhase = this.flowMgr.phase;
+          if (oldPhase === phase) {
+            return;
+          }
           const shouldForceRosterSync =
             phase === "COUNTDOWN" || phase === "PLAYING";
           this.network.resyncPlayerListFromState(
             "state-phase-" + phase.toLowerCase(),
             shouldForceRosterSync,
           );
-          const oldPhase = this.flowMgr.phase;
           this.flowMgr.phase = phase;
 
           if (phase === "GAME_END") {
@@ -1053,7 +1060,12 @@ export class Game {
       this.flowMgr.countdownInterval = null;
     }
 
-    await this.network.disconnect();
+    this.isIntentionalDisconnect = true;
+    try {
+      await this.network.disconnect();
+    } finally {
+      this.isIntentionalDisconnect = false;
+    }
 
     this.clearAllGameState();
     this.playerMgr.clear();

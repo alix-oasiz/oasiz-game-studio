@@ -122,7 +122,6 @@ async function init(): Promise<void> {
       screenController.showSystemMessage(message, durationMs);
     },
     onMapChange: (mapId: MapId) => {
-      lobbyUI.setMapUI(mapId, "remote");
       lobbyUI.updateMapSelector();
     },
   });
