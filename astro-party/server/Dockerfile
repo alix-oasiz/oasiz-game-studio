@@ -7,6 +7,7 @@ RUN npm install
 
 FROM deps AS build
 WORKDIR /app
+COPY package.json ./package.json
 COPY shared ./shared
 COPY server ./server
 WORKDIR /app/server
