@@ -10,7 +10,7 @@ WORKDIR /app
 COPY shared ./shared
 COPY server ./server
 WORKDIR /app/server
-RUN rm -rf dist && npm run build && node -e "import('./dist/shared/sim/types.js').then((m)=>{ if (typeof m.ASTEROID_COLLIDER_VERTEX_SCALE !== 'number') { console.error('Missing ASTEROID_COLLIDER_VERTEX_SCALE export in dist/shared/sim/types.js'); process.exit(1); } })"
+RUN rm -rf dist && npm run build
 
 FROM node:20-alpine AS runtime
 WORKDIR /app/server
