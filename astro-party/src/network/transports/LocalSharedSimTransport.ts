@@ -39,6 +39,7 @@ class LocalPlayerState implements NetworkPlayerState {
     if (key === "keySlot") return this.meta.keySlot;
     if (key === "kills") return this.meta.kills ?? 0;
     if (key === "roundWins") return this.meta.roundWins ?? 0;
+    if (key === "score") return this.meta.score ?? 0;
     if (key === "playerState") return this.meta.playerState ?? "ACTIVE";
     return undefined;
   }
@@ -473,6 +474,7 @@ export class LocalSharedSimTransport implements NetworkTransport {
       keySlot: Number.isFinite(meta.keySlot) ? meta.keySlot : undefined,
       kills: meta.kills,
       roundWins: meta.roundWins,
+      score: meta.score,
       playerState: meta.playerState,
       isBot: meta.isBot,
     };

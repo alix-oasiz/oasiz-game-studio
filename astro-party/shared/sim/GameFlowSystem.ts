@@ -19,6 +19,15 @@ import { normalizeAngle } from "./utils.js";
 import { spawnInitialAsteroids, scheduleAsteroidSpawn } from "./AsteroidSystem.js";
 import { grantStartingPowerups } from "./PowerUpSystem.js";
 import { getMapDefinition } from "./maps.js";
+import { getScoreAwardForEvent } from "./scoring.js";
+
+function awardPlayerScore(
+  player: RuntimePlayer | undefined,
+  event: "SHIP_DESTROY" | "PILOT_KILL" | "ROUND_WIN" | "GAME_WIN",
+): void {
+  if (!player) return;
+  player.score += getScoreAwardForEvent(event);
+}
 
 export function updatePilots(sim: SimState, dtSec: number): void {
   const cfg = sim.getActiveConfig();
@@ -116,6 +125,9 @@ export function onShipHit(sim: SimState, owner: RuntimePlayer | undefined, targe
 
   sim.hooks.onSound("explosion", target.id);
   sim.triggerScreenShake(15, 0.4);
+  if (owner && owner.id !== target.id) {
+    awardPlayerScore(owner, "SHIP_DESTROY");
+  }
   sim.syncPlayers();
 }
 
@@ -132,8 +144,9 @@ export function killPilot(sim: SimState, pilotPlayerId: string, killerId: string
 
   if (killerId !== "asteroid") {
     const killer = sim.players.get(killerId);
-    if (killer) {
+    if (killer && killer.id !== pilotPlayerId) {
       killer.kills += 1;
+      awardPlayerScore(killer, "PILOT_KILL");
     }
   }
 
@@ -199,15 +212,18 @@ export function endRound(sim: SimState, winnerId: string | null): void {
     const winner = sim.players.get(winnerId);
     if (winner) {
       winner.roundWins += 1;
+      awardPlayerScore(winner, "ROUND_WIN");
       winnerName = winner.name;
     }
   }
 
   const roundWinsById: Record<string, number> = {};
+  const scoresById: Record<string, number> = {};
   sim.playerOrder.forEach((playerId: string) => {
     const player = sim.players.get(playerId);
     if (!player) return;
     roundWinsById[playerId] = player.roundWins;
+    scoresById[playerId] = player.score;
   });
 
   sim.hooks.onRoundResult({
@@ -216,6 +232,7 @@ export function endRound(sim: SimState, winnerId: string | null): void {
     winnerName,
     isTie,
     roundWinsById,
+    scoresById,
   });
 
   if (!isTie && winnerId) {
@@ -235,11 +252,17 @@ export function endRound(sim: SimState, winnerId: string | null): void {
 
 function endGame(sim: SimState, winnerId: string, winnerName: string): void {
   sim.phase = "GAME_END";
+  const winner = sim.players.get(winnerId);
+  if (winner) {
+    awardPlayerScore(winner, "GAME_WIN");
+  }
   const roundWinsById: Record<string, number> = {};
+  const scoresById: Record<string, number> = {};
   sim.playerOrder.forEach((playerId: string) => {
     const player = sim.players.get(playerId);
     if (!player) return;
     roundWinsById[playerId] = player.roundWins;
+    scoresById[playerId] = player.score;
   });
   sim.hooks.onRoundResult({
     roundNumber: sim.currentRound,
@@ -247,6 +270,7 @@ function endGame(sim: SimState, winnerId: string, winnerName: string): void {
     winnerName,
     isTie: false,
     roundWinsById,
+    scoresById,
   });
   sim.hooks.onPhase("GAME_END", winnerId, winnerName);
   sim.hooks.onSound("win", winnerId);

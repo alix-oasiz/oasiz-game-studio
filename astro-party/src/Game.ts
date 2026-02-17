@@ -1,7 +1,7 @@
 import { Renderer } from "./systems/Renderer";
 import { InputManager } from "./systems/Input";
 import { MultiInputManager } from "./systems/MultiInputManager";
-import { NetworkManager } from "./network/NetworkManager";
+import { NetworkManager, type PlayerMetaMap } from "./network/NetworkManager";
 import { PlayerManager } from "./managers/PlayerManager";
 import { GameFlowManager } from "./managers/GameFlowManager";
 import { BotManager } from "./managers/BotManager";
@@ -36,6 +36,10 @@ import {
   isCustomComparedToTemplate,
   sanitizeAdvancedSettings,
 } from "./advancedSettings";
+import {
+  isScoreSubmissionEligibleBotType,
+  shouldSubmitScoreToPlatform,
+} from "../shared/sim/scoring.js";
 
 export class Game {
   private renderer: Renderer;
@@ -68,6 +72,7 @@ export class Game {
 
   private roundResult: RoundResultPayload | null = null;
   private finalScoreSubmittedForMatch = false;
+  private lobbyHasEligibleScoreBot = false;
   private advancedSettings: AdvancedSettings = {
     ...DEFAULT_ADVANCED_SETTINGS,
   };
@@ -279,6 +284,7 @@ export class Game {
           if (phase === "LOBBY" && oldPhase !== "LOBBY") {
             this.flowMgr.winnerId = null;
             this.flowMgr.winnerName = null;
+            this.lobbyHasEligibleScoreBot = false;
             this.clearAllGameState();
           }
 
@@ -294,6 +300,8 @@ export class Game {
             this.networkSync.clearNetworkEntities();
             this.roundResult = null;
           }
+
+          this.refreshLobbyScoreEligibilityFromRoster();
 
           this.flowMgr.onPhaseChange?.(phase);
         }
@@ -321,11 +329,13 @@ export class Game {
         this.latencyMs = latencyMs;
       },
 
-      onPlayerListReceived: (playerOrder) => {
+      onPlayerListReceived: (playerOrder, meta) => {
         if (!this.network.isSimulationAuthority()) {
           this.playerMgr.rebuildPlayersFromOrder(playerOrder, () =>
             this.emitPlayersUpdate(),
           );
+          this.syncPlayersFromMeta(meta);
+          this.refreshLobbyScoreEligibilityFromRoster();
           if (this.flowMgr.phase === "GAME_END") {
             this.submitFinalScoreFromAuthoritativeState();
           }
@@ -439,6 +449,7 @@ export class Game {
   private initializeNetworkSession(): void {
     this.network.startSync();
     this.finalScoreSubmittedForMatch = false;
+    this.lobbyHasEligibleScoreBot = false;
     if (!this.network.isSimulationAuthority()) {
       this.network.resyncPlayerListFromState("session-init", true);
     }
@@ -493,6 +504,7 @@ export class Game {
     this.playerMgr.clear();
     this._originalHostLeft = false;
     this.finalScoreSubmittedForMatch = false;
+    this.lobbyHasEligibleScoreBot = false;
     this.resetAdvancedSettings();
     this.selectedMapId = 0;
     this.flowMgr.setPhase("START");
@@ -613,6 +625,7 @@ export class Game {
     if (sentInput) {
       this.networkSync.recordSentInput(sentInput);
     }
+    this.consumeHostTouchDash();
     this.maybeRunPredictedLocalFire(localInput, now);
     this.sendLocalControlledInputs(now);
 
@@ -646,6 +659,17 @@ export class Game {
     if (devKeys.homing) this.network.requestDevPowerUp("HOMING_MISSILE");
     if (devKeys.reverse) this.network.requestDevPowerUp("REVERSE");
     if (devKeys.spawnPowerUp) this.network.requestDevPowerUp("SPAWN_RANDOM");
+  }
+
+  private consumeHostTouchDash(): void {
+    if (!this.botMgr.useTouchForHost) return;
+    if (!this.multiInput?.consumeDash(0)) return;
+
+    if (this.flowMgr.phase !== "COUNTDOWN" && this.flowMgr.phase !== "PLAYING") {
+      return;
+    }
+
+    this.handleLocalDash();
   }
 
   private sendLocalControlledInputs(nowMs: number): void {
@@ -804,8 +828,64 @@ export class Game {
         player.roundWins = wins;
       }
     });
+    Object.entries(payload.scoresById ?? {}).forEach(([playerId, score]) => {
+      const player = this.playerMgr.players.get(playerId);
+      if (player && Number.isFinite(score)) {
+        player.score = score;
+      }
+    });
     this.emitPlayersUpdate();
     this._onRoundResult?.(payload);
+  }
+
+  private syncPlayersFromMeta(meta?: PlayerMetaMap): void {
+    if (!meta) return;
+    let changed = false;
+    for (const [playerId, player] of this.playerMgr.players) {
+      const networkMeta = meta.get(playerId);
+      if (!networkMeta) continue;
+
+      if (Number.isFinite(networkMeta.kills) && networkMeta.kills !== player.kills) {
+        player.kills = networkMeta.kills as number;
+        changed = true;
+      }
+      if (
+        Number.isFinite(networkMeta.roundWins) &&
+        networkMeta.roundWins !== player.roundWins
+      ) {
+        player.roundWins = networkMeta.roundWins as number;
+        changed = true;
+      }
+      if (Number.isFinite(networkMeta.score) && networkMeta.score !== player.score) {
+        player.score = networkMeta.score as number;
+        changed = true;
+      }
+      if (networkMeta.playerState && networkMeta.playerState !== player.state) {
+        player.state = networkMeta.playerState;
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.emitPlayersUpdate();
+    }
+  }
+
+  private refreshLobbyScoreEligibilityFromRoster(): void {
+    if (this.flowMgr.phase !== "LOBBY" && this.flowMgr.phase !== "COUNTDOWN") {
+      return;
+    }
+
+    if (this.hasEligibleScoreBotInCurrentRoster()) {
+      this.lobbyHasEligibleScoreBot = true;
+    }
+  }
+
+  private hasEligibleScoreBotInCurrentRoster(): boolean {
+    const playerIds = this.network.getPlayerIds();
+    return playerIds.some((playerId) => {
+      if (!this.network.isPlayerBot(playerId)) return false;
+      return isScoreSubmissionEligibleBotType(this.network.getPlayerBotType(playerId));
+    });
   }
 
   private updateVisualEffects(renderState: RenderNetworkState): void {
@@ -1071,6 +1151,7 @@ export class Game {
       console.log("[Game] Non-leader cannot start game");
       return;
     }
+    this.refreshLobbyScoreEligibilityFromRoster();
     this.broadcastModeState();
     this.network.setMap(this.selectedMapId);
     this.roundResult = null;
@@ -1095,6 +1176,7 @@ export class Game {
     this.playerMgr.clear();
     this._originalHostLeft = false;
     this.finalScoreSubmittedForMatch = false;
+    this.lobbyHasEligibleScoreBot = false;
     this.resetAdvancedSettings();
 
     this.flowMgr.setPhase("START");
@@ -1252,8 +1334,19 @@ export class Game {
     const myId = this.network.getMyPlayerId();
     if (!myId) return;
 
-    const resultScore = this.roundResult?.roundWinsById?.[myId];
-    const fallbackScore = this.playerMgr.players.get(myId)?.roundWins;
+    const hasEligibleLobbyBot =
+      this.lobbyHasEligibleScoreBot || this.hasEligibleScoreBotInCurrentRoster();
+    if (!shouldSubmitScoreToPlatform(hasEligibleLobbyBot)) {
+      if (!this.lobbyHasEligibleScoreBot && this.network.getPlayerCount() <= 0) {
+        return;
+      }
+      console.log("[Game] Score submission skipped by policy");
+      this.finalScoreSubmittedForMatch = true;
+      return;
+    }
+
+    const resultScore = this.roundResult?.scoresById?.[myId];
+    const fallbackScore = this.playerMgr.players.get(myId)?.score;
     const rawScore = Number.isFinite(resultScore) ? resultScore : fallbackScore;
 
     if (!Number.isFinite(rawScore)) return;
@@ -1268,7 +1361,10 @@ export class Game {
       ).submitScore(score);
       console.log("[Game] Submitted authoritative final score:", score);
       this.finalScoreSubmittedForMatch = true;
+      return;
     }
+
+    this.finalScoreSubmittedForMatch = true;
   }
 
   updateTouchLayout(): void {

@@ -213,6 +213,7 @@ export interface RoundResultPayload {
   winnerName?: string;
   isTie: boolean;
   roundWinsById: Record<string, number>;
+  scoresById: Record<string, number>;
 }
 
 export interface PlayerListMeta {
@@ -224,6 +225,7 @@ export interface PlayerListMeta {
   keySlot?: number;
   kills: number;
   roundWins: number;
+  score: number;
   playerState: PlayerState;
   isBot: boolean;
 }
@@ -309,6 +311,7 @@ export interface RuntimePlayer {
   colorIndex: number;
   kills: number;
   roundWins: number;
+  score: number;
   state: PlayerState;
   input: PlayerInput;
   latestInputSequence: number;

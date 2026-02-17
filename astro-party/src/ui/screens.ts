@@ -33,15 +33,29 @@ export function createScreenController(
       elements.leaveGameBtn.style.display = "none";
       elements.settingsBtn.style.display = "none";
       elements.settingsCenterHotspot.style.display = "none";
+      elements.settingsLeaveBtn.style.display = "none";
+      elements.settingsModal.classList.remove("main-leave-active");
       return;
     }
 
-    const localMobile = isMobile && game.hasLocalPlayers();
-    elements.leaveGameBtn.style.display = localMobile ? "none" : "block";
-    elements.settingsBtn.style.display = localMobile ? "none" : "flex";
-    elements.settingsCenterHotspot.style.display = localMobile
+    const hideHudLeaveForMobileLocal =
+      isMobile && game.getLocalPlayerCount() >= 2;
+    elements.leaveGameBtn.style.display = hideHudLeaveForMobileLocal
+      ? "none"
+      : "flex";
+    elements.settingsBtn.style.display = hideHudLeaveForMobileLocal
+      ? "none"
+      : "flex";
+    elements.settingsCenterHotspot.style.display = hideHudLeaveForMobileLocal
       ? "block"
       : "none";
+    elements.settingsLeaveBtn.style.display = hideHudLeaveForMobileLocal
+      ? "block"
+      : "none";
+    elements.settingsModal.classList.toggle(
+      "main-leave-active",
+      !hideHudLeaveForMobileLocal,
+    );
   }
 
   function showScreen(screen: Screen): void {
@@ -194,9 +208,6 @@ export function createScreenController(
           '<div class="score-dots">' +
           dots +
           "</div>" +
-          '<span class="score-kills">' +
-          player.kills +
-          "K</span>" +
           "</div>"
         );
       })
@@ -209,10 +220,18 @@ export function createScreenController(
     const myPlayerId = game.getMyPlayerId();
 
     const sorted = [...players].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
       if (b.roundWins !== a.roundWins) return b.roundWins - a.roundWins;
       return b.kills - a.kills;
     });
-    elements.finalScores.innerHTML = sorted
+    const header =
+      '<div class="final-score-header">' +
+      '<div class="final-score-label">Pilot</div>' +
+      '<div class="final-score-label stat">Pts</div>' +
+      '<div class="final-score-label stat">Rounds</div>' +
+      '<div class="final-score-label stat">Kills</div>' +
+      "</div>";
+    const rows = sorted
       .map((player) => {
         const isSelf = player.id === myPlayerId;
         return (
@@ -221,18 +240,24 @@ export function createScreenController(
           '" style="color: ' +
           player.color.primary +
           '">' +
-          '<span class="final-score-name">' +
+          '<div class="final-score-name">' +
           escapeHtml(player.name) +
-          "</span>" +
-          '<span class="final-score-kills">' +
-          player.roundWins +
-          " pts &bull; " +
-          player.kills +
-          " kills</span>" +
+          "</div>" +
+          '<div class="final-score-value stat">' +
+          player.score.toString() +
+          "</div>" +
+          '<div class="final-score-value stat">' +
+          player.roundWins.toString() +
+          "</div>" +
+          '<div class="final-score-value stat">' +
+          player.kills.toString() +
+          "</div>" +
           "</div>"
         );
       })
       .join("");
+
+    elements.finalScores.innerHTML = header + rows;
 
     if (game.didHostLeave()) {
       elements.playAgainBtn.style.display = "none";

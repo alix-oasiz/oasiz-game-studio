@@ -137,6 +137,7 @@ export interface PlayerData {
   color: PlayerColor;
   kills: number;
   roundWins: number;
+  score: number;
   state: PlayerState;
 }
 

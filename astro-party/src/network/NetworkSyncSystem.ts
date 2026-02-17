@@ -718,6 +718,11 @@ export class NetworkSyncSystem {
         player.roundWins = wins as number;
         changed = true;
       }
+      const score = netPlayer.getState("score") as number | undefined;
+      if (Number.isFinite(score) && score !== player.score) {
+        player.score = score as number;
+        changed = true;
+      }
       const state = netPlayer.getState("playerState") as
         | "ACTIVE"
         | "EJECTED"

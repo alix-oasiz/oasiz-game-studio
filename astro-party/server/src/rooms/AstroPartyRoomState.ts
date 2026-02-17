@@ -9,6 +9,7 @@ export class RoomPlayerMetaState extends Schema {
   @type("number") keySlot = -1;
   @type("number") kills = 0;
   @type("number") roundWins = 0;
+  @type("number") score = 0;
   @type("string") playerState = "ACTIVE";
   @type("boolean") isBot = false;
 }

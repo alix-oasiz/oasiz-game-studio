@@ -25,6 +25,7 @@ export class PlayerManager {
         color,
         kills: 0,
         roundWins: 0,
+        score: 0,
         state: "SPECTATING",
       };
       this.players.set(playerId, player);
@@ -47,6 +48,7 @@ export class PlayerManager {
       color,
       kills: 0,
       roundWins: 0,
+      score: 0,
       state: "ACTIVE",
     };
     this.players.set(playerId, player);
@@ -82,6 +84,7 @@ export class PlayerManager {
           color,
           kills: 0,
           roundWins: 0,
+          score: 0,
           state: "ACTIVE",
         };
         this.players.set(playerId, player);
@@ -115,6 +118,7 @@ export class PlayerManager {
     this.players.forEach((player) => {
       player.kills = 0;
       player.roundWins = 0;
+      player.score = 0;
       player.state = "ACTIVE";
     });
   }

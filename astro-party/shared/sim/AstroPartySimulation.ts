@@ -2063,6 +2063,7 @@ export class AstroPartySimulation implements SimState {
       if (!player) continue;
       player.kills = 0;
       player.roundWins = 0;
+      player.score = 0;
       player.state = "ACTIVE";
       player.input = {
         buttonA: false,
@@ -2123,6 +2124,7 @@ export class AstroPartySimulation implements SimState {
       colorIndex,
       kills: 0,
       roundWins: 0,
+      score: 0,
       state: "ACTIVE",
       input: {
         buttonA: false,
@@ -2183,6 +2185,7 @@ export class AstroPartySimulation implements SimState {
         keySlot: player.keySlot,
         kills: player.kills,
         roundWins: player.roundWins,
+        score: player.score,
         playerState: player.state,
         isBot: player.isBot,
       }));

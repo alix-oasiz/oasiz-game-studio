@@ -52,6 +52,7 @@ interface RoomStatePlayerMeta {
   keySlot?: number;
   kills?: number;
   roundWins?: number;
+  score?: number;
   playerState?: "ACTIVE" | "EJECTED" | "SPECTATING";
   isBot?: boolean;
 }
@@ -97,6 +98,7 @@ class ColyseusPlayerState implements NetworkPlayerState {
     if (key === "keySlot") return this.meta.keySlot;
     if (key === "kills") return this.meta.kills ?? 0;
     if (key === "roundWins") return this.meta.roundWins ?? 0;
+    if (key === "score") return this.meta.score ?? 0;
     if (key === "playerState") return this.meta.playerState ?? "ACTIVE";
     return undefined;
   }
@@ -936,6 +938,7 @@ export class ColyseusTransport implements NetworkTransport {
       roundWins: Number.isFinite(value?.roundWins)
         ? (value.roundWins as number)
         : 0,
+      score: Number.isFinite(value?.score) ? (value.score as number) : 0,
       playerState:
         value?.playerState === "ACTIVE" ||
         value?.playerState === "EJECTED" ||
@@ -1042,6 +1045,7 @@ export class ColyseusTransport implements NetworkTransport {
           (meta.keySlot ?? -1).toString(),
           (meta.kills ?? 0).toString(),
           (meta.roundWins ?? 0).toString(),
+          (meta.score ?? 0).toString(),
           meta.playerState ?? "ACTIVE",
           meta.isBot ? "1" : "0",
         ].join("~"),

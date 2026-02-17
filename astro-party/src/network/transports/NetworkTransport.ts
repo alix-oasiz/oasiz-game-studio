@@ -32,6 +32,7 @@ export interface PlayerMeta {
   keySlot?: number;
   kills?: number;
   roundWins?: number;
+  score?: number;
   playerState?: "ACTIVE" | "EJECTED" | "SPECTATING";
   isBot?: boolean;
 }

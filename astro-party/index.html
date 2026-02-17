@@ -675,14 +675,6 @@
       background: currentColor;
     }
 
-    .score-kills {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.7rem;
-      color: #888;
-      width: 20px;
-      text-align: right;
-    }
-
     @media (pointer: coarse) {
       .score-track {
         background: rgba(10, 10, 18, 0.5);
@@ -734,22 +726,29 @@
       position: absolute;
       top: var(--hud-top-pad);
       left: var(--hud-side-gap);
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.7rem;
-      padding: 0.5rem 1rem;
-      background: rgba(10, 10, 18, 0.6);
-      border: 1px solid rgba(255, 100, 100, 0.5);
-      border-radius: 8px;
-      color: #ff6666;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(255, 80, 80, 0.12);
+      border: 1px solid rgba(255, 120, 120, 0.45);
+      color: #ffd0d0;
       cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       pointer-events: auto;
-      transition: all 0.2s ease;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .leave-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
     }
 
     .leave-btn:hover {
-      background: var(--bg-panel);
+      background: rgba(255, 100, 100, 0.2);
+      border-color: rgba(255, 140, 140, 0.65);
     }
 
     /* ============= SETTINGS ============= */
@@ -895,6 +894,42 @@
       display: none;
     }
 
+    #settingsModal.main-leave-active .settings-actions {
+      margin-top: 0.6rem;
+    }
+
+    .settings-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.95rem;
+    }
+
+    .settings-actions .btn {
+      width: 100%;
+      margin: 0;
+    }
+
+    #settingsLeaveBtn {
+      margin: 0;
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.11em;
+      border-color: rgba(255, 120, 120, 0.55);
+      color: #ffd0d0;
+      background: rgba(255, 80, 80, 0.18);
+      box-shadow: 0 0 16px rgba(255, 90, 90, 0.18);
+    }
+
+    #settingsLeaveBtn:hover {
+      background: rgba(255, 100, 100, 0.24);
+      box-shadow: 0 0 20px rgba(255, 90, 90, 0.28);
+    }
+
+    #settingsModal.main-leave-active #settingsLeaveBtn {
+      display: none !important;
+    }
+
     .settings-modal {
       position: fixed;
       top: 50%;
@@ -989,7 +1024,7 @@
 
     .settings-close {
       width: 100%;
-      margin-top: 1rem;
+      margin-top: 0;
     }
 
     /* ============= ADVANCED SETTINGS ============= */
@@ -1144,13 +1179,34 @@
     }
 
     /* ============= GAME END SCREEN ============= */
+    .end-shell {
+      width: min(860px, calc(var(--box-width) - 36px));
+      min-height: min(560px, calc(var(--box-height) - 36px));
+      margin: 0 auto;
+      padding: 20px 28px 22px;
+      display: grid;
+      grid-template-rows: auto auto auto;
+      align-content: center;
+      gap: 14px;
+    }
+
+    .end-shell .screen-header {
+      justify-content: center;
+      text-align: center;
+    }
+
+    .end-shell .screen-body {
+      align-items: center;
+      justify-content: center;
+    }
+
     .winner-title {
       font-family: 'Orbitron', sans-serif;
       font-size: clamp(1.5rem, 6vw, 2.5rem);
       font-weight: 900;
       color: var(--yellow);
       text-shadow: 0 0 30px var(--yellow);
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.35rem;
       text-align: center;
     }
 
@@ -1160,31 +1216,84 @@
       font-weight: 900;
       color: var(--green);
       text-shadow: 0 0 30px var(--green);
-      margin-bottom: 2rem;
+      margin-bottom: 0.75rem;
       text-align: center;
     }
 
     .final-scores {
+      --final-col-name: minmax(180px, 250px);
+      --final-col-pts: 88px;
+      --final-col-rounds: 92px;
+      --final-col-kills: 78px;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-      padding: 1rem 2rem;
-      background: var(--bg-panel);
-      border-radius: 12px;
-      max-height: clamp(160px, 28vh, 260px);
+      gap: 0;
+      width: fit-content;
+      min-width: min(520px, calc(var(--box-width) - 56px));
+      max-width: min(620px, calc(var(--box-width) - 56px));
+      margin: 0 auto;
+      padding: 0.9rem 1rem 0.8rem;
+      background: rgba(6, 9, 28, 0.86);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(8px);
+      max-height: clamp(190px, 33vh, 340px);
       overflow-y: auto;
     }
 
+    .final-score-header {
+      display: grid;
+      grid-template-columns: var(--final-col-name) var(--final-col-pts) var(--final-col-rounds) var(--final-col-kills);
+      column-gap: 10px;
+      align-items: center;
+      padding: 0 0.55rem 0.48rem;
+      margin-bottom: 0.22rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+      position: sticky;
+      top: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(6, 9, 28, 0.98),
+        rgba(6, 9, 28, 0.9)
+      );
+      z-index: 2;
+    }
+
+    .final-score-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(215, 244, 255, 0.82);
+      text-shadow: 0 0 8px rgba(0, 240, 255, 0.24);
+      display: block;
+    }
+
+    .final-score-label.stat {
+      text-align: right;
+    }
+
     .final-score-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 2rem;
-      font-size: 1rem;
+      display: grid;
+      grid-template-columns: var(--final-col-name) var(--final-col-pts) var(--final-col-rounds) var(--final-col-kills);
+      column-gap: 10px;
+      align-items: center;
+      font-size: 1.02rem;
+      padding: 0.44rem 0.55rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .final-score-row:nth-child(even) {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
     }
 
     .final-score-name {
       color: inherit;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .final-score-row.self {
@@ -1194,7 +1303,7 @@
     .final-score-row.self::before {
       content: '';
       position: absolute;
-      left: -12px;
+      left: -8px;
       top: 50%;
       transform: translateY(-50%);
       width: 7px;
@@ -1204,9 +1313,15 @@
       box-shadow: 0 0 8px currentColor;
     }
 
-    .final-score-kills {
+    .final-score-value {
       font-family: 'Orbitron', sans-serif;
       color: var(--cyan);
+      font-variant-numeric: tabular-nums;
+      display: block;
+    }
+
+    .final-score-value.stat {
+      text-align: right;
     }
 
     /* ============= MOBILE CONTROLS ============= */
@@ -1828,8 +1943,8 @@
       }
 
       .leave-btn {
-        padding: 0.75rem 1.5rem;
-        font-size: 0.85rem;
+        width: 48px;
+        height: 48px;
       }
 
       .start-body {
@@ -1861,6 +1976,31 @@
 
       .winner-name {
         font-size: clamp(1.5rem, 6vw, 3rem);
+      }
+
+      .final-scores {
+        --final-col-name: minmax(116px, 1fr);
+        --final-col-pts: 62px;
+        --final-col-rounds: 66px;
+        --final-col-kills: 58px;
+        width: min(calc(var(--box-width) - 24px), 430px);
+        min-width: 0;
+        max-width: calc(var(--box-width) - 24px);
+        padding: 0.75rem 0.75rem 0.65rem;
+      }
+
+      .final-score-header,
+      .final-score-row {
+        column-gap: 8px;
+      }
+
+      .final-score-value {
+        font-size: 0.95rem;
+      }
+
+      #settingsLeaveBtn {
+        padding: 0.82rem 1rem;
+        font-size: 0.85rem;
       }
 
       .lobby-shell {
@@ -2262,7 +2402,9 @@
   <!-- HUD -->
   <div class="hud" id="hud">
     <div class="score-track" id="scoreTrack"></div>
-    <button class="leave-btn" id="leaveGameBtn">Leave</button>
+    <button class="leave-btn" id="leaveGameBtn" aria-label="Leave Match" title="Leave Match">
+      <svg viewBox="0 0 24 24"><path d="M15.5 5.5L9 12l6.5 6.5-1.5 1.5L6 12l8-8 1.5 1.5z"/></svg>
+    </button>
     <button
       class="settings-center-hotspot"
       id="settingsCenterHotspot"
@@ -2320,14 +2462,15 @@
       <span class="settings-label">Control Hints</span>
       <div class="toggle active" id="toggleHints"></div>
     </div>
-    <button
-      class="btn"
-      id="settingsLeaveBtn"
-      style="margin-top: 1rem; background: #ef4444;"
-    >
-      Leave Game
-    </button>
-    <button class="btn settings-close" id="settingsClose">Done</button>
+    <div class="settings-actions">
+      <button
+        class="btn"
+        id="settingsLeaveBtn"
+      >
+        Leave Game
+      </button>
+      <button class="btn settings-close" id="settingsClose">Done</button>
+    </div>
   </div>
 
   <!-- Advanced Settings Modal -->
