@@ -142,7 +142,6 @@ export class LocalSharedSimTransport implements NetworkTransport {
       this.simulation.update(LocalSharedSimTransport.TICK_DURATION_MS);
     }, LocalSharedSimTransport.TICK_DURATION_MS);
 
-    this.shareRoomCode(this.roomCode);
     return this.roomCode;
   }
 
@@ -156,7 +155,6 @@ export class LocalSharedSimTransport implements NetworkTransport {
 
   async disconnect(): Promise<void> {
     this.stopSync();
-    this.shareRoomCode(null);
     await this.cleanupSession();
   }
 
@@ -619,12 +617,4 @@ export class LocalSharedSimTransport implements NetworkTransport {
     return normalized.length > 0 ? normalized : null;
   }
 
-  private shareRoomCode(code: string | null): void {
-    const win = window as unknown as {
-      shareRoomCode?: (code: string | null) => void;
-    };
-    if (typeof win.shareRoomCode === "function") {
-      win.shareRoomCode(code);
-    }
-  }
 }

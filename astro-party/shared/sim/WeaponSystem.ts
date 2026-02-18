@@ -291,6 +291,23 @@ export function damageJoustSword(
   return false;
 }
 
+function consumeJoustSideOnShipOrPilotHit(
+  powerUp: {
+    leftSwordActive?: boolean;
+    rightSwordActive?: boolean;
+    leftSwordDurability?: number;
+    rightSwordDurability?: number;
+  },
+  side: "left" | "right",
+): void {
+  const activeKey = side === "left" ? "leftSwordActive" : "rightSwordActive";
+  const durabilityKey =
+    side === "left" ? "leftSwordDurability" : "rightSwordDurability";
+  if (!powerUp[activeKey]) return;
+  powerUp[activeKey] = false;
+  powerUp[durabilityKey] = 0;
+}
+
 export function updateJoustCollisions(sim: SimState): void {
   const consumedProjectiles = new Set<string>();
   for (const [playerId, powerUp] of sim.playerPowerUps) {
@@ -304,50 +321,87 @@ export function updateJoustCollisions(sim: SimState): void {
       if (otherId === playerId) continue;
       const other = sim.players.get(otherId);
       if (!other || !other.ship.alive) continue;
-      let hitShip = false;
+      let hitSide: "left" | "right" | null = null;
+      let hitDx = 0;
+      let hitDy = 0;
 
       if (powerUp.leftSwordActive) {
         const dx = other.ship.x - swords.left.centerX;
         const dy = other.ship.y - swords.left.centerY;
         if (dx * dx + dy * dy <= (JOUST_COLLISION_RADIUS + 20) ** 2) {
-          const otherPowerUp = sim.playerPowerUps.get(otherId);
-          if (otherPowerUp?.type === "SHIELD") {
-            sim.playerPowerUps.delete(otherId);
-            const swordBroke = damageJoustSword(powerUp, "left");
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const knockback = 2.5;
-            applyShipKnockback(sim, otherId, other.ship, dx / dist, dy / dist, knockback);
-            sim.triggerScreenShake(swordBroke ? 8 : 5, swordBroke ? 0.25 : 0.15);
-          } else {
-            sim.playerPowerUps.delete(otherId);
-            sim.onShipHit(owner, other);
-            const swordBroke = damageJoustSword(powerUp, "left");
-            sim.triggerScreenShake(swordBroke ? 8 : 5, swordBroke ? 0.25 : 0.15);
-          }
-          hitShip = true;
+          hitSide = "left";
+          hitDx = dx;
+          hitDy = dy;
         }
       }
 
-      if (!hitShip && powerUp.rightSwordActive) {
+      if (!hitSide && powerUp.rightSwordActive) {
         const dx = other.ship.x - swords.right.centerX;
         const dy = other.ship.y - swords.right.centerY;
         if (dx * dx + dy * dy <= (JOUST_COLLISION_RADIUS + 20) ** 2) {
-          const otherPowerUp = sim.playerPowerUps.get(otherId);
-          if (otherPowerUp?.type === "SHIELD") {
-            sim.playerPowerUps.delete(otherId);
-            const swordBroke = damageJoustSword(powerUp, "right");
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const knockback = 2.5;
-            applyShipKnockback(sim, otherId, other.ship, dx / dist, dy / dist, knockback);
-            sim.triggerScreenShake(swordBroke ? 8 : 5, swordBroke ? 0.25 : 0.15);
-          } else {
-            sim.playerPowerUps.delete(otherId);
-            sim.onShipHit(owner, other);
-            const swordBroke = damageJoustSword(powerUp, "right");
-            sim.triggerScreenShake(swordBroke ? 8 : 5, swordBroke ? 0.25 : 0.15);
-          }
+          hitSide = "right";
+          hitDx = dx;
+          hitDy = dy;
         }
       }
+
+      if (hitSide) {
+        const otherPowerUp = sim.playerPowerUps.get(otherId);
+        if (otherPowerUp?.type === "SHIELD") {
+          sim.playerPowerUps.delete(otherId);
+          const dist = Math.sqrt(hitDx * hitDx + hitDy * hitDy) || 1;
+          const knockback = 2.5;
+          applyShipKnockback(
+            sim,
+            otherId,
+            other.ship,
+            hitDx / dist,
+            hitDy / dist,
+            knockback,
+          );
+        } else {
+          sim.playerPowerUps.delete(otherId);
+          sim.onShipHit(owner, other);
+        }
+        // Ship contact always consumes the contacting side immediately.
+        consumeJoustSideOnShipOrPilotHit(powerUp, hitSide);
+        sim.triggerScreenShake(8, 0.25);
+      }
+
+      if (!powerUp.leftSwordActive && !powerUp.rightSwordActive) {
+        sim.playerPowerUps.delete(playerId);
+        break;
+      }
+    }
+
+    if (!powerUp.leftSwordActive && !powerUp.rightSwordActive) continue;
+
+    for (const [pilotPlayerId, pilot] of sim.pilots) {
+      if (pilotPlayerId === playerId || !pilot.alive) continue;
+      let hitSide: "left" | "right" | null = null;
+
+      if (powerUp.leftSwordActive) {
+        const dx = pilot.x - swords.left.centerX;
+        const dy = pilot.y - swords.left.centerY;
+        if (dx * dx + dy * dy <= (JOUST_COLLISION_RADIUS + PILOT_RADIUS + 4) ** 2) {
+          hitSide = "left";
+        }
+      }
+
+      if (!hitSide && powerUp.rightSwordActive) {
+        const dx = pilot.x - swords.right.centerX;
+        const dy = pilot.y - swords.right.centerY;
+        if (dx * dx + dy * dy <= (JOUST_COLLISION_RADIUS + PILOT_RADIUS + 4) ** 2) {
+          hitSide = "right";
+        }
+      }
+
+      if (!hitSide) continue;
+
+      sim.killPilot(pilotPlayerId, playerId);
+      // Pilot contact also consumes exactly one side.
+      consumeJoustSideOnShipOrPilotHit(powerUp, hitSide);
+      sim.triggerScreenShake(6, 0.16);
 
       if (!powerUp.leftSwordActive && !powerUp.rightSwordActive) {
         sim.playerPowerUps.delete(playerId);
