@@ -62,16 +62,16 @@ export interface MapDefinition {
 const W = ARENA_WIDTH;
 const H = ARENA_HEIGHT;
 
-const MAP_0_DEFAULT: MapDefinition = {
+const MAP_0_CLASSIC_ROTATION: MapDefinition = {
   id: 0,
-  name: "Classic",
-  description: "The original arena with a center turret",
+  name: "Classic Rotation",
+  description: "Random map each round",
   yellowBlocks: [],
   centerHoles: [],
   repulsionZones: [],
   overlayBoxes: [],
-  asteroidConfig: { enabled: true, minCount: 5, maxCount: 5, greyRatio: 0 },
-  hasTurret: true,
+  asteroidConfig: { enabled: false, minCount: 0, maxCount: 0, greyRatio: 0 },
+  hasTurret: false,
 };
 
 const MAP_1_CACHE: MapDefinition = {
@@ -153,6 +153,18 @@ const MAP_4_BUNKERS: MapDefinition = {
   overlayBoxes: generateBunkerBoxes(),
   asteroidConfig: { enabled: true, minCount: 5, maxCount: 5, greyRatio: 0.4 },
   hasTurret: false,
+};
+
+const MAP_5_TURRET: MapDefinition = {
+  id: 5,
+  name: "Turret",
+  description: "The original arena with a center turret",
+  yellowBlocks: [],
+  centerHoles: [],
+  repulsionZones: [],
+  overlayBoxes: [],
+  asteroidConfig: { enabled: true, minCount: 5, maxCount: 5, greyRatio: 0 },
+  hasTurret: true,
 };
 
 function generateCacheBlocks(): YellowBlock[] {
@@ -275,14 +287,16 @@ function generateBunkerBoxes(): OverlayBox[] {
 }
 
 export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
-  0: MAP_0_DEFAULT,
+  0: MAP_0_CLASSIC_ROTATION,
   1: MAP_1_CACHE,
   2: MAP_2_VORTEX,
   3: MAP_3_REPULSE,
   4: MAP_4_BUNKERS,
+  5: MAP_5_TURRET,
 };
 
-export const ALL_MAP_IDS: MapId[] = [0, 1, 2, 3, 4];
+export const ALL_MAP_IDS: MapId[] = [0, 1, 2, 3, 4, 5];
+export const CLASSIC_ROTATION_MAP_IDS: MapId[] = [1, 2, 3, 4, 5];
 
 export function getMapDefinition(id: MapId): MapDefinition {
   return MAP_DEFINITIONS[id];

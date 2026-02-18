@@ -84,6 +84,7 @@ export const elements = {
   mapBtn2: getElement<HTMLButtonElement>("mapBtn2"),
   mapBtn3: getElement<HTMLButtonElement>("mapBtn3"),
   mapBtn4: getElement<HTMLButtonElement>("mapBtn4"),
+  mapBtn5: getElement<HTMLButtonElement>("mapBtn5"),
 
   // Key selection modal
   keySelectModal: getElement<HTMLElement>("keySelectModal"),

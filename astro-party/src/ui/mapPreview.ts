@@ -252,7 +252,46 @@ export function createMapPreviewUI(game: Game): MapPreviewUI {
     }
   }
 
+  function drawClassicRotationPreview(): void {
+    resizeCanvas();
+    const width = getCanvasWidth();
+    const height = getCanvasHeight();
+    context.clearRect(0, 0, width, height);
+    drawGrid();
+
+    const cx = width / 2;
+    const cy = height / 2;
+    const radius = Math.min(width, height) * 0.34;
+
+    context.strokeStyle = "rgba(0, 240, 255, 0.5)";
+    context.lineWidth = Math.max(1.4, width * 0.008);
+    context.beginPath();
+    context.arc(cx, cy, radius, 0, Math.PI * 2);
+    context.stroke();
+
+    context.fillStyle = "rgba(255, 255, 255, 0.85)";
+    context.font =
+      "700 " +
+      Math.max(22, Math.round(height * 0.34)).toString() +
+      "px Orbitron, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("?", cx, cy);
+
+    context.fillStyle = "rgba(0, 240, 255, 0.85)";
+    context.font =
+      "600 " +
+      Math.max(8, Math.round(height * 0.09)).toString() +
+      "px Orbitron, sans-serif";
+    context.fillText("ROTATES", cx, cy + radius + Math.max(10, height * 0.08));
+  }
+
   function drawMap(mapId: MapId): void {
+    if (mapId === 0) {
+      drawClassicRotationPreview();
+      return;
+    }
+
     const map = getMapDefinition(mapId);
     resizeCanvas();
     context.clearRect(0, 0, getCanvasWidth(), getCanvasHeight());

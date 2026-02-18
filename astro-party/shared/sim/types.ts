@@ -19,7 +19,7 @@ export type PowerUpType =
   | "REVERSE"
   | "JOUST"
   | "HOMING_MISSILE";
-export type MapId = 0 | 1 | 2 | 3 | 4;
+export type MapId = 0 | 1 | 2 | 3 | 4 | 5;
 
 // ============= SETTINGS =============
 

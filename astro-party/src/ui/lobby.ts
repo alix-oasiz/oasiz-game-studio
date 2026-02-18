@@ -277,6 +277,7 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     elements.mapBtn2.classList.toggle("active", mapId === 2);
     elements.mapBtn3.classList.toggle("active", mapId === 3);
     elements.mapBtn4.classList.toggle("active", mapId === 4);
+    elements.mapBtn5.classList.toggle("active", mapId === 5);
     if (source === "local") {
       game.setMap(mapId, "local");
     }
@@ -291,6 +292,7 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     elements.mapBtn2.disabled = !lobbyIsLeader;
     elements.mapBtn3.disabled = !lobbyIsLeader;
     elements.mapBtn4.disabled = !lobbyIsLeader;
+    elements.mapBtn5.disabled = !lobbyIsLeader;
     setMapUI(game.getMapId(), "remote");
   }
 
@@ -427,6 +429,10 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
 
   elements.mapBtn4.addEventListener("click", () => {
     handleMapButtonClick(4);
+  });
+
+  elements.mapBtn5.addEventListener("click", () => {
+    handleMapButtonClick(5);
   });
 
   elements.leaveLobbyBtn.addEventListener("click", async () => {

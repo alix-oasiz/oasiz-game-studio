@@ -66,7 +66,7 @@ import {
 } from "./constants.js";
 import {
   getMapDefinition,
-  ALL_MAP_IDS,
+  CLASSIC_ROTATION_MAP_IDS,
   type MapDefinition,
   type YellowBlock,
 } from "./maps.js";
@@ -285,6 +285,7 @@ export class AstroPartySimulation implements SimState {
   baseMode: BaseGameMode = "STANDARD";
   mode: GameMode = "STANDARD";
   mapId: MapId = 0;
+  private useClassicMapRotation = true;
   rotationDirection = 1;
   devModeEnabled = false;
   debugToolsEnabled = false;
@@ -501,6 +502,9 @@ export class AstroPartySimulation implements SimState {
     this.winnerId = null;
     this.winnerName = null;
     this.mapPowerUpsSpawned = false;
+    if (this.useClassicMapRotation) {
+      this.rotateToRandomMap();
+    }
     this.currentRound = 1;
     this.phase = "COUNTDOWN";
     this.countdownMs = COUNTDOWN_SECONDS * 1000;
@@ -520,6 +524,9 @@ export class AstroPartySimulation implements SimState {
     this.countdownValue = COUNTDOWN_SECONDS;
     this.roundEndMs = 0;
     this.currentRound = 1;
+    if (this.useClassicMapRotation) {
+      this.mapId = 0;
+    }
     this.mapPowerUpsSpawned = false;
     clearRoundEntities(this);
     this.devModeEnabled = false;
@@ -560,18 +567,22 @@ export class AstroPartySimulation implements SimState {
       this.hooks.onError(sessionId, "INVALID_PHASE", "Maps can only be changed in lobby");
       return;
     }
-    if (!Number.isInteger(mapId) || mapId < 0 || mapId > 4) {
+    if (!Number.isInteger(mapId) || mapId < 0 || mapId > 5) {
       this.hooks.onError(sessionId, "INVALID_MAP", "Unknown map");
       return;
     }
-    this.mapId = mapId as MapId;
+    const nextMapId = mapId as MapId;
+    this.useClassicMapRotation = nextMapId === 0;
+    this.mapId = nextMapId;
     this.mapPowerUpsSpawned = false;
     syncRoomMeta(this);
   }
 
   rotateToRandomMap(): void {
     const previousMapId = this.mapId;
-    const otherMaps = ALL_MAP_IDS.filter((id) => id !== previousMapId);
+    const otherMaps = CLASSIC_ROTATION_MAP_IDS.filter(
+      (id) => id !== previousMapId,
+    );
     if (otherMaps.length === 0) return;
     const randomIndex = Math.floor(this.idRng.next() * otherMaps.length);
     const newMapId = otherMaps[randomIndex];
@@ -757,7 +768,9 @@ export class AstroPartySimulation implements SimState {
       if (this.roundEndMs <= 0) {
         this.currentRound += 1;
         clearRoundEntities(this);
-        this.rotateToRandomMap();
+        if (this.useClassicMapRotation) {
+          this.rotateToRandomMap();
+        }
         this.phase = "COUNTDOWN";
         this.countdownMs = COUNTDOWN_SECONDS * 1000;
         this.countdownValue = COUNTDOWN_SECONDS;
