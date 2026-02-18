@@ -1610,7 +1610,7 @@
       align-items: stretch;
       min-height: 0;
       width: 100%;
-      height: 100%;
+      height: auto;
       overflow: hidden;
     }
 
@@ -2193,6 +2193,7 @@
       .mode-option {
         padding: 0.35rem 0.7rem;
         font-size: 0.65rem;
+        min-height: 40px;
       }
 
       .lobby-summary {
@@ -2240,22 +2241,23 @@
       .map-change-btn {
         padding: 0.45rem 0.58rem;
         font-size: 0.62rem;
-        min-height: 38px;
+        min-height: 44px;
       }
 
       .map-picker-modal {
-        width: min(420px, calc(var(--box-width) - 18px));
-        top: calc(var(--safe-top) + 8px);
+        width: min(420px, calc(min(var(--box-width), var(--box-height)) - 18px));
+        max-width: calc(min(var(--box-width), var(--box-height)) - 18px);
+        top: calc(var(--box-top) + 8px);
         left: 50%;
         transform: translateX(-50%);
-        max-height: calc(var(--box-height) - var(--safe-top) - var(--safe-bottom) - 16px);
+        max-height: calc(var(--box-height) - 16px);
         padding: 0.85rem;
       }
 
       .map-picker-grid {
         grid-template-columns: 1fr;
         gap: 8px;
-        max-height: calc(var(--box-height) - var(--safe-top) - var(--safe-bottom) - 108px);
+        max-height: calc(var(--box-height) - 108px);
       }
 
       .map-picker-modal .advanced-close-btn {
@@ -2445,6 +2447,171 @@
       #mapPreviewCanvas {
         width: 108px;
         height: 80px;
+      }
+    }
+
+    @media (pointer: coarse) and (orientation: portrait) {
+      html[data-layout="narrow"] .lobby-body {
+        grid-template-columns: minmax(168px, 1fr) minmax(154px, 0.95fr);
+      }
+
+      .lobby-shell {
+        padding: 8px 56px 8px 10px;
+        gap: 8px;
+      }
+
+      .lobby-topbar {
+        gap: 8px;
+      }
+
+      .lobby-room {
+        gap: 6px;
+        padding: 4px 7px;
+      }
+
+      .lobby-body {
+        grid-template-columns: minmax(168px, 1fr) minmax(154px, 0.95fr);
+        gap: 8px;
+      }
+
+      .lobby-side {
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 2px;
+      }
+
+      .lobby-summary {
+        min-height: 0;
+      }
+
+      .player-row {
+        min-height: 40px;
+        padding: 8px 9px;
+        font-size: 0.84rem;
+      }
+
+      .player-kick {
+        width: 28px;
+        height: 28px;
+      }
+
+      .player-kick svg {
+        width: 13px;
+        height: 13px;
+      }
+
+      .lobby-bottombar {
+        gap: 8px;
+        padding-right: 2px;
+        padding-top: 4px;
+      }
+
+      #startGameBtn {
+        min-width: 138px;
+      }
+
+      .map-picker-modal {
+        width: min(392px, calc(min(var(--box-width), var(--box-height)) - 12px));
+        max-width: calc(min(var(--box-width), var(--box-height)) - 12px);
+        top: calc(var(--box-top) + 6px);
+        max-height: calc(var(--box-height) - 12px);
+        padding: 0.72rem;
+      }
+
+      .map-picker-grid {
+        gap: 6px;
+        max-height: calc(var(--box-height) - 96px);
+      }
+
+      .map-picker-card {
+        grid-template-columns: 84px minmax(0, 1fr);
+        gap: 6px;
+        padding: 6px;
+        min-height: 78px;
+      }
+
+      .map-picker-canvas {
+        width: 84px;
+        height: 60px;
+      }
+
+      .map-picker-name {
+        font-size: 0.66rem;
+      }
+
+      .map-picker-desc {
+        font-size: 0.6rem;
+        line-height: 1.2;
+      }
+
+      .map-picker-badge {
+        font-size: 0.52rem;
+      }
+    }
+
+    @media (pointer: coarse) and (orientation: portrait) and (max-width: 460px) {
+      .lobby-shell {
+        padding: 6px 56px 8px 8px;
+        gap: 6px;
+      }
+
+      .lobby-topbar {
+        gap: 6px;
+      }
+
+      .lobby-room-label {
+        font-size: 0.62rem;
+      }
+
+      .room-code {
+        font-size: 0.88rem;
+      }
+
+      .lobby-body {
+        gap: 6px;
+      }
+
+      .lobby-players,
+      .lobby-actions,
+      .lobby-summary {
+        padding: 8px;
+      }
+
+      .map-summary-content {
+        grid-template-columns: 78px minmax(0, 1fr);
+        gap: 6px;
+      }
+
+      #mapPreviewCanvas {
+        width: 66px;
+        height: 50px;
+      }
+
+      .map-current-name {
+        font-size: 0.72rem;
+        min-height: 0;
+        -webkit-line-clamp: 1;
+      }
+
+      .map-current-desc {
+        font-size: 0.56rem;
+        min-height: 0;
+        -webkit-line-clamp: 1;
+      }
+
+      .map-current-behavior {
+        font-size: 0.52rem;
+      }
+
+      .lobby-status {
+        font-size: 0.74rem;
+        line-height: 1.2;
+      }
+
+      #startGameBtn {
+        min-width: 128px;
+        font-size: 0.68rem;
+        padding: 0.5rem 0.72rem;
       }
     }
   </style>
