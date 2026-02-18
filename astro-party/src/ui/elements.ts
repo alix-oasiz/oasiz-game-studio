@@ -79,12 +79,14 @@ export const elements = {
 
   // Map selector
   mapSelectorSection: getElement<HTMLElement>("mapSelectorSection"),
-  mapBtn0: getElement<HTMLButtonElement>("mapBtn0"),
-  mapBtn1: getElement<HTMLButtonElement>("mapBtn1"),
-  mapBtn2: getElement<HTMLButtonElement>("mapBtn2"),
-  mapBtn3: getElement<HTMLButtonElement>("mapBtn3"),
-  mapBtn4: getElement<HTMLButtonElement>("mapBtn4"),
-  mapBtn5: getElement<HTMLButtonElement>("mapBtn5"),
+  mapCurrentName: getElement<HTMLElement>("mapCurrentName"),
+  mapCurrentDesc: getElement<HTMLElement>("mapCurrentDesc"),
+  mapCurrentBehavior: getElement<HTMLElement>("mapCurrentBehavior"),
+  openMapPickerBtn: getElement<HTMLButtonElement>("openMapPickerBtn"),
+  mapPickerBackdrop: getElement<HTMLElement>("mapPickerBackdrop"),
+  mapPickerModal: getElement<HTMLElement>("mapPickerModal"),
+  mapPickerGrid: getElement<HTMLElement>("mapPickerGrid"),
+  mapPickerClose: getElement<HTMLButtonElement>("mapPickerClose"),
 
   // Key selection modal
   keySelectModal: getElement<HTMLElement>("keySelectModal"),

@@ -3,6 +3,8 @@ import { GameMode, MapId, PlayerData } from "../types";
 import { AudioManager } from "../AudioManager";
 import { triggerHaptic } from "./haptics";
 import { elements } from "./elements";
+import { getMapDefinition } from "../../shared/sim/maps.js";
+import { renderMapPreviewOnCanvas } from "./mapPreview";
 import { escapeHtml } from "./text";
 
 export interface LobbyUI {
@@ -11,12 +13,15 @@ export interface LobbyUI {
   updateRoomCode: (code: string) => void;
   setMapUI: (mapId: MapId, source?: "local" | "remote") => void;
   updateMapSelector: () => void;
+  closeMapPicker: () => void;
 }
 
 export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
   let addingBot = false;
   let addButtonGuardUntilMs = 0;
   const ADD_BUTTON_TAP_GUARD_MS = 450;
+  const MAP_PICKER_ORDER: MapId[] = [0, 5, 1, 2, 3, 4];
+  const mapPickerCards = new Map<MapId, HTMLButtonElement>();
 
   function beginAddButtonAction(): boolean {
     const now = performance.now();
@@ -271,29 +276,113 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     }
   }
 
+  function mapBehaviorLabel(mapId: MapId): string {
+    return mapId === 0 ? "Rotates each round" : "Fixed for this match";
+  }
+
+  function closeMapPicker(): void {
+    elements.mapPickerModal.classList.remove("active");
+    elements.mapPickerBackdrop.classList.remove("active");
+  }
+
+  function renderMapPickerPreviews(): void {
+    for (const [mapId, card] of mapPickerCards) {
+      const canvas = card.querySelector("canvas");
+      if (!canvas) continue;
+      renderMapPreviewOnCanvas(canvas as HTMLCanvasElement, mapId);
+    }
+  }
+
+  function ensureMapPickerCards(): void {
+    if (mapPickerCards.size > 0) return;
+    elements.mapPickerGrid.innerHTML = "";
+
+    for (const mapId of MAP_PICKER_ORDER) {
+      const map = getMapDefinition(mapId);
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "map-picker-card";
+      card.dataset.mapId = mapId.toString();
+
+      const preview = document.createElement("canvas");
+      preview.className = "map-picker-canvas";
+      preview.width = 120;
+      preview.height = 84;
+
+      const meta = document.createElement("div");
+      meta.className = "map-picker-meta";
+
+      const name = document.createElement("div");
+      name.className = "map-picker-name";
+      name.textContent = map.name;
+
+      const desc = document.createElement("div");
+      desc.className = "map-picker-desc";
+      desc.textContent = map.description;
+
+      const badge = document.createElement("span");
+      badge.className = "map-picker-badge";
+      if (mapId === 0) {
+        badge.classList.add("rotation");
+        badge.textContent = "Rotation";
+      } else {
+        badge.textContent = "Fixed";
+      }
+
+      meta.appendChild(name);
+      meta.appendChild(desc);
+      meta.appendChild(badge);
+      card.appendChild(preview);
+      card.appendChild(meta);
+
+      card.addEventListener("click", () => {
+        if (!game.isLeader()) return;
+        triggerHaptic("light");
+        AudioManager.playUIClick();
+        setMapUI(mapId, "local");
+        closeMapPicker();
+      });
+
+      mapPickerCards.set(mapId, card);
+      elements.mapPickerGrid.appendChild(card);
+    }
+  }
+
+  function updateMapPickerState(selectedMapId: MapId): void {
+    const isLeader = game.isLeader();
+    for (const [mapId, card] of mapPickerCards) {
+      card.classList.toggle("active", mapId === selectedMapId);
+      card.disabled = !isLeader;
+    }
+  }
+
+  function updateMapSummary(selectedMapId: MapId): void {
+    const map = getMapDefinition(selectedMapId);
+    elements.mapCurrentName.textContent = map.name;
+    elements.mapCurrentDesc.textContent = map.description;
+    elements.mapCurrentBehavior.textContent = mapBehaviorLabel(selectedMapId);
+    renderMapPreviewOnCanvas(elements.mapPreviewCanvas, selectedMapId);
+  }
+
   function setMapUI(mapId: MapId, source: "local" | "remote" = "local"): void {
-    elements.mapBtn0.classList.toggle("active", mapId === 0);
-    elements.mapBtn1.classList.toggle("active", mapId === 1);
-    elements.mapBtn2.classList.toggle("active", mapId === 2);
-    elements.mapBtn3.classList.toggle("active", mapId === 3);
-    elements.mapBtn4.classList.toggle("active", mapId === 4);
-    elements.mapBtn5.classList.toggle("active", mapId === 5);
     if (source === "local") {
       game.setMap(mapId, "local");
+      return;
     }
+    updateMapSummary(mapId);
+    updateMapPickerState(mapId);
   }
 
   function updateMapSelector(): void {
     const lobbyIsLeader = game.isLeader();
+    const selectedMapId = game.getMapId();
     elements.mapSelectorSection.classList.toggle("hidden", false);
     elements.mapSelectorSection.classList.toggle("readonly", !lobbyIsLeader);
-    elements.mapBtn0.disabled = !lobbyIsLeader;
-    elements.mapBtn1.disabled = !lobbyIsLeader;
-    elements.mapBtn2.disabled = !lobbyIsLeader;
-    elements.mapBtn3.disabled = !lobbyIsLeader;
-    elements.mapBtn4.disabled = !lobbyIsLeader;
-    elements.mapBtn5.disabled = !lobbyIsLeader;
-    setMapUI(game.getMapId(), "remote");
+    elements.openMapPickerBtn.textContent = lobbyIsLeader
+      ? "Change Map"
+      : "View Maps";
+    ensureMapPickerCards();
+    setMapUI(selectedMapId, "remote");
   }
 
   elements.copyCodeBtn.addEventListener("click", () => {
@@ -406,37 +495,31 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     setModeUI("SANE");
   });
 
-  function handleMapButtonClick(mapId: MapId): void {
+  elements.openMapPickerBtn.addEventListener("click", () => {
     triggerHaptic("light");
-    setMapUI(mapId, "local");
-  }
-
-  elements.mapBtn0.addEventListener("click", () => {
-    handleMapButtonClick(0);
+    AudioManager.playUIClick();
+    ensureMapPickerCards();
+    updateMapPickerState(game.getMapId());
+    renderMapPickerPreviews();
+    elements.mapPickerModal.classList.add("active");
+    elements.mapPickerBackdrop.classList.add("active");
   });
 
-  elements.mapBtn1.addEventListener("click", () => {
-    handleMapButtonClick(1);
+  elements.mapPickerClose.addEventListener("click", () => {
+    triggerHaptic("light");
+    closeMapPicker();
   });
 
-  elements.mapBtn2.addEventListener("click", () => {
-    handleMapButtonClick(2);
-  });
+  elements.mapPickerBackdrop.addEventListener("click", closeMapPicker);
 
-  elements.mapBtn3.addEventListener("click", () => {
-    handleMapButtonClick(3);
-  });
-
-  elements.mapBtn4.addEventListener("click", () => {
-    handleMapButtonClick(4);
-  });
-
-  elements.mapBtn5.addEventListener("click", () => {
-    handleMapButtonClick(5);
+  window.addEventListener("resize", () => {
+    if (!elements.mapPickerModal.classList.contains("active")) return;
+    renderMapPickerPreviews();
   });
 
   elements.leaveLobbyBtn.addEventListener("click", async () => {
     triggerHaptic("light");
+    closeMapPicker();
     elements.leaveLobbyBtn.disabled = true;
     await game.leaveGame();
     elements.leaveLobbyBtn.disabled = false;
@@ -448,5 +531,6 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     setMapUI,
     updateMapSelector,
     updateRoomCode,
+    closeMapPicker,
   };
 }

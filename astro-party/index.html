@@ -64,7 +64,7 @@
       overflow: hidden;
     }
 
-    canvas {
+    #gameCanvas {
       display: block;
       position: absolute;
       inset: 0;
@@ -447,62 +447,181 @@
       cursor: not-allowed;
     }
 
-    .map-selector-section {
-      margin-bottom: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      align-items: center;
+    .map-change-btn {
+      width: 100%;
+      margin: 0;
+      min-height: 42px;
+      padding: 0.62rem 0.9rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
     }
 
-    .map-selector-section.hidden {
-      display: none;
+    .map-summary-content {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      align-items: stretch;
+      gap: 12px;
+      width: 100%;
     }
 
-    .map-selector-title {
+    .map-summary-meta {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr auto;
+      align-items: start;
+      gap: 4px;
+    }
+
+    .map-summary-meta .map-change-btn {
+      margin-top: 0;
+    }
+
+    .map-current-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.95);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: normal;
+      line-height: 1.08;
+      min-height: 2.16em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .map-current-desc {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.62);
+      line-height: 1.2;
+      min-height: 2.4em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .map-current-behavior {
       font-family: 'Orbitron', sans-serif;
       font-size: 0.62rem;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--cyan);
     }
 
-    .map-selector {
+    .map-picker-modal {
+      width: min(780px, calc(var(--box-width) - 32px));
+      max-height: calc(var(--box-height) - 36px);
+      padding: 1.05rem 1.05rem 0.95rem;
+    }
+
+    .map-picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 0.55rem;
+    }
+
+    .map-picker-header .settings-title {
+      margin: 0;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    .map-picker-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.35rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      max-height: calc(var(--box-height) - 140px);
+      overflow-y: auto;
+      padding: 2px;
+    }
+
+    .map-picker-card {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
       width: 100%;
-      max-width: 420px;
-    }
-
-    .map-btn {
-      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
       background: rgba(255, 255, 255, 0.04);
-      color: rgba(255, 255, 255, 0.65);
-      padding: 0.45rem 0.3rem;
-      border-radius: 10px;
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .map-btn:hover {
-      border-color: rgba(255, 255, 255, 0.35);
+      text-align: left;
       color: rgba(255, 255, 255, 0.9);
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+      overflow: hidden;
     }
 
-    .map-btn.active {
+    .map-picker-card:hover {
+      border-color: rgba(0, 240, 255, 0.45);
+      background: rgba(0, 240, 255, 0.08);
+    }
+
+    .map-picker-card.active {
       border-color: var(--cyan);
-      color: #001218;
-      background: color-mix(in srgb, var(--cyan) 80%, white 20%);
-      box-shadow: 0 0 14px rgba(0, 240, 255, 0.28);
+      box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.45);
+      background: rgba(0, 240, 255, 0.12);
     }
 
-    .map-btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
+    .map-picker-card:disabled {
+      opacity: 0.65;
+      cursor: default;
+    }
+
+    .map-picker-canvas {
+      width: 120px;
+      height: 84px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(0, 0, 0, 0.45);
+      display: block;
+      position: relative;
+      inset: auto;
+      flex-shrink: 0;
+    }
+
+    .map-picker-meta {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .map-picker-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .map-picker-desc {
+      font-size: 0.66rem;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.25;
+    }
+
+    .map-picker-badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.56rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .map-picker-badge.rotation {
+      border-color: rgba(0, 240, 255, 0.45);
+      color: var(--cyan);
     }
 
     .icon-btn {
@@ -958,7 +1077,7 @@
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 16px;
       padding: 1.5rem 2rem;
-      z-index: 200;
+      z-index: 420;
       min-width: 280px;
       max-width: calc(var(--box-width) - 40px);
       max-height: calc(var(--box-height) - 40px);
@@ -979,7 +1098,7 @@
       width: 100%;
       height: 100%;
       background: rgba(0, 0, 0, 0.7);
-      z-index: 199;
+      z-index: 410;
       display: none;
     }
 
@@ -1704,7 +1823,7 @@
       gap: 10px;
       flex: 1 1 auto;
       min-height: 0;
-      align-items: center;
+      align-items: stretch;
       justify-content: flex-start;
     }
 
@@ -1720,7 +1839,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 16px;
+      padding: 10px;
       background: rgba(0, 0, 0, 0.5);
       border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1729,12 +1848,13 @@
       position: relative;
       flex: 1 1 auto;
       min-height: 0;
+      overflow: hidden;
     }
 
     #mapPreviewCanvas {
       display: block;
-      width: 276px;
-      height: 208px;
+      width: 196px;
+      height: 147px;
       background: transparent;
       border-radius: 4px;
       position: relative;
@@ -2052,15 +2172,6 @@
         min-height: 80px;
       }
 
-      .map-selector-title {
-        font-size: 0.58rem;
-      }
-
-      .map-btn {
-        padding: 0.38rem 0.2rem;
-        font-size: 0.62rem;
-      }
-
       .lobby-side {
         justify-content: flex-start;
         gap: 6px;
@@ -2075,20 +2186,6 @@
         gap: 6px;
       }
 
-      .map-selector-section {
-        margin-bottom: 2%;
-        gap: 0.2rem;
-      }
-
-      .map-selector {
-        gap: 0.25rem;
-      }
-
-      .map-btn {
-        padding: 0.3rem 0.15rem;
-        font-size: 0.58rem;
-      }
-
       .mode-pill {
         gap: 0;
       }
@@ -2099,9 +2196,9 @@
       }
 
       .lobby-summary {
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
         padding: 6px 10px;
         gap: 10px;
         flex: 0 0 auto;
@@ -2110,18 +2207,71 @@
 
       .summary-title {
         font-size: 0.7rem;
-        white-space: nowrap;
+      }
+
+      .map-summary-content {
+        grid-template-columns: 90px minmax(0, 1fr);
+        gap: 8px;
       }
 
       .minimap-container {
-        padding: 6px;
+        padding: 4px;
         margin: 0;
         flex: 0 0 auto;
       }
 
       #mapPreviewCanvas {
-        width: 75px;
-        height: 56px;
+        width: 72px;
+        height: 54px;
+      }
+
+      .map-current-name {
+        font-size: 0.78rem;
+      }
+
+      .map-current-desc {
+        font-size: 0.62rem;
+      }
+
+      .map-current-behavior {
+        font-size: 0.56rem;
+      }
+
+      .map-change-btn {
+        padding: 0.45rem 0.58rem;
+        font-size: 0.62rem;
+        min-height: 38px;
+      }
+
+      .map-picker-modal {
+        width: min(420px, calc(var(--box-width) - 18px));
+        top: calc(var(--safe-top) + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        max-height: calc(var(--box-height) - var(--safe-top) - var(--safe-bottom) - 16px);
+        padding: 0.85rem;
+      }
+
+      .map-picker-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        max-height: calc(var(--box-height) - var(--safe-top) - var(--safe-bottom) - 108px);
+      }
+
+      .map-picker-modal .advanced-close-btn {
+        width: 42px;
+        height: 42px;
+      }
+
+      .map-picker-card {
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 8px;
+        padding: 7px;
+      }
+
+      .map-picker-canvas {
+        width: 96px;
+        height: 68px;
       }
 
       .lobby-bottombar {
@@ -2277,16 +2427,24 @@
         gap: 12px;
       }
 
+      .map-summary-content {
+        grid-template-columns: 110px minmax(0, 1fr);
+      }
+
       #mapPreviewCanvas {
-        width: 96px;
-        height: 71px;
+        width: 92px;
+        height: 68px;
       }
     }
 
     @media (pointer: coarse) and (min-width: 600px) {
+      .map-summary-content {
+        grid-template-columns: 128px minmax(0, 1fr);
+      }
+
       #mapPreviewCanvas {
-        width: 116px;
-        height: 86px;
+        width: 108px;
+        height: 80px;
       }
     }
   </style>
@@ -2383,25 +2541,21 @@
                 </div>
               </div>
 
-              <div id="mapSelectorSection" class="map-selector-section hidden">
-                <div class="map-selector-title">Choose Map</div>
-                <div class="map-selector">
-                  <button id="mapBtn0" class="map-btn active" data-map="0" title="Classic Rotation">Classic</button>
-                  <button id="mapBtn5" class="map-btn" data-map="5" title="Turret">Turret</button>
-                  <button id="mapBtn1" class="map-btn" data-map="1" title="The Cache">Cache</button>
-                  <button id="mapBtn2" class="map-btn" data-map="2" title="The Vortex">Vortex</button>
-                  <button id="mapBtn3" class="map-btn" data-map="3" title="Repulse">Repulse</button>
-                  <button id="mapBtn4" class="map-btn" data-map="4" title="Bunkers">Bunkers</button>
-                </div>
-              </div>
-
               <button class="btn tertiary compact" id="advancedSettingsBtn" disabled>Advanced Settings</button>
             </div>
 
-            <div class="lobby-summary">
-              <div class="summary-title">Map Preview</div>
-              <div class="minimap-container">
-                <canvas id="mapPreviewCanvas" width="280" height="210"></canvas>
+            <div id="mapSelectorSection" class="lobby-summary hidden">
+              <div class="summary-title">Arena</div>
+              <div class="map-summary-content">
+                <div class="minimap-container">
+                  <canvas id="mapPreviewCanvas" width="280" height="210"></canvas>
+                </div>
+                <div class="map-summary-meta">
+                  <div id="mapCurrentName" class="map-current-name">Classic Rotation</div>
+                  <div id="mapCurrentDesc" class="map-current-desc">Random map each round</div>
+                  <div id="mapCurrentBehavior" class="map-current-behavior">Rotates each round</div>
+                  <button class="btn compact map-change-btn" id="openMapPickerBtn">Change Map</button>
+                </div>
               </div>
             </div>
           </div>
@@ -2510,6 +2664,18 @@
       </button>
       <button class="btn settings-close" id="settingsClose">Done</button>
     </div>
+  </div>
+
+  <!-- Map Picker Modal -->
+  <div class="settings-backdrop" id="mapPickerBackdrop"></div>
+  <div class="settings-modal map-picker-modal" id="mapPickerModal">
+    <div class="map-picker-header">
+      <h3 class="settings-title">Select Arena</h3>
+      <button class="advanced-close-btn" id="mapPickerClose" aria-label="Close map picker">
+        <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>
+      </button>
+    </div>
+    <div class="map-picker-grid" id="mapPickerGrid"></div>
   </div>
 
   <!-- Advanced Settings Modal -->

@@ -3,59 +3,58 @@ import { MapId } from "../types";
 import { elements } from "./elements";
 import { getMapDefinition, type MapDefinition } from "../../shared/sim/maps.js";
 import {
-  ARENA_WIDTH,
   ARENA_HEIGHT,
+  ARENA_WIDTH,
   PLAYER_COLORS,
 } from "../../shared/sim/constants.js";
 
-export interface MapPreviewUI {
-  updateMapPreview: (mapId?: MapId) => void;
+const MIN_PREVIEW_WIDTH = 73;
+const MIN_PREVIEW_HEIGHT = 55;
+
+const colors = {
+  yellowBlock: "#fbbf24",
+  centerHole: "#1f2937",
+  centerHoleBorder: "#374151",
+  repulsionZone: "rgba(59, 130, 246, 0.3)",
+  repulsionZoneBorder: "rgba(59, 130, 246, 0.6)",
+  overlayBox: "rgba(75, 85, 99, 0.5)",
+  overlayBoxBorder: "rgba(107, 114, 128, 0.8)",
+  turret: "#ef4444",
+  grid: "rgba(255, 255, 255, 0.05)",
+};
+
+function getCanvasDimensions(canvas: HTMLCanvasElement): {
+  width: number;
+  height: number;
+} {
+  const rect = canvas.getBoundingClientRect();
+  const sourceWidth = rect.width > 0 ? rect.width : canvas.width;
+  const sourceHeight = rect.height > 0 ? rect.height : canvas.height;
+  const width = Math.max(Math.round(sourceWidth), MIN_PREVIEW_WIDTH);
+  const height = Math.max(Math.round(sourceHeight), MIN_PREVIEW_HEIGHT);
+  return { width, height };
 }
 
-export function createMapPreviewUI(game: Game): MapPreviewUI {
-  const canvas = elements.mapPreviewCanvas;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return {
-      updateMapPreview: () => {
-        // Canvas context missing; no-op.
-      },
-    };
-  }
-
-  const context: CanvasRenderingContext2D = ctx;
-
-  function getCanvasDimensions(): { width: number; height: number } {
-    const rect = canvas.getBoundingClientRect();
-    const width = Math.max(rect.width, 73);
-    const height = Math.max(rect.height, 55);
-    return { width, height };
-  }
-
-  function resizeCanvas(): void {
-    const { width, height } = getCanvasDimensions();
+function resizeCanvas(canvas: HTMLCanvasElement): void {
+  const { width, height } = getCanvasDimensions(canvas);
+  if (canvas.width !== width) {
     canvas.width = width;
+  }
+  if (canvas.height !== height) {
     canvas.height = height;
   }
+}
 
-  resizeCanvas();
+export function renderMapPreviewOnCanvas(
+  canvas: HTMLCanvasElement,
+  mapId: MapId,
+): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
 
-  window.addEventListener("resize", () => {
-    resizeCanvas();
-    updateMapPreview();
-  });
+  resizeCanvas(canvas);
 
-  const colors = {
-    yellowBlock: "#fbbf24",
-    centerHole: "#1f2937",
-    centerHoleBorder: "#374151",
-    repulsionZone: "rgba(59, 130, 246, 0.3)",
-    repulsionZoneBorder: "rgba(59, 130, 246, 0.6)",
-    overlayBox: "rgba(75, 85, 99, 0.5)",
-    overlayBoxBorder: "rgba(107, 114, 128, 0.8)",
-    turret: "#ef4444",
-    grid: "rgba(255, 255, 255, 0.05)",
-  };
+  const context: CanvasRenderingContext2D = ctx;
 
   function getCanvasWidth(): number {
     return canvas.width;
@@ -253,7 +252,6 @@ export function createMapPreviewUI(game: Game): MapPreviewUI {
   }
 
   function drawClassicRotationPreview(): void {
-    resizeCanvas();
     const width = getCanvasWidth();
     const height = getCanvasHeight();
     context.clearRect(0, 0, width, height);
@@ -286,14 +284,13 @@ export function createMapPreviewUI(game: Game): MapPreviewUI {
     context.fillText("ROTATES", cx, cy + radius + Math.max(10, height * 0.08));
   }
 
-  function drawMap(mapId: MapId): void {
+  function drawMap(): void {
     if (mapId === 0) {
       drawClassicRotationPreview();
       return;
     }
 
     const map = getMapDefinition(mapId);
-    resizeCanvas();
     context.clearRect(0, 0, getCanvasWidth(), getCanvasHeight());
     drawGrid();
     drawRepulsionZones(map.repulsionZones);
@@ -305,10 +302,25 @@ export function createMapPreviewUI(game: Game): MapPreviewUI {
     drawSpawnPoints();
   }
 
+  drawMap();
+}
+
+export interface MapPreviewUI {
+  updateMapPreview: (mapId?: MapId) => void;
+}
+
+export function createMapPreviewUI(game: Game): MapPreviewUI {
+  const canvas = elements.mapPreviewCanvas;
+
   function updateMapPreview(mapId?: MapId): void {
     const currentMapId = mapId ?? game.getMapId();
-    drawMap(currentMapId);
+    renderMapPreviewOnCanvas(canvas, currentMapId);
   }
 
+  window.addEventListener("resize", () => {
+    updateMapPreview();
+  });
+
+  updateMapPreview();
   return { updateMapPreview };
 }

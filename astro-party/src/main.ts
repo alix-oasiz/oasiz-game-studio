@@ -53,6 +53,10 @@ async function init(): Promise<void> {
     phase: GamePhase,
     triggerPhaseEffects: boolean,
   ): void => {
+    if (phase !== "LOBBY") {
+      lobbyUI.closeMapPicker();
+    }
+
     switch (phase) {
       case "START":
         screenController.showScreen("start");
