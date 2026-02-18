@@ -1,5 +1,5 @@
 import { GAME_CONFIG, MapId } from "../types";
-import { getMapOverlayUrl } from "../assets/mapOverlayAssets";
+import { getMapOverlayUrl } from "./MapOverlayRegistry";
 
 export class MapOverlayStore {
   private cache = new Map<MapId, HTMLImageElement>();
