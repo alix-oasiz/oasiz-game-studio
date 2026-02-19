@@ -213,6 +213,38 @@ export const CHAOTIC_CONFIG: ActiveConfig = {
   SHIP_RESTITUTION: 0.9,
 };
 
+// ============= ADVANCED TUNING OVERRIDES =============
+
+export const SHIP_SPEED_PRESET_OVERRIDES: Record<
+  AdvancedSettings["shipSpeed"],
+  Pick<ActiveConfig, "SHIP_TARGET_SPEED" | "BASE_THRUST"> | null
+> = {
+  SLOW: {
+    SHIP_TARGET_SPEED: 3.6,
+    BASE_THRUST: 0.0001,
+  },
+  NORMAL: null,
+  FAST: {
+    SHIP_TARGET_SPEED: 5.2,
+    BASE_THRUST: 0.0002,
+  },
+};
+
+export const DASH_POWER_PRESET_OVERRIDES: Record<
+  AdvancedSettings["dashPower"],
+  Pick<ActiveConfig, "SHIP_DASH_BOOST" | "DASH_FORCE"> | null
+> = {
+  LOW: {
+    SHIP_DASH_BOOST: 1.2,
+    DASH_FORCE: 0.007,
+  },
+  NORMAL: null,
+  HIGH: {
+    SHIP_DASH_BOOST: 2.8,
+    DASH_FORCE: 0.018,
+  },
+};
+
 // ============= PRESET LOOKUP MAPS =============
 
 export const SHIP_RESTITUTION_BY_PRESET: Record<AdvancedSettings["shipRestitutionPreset"], number> = {

@@ -63,6 +63,11 @@ import {
   WALL_FRICTION_BY_PRESET,
   SHIP_RESTITUTION_BY_PRESET,
   SHIP_FRICTION_AIR_BY_PRESET,
+  STANDARD_CONFIG,
+  SANE_CONFIG,
+  CHAOTIC_CONFIG,
+  SHIP_SPEED_PRESET_OVERRIDES,
+  DASH_POWER_PRESET_OVERRIDES,
 } from "./constants.js";
 import {
   getMapDefinition,
@@ -876,25 +881,36 @@ export class AstroPartySimulation implements SimState {
   getActiveConfig(): ActiveConfig {
     const cfg = getModeBaseConfig(this.baseMode);
 
-    if (this.settings.shipSpeed === "SLOW") {
-      cfg.SHIP_TARGET_SPEED = 3.6;
-      cfg.BASE_THRUST = 0.0001;
-    } else if (this.settings.shipSpeed === "FAST") {
-      cfg.SHIP_TARGET_SPEED = 5.2;
-      cfg.BASE_THRUST = 0.0002;
+    const shipSpeedOverride = SHIP_SPEED_PRESET_OVERRIDES[this.settings.shipSpeed];
+    if (shipSpeedOverride) {
+      cfg.SHIP_TARGET_SPEED = shipSpeedOverride.SHIP_TARGET_SPEED;
+      cfg.BASE_THRUST = shipSpeedOverride.BASE_THRUST;
     }
 
-    if (this.settings.dashPower === "LOW") {
-      cfg.SHIP_DASH_BOOST = 1.2;
-      cfg.DASH_FORCE = 0.007;
-    } else if (this.settings.dashPower === "HIGH") {
-      cfg.SHIP_DASH_BOOST = 2.8;
-      cfg.DASH_FORCE = 0.018;
+    const dashPowerOverride = DASH_POWER_PRESET_OVERRIDES[this.settings.dashPower];
+    if (dashPowerOverride) {
+      cfg.SHIP_DASH_BOOST = dashPowerOverride.SHIP_DASH_BOOST;
+      cfg.DASH_FORCE = dashPowerOverride.DASH_FORCE;
     }
 
-    cfg.ROTATION_SPEED = resolveConfigValue(this.settings.rotationPreset, 3.2, 3.0, 4.5);
-    cfg.ROTATION_THRUST_BONUS = resolveConfigValue(this.settings.rotationBoostPreset, 0, 0.00004, 0.00008);
-    cfg.RECOIL_FORCE = resolveConfigValue(this.settings.recoilPreset, 0, 0.00015, 0.0003);
+    cfg.ROTATION_SPEED = resolveConfigValue(
+      this.settings.rotationPreset,
+      STANDARD_CONFIG.ROTATION_SPEED,
+      SANE_CONFIG.ROTATION_SPEED,
+      CHAOTIC_CONFIG.ROTATION_SPEED,
+    );
+    cfg.ROTATION_THRUST_BONUS = resolveConfigValue(
+      this.settings.rotationBoostPreset,
+      STANDARD_CONFIG.ROTATION_THRUST_BONUS,
+      SANE_CONFIG.ROTATION_THRUST_BONUS,
+      CHAOTIC_CONFIG.ROTATION_THRUST_BONUS,
+    );
+    cfg.RECOIL_FORCE = resolveConfigValue(
+      this.settings.recoilPreset,
+      STANDARD_CONFIG.RECOIL_FORCE,
+      SANE_CONFIG.RECOIL_FORCE,
+      CHAOTIC_CONFIG.RECOIL_FORCE,
+    );
     cfg.SHIP_RESTITUTION = SHIP_RESTITUTION_BY_PRESET[this.settings.shipRestitutionPreset];
     cfg.SHIP_FRICTION_AIR = SHIP_FRICTION_AIR_BY_PRESET[this.settings.shipFrictionAirPreset];
 

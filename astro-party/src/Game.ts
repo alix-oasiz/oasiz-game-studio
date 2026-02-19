@@ -31,10 +31,8 @@ import {
   AdvancedSettingsSync,
   DEFAULT_ADVANCED_SETTINGS,
 } from "./types";
-import { GameConfig } from "./GameConfig";
 import {
   applyModeTemplate,
-  buildAdvancedOverrides,
   isCustomComparedToTemplate,
   sanitizeAdvancedSettings,
 } from "./advancedSettings";
@@ -464,7 +462,6 @@ export class Game {
     this.baseMode = payload.baseMode;
     this.currentMode = payload.mode;
     this.advancedSettings = sanitized;
-    this.applyAdvancedOverrides(sanitized, this.baseMode);
     this._onGameModeChange?.(this.currentMode);
     this._onAdvancedSettingsChange?.(sanitized);
   }
@@ -612,8 +609,6 @@ export class Game {
     this.baseMode = "STANDARD";
     this.currentMode = "STANDARD";
     this.advancedSettings = applyModeTemplate(this.baseMode);
-    GameConfig.setMode(this.baseMode);
-    GameConfig.clearAdvancedOverrides();
     this._onGameModeChange?.(this.currentMode);
     this._onAdvancedSettingsChange?.(this.advancedSettings);
   }
@@ -1136,23 +1131,6 @@ export class Game {
     return this.roundResult;
   }
 
-  private applyAdvancedOverrides(
-    settings: AdvancedSettings,
-    baseMode: BaseGameMode,
-  ): void {
-    GameConfig.setMode(baseMode);
-    const baseTemplate = applyModeTemplate(baseMode);
-    const overrides = buildAdvancedOverrides(settings, baseTemplate);
-    if (overrides.configOverrides || overrides.physicsOverrides) {
-      GameConfig.setAdvancedOverrides(
-        overrides.configOverrides,
-        overrides.physicsOverrides,
-      );
-    } else {
-      GameConfig.clearAdvancedOverrides();
-    }
-  }
-
   private broadcastModeState(): void {
     if (!this.isLeader()) return;
     const payload: AdvancedSettingsSync = {
@@ -1179,7 +1157,6 @@ export class Game {
     const nextMode: GameMode = isCustom ? "CUSTOM" : this.baseMode;
     const modeChanged = nextMode !== this.currentMode;
     this.currentMode = nextMode;
-    this.applyAdvancedOverrides(sanitized, this.baseMode);
     if (source === "local" && this.isLeader()) {
       this.broadcastModeState();
     }
@@ -1205,7 +1182,6 @@ export class Game {
     const template = applyModeTemplate(mode);
     template.roundsToWin = this.advancedSettings.roundsToWin;
     this.advancedSettings = sanitizeAdvancedSettings(template);
-    this.applyAdvancedOverrides(this.advancedSettings, this.baseMode);
     this._onGameModeChange?.(this.currentMode);
     this._onAdvancedSettingsChange?.(this.advancedSettings);
     if (source === "local" && this.isLeader()) {

@@ -1,6 +1,5 @@
 import { Game } from "../Game";
 import { PlayerData } from "../types";
-import { GameConfig } from "../GameConfig";
 import { triggerHaptic } from "./haptics";
 import { SettingsManager } from "../SettingsManager";
 import { elements } from "./elements";
@@ -189,22 +188,23 @@ export function createScreenController(
 
   function updateScoreTrack(players: PlayerData[]): void {
     const myPlayerId = game.getMyPlayerId();
+    const roundsToWin = Math.max(
+      1,
+      Math.floor(game.getAdvancedSettings().roundsToWin),
+    );
     elements.scoreTrack.innerHTML = players
       .map((player) => {
         const isSelf = player.id === myPlayerId;
-        const dots = Array.from(
-          { length: GameConfig.config.ROUNDS_TO_WIN },
-          (_, i) => {
-            const filled = i < player.roundWins;
-            return (
-              '<div class="score-dot ' +
-              (filled ? "filled" : "") +
-              '" style="color: ' +
-              player.color.primary +
-              '"></div>'
-            );
-          },
-        ).join("");
+        const dots = Array.from({ length: roundsToWin }, (_, i) => {
+          const filled = i < player.roundWins;
+          return (
+            '<div class="score-dot ' +
+            (filled ? "filled" : "") +
+            '" style="color: ' +
+            player.color.primary +
+            '"></div>'
+          );
+        }).join("");
 
         return (
           '<div class="score-row' +

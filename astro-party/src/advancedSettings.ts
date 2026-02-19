@@ -4,15 +4,8 @@ import {
   DashPreset,
   DEFAULT_ADVANCED_SETTINGS,
   BaseGameMode,
-  GameConfigType,
   ModePreset,
   SpeedPreset,
-  STANDARD_OVERRIDES,
-  SANE_OVERRIDES,
-  GAME_CONFIG,
-  STANDARD_PHYSICS,
-  SANE_PHYSICS,
-  CHAOTIC_PHYSICS,
 } from "./types";
 
 const ASTEROID_DENSITIES: AsteroidDensity[] = ["NONE", "SOME", "MANY", "SPAWN"];
@@ -89,58 +82,6 @@ export function sanitizeAdvancedSettings(
   return merged;
 }
 
-function resolveConfigValue(
-  preset: ModePreset,
-  key: keyof GameConfigType,
-): number {
-  const baseValue = GAME_CONFIG[key];
-  const overrides =
-    preset === "STANDARD"
-      ? STANDARD_OVERRIDES
-      : preset === "SANE"
-        ? SANE_OVERRIDES
-        : {};
-  const overrideValue = overrides[key] as number | undefined;
-  if (typeof overrideValue === "number") return overrideValue;
-  return baseValue as number;
-}
-
-function resolvePhysicsValue(
-  preset: ModePreset,
-  key: keyof typeof STANDARD_PHYSICS,
-): number {
-  const table =
-    preset === "STANDARD"
-      ? STANDARD_PHYSICS
-      : preset === "SANE"
-        ? SANE_PHYSICS
-        : CHAOTIC_PHYSICS;
-  return table[key];
-}
-
-function applyConfigPresetOverride(
-  settingsPreset: ModePreset,
-  basePreset: ModePreset,
-  key: keyof GameConfigType,
-  overrides: Partial<GameConfigType>,
-): void {
-  if (settingsPreset === basePreset) return;
-  (overrides as Record<string, number>)[key] = resolveConfigValue(
-    settingsPreset,
-    key,
-  );
-}
-
-function applyPhysicsPresetOverride(
-  settingsPreset: ModePreset,
-  basePreset: ModePreset,
-  key: keyof typeof STANDARD_PHYSICS,
-  overrides: Partial<typeof STANDARD_PHYSICS>,
-): void {
-  if (settingsPreset === basePreset) return;
-  overrides[key] = resolvePhysicsValue(settingsPreset, key);
-}
-
 export const MODE_TEMPLATES: Record<BaseGameMode, ModeTemplate> = {
   STANDARD: {
     ...DEFAULT_ADVANCED_SETTINGS,
@@ -209,113 +150,4 @@ export function isCustomComparedToTemplate(
     settings.shipFrictionPreset !== template.shipFrictionPreset ||
     settings.angularDampingPreset !== template.angularDampingPreset
   );
-}
-
-export function buildAdvancedOverrides(
-  settings: AdvancedSettings,
-  baseTemplate: AdvancedSettings,
-): {
-  configOverrides?: Partial<GameConfigType>;
-  physicsOverrides?: Partial<typeof STANDARD_PHYSICS>;
-} {
-  const configOverrides: Partial<GameConfigType> = {};
-  const physicsOverrides: Partial<typeof STANDARD_PHYSICS> = {};
-
-  configOverrides.ROUNDS_TO_WIN = settings.roundsToWin;
-
-  if (settings.asteroidDensity === "NONE") {
-    configOverrides.ASTEROID_INITIAL_MIN = 0;
-    configOverrides.ASTEROID_INITIAL_MAX = 0;
-    configOverrides.ASTEROID_SPAWN_BATCH_MIN = 0;
-    configOverrides.ASTEROID_SPAWN_BATCH_MAX = 0;
-  } else if (
-    settings.asteroidDensity === "MANY" ||
-    settings.asteroidDensity === "SPAWN"
-  ) {
-    configOverrides.ASTEROID_INITIAL_MIN = 8;
-    configOverrides.ASTEROID_INITIAL_MAX = 11;
-  }
-
-  if (settings.shipSpeed !== baseTemplate.shipSpeed) {
-    if (settings.shipSpeed === "SLOW") {
-      configOverrides.SHIP_TARGET_SPEED = 3.6;
-      configOverrides.BASE_THRUST = 0.0001;
-    } else if (settings.shipSpeed === "FAST") {
-      configOverrides.SHIP_TARGET_SPEED = 5.2;
-      configOverrides.BASE_THRUST = 0.0002;
-    }
-  }
-
-  if (settings.dashPower !== baseTemplate.dashPower) {
-    if (settings.dashPower === "LOW") {
-      configOverrides.SHIP_DASH_BOOST = 1.2;
-      configOverrides.DASH_FORCE = 0.007;
-    } else if (settings.dashPower === "HIGH") {
-      configOverrides.SHIP_DASH_BOOST = 2.8;
-      configOverrides.DASH_FORCE = 0.018;
-    }
-  }
-
-  applyConfigPresetOverride(
-    settings.rotationPreset,
-    baseTemplate.rotationPreset,
-    "ROTATION_SPEED",
-    configOverrides,
-  );
-  applyConfigPresetOverride(
-    settings.rotationBoostPreset,
-    baseTemplate.rotationBoostPreset,
-    "ROTATION_THRUST_BONUS",
-    configOverrides,
-  );
-  applyConfigPresetOverride(
-    settings.recoilPreset,
-    baseTemplate.recoilPreset,
-    "RECOIL_FORCE",
-    configOverrides,
-  );
-  applyConfigPresetOverride(
-    settings.shipRestitutionPreset,
-    baseTemplate.shipRestitutionPreset,
-    "SHIP_RESTITUTION",
-    configOverrides,
-  );
-  applyConfigPresetOverride(
-    settings.shipFrictionAirPreset,
-    baseTemplate.shipFrictionAirPreset,
-    "SHIP_FRICTION_AIR",
-    configOverrides,
-  );
-
-  applyPhysicsPresetOverride(
-    settings.wallFrictionPreset,
-    baseTemplate.wallFrictionPreset,
-    "WALL_FRICTION",
-    physicsOverrides,
-  );
-  applyPhysicsPresetOverride(
-    settings.shipFrictionPreset,
-    baseTemplate.shipFrictionPreset,
-    "SHIP_FRICTION",
-    physicsOverrides,
-  );
-  applyPhysicsPresetOverride(
-    settings.angularDampingPreset,
-    baseTemplate.angularDampingPreset,
-    "SHIP_ANGULAR_DAMPING",
-    physicsOverrides,
-  );
-  applyPhysicsPresetOverride(
-    settings.wallRestitutionPreset,
-    baseTemplate.wallRestitutionPreset,
-    "WALL_RESTITUTION",
-    physicsOverrides,
-  );
-
-  return {
-    configOverrides:
-      Object.keys(configOverrides).length > 0 ? configOverrides : undefined,
-    physicsOverrides:
-      Object.keys(physicsOverrides).length > 0 ? physicsOverrides : undefined,
-  };
 }
