@@ -30,110 +30,163 @@ export class InputManager {
   private primaryBKeys = new Set<string>(["KeyD"]);
   private altAKeys = new Set<string>(["ArrowLeft"]);
   private altBKeys = new Set<string>(["ArrowRight", "Space"]);
+  private isSetup = false;
+  private leftZone: HTMLElement | null = null;
+  private rightZone: HTMLElement | null = null;
+  private readonly touchStartOptions: AddEventListenerOptions = {
+    passive: false,
+  };
+
+  private readonly handleKeyDown = (e: KeyboardEvent): void => {
+    if (!this.keyboardEnabled || this.isEditableTarget(e.target)) {
+      return;
+    }
+    let handled = false;
+    if (this.isButtonAKey(e.code)) {
+      e.preventDefault();
+      this.buttonA = true;
+      handled = true;
+    }
+    if (this.isButtonBKey(e.code)) {
+      e.preventDefault();
+      this.buttonB = true;
+      handled = true;
+    }
+    if (this.handleDevKeyDown(e.code)) {
+      e.preventDefault();
+      handled = true;
+    }
+    if (!handled) return;
+  };
+
+  private readonly handleKeyUp = (e: KeyboardEvent): void => {
+    if (!this.keyboardEnabled || this.isEditableTarget(e.target)) {
+      return;
+    }
+    if (this.isButtonAKey(e.code)) {
+      this.buttonA = false;
+    }
+    if (this.isButtonBKey(e.code)) {
+      this.buttonB = false;
+    }
+    this.handleDevKeyUp(e.code);
+  };
+
+  private readonly handleLeftTouchStart = (e: TouchEvent): void => {
+    e.preventDefault();
+    this.buttonA = true;
+    this.leftZone?.classList.add("active");
+    this.triggerHaptic("light");
+  };
+
+  private readonly handleLeftTouchEnd = (): void => {
+    this.buttonA = false;
+    this.leftZone?.classList.remove("active");
+  };
+
+  private readonly handleLeftTouchCancel = (): void => {
+    this.buttonA = false;
+    this.leftZone?.classList.remove("active");
+  };
+
+  private readonly handleRightTouchStart = (e: TouchEvent): void => {
+    e.preventDefault();
+    this.buttonB = true;
+    this.rightZone?.classList.add("active");
+    this.triggerHaptic("light");
+  };
+
+  private readonly handleRightTouchEnd = (): void => {
+    this.buttonB = false;
+    this.rightZone?.classList.remove("active");
+  };
+
+  private readonly handleRightTouchCancel = (): void => {
+    this.buttonB = false;
+    this.rightZone?.classList.remove("active");
+  };
 
   constructor() {
     this.isMobile = window.matchMedia("(pointer: coarse)").matches;
   }
 
   setup(): void {
+    if (this.isSetup) return;
+    this.isSetup = true;
     this.setupKeyboard();
     if (this.isMobile) {
       this.setupTouch();
     }
   }
 
-  private setupKeyboard(): void {
-    window.addEventListener("keydown", (e) => {
-      if (!this.keyboardEnabled || this.isEditableTarget(e.target)) {
-        return;
-      }
-      let handled = false;
-      // Button A: A key or Left Arrow
-      if (this.isButtonAKey(e.code)) {
-        e.preventDefault();
-        this.buttonA = true;
-        handled = true;
-      }
-      // Button B: D key, Right Arrow, or Space
-      if (this.isButtonBKey(e.code)) {
-        e.preventDefault();
-        this.buttonB = true;
-        handled = true;
-      }
-      // Dev keys for testing powerups (1 = Laser, 2 = Shield, 3 = Scatter, 4 = Mine, 5 = Reverse)
-      // Dev keys for testing powerups (1-7, not numpad)
-      // Dev mode toggle (0) for visualization
-      if (this.handleDevKeyDown(e.code)) {
-        e.preventDefault();
-        handled = true;
-      }
-      if (!handled) return;
-    });
+  destroy(): void {
+    if (!this.isSetup) return;
+    this.isSetup = false;
 
-    window.addEventListener("keyup", (e) => {
-      if (!this.keyboardEnabled || this.isEditableTarget(e.target)) {
-        return;
-      }
-      if (this.isButtonAKey(e.code)) {
-        this.buttonA = false;
-      }
-      if (this.isButtonBKey(e.code)) {
-        this.buttonB = false;
-      }
-      this.handleDevKeyUp(e.code);
-    });
+    window.removeEventListener("keydown", this.handleKeyDown);
+    window.removeEventListener("keyup", this.handleKeyUp);
+
+    if (this.leftZone) {
+      this.leftZone.removeEventListener(
+        "touchstart",
+        this.handleLeftTouchStart,
+        this.touchStartOptions,
+      );
+      this.leftZone.removeEventListener("touchend", this.handleLeftTouchEnd);
+      this.leftZone.removeEventListener(
+        "touchcancel",
+        this.handleLeftTouchCancel,
+      );
+      this.leftZone = null;
+    }
+
+    if (this.rightZone) {
+      this.rightZone.removeEventListener(
+        "touchstart",
+        this.handleRightTouchStart,
+        this.touchStartOptions,
+      );
+      this.rightZone.removeEventListener("touchend", this.handleRightTouchEnd);
+      this.rightZone.removeEventListener(
+        "touchcancel",
+        this.handleRightTouchCancel,
+      );
+      this.rightZone = null;
+    }
+
+    this.reset();
+  }
+
+  private setupKeyboard(): void {
+    window.addEventListener("keydown", this.handleKeyDown);
+    window.addEventListener("keyup", this.handleKeyUp);
   }
 
   private setupTouch(): void {
-    const leftZone = document.getElementById("control-zone-left");
-    const rightZone = document.getElementById("control-zone-right");
+    this.leftZone = document.getElementById("control-zone-left");
+    this.rightZone = document.getElementById("control-zone-right");
 
-    if (leftZone) {
-      // Button A: Left side (rotate + dash)
-      leftZone.addEventListener(
+    if (this.leftZone) {
+      this.leftZone.addEventListener(
         "touchstart",
-        (e) => {
-          e.preventDefault();
-          this.buttonA = true;
-          leftZone.classList.add("active");
-          this.triggerHaptic("light");
-        },
-        { passive: false },
+        this.handleLeftTouchStart,
+        this.touchStartOptions,
       );
-
-      leftZone.addEventListener("touchend", () => {
-        this.buttonA = false;
-        leftZone.classList.remove("active");
-      });
-
-      leftZone.addEventListener("touchcancel", () => {
-        this.buttonA = false;
-        leftZone.classList.remove("active");
-      });
+      this.leftZone.addEventListener("touchend", this.handleLeftTouchEnd);
+      this.leftZone.addEventListener("touchcancel", this.handleLeftTouchCancel);
     }
 
-    if (rightZone) {
-      // Button B: Right side (thrust + fire)
-      rightZone.addEventListener(
+    if (this.rightZone) {
+      this.rightZone.addEventListener(
         "touchstart",
-        (e) => {
-          e.preventDefault();
-          this.buttonB = true;
-          rightZone.classList.add("active");
-          this.triggerHaptic("light");
-        },
-        { passive: false },
+        this.handleRightTouchStart,
+        this.touchStartOptions,
       );
-
-      rightZone.addEventListener("touchend", () => {
-        this.buttonB = false;
-        rightZone.classList.remove("active");
-      });
-
-      rightZone.addEventListener("touchcancel", () => {
-        this.buttonB = false;
-        rightZone.classList.remove("active");
-      });
+      this.rightZone.addEventListener("touchend", this.handleRightTouchEnd);
+      this.rightZone.addEventListener(
+        "touchcancel",
+        this.handleRightTouchCancel,
+      );
     }
   }
 

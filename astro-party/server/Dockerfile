@@ -19,5 +19,6 @@ ENV NODE_ENV=production
 COPY server/package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 COPY --from=build /app/server/dist ./dist
+USER node
 EXPOSE 2567
 CMD ["node", "dist/server/src/index.js"]

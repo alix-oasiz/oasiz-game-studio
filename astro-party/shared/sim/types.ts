@@ -299,6 +299,7 @@ export interface Hooks {
   }) => void;
   onDevMode: (enabled: boolean) => void;
   onError: (sessionId: string, code: string, message: string) => void;
+  onReseed?: (seed: number) => void;
 }
 
 // ============= RUNTIME TYPES (simulation-internal, not serialized) =============

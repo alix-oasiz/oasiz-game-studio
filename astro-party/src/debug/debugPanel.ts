@@ -45,7 +45,29 @@ export function mountDebugPanel(options: DebugPanelOptions): void {
   panel.setAttribute("aria-hidden", "true");
   panel.setAttribute("inert", "");
 
-  panel.appendChild(buildHeader(panel));
+  let statusIntervalId: ReturnType<typeof window.setInterval> | null = null;
+  const stopStatusUpdates = (): void => {
+    if (statusIntervalId === null) return;
+    window.clearInterval(statusIntervalId);
+    statusIntervalId = null;
+  };
+  const startStatusUpdates = (): void => {
+    if (statusIntervalId !== null) return;
+    statusIntervalId = window.setInterval(() => {
+      updateStatus(options.game);
+    }, 500);
+  };
+  const closeDebugPanel = (): void => {
+    closePanel(panel, toggle);
+    stopStatusUpdates();
+  };
+  const openDebugPanel = (): void => {
+    openPanel(panel, toggle);
+    updateStatus(options.game);
+    startStatusUpdates();
+  };
+
+  panel.appendChild(buildHeader(closeDebugPanel));
   panel.appendChild(buildStatusBlock());
   panel.appendChild(
     buildSection("Screens", [
@@ -122,24 +144,22 @@ export function mountDebugPanel(options: DebugPanelOptions): void {
 
   toggle.addEventListener("click", () => {
     if (panel.classList.contains("active")) {
-      closePanel(panel, toggle);
+      closeDebugPanel();
       return;
     }
-    openPanel(panel, toggle);
+    openDebugPanel();
   });
 
   window.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    closePanel(panel, toggle);
+    closeDebugPanel();
   });
+  window.addEventListener("beforeunload", stopStatusUpdates, { once: true });
 
   updateStatus(options.game);
-  window.setInterval(() => {
-    updateStatus(options.game);
-  }, 500);
 }
 
-function buildHeader(panel: HTMLElement): HTMLElement {
+function buildHeader(onClose: () => void): HTMLElement {
   const header = document.createElement("div");
   header.className = "qa-debug-header";
 
@@ -152,8 +172,7 @@ function buildHeader(panel: HTMLElement): HTMLElement {
   close.type = "button";
   close.textContent = "Close";
   close.addEventListener("click", () => {
-    const toggle = document.getElementById(TOGGLE_ID) as HTMLButtonElement | null;
-    closePanel(panel, toggle);
+    onClose();
   });
 
   header.appendChild(title);

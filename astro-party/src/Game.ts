@@ -67,6 +67,10 @@ export class Game {
   private wasLocalFireHeld = false;
   private lastPredictedFireAtMs = 0;
   private lastPredictedDashAtMs = 0;
+  private resizeListenerAttached = false;
+  private readonly resizeHandler = (): void => {
+    this.renderer.resize();
+  };
   private controlledInputSequenceByPlayer = new Map<string, number>();
   private isIntentionalDisconnect = false;
 
@@ -619,19 +623,20 @@ export class Game {
   }
 
   start(): void {
-    this.renderer.resize();
+    this.resizeHandler();
     this.renderer.initStars();
 
-    window.addEventListener("resize", () => {
-      this.renderer.resize();
-    });
+    if (!this.resizeListenerAttached) {
+      window.addEventListener("resize", this.resizeHandler);
+      this.resizeListenerAttached = true;
+    }
 
     this.lastTime = performance.now();
     requestAnimationFrame((t) => this.loop(t));
   }
 
   handleResize(): void {
-    this.renderer.resize();
+    this.resizeHandler();
   }
 
   private loop(timestamp: number): void {
@@ -1218,6 +1223,18 @@ export class Game {
     this.resetAdvancedSettings();
 
     this.flowMgr.setPhase("START");
+  }
+
+  destroy(): void {
+    if (this.flowMgr.countdownInterval) {
+      clearInterval(this.flowMgr.countdownInterval);
+      this.flowMgr.countdownInterval = null;
+    }
+    if (this.resizeListenerAttached) {
+      window.removeEventListener("resize", this.resizeHandler);
+      this.resizeListenerAttached = false;
+    }
+    this.input.destroy();
   }
 
   async restartGame(): Promise<void> {

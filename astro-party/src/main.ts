@@ -26,6 +26,10 @@ declare global {
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
 const game = new Game(canvas);
 
+window.addEventListener("beforeunload", () => {
+  game.destroy();
+});
+
 window.getCurrentSeed = (): number | null => {
   return game.getRngSeed();
 };

@@ -1990,6 +1990,7 @@ export class AstroPartySimulation implements SimState {
     this.powerUpRng = new SeededRNG(normalized ^ 0xc8013ea4);
     this.aiRng = new SeededRNG(normalized ^ 0xad90777d);
     this.idRng = new SeededRNG(normalized ^ 0x7e95761e);
+    this.hooks.onReseed?.(normalized);
   }
 
   private ensureLeader(sessionId: string): boolean {

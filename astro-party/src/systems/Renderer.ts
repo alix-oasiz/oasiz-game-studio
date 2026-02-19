@@ -13,7 +13,7 @@ import {
   GAME_CONFIG,
   MapId,
 } from "../types";
-import { SeededRNG } from "./SeededRNG";
+import { SeededRNG } from "../../shared/sim/SeededRNG";
 import { EntitySpriteStore } from "./EntitySpriteStore";
 import { MapOverlayStore } from "./MapOverlayStore";
 import type {
@@ -37,6 +37,8 @@ export class Renderer {
   private scale: number = 1;
   private offsetX: number = 0;
   private offsetY: number = 0;
+  private viewportWidth: number = 1;
+  private viewportHeight: number = 1;
   private entitySprites = new EntitySpriteStore();
   private mapOverlays = new MapOverlayStore();
 
@@ -84,19 +86,24 @@ export class Renderer {
         ? layoutHeight
         : rect.height;
 
-    this.canvas.width = Math.max(1, Math.round(targetWidth));
-    this.canvas.height = Math.max(1, Math.round(targetHeight));
+    const cssWidth = Math.max(1, Math.round(targetWidth));
+    const cssHeight = Math.max(1, Math.round(targetHeight));
+    this.viewportWidth = cssWidth;
+    this.viewportHeight = cssHeight;
+
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    this.canvas.width = Math.max(1, Math.round(cssWidth * dpr));
+    this.canvas.height = Math.max(1, Math.round(cssHeight * dpr));
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Calculate scale to fit fixed arena in window while maintaining aspect ratio
-    const scaleX = this.canvas.width / GAME_CONFIG.ARENA_WIDTH;
-    const scaleY = this.canvas.height / GAME_CONFIG.ARENA_HEIGHT;
+    const scaleX = cssWidth / GAME_CONFIG.ARENA_WIDTH;
+    const scaleY = cssHeight / GAME_CONFIG.ARENA_HEIGHT;
     this.scale = Math.min(scaleX, scaleY);
 
     // Center the arena
-    this.offsetX =
-      (this.canvas.width - GAME_CONFIG.ARENA_WIDTH * this.scale) / 2;
-    this.offsetY =
-      (this.canvas.height - GAME_CONFIG.ARENA_HEIGHT * this.scale) / 2;
+    this.offsetX = (cssWidth - GAME_CONFIG.ARENA_WIDTH * this.scale) / 2;
+    this.offsetY = (cssHeight - GAME_CONFIG.ARENA_HEIGHT * this.scale) / 2;
   }
 
   getSize(): { width: number; height: number } {
@@ -426,7 +433,7 @@ export class Renderer {
 
   clear(): void {
     this.ctx.fillStyle = "#0a0a12";
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillRect(0, 0, this.viewportWidth, this.viewportHeight);
   }
 
   beginFrame(): void {

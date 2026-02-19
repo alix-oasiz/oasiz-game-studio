@@ -105,10 +105,6 @@ export function createAdvancedSettingsUI(game: Game): AdvancedSettingsUI {
     elements.advancedSettingsBackdrop.classList.remove("active");
   }
 
-  function updateSummary(_settings: AdvancedSettings): void {
-    // Map preview replaced the summary chips panel.
-  }
-
   function updateAdvancedSettingsUI(settings?: AdvancedSettings): void {
     const current = settings ?? game.getAdvancedSettings();
     elements.asteroidsCycle.textContent = labelAsteroids(
@@ -160,7 +156,6 @@ export function createAdvancedSettingsUI(game: Game): AdvancedSettingsUI {
       "angularDamping",
       current.angularDampingPreset,
     );
-    updateSummary(current);
   }
 
   function applySettings(update: Partial<AdvancedSettings>): void {

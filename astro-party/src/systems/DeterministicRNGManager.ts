@@ -1,4 +1,4 @@
-import { SeededRNG } from "./SeededRNG";
+import { SeededRNG } from "../../shared/sim/SeededRNG";
 
 export interface RNGState {
   asteroid: Uint32Array;

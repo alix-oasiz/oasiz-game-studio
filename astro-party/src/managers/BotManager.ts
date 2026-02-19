@@ -61,18 +61,7 @@ export class BotManager {
     const bot = await this.network.addLocalBot(keySlot);
     if (bot) {
       this.multiInput?.activateSlot(keySlot);
-
-      setTimeout(() => {
-        for (const [playerId] of players) {
-          const botType = this.network.getPlayerBotType(playerId);
-          const slot = this.network.getPlayerKeySlot(playerId);
-          if (botType === "local" && slot === keySlot) {
-            this.localPlayerSlots.set(playerId, keySlot);
-            this.reservedLocalSlots.delete(keySlot);
-            break;
-          }
-        }
-      }, 100);
+      this.syncLocalPlayerSlots(players);
 
       return true;
     }
@@ -92,6 +81,7 @@ export class BotManager {
   }
 
   getUsedKeySlots(players: Map<string, PlayerData>): number[] {
+    this.syncLocalPlayerSlots(players);
     const slots: number[] = [];
     slots.push(0); // Slot 0 (WASD) is always used by the local player
 
@@ -113,6 +103,7 @@ export class BotManager {
   getLocalPlayersInfo(
     players: Map<string, PlayerData>,
   ): Array<{ name: string; color: string; keyPreset: string }> {
+    this.syncLocalPlayerSlots(players);
     const localPlayers: Array<{
       name: string;
       color: string;
@@ -159,6 +150,7 @@ export class BotManager {
   }
 
   getLocalPlayerCount(players: Map<string, PlayerData>): number {
+    this.syncLocalPlayerSlots(players);
     let count = 0;
     const myId = this.network.getMyPlayerId();
     if (myId && players.has(myId)) {
@@ -174,6 +166,7 @@ export class BotManager {
   }
 
   hasLocalPlayers(players: Map<string, PlayerData>): boolean {
+    this.syncLocalPlayerSlots(players);
     for (const [playerId] of players) {
       const botType = this.network.getPlayerBotType(playerId);
       if (botType === "local") {
@@ -181,6 +174,25 @@ export class BotManager {
       }
     }
     return false;
+  }
+
+  private syncLocalPlayerSlots(players: Map<string, PlayerData>): void {
+    const activeLocalIds = new Set<string>();
+    for (const [playerId] of players) {
+      const botType = this.network.getPlayerBotType(playerId);
+      if (botType !== "local") continue;
+      const slot = this.network.getPlayerKeySlot(playerId);
+      if (slot < 0) continue;
+      this.localPlayerSlots.set(playerId, slot);
+      activeLocalIds.add(playerId);
+      this.reservedLocalSlots.delete(slot);
+    }
+
+    for (const playerId of this.localPlayerSlots.keys()) {
+      if (!activeLocalIds.has(playerId)) {
+        this.localPlayerSlots.delete(playerId);
+      }
+    }
   }
 
   // ============= TOUCH LAYOUT =============

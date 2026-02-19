@@ -20,6 +20,7 @@ import {
   ASTEROID_SPAWN_BATCH_MAX,
   GREY_ASTEROID_MIN,
   GREY_ASTEROID_MAX,
+  SHIP_HIT_RADIUS,
   POWERUP_SPAWN_WEIGHTS,
   POWERUP_MAGNETIC_RADIUS,
   POWERUP_MAGNETIC_SPEED,
@@ -329,6 +330,15 @@ function computeConvexHull(
 }
 
 function isAsteroidSpawnClear(sim: SimState, x: number, y: number, size: number): boolean {
+  if (
+    x - size < ARENA_PADDING ||
+    x + size > ARENA_WIDTH - ARENA_PADDING ||
+    y - size < ARENA_PADDING ||
+    y + size > ARENA_HEIGHT - ARENA_PADDING
+  ) {
+    return false;
+  }
+
   const minDistance = size * 1.8;
   for (const asteroid of sim.asteroids) {
     if (!asteroid.alive) continue;
@@ -339,6 +349,38 @@ function isAsteroidSpawnClear(sim: SimState, x: number, y: number, size: number)
       return false;
     }
   }
+
+  const shipClearance = size + SHIP_HIT_RADIUS + 10;
+  const shipClearanceSq = shipClearance * shipClearance;
+  for (const player of sim.players.values()) {
+    if (!player.ship.alive) continue;
+    const dx = player.ship.x - x;
+    const dy = player.ship.y - y;
+    if (dx * dx + dy * dy < shipClearanceSq) {
+      return false;
+    }
+  }
+
+  const map = getMapDefinition(sim.mapId);
+  for (const block of map.yellowBlocks) {
+    const nearestX = clamp(x, block.x, block.x + block.width);
+    const nearestY = clamp(y, block.y, block.y + block.height);
+    const dx = x - nearestX;
+    const dy = y - nearestY;
+    if (dx * dx + dy * dy < size * size) {
+      return false;
+    }
+  }
+
+  for (const hole of map.centerHoles) {
+    const dx = hole.x - x;
+    const dy = hole.y - y;
+    const clearance = hole.radius + size;
+    if (dx * dx + dy * dy < clearance * clearance) {
+      return false;
+    }
+  }
+
   return true;
 }
 

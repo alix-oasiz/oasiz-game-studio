@@ -21,6 +21,14 @@ const wsMaxPayloadBytes = Number.parseInt(
 );
 const roomCodeLength = Number.parseInt(process.env.ROOM_CODE_LENGTH ?? "4", 10);
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[Server] Unhandled promise rejection", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[Server] Uncaught exception", error);
+});
+
 const app = express();
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());

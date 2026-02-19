@@ -1,12 +1,7 @@
 // ============= SETTINGS MANAGER =============
 // Singleton class for managing game settings across all modules
 
-export interface Settings {
-  music: boolean;
-  fx: boolean;
-  haptics: boolean;
-  controlHints: boolean;
-}
+import type { Settings } from "./types";
 
 const STORAGE_KEY = "astro-party-settings";
 const DEFAULT_SETTINGS: Settings = {

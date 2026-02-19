@@ -141,7 +141,9 @@ export class ColyseusTransport implements NetworkTransport {
   private lastRoundResult: RoundResultPayload | null = null;
   private lastMeasuredRttMs = 0;
   private stateUnsubscribers: Array<() => void> = [];
+  private playerMetaDetachById = new Map<string, () => void>();
   private schemaRosterCallbacksActive = false;
+  private static readonly FETCH_TIMEOUT_MS = 15_000;
 
   private readonly wsUrl: string;
   private readonly httpUrl: string;
@@ -575,6 +577,10 @@ export class ColyseusTransport implements NetworkTransport {
         this.callbacks?.onTransportError?.(code, message);
       },
     );
+
+    room.onMessage("evt:rng_seed", (payload: { seed: number }) => {
+      this.callbacks?.onRNGSeedReceived?.(payload.seed);
+    });
   }
 
   private bindStateListeners(room: Room): void {
@@ -638,7 +644,7 @@ export class ColyseusTransport implements NetworkTransport {
     const root = $(state);
     if (!root) return false;
 
-    const playerMetaDetachById = new Map<string, () => void>();
+    this.clearPlayerMetaListeners();
     const triggerStateRefresh = (): void => {
       this.handleRoomState(state);
     };
@@ -650,10 +656,10 @@ export class ColyseusTransport implements NetworkTransport {
 
     const attachPlayerMetaListener = (entry: unknown, key: unknown): void => {
       const playerId = String(key);
-      const existing = playerMetaDetachById.get(playerId);
+      const existing = this.playerMetaDetachById.get(playerId);
       if (existing) {
         existing();
-        playerMetaDetachById.delete(playerId);
+        this.playerMetaDetachById.delete(playerId);
       }
       const entryProxy = $(entry);
       if (entryProxy && typeof entryProxy.onChange === "function") {
@@ -661,7 +667,7 @@ export class ColyseusTransport implements NetworkTransport {
           triggerStateRefresh();
         });
         if (typeof unbind === "function") {
-          playerMetaDetachById.set(playerId, unbind);
+          this.playerMetaDetachById.set(playerId, unbind);
         }
       }
     };
@@ -737,10 +743,10 @@ export class ColyseusTransport implements NetworkTransport {
       trackUnsubscriber(
         root.players.onRemove?.((_entry, key) => {
           const playerId = String(key);
-          const existing = playerMetaDetachById.get(playerId);
+          const existing = this.playerMetaDetachById.get(playerId);
           if (existing) {
             existing();
-            playerMetaDetachById.delete(playerId);
+            this.playerMetaDetachById.delete(playerId);
           }
           triggerStateRefresh();
         }),
@@ -756,11 +762,6 @@ export class ColyseusTransport implements NetworkTransport {
       });
     }
 
-    this.stateUnsubscribers.push(() => {
-      playerMetaDetachById.forEach((detach) => detach());
-      playerMetaDetachById.clear();
-    });
-
     triggerStateRefresh();
     return true;
   }
@@ -774,6 +775,18 @@ export class ColyseusTransport implements NetworkTransport {
       }
     }
     this.stateUnsubscribers = [];
+    this.clearPlayerMetaListeners();
+  }
+
+  private clearPlayerMetaListeners(): void {
+    for (const detach of this.playerMetaDetachById.values()) {
+      try {
+        detach();
+      } catch {
+        // no-op
+      }
+    }
+    this.playerMetaDetachById.clear();
   }
 
   private handleRoomState(state: RoomStateView): void {
@@ -1186,38 +1199,76 @@ export class ColyseusTransport implements NetworkTransport {
   }
 
   private async fetchJson<T>(url: string, init: RequestInit): Promise<T> {
-    const response = await fetch(url, init);
-    const bodyText = await response.text();
-    let parsedBody: unknown = null;
-    if (bodyText.length > 0) {
-      try {
-        parsedBody = JSON.parse(bodyText) as unknown;
-      } catch {
-        parsedBody = null;
+    const timeoutController = new AbortController();
+    let didTimeout = false;
+    const timeoutHandle = window.setTimeout(() => {
+      didTimeout = true;
+      timeoutController.abort();
+    }, ColyseusTransport.FETCH_TIMEOUT_MS);
+
+    const externalSignal = init.signal;
+    const abortFromExternalSignal = (): void => {
+      timeoutController.abort();
+    };
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        timeoutController.abort();
+      } else {
+        externalSignal.addEventListener("abort", abortFromExternalSignal, {
+          once: true,
+        });
       }
     }
 
-    if (!response.ok) {
-      const payload =
-        typeof parsedBody === "object" && parsedBody !== null
-          ? (parsedBody as Record<string, unknown>)
-          : null;
-      const code =
-        typeof payload?.error === "string"
-          ? payload.error
-          : "HTTP_" + response.status.toString();
-      const message =
-        typeof payload?.message === "string"
-          ? payload.message
-          : response.statusText || "Request failed";
-      throw new HttpRequestError(response.status, code, message);
-    }
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: timeoutController.signal,
+      });
+      const bodyText = await response.text();
+      let parsedBody: unknown = null;
+      if (bodyText.length > 0) {
+        try {
+          parsedBody = JSON.parse(bodyText) as unknown;
+        } catch {
+          parsedBody = null;
+        }
+      }
 
-    if (parsedBody === null) {
-      throw new Error("Invalid JSON response");
-    }
+      if (!response.ok) {
+        const payload =
+          typeof parsedBody === "object" && parsedBody !== null
+            ? (parsedBody as Record<string, unknown>)
+            : null;
+        const code =
+          typeof payload?.error === "string"
+            ? payload.error
+            : "HTTP_" + response.status.toString();
+        const message =
+          typeof payload?.message === "string"
+            ? payload.message
+            : response.statusText || "Request failed";
+        throw new HttpRequestError(response.status, code, message);
+      }
 
-    return parsedBody as T;
+      if (parsedBody === null) {
+        throw new Error("Invalid JSON response");
+      }
+
+      return parsedBody as T;
+    } catch (error) {
+      if (didTimeout) {
+        throw new HttpRequestError(
+          408,
+          "REQUEST_TIMEOUT",
+          "Request timed out",
+        );
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutHandle);
+      externalSignal?.removeEventListener("abort", abortFromExternalSignal);
+    }
   }
 
   private readInjectedPlayerName(): string | null {

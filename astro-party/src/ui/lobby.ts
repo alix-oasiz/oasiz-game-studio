@@ -388,15 +388,25 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
   elements.copyCodeBtn.addEventListener("click", () => {
     if (game.getSessionMode() === "local") return;
     const code = game.getRoomCode();
-    navigator.clipboard.writeText(code).then(() => {
-      triggerHaptic("light");
-      elements.copyCodeBtn.innerHTML =
-        '<svg viewBox="0 0 24 24"><path fill="#22c55e" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
-      setTimeout(() => {
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+      triggerHaptic("error");
+      console.error("[Lobby] Clipboard API unavailable");
+      return;
+    }
+    void navigator.clipboard.writeText(code)
+      .then(() => {
+        triggerHaptic("light");
         elements.copyCodeBtn.innerHTML =
-          '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
-      }, 2000);
-    });
+          '<svg viewBox="0 0 24 24"><path fill="#22c55e" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+        setTimeout(() => {
+          elements.copyCodeBtn.innerHTML =
+            '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+        }, 2000);
+      })
+      .catch((err: unknown) => {
+        triggerHaptic("error");
+        console.error("[Lobby] Failed to copy room code:", err);
+      });
   });
 
   elements.addAIBotBtn.addEventListener("click", async () => {

@@ -28,6 +28,15 @@ export function createScreenController(
   let activeScreen: Screen = "start";
   let systemMessageTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  function clearSystemMessage(): void {
+    if (systemMessageTimeout) {
+      clearTimeout(systemMessageTimeout);
+      systemMessageTimeout = null;
+    }
+    elements.systemMessage.classList.remove("active");
+    elements.systemMessage.textContent = "";
+  }
+
   function updateHudControlsVisibility(): void {
     if (activeScreen !== "game") {
       elements.leaveGameBtn.style.display = "none";
@@ -59,7 +68,11 @@ export function createScreenController(
   }
 
   function showScreen(screen: Screen): void {
+    const previousScreen = activeScreen;
     activeScreen = screen;
+    if (previousScreen !== screen) {
+      clearSystemMessage();
+    }
     game.setMapElementsVisible(screen === "lobby" || screen === "game");
     elements.startScreen.classList.toggle("hidden", screen !== "start");
     elements.lobbyScreen.classList.toggle("hidden", screen !== "lobby");
@@ -165,14 +178,11 @@ export function createScreenController(
   }
 
   function showSystemMessage(message: string, durationMs: number = 5000): void {
-    if (systemMessageTimeout) {
-      clearTimeout(systemMessageTimeout);
-      systemMessageTimeout = null;
-    }
+    clearSystemMessage();
     elements.systemMessage.textContent = message;
     elements.systemMessage.classList.add("active");
     systemMessageTimeout = setTimeout(() => {
-      elements.systemMessage.classList.remove("active");
+      clearSystemMessage();
       systemMessageTimeout = null;
     }, durationMs);
   }

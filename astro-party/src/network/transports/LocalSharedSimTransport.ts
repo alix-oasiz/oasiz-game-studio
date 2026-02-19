@@ -127,6 +127,9 @@ export class LocalSharedSimTransport implements NetworkTransport {
           if (sessionId !== this.mySessionId) return;
           this.callbacks?.onTransportError?.(code, message);
         },
+        onReseed: (seed) => {
+          this.callbacks?.onRNGSeedReceived?.(seed);
+        },
       },
       { debugToolsEnabled: isClientDebugToolsRequested() },
     );

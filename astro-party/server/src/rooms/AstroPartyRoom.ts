@@ -61,6 +61,27 @@ interface DevGrantPowerUpMessage {
 }
 interface DevEjectPilotMessage {}
 
+const DEV_GRANT_POWERUP_TYPES: ReadonlySet<DevGrantPowerUpMessage["type"]> =
+  new Set([
+    "LASER",
+    "SHIELD",
+    "SCATTER",
+    "MINE",
+    "REVERSE",
+    "JOUST",
+    "HOMING_MISSILE",
+    "SPAWN_RANDOM",
+  ]);
+
+function isDevGrantPowerUpType(
+  value: unknown,
+): value is DevGrantPowerUpMessage["type"] {
+  return (
+    typeof value === "string" &&
+    DEV_GRANT_POWERUP_TYPES.has(value as DevGrantPowerUpMessage["type"])
+  );
+}
+
 export class AstroPartyRoom extends Room<AstroPartyRoomState> {
   maxClients = 4;
   private simulation!: AstroPartySimulation;
@@ -165,6 +186,9 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
             target.send("evt:error", { code, message });
           }
         },
+        onReseed: (seed: number) => {
+          this.broadcast("evt:rng_seed", { seed });
+        },
       },
       { debugToolsEnabled },
     );
@@ -230,7 +254,7 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
     this.onMessage(
       "cmd:dev_grant_powerup",
       (client, payload: DevGrantPowerUpMessage) => {
-        if (!payload || typeof payload.type !== "string") return;
+        if (!payload || !isDevGrantPowerUpType(payload.type)) return;
         this.simulation.devGrantPowerUp(client.sessionId, payload.type);
       },
     );
@@ -481,7 +505,7 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
   }
 
   private resolveDebugToolsEnabled(): boolean {
-    return this.parseBooleanEnv(process.env.DEBUG_TOOLS_ENABLED, true);
+    return this.parseBooleanEnv(process.env.DEBUG_TOOLS_ENABLED, false);
   }
 
   private parseBooleanEnv(rawValue: string | undefined, fallback: boolean): boolean {
