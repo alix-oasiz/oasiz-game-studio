@@ -1,8 +1,8 @@
 /**
- * ARCHERY ATTACK — Mongolian Horse Archer (Over-the-Shoulder 3D)
+ * ARCHERY ATTACK — Mongolian Horse Archer (2D Side-Scroll)
  *
- * Ride forward across the steppe. Targets appear ahead in the distance.
- * Hold space to draw the bow, release to fire.
+ * Ride across the steppe. Targets scroll in from the right.
+ * Hold space to draw the bow, release to fire at 45 degrees.
  * Time your release at the peak/trough of the sine wave for max steadiness.
  * Hold too long and the bow wobbles!
  */
@@ -17,11 +17,9 @@ interface Settings {
 }
 
 interface Arrow {
-  worldX: number;   // lateral position in world (along path)
-  worldZ: number;   // depth from camera path (into screen)
+  worldX: number;   // position along path
   height: number;   // above ground
   vx: number;
-  vz: number;
   vy: number;
   active: boolean;
   perfect: boolean;
@@ -29,7 +27,6 @@ interface Arrow {
 
 interface WorldTarget {
   worldX: number;     // position along the path (horse rides past)
-  worldZ: number;     // depth from path (distance into screen)
   postHeight: number;
   radius: number;
   hit: boolean;
@@ -76,12 +73,6 @@ interface Particle {
   size: number;
 }
 
-interface Projected {
-  screenX: number;
-  screenY: number;
-  scale: number;
-}
-
 // ============= CONFIG =============
 const CONFIG = {
   BOB_AMPLITUDE: 55,
@@ -100,12 +91,11 @@ const CONFIG = {
   MAX_WOBBLE: 0.45,
   MIN_DRAW_TO_FIRE: 0.15,
 
-  ARROW_SPEED: 0.8,
+  ARROW_SPEED: 0.5,
   ARROW_GRAVITY: 0.0004,
-  ARROW_AIM_RATIO: 0.15,   // fixed upward vy/speed ratio (no auto-aim)
 
-  TARGET_RADIUS: 150,
-  TARGET_HIT_RADIUS: 165,
+  TARGET_RADIUS: 40,
+  TARGET_HIT_RADIUS: 45,
 
   NEAR: 80,
   HORIZON_RATIO: 0.28,
@@ -114,7 +104,6 @@ const CONFIG = {
   PERFECT_MULTIPLIER: 2,
 
   GROUND_RATIO: 0.15,
-  RIDER_HEIGHT: 85,
 
   RING_COLORS: ["#FFD700", "#FF4444", "#4488FF", "#333333", "#EEEEEE"],
 };
@@ -147,6 +136,7 @@ let lastTime = 0;
 
 let groundY = 0;
 let horizonY = 0;
+let pxPerUnit = 1; // pixels per world unit for 2D mapping
 
 let horseBobVelocity = 0;
 
@@ -188,16 +178,8 @@ function resizeCanvas(): void {
   horse.screenX = w * 0.22;
   horse.baseY = groundY - 30; // adjusted for 3x horse scale
   horse.screenY = horse.baseY;
-}
-
-// ============= PERSPECTIVE =============
-function project(dz: number, lateralX: number, height: number): Projected | null {
-  if (dz <= 2) return null;
-  const scale = CONFIG.NEAR / (CONFIG.NEAR + dz);
-  const roadY = horizonY + (groundY - horizonY) * scale;
-  const screenY = roadY - height * scale;
-  const screenX = horse.screenX + lateralX * scale;
-  return { screenX, screenY, scale };
+  // 2D world scale: 900 world units fill from horse to right edge
+  pxPerUnit = (w - horse.screenX) / 900;
 }
 
 // ============= HAPTICS =============
@@ -241,12 +223,10 @@ function generateTargets(): void {
   for (let i = 0; i < CONFIG.TARGETS_PER_LAP; i++) {
     const jitter = (Math.random() - 0.5) * spacing * 0.3;
     const worldX = spacing * (i + 1) + jitter;
-    const worldZ = 50 + Math.random() * 80; // depth from path (into screen)
-    const postHeight = 60 + Math.random() * 80;
+    const postHeight = 200 + Math.random() * 200; // tall posts — targets in upper screen
 
     targets.push({
       worldX,
-      worldZ,
       postHeight,
       radius: CONFIG.TARGET_RADIUS,
       hit: false,
@@ -254,29 +234,12 @@ function generateTargets(): void {
   }
 }
 
-// ============= AUTO-AIM =============
+// ============= TARGET HELPERS =============
 function getTargetLateralDx(t: WorldTarget): number {
   let dx = t.worldX - world.cameraX;
   if (dx < -world.width / 2) dx += world.width;
   if (dx > world.width / 2) dx -= world.width;
   return dx;
-}
-
-function findNearestTarget(): WorldTarget | null {
-  let best: WorldTarget | null = null;
-  let bestDist = Infinity;
-
-  for (const t of targets) {
-    if (t.hit) continue;
-    const lateralDx = getTargetLateralDx(t);
-    if (Math.abs(lateralDx) > 300) continue;
-    const dist = Math.sqrt(lateralDx * lateralDx + t.worldZ * t.worldZ);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = t;
-    }
-  }
-  return best;
 }
 
 // ============= BOW DRAW & FIRE =============
@@ -323,27 +286,29 @@ function fireArrow(): void {
   const isPerfect = steadiness >= CONFIG.PERFECT_THRESHOLD && wobbleAmount < 0.1;
 
   const speed = CONFIG.ARROW_SPEED * drawProgress;
+  const angle45 = Math.PI / 4;
 
-  // Fixed direction: straight forward into depth with slight upward arc
-  const vz = speed;
-  const vyBase = speed * CONFIG.ARROW_AIM_RATIO;
-
-  // No lateral auto-aim — arrow goes straight (vx = 0)
-  const vx = 0;
+  // True 45-degree launch: equal horizontal and vertical components
+  const vx = speed * Math.cos(angle45);
+  const vyBase = speed * Math.sin(angle45);
 
   // Wobble adds random spread
   const wobbleVx = wobbleAmount > 0 ? (Math.random() - 0.5) * 2 * wobbleAmount * speed * 0.3 : 0;
   const wobbleVy = wobbleAmount > 0 ? (Math.random() - 0.5) * 2 * wobbleAmount * speed * 0.3 : 0;
 
-  // Bob transfer — this is the core mechanic: horse bob velocity affects arrow trajectory
+  // Bob transfer — core mechanic: horse bob velocity affects arrow trajectory
   const addedVy = -horseBobVelocity * CONFIG.VELOCITY_TRANSFER;
 
+  // Arrow starts from bow tip position (converted from screen to world coords)
+  const bowTipOffsetX = 127; // 3x-scaled local bow tip X offset from horse center
+  const bowTipOffsetY = 292; // 3x-scaled local bow tip Y offset above horse center
+  const startWorldX = world.cameraX + bowTipOffsetX / pxPerUnit;
+  const startHeight = (groundY - horse.screenY + bowTipOffsetY) / pxPerUnit;
+
   arrows.push({
-    worldX: world.cameraX,
-    worldZ: 5,
-    height: CONFIG.RIDER_HEIGHT,
+    worldX: startWorldX,
+    height: startHeight,
     vx: vx + wobbleVx,
-    vz,
     vy: vyBase + addedVy + wobbleVy,
     active: true,
     perfect: isPerfect,
@@ -616,72 +581,50 @@ function drawGround(): void {
 }
 
 function drawWorldTargets(): void {
-  // Collect visible targets with their lateral offset and depth
-  const visible: { t: WorldTarget; dz: number; lateralX: number }[] = [];
   for (const t of targets) {
     if (t.hit) continue;
-    const lateralX = getTargetLateralDx(t);
-    if (Math.abs(lateralX) > 400) continue;
-    const dz = t.worldZ;
-    if (dz > 5 && dz < 600) {
-      visible.push({ t, dz, lateralX });
-    }
-  }
-  // Sort by depth (far first for painter's algorithm)
-  visible.sort((a, b) => b.dz - a.dz);
+    const dx = getTargetLateralDx(t);
 
-  for (const { t, dz, lateralX } of visible) {
-    // Project post base (ground level)
-    const baseProj = project(dz, lateralX, 0);
-    // Project target face (top of post)
-    const faceProj = project(dz, lateralX, t.postHeight);
-    if (!baseProj || !faceProj) continue;
-    if (faceProj.screenX < -60 || faceProj.screenX > w + 60) continue;
+    // Show targets from far ahead to past the archer (scroll fully across)
+    if (dx < -200 || dx > 850) continue;
+
+    const screenX = horse.screenX + dx * pxPerUnit;
+    if (screenX < -60 || screenX > w + 60) continue;
+
+    const baseScreenY = groundY;
+    const faceScreenY = groundY - t.postHeight * pxPerUnit;
 
     // Post
     ctx.strokeStyle = "#5A3A1E";
-    ctx.lineWidth = Math.max(2, 6 * faceProj.scale);
+    ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.moveTo(baseProj.screenX, baseProj.screenY);
-    ctx.lineTo(faceProj.screenX, faceProj.screenY);
+    ctx.moveTo(screenX, baseScreenY);
+    ctx.lineTo(screenX, faceScreenY);
     ctx.stroke();
 
     // Post cap
-    const capW = Math.max(3, 10 * faceProj.scale);
-    const capH = Math.max(2, 6 * faceProj.scale);
     ctx.fillStyle = "#3D2810";
-    ctx.fillRect(faceProj.screenX - capW / 2, faceProj.screenY - capH / 2, capW, capH);
+    ctx.fillRect(screenX - 5, faceScreenY - 3, 10, 6);
 
     // Target face (concentric rings)
     const rings = CONFIG.RING_COLORS;
-    const visualR = t.radius * faceProj.scale;
+    const visualR = t.radius * pxPerUnit;
     for (let i = 0; i < rings.length; i++) {
       const r = visualR * (1 - i / rings.length);
       if (r < 0.5) continue;
       ctx.fillStyle = rings[i];
       ctx.beginPath();
-      ctx.arc(faceProj.screenX, faceProj.screenY, r, 0, Math.PI * 2);
+      ctx.arc(screenX, faceScreenY, r, 0, Math.PI * 2);
       ctx.fill();
     }
 
     // Target outline
     if (visualR > 1) {
       ctx.strokeStyle = "#333";
-      ctx.lineWidth = Math.max(1, 2 * faceProj.scale);
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(faceProj.screenX, faceProj.screenY, visualR, 0, Math.PI * 2);
+      ctx.arc(screenX, faceScreenY, visualR, 0, Math.PI * 2);
       ctx.stroke();
-    }
-
-    // Glow for distant targets to improve visibility
-    if (faceProj.scale < 0.2) {
-      ctx.shadowColor = "#FFD700";
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = "rgba(255, 215, 0, 0.3)";
-      ctx.beginPath();
-      ctx.arc(faceProj.screenX, faceProj.screenY, Math.max(visualR + 3, 6), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
     }
   }
 }
@@ -861,10 +804,9 @@ function drawHorseAndArcher(): void {
   ctx.ellipse(riderBaseX, riderBaseY - 30, 12, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // ---- BOW (pointing upward toward targets in depth) ----
-  // Bow is held above the rider, aiming up-right toward the horizon
-  const bowCenterX = riderBaseX + 18;
-  const bowCenterY = riderBaseY - 22;
+  // ---- BOW (45-degree angle, always aiming top-right) ----
+  const bowCenterX = riderBaseX + 16;
+  const bowCenterY = riderBaseY - 18;
 
   // Wobble shake
   let shakeX = 0;
@@ -877,7 +819,7 @@ function drawHorseAndArcher(): void {
   const drawBowX = bowCenterX + shakeX;
   const drawBowY = bowCenterY + shakeY;
 
-  // Bow arm (reaches up to hold bow)
+  // Bow arm (reaches up-right to hold bow)
   ctx.strokeStyle = "#D2A679";
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
@@ -886,27 +828,28 @@ function drawHorseAndArcher(): void {
   ctx.lineTo(drawBowX, drawBowY);
   ctx.stroke();
 
-  // Bow arc — rotated to point upward (limbs go up)
-  // Arc from ~10 o'clock to ~2 o'clock (bow faces up-right)
+  // Bow arc — 45 degrees top-right
   const bowR = 22;
-  const bowAngle = -Math.PI * 0.5; // point straight up
+  const bowAngle = -Math.PI * 0.25; // 45 deg top-right
   ctx.strokeStyle = "#8B4513";
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(drawBowX, drawBowY, bowR, bowAngle - 0.9, bowAngle + 0.9, false);
   ctx.stroke();
 
-  // Bow tip positions
+  // Bow tip positions (the two ends of the arc)
   const topTipX = drawBowX + Math.cos(bowAngle - 0.9) * bowR;
   const topTipY = drawBowY + Math.sin(bowAngle - 0.9) * bowR;
   const botTipX = drawBowX + Math.cos(bowAngle + 0.9) * bowR;
   const botTipY = drawBowY + Math.sin(bowAngle + 0.9) * bowR;
 
-  // String pullback — pulls DOWN (opposite of up-pointing bow)
+  // String pullback — pulls opposite to aim (bottom-left)
   const maxPull = 18;
   const pullBack = isDrawing ? drawProgress * maxPull : 0;
-  const stringPullX = drawBowX;
-  const stringPullY = drawBowY + pullBack;
+  const pullDirX = -Math.cos(bowAngle); // opposite of aim direction
+  const pullDirY = -Math.sin(bowAngle);
+  const stringPullX = drawBowX + pullDirX * pullBack;
+  const stringPullY = drawBowY + pullDirY * pullBack;
 
   // Bowstring
   ctx.strokeStyle = "#C4A058";
@@ -919,9 +862,9 @@ function drawHorseAndArcher(): void {
   ctx.lineTo(botTipX, botTipY);
   ctx.stroke();
 
-  // Draw arm (reaches to string)
+  // Draw arm (reaches to string nock point)
   const drawArmEndX = isDrawing ? stringPullX : riderBaseX;
-  const drawArmEndY = isDrawing ? stringPullY + 2 : riderBaseY - 8;
+  const drawArmEndY = isDrawing ? stringPullY : riderBaseY - 8;
 
   ctx.strokeStyle = "#D2A679";
   ctx.lineWidth = 3;
@@ -930,18 +873,15 @@ function drawHorseAndArcher(): void {
   ctx.lineTo(drawArmEndX, drawArmEndY);
   ctx.stroke();
 
-  // Nocked arrow while drawing — points upward
+  // Nocked arrow while drawing — points top-right at 45 degrees
   if (isDrawing && drawProgress > 0.05) {
     const nockX = stringPullX;
     const nockY = stringPullY;
     const arrowLen = 30;
 
-    // Arrow shaft pointing up from nock toward bow center and beyond
-    const aDx = drawBowX - nockX;
-    const aDy = (drawBowY - pullBack * 0.5) - nockY;
-    const aLen = Math.sqrt(aDx * aDx + aDy * aDy) || 1;
-    const aDirX = aDx / aLen;
-    const aDirY = aDy / aLen;
+    // Arrow points in aim direction (top-right, 45 deg)
+    const aDirX = Math.cos(bowAngle);  // 0.707
+    const aDirY = Math.sin(bowAngle);  // -0.707
 
     const tipX = nockX + aDirX * arrowLen;
     const tipY = nockY + aDirY * arrowLen;
@@ -967,82 +907,61 @@ function drawHorseAndArcher(): void {
 }
 
 function drawArrows(): void {
-  // Sort by depth (far first)
-  const sorted = arrows
-    .filter((a) => a.active)
-    .map((a) => ({
-      arrow: a,
-      dz: a.worldZ,
-      lateralX: a.worldX - world.cameraX,
-    }))
-    .filter(({ dz }) => dz > 0 && dz < 800)
-    .sort((a, b) => b.dz - a.dz);
+  for (const arrow of arrows) {
+    if (!arrow.active) continue;
 
-  for (const { arrow, dz, lateralX } of sorted) {
-    const proj = project(dz, lateralX, arrow.height);
-    if (!proj) continue;
+    let dx = arrow.worldX - world.cameraX;
+    if (dx > world.width / 2) dx -= world.width;
+    if (dx < -world.width / 2) dx += world.width;
 
-    // Trail point slightly behind (in depth)
-    const trailDz = Math.max(dz - 8, 1);
-    const trailSteps = dz - trailDz;
-    const trailLat = lateralX - (arrow.vx / Math.max(arrow.vz, 0.01)) * trailSteps;
-    const trailH = arrow.height - (arrow.vy / Math.max(arrow.vz, 0.01)) * trailSteps;
-    const projTrail = project(trailDz, trailLat, trailH);
+    const screenX = horse.screenX + dx * pxPerUnit;
+    const screenY = groundY - arrow.height * pxPerUnit;
 
-    const minSize = 3;
-    const sizeScale = Math.max(proj.scale, 0.15);
+    if (screenX < -50 || screenX > w + 50) continue;
+    if (screenY < -50 || screenY > h + 50) continue;
 
-    if (projTrail) {
-      const sdx = proj.screenX - projTrail.screenX;
-      const sdy = proj.screenY - projTrail.screenY;
-      const angle = Math.atan2(sdy, sdx);
-      const len = Math.max(8, 24 * sizeScale);
+    // Arrow orientation follows velocity (screen Y inverted)
+    const angle = Math.atan2(-arrow.vy, arrow.vx);
+    const arrowLen = 22;
 
-      const tipX = proj.screenX + Math.cos(angle) * len * 0.6;
-      const tipY = proj.screenY + Math.sin(angle) * len * 0.6;
-      const tailX = proj.screenX - Math.cos(angle) * len * 0.4;
-      const tailY = proj.screenY - Math.sin(angle) * len * 0.4;
+    const tipX = screenX + Math.cos(angle) * arrowLen * 0.6;
+    const tipY = screenY + Math.sin(angle) * arrowLen * 0.6;
+    const tailX = screenX - Math.cos(angle) * arrowLen * 0.4;
+    const tailY = screenY - Math.sin(angle) * arrowLen * 0.4;
 
-      // Shaft
-      ctx.strokeStyle = "#5C3A1E";
-      ctx.lineWidth = Math.max(1.5, 3 * sizeScale);
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
+    // Shaft
+    ctx.strokeStyle = "#5C3A1E";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
 
-      // Arrowhead
-      const hs = Math.max(minSize, 6 * sizeScale);
-      ctx.fillStyle = "#888";
-      ctx.beginPath();
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(tipX - Math.cos(angle - 0.4) * hs, tipY - Math.sin(angle - 0.4) * hs);
-      ctx.lineTo(tipX - Math.cos(angle + 0.4) * hs, tipY - Math.sin(angle + 0.4) * hs);
-      ctx.closePath();
-      ctx.fill();
+    // Arrowhead
+    const hs = 6;
+    ctx.fillStyle = "#888";
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - Math.cos(angle - 0.4) * hs, tipY - Math.sin(angle - 0.4) * hs);
+    ctx.lineTo(tipX - Math.cos(angle + 0.4) * hs, tipY - Math.sin(angle + 0.4) * hs);
+    ctx.closePath();
+    ctx.fill();
 
-      // Fletching
-      const fSize = Math.max(2, 5 * sizeScale);
-      ctx.fillStyle = "#CC3333";
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(tailX + Math.cos(angle - 0.5) * fSize, tailY + Math.sin(angle - 0.5) * fSize);
-      ctx.lineTo(tailX + Math.cos(angle) * fSize * 0.7, tailY + Math.sin(angle) * fSize * 0.7);
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(tailX + Math.cos(angle + 0.5) * fSize, tailY + Math.sin(angle + 0.5) * fSize);
-      ctx.lineTo(tailX + Math.cos(angle) * fSize * 0.7, tailY + Math.sin(angle) * fSize * 0.7);
-      ctx.closePath();
-      ctx.fill();
-    } else {
-      // Fallback: just a dot
-      ctx.fillStyle = arrow.perfect ? "#FFD700" : "#FF6633";
-      ctx.beginPath();
-      ctx.arc(proj.screenX, proj.screenY, Math.max(minSize, 4 * sizeScale), 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // Fletching
+    const fSize = 5;
+    ctx.fillStyle = "#CC3333";
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(tailX + Math.cos(angle - 0.5) * fSize, tailY + Math.sin(angle - 0.5) * fSize);
+    ctx.lineTo(tailX + Math.cos(angle) * fSize * 0.7, tailY + Math.sin(angle) * fSize * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(tailX + Math.cos(angle + 0.5) * fSize, tailY + Math.sin(angle + 0.5) * fSize);
+    ctx.lineTo(tailX + Math.cos(angle) * fSize * 0.7, tailY + Math.sin(angle) * fSize * 0.7);
+    ctx.closePath();
+    ctx.fill();
   }
 }
 
@@ -1129,78 +1048,6 @@ function drawBobIndicator(): void {
   ctx.stroke();
 }
 
-function drawAimReticle(): void {
-  if (!isDrawing) return;
-
-  // Fixed aim direction: project where the arrow will land if fired now
-  // Arrow goes straight ahead (lateralX=0) at fixed depth, with AIM_RATIO height
-  const aimDz = 80; // reference depth for reticle display
-  const speed = CONFIG.ARROW_SPEED * Math.max(drawProgress, 0.3);
-  const approxFlight = aimDz / speed;
-
-  // Predicted height at aimDz: initial height + vy*t - 0.5*g*t^2
-  const vyBase = speed * CONFIG.ARROW_AIM_RATIO;
-  const addedVy = -horseBobVelocity * CONFIG.VELOCITY_TRANSFER;
-  const totalVy = vyBase + addedVy;
-  const predictedHeight = CONFIG.RIDER_HEIGHT + totalVy * approxFlight - 0.5 * CONFIG.ARROW_GRAVITY * approxFlight * approxFlight;
-
-  const proj = project(aimDz, 0, Math.max(predictedHeight, 0));
-  if (!proj) return;
-
-  // Wobble
-  let wX = 0;
-  let wY = 0;
-  if (wobbleAmount > 0) {
-    wX = (Math.random() - 0.5) * wobbleAmount * 30;
-    wY = (Math.random() - 0.5) * wobbleAmount * 30;
-  }
-
-  const rx = proj.screenX + wX;
-  const ry = proj.screenY + wY;
-
-  const steadiness = getSteadiness();
-  let color: string;
-  if (steadiness >= CONFIG.PERFECT_THRESHOLD && wobbleAmount < 0.1) {
-    color = "#44FF44";
-  } else if (steadiness > 0.5) {
-    color = "#FFDD44";
-  } else {
-    color = "#FF5544";
-  }
-
-  const size = Math.max(8, 18 * proj.scale);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.7 * drawProgress;
-
-  // Circle
-  ctx.beginPath();
-  ctx.arc(rx, ry, size, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Crosshair lines
-  const gap = size * 0.4;
-  const ext = size + 5;
-  ctx.beginPath();
-  ctx.moveTo(rx - ext, ry);
-  ctx.lineTo(rx - gap, ry);
-  ctx.moveTo(rx + gap, ry);
-  ctx.lineTo(rx + ext, ry);
-  ctx.moveTo(rx, ry - ext);
-  ctx.lineTo(rx, ry - gap);
-  ctx.moveTo(rx, ry + gap);
-  ctx.lineTo(rx, ry + ext);
-  ctx.stroke();
-
-  // Center dot
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(rx, ry, 2, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.globalAlpha = 1;
-}
-
 function drawDrawMeter(): void {
   const meterX = w * 0.5;
   const meterY = h - 90;
@@ -1256,7 +1103,6 @@ function drawHUD(): void {
   ctx.textAlign = "left";
 
   drawBobIndicator();
-  drawAimReticle();
 
   if (isDrawing) {
     drawDrawMeter();
@@ -1304,13 +1150,12 @@ function update(dt: number): void {
   updateDraw(dt);
   updateFireButton();
 
-  // Update arrows (3D physics)
+  // Update arrows (2D physics)
   for (const arrow of arrows) {
     if (!arrow.active) continue;
 
     arrow.vy -= CONFIG.ARROW_GRAVITY * dt;
     arrow.worldX += arrow.vx * dt;
-    arrow.worldZ += arrow.vz * dt;
     arrow.height += arrow.vy * dt;
 
     // Hit ground
@@ -1319,28 +1164,31 @@ function update(dt: number): void {
       continue;
     }
 
-    // Too far in depth or behind
-    if (arrow.worldZ > 800 || arrow.worldZ < -5) {
+    // Too far ahead or behind camera
+    let arrowDx = arrow.worldX - world.cameraX;
+    if (arrowDx > world.width / 2) arrowDx -= world.width;
+    if (arrowDx < -world.width / 2) arrowDx += world.width;
+    if (arrowDx > 1200 || arrowDx < -100) {
       arrow.active = false;
       continue;
     }
 
-    // Target collision (3D proximity)
+    // Target collision (2D: worldX + height)
     for (const t of targets) {
       if (t.hit) continue;
 
-      const dzToTarget = Math.abs(arrow.worldZ - t.worldZ);
-      if (dzToTarget > 15) continue;
+      let tdx = arrow.worldX - t.worldX;
+      if (tdx > world.width / 2) tdx -= world.width;
+      if (tdx < -world.width / 2) tdx += world.width;
 
-      const dx = arrow.worldX - t.worldX;
       const dy = arrow.height - t.postHeight;
-      const dist2d = Math.sqrt(dx * dx + dy * dy);
+      const dist = Math.sqrt(tdx * tdx + dy * dy);
 
-      if (dist2d < CONFIG.TARGET_HIT_RADIUS) {
+      if (dist < CONFIG.TARGET_HIT_RADIUS) {
         arrow.active = false;
         t.hit = true;
 
-        const ringFrac = dist2d / t.radius;
+        const ringFrac = dist / t.radius;
         let points = 2;
         if (ringFrac < 0.2) points = 10;
         else if (ringFrac < 0.4) points = 8;
@@ -1352,13 +1200,13 @@ function update(dt: number): void {
         score += points;
         currentScoreEl.textContent = score.toString();
 
-        // Project hit position for particles/popup
-        const lateralX = t.worldX - world.cameraX;
-        const proj = project(t.worldZ, lateralX, t.postHeight);
-        if (proj) {
-          spawnHitParticles(proj.screenX, proj.screenY);
-          spawnScorePopup(proj.screenX, proj.screenY - 30, points, arrow.perfect);
-        }
+        // Screen position for particles/popup
+        const lateralX = getTargetLateralDx(t);
+        const sx = horse.screenX + lateralX * pxPerUnit;
+        const sy = groundY - t.postHeight * pxPerUnit;
+        spawnHitParticles(sx, sy);
+        spawnScorePopup(sx, sy - 30, points, arrow.perfect);
+
         triggerHaptic("success");
         break;
       }
@@ -1552,7 +1400,7 @@ function gameLoop(timestamp: number): void {
   ctx.fillStyle = "rgba(255,255,255,0.3)";
   ctx.font = "11px monospace";
   ctx.textAlign = "right";
-  ctx.fillText("build 13", w - 10, h - 10);
+  ctx.fillText("build 16", w - 10, h - 10);
   ctx.textAlign = "left";
 
   animationFrameId = requestAnimationFrame(gameLoop);
