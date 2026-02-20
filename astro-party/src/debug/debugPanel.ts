@@ -528,6 +528,41 @@ function injectStyles(): void {
         padding: 9px 8px;
       }
     }
+
+    @media (pointer: coarse) and (orientation: portrait) {
+      .qa-debug-root {
+        left: calc(var(--box-left) + 8px);
+        top: calc(var(--box-top) + 8px);
+      }
+
+      .qa-debug-toggle-row {
+        gap: 10px;
+      }
+
+      .qa-debug-toggle,
+      .qa-debug-lab-toggle {
+        width: 64px;
+        height: 44px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+      }
+
+      .qa-debug-panel {
+        margin-top: 10px;
+        width: min(500px, calc(100vw - 16px), calc(var(--box-width) - 12px));
+        max-height: min(70vh, calc(var(--box-height) - 80px));
+        padding: 12px;
+      }
+
+      .qa-debug-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .qa-debug-btn {
+        min-height: 40px;
+        font-size: 0.72rem;
+      }
+    }
   `;
   document.head.appendChild(style);
 }

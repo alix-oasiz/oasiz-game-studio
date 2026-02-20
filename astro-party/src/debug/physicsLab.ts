@@ -915,6 +915,36 @@ function injectStyles(): void {
         grid-template-columns: 1fr;
       }
     }
+
+    @media (pointer: coarse) and (orientation: portrait) {
+      .qa-physics-lab {
+        left: calc(var(--box-left) + 8px);
+        right: auto;
+        top: calc(var(--box-top) + 8px);
+      }
+
+      .qa-physics-lab-panel {
+        width: min(560px, calc(100vw - 16px), calc(var(--box-width) - 12px));
+        max-width: calc(100vw - 16px);
+        max-height: min(74vh, calc(var(--box-height) - 70px));
+        padding: 12px;
+      }
+
+      .qa-physics-lab-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .qa-physics-lab-close,
+      .qa-physics-lab-btn,
+      .qa-physics-lab-select {
+        min-height: 40px;
+        font-size: 0.74rem;
+      }
+
+      .qa-physics-lab-sections {
+        grid-template-columns: 1fr;
+      }
+    }
   `;
   document.head.appendChild(style);
 }
