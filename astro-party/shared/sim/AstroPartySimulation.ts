@@ -45,12 +45,8 @@ import {
   FIRE_COOLDOWN_MS,
   MAX_AMMO,
   HOMING_MISSILE_LIFETIME_MS,
-  POWERUP_SHIELD_HITS,
   POWERUP_MAGNETIC_RADIUS,
   POWERUP_MAGNETIC_SPEED,
-  LASER_BEAM_LENGTH,
-  JOUST_SWORD_LENGTH,
-  ASTEROID_DAMAGE_SHIPS,
   WALL_RESTITUTION_BY_PRESET,
   WALL_FRICTION_BY_PRESET,
 } from "./constants.js";
@@ -86,13 +82,26 @@ import {
   shipCenterFromBodyPosition,
   shipCenterVelocityFromBodyVelocity,
 } from "./shipTransform.js";
-import { lineIntersectsRect } from "./geometryMath.js";
 import {
   recordShipTransformHistory as syncRecordShipTransformHistory,
   syncPhysicsFromSim as syncPhysicsFromSimState,
   syncSimFromPhysics as syncSimFromPhysicsState,
   type ShipTransformHistoryEntry,
 } from "./simulationStateSync.js";
+import {
+  checkJoustYellowBlockCollisions as checkJoustYellowBlockCollisionsState,
+  checkLaserBeamBlockCollisions as checkLaserBeamBlockCollisionsState,
+  handlePilotHitAsteroidCollision,
+  handleProjectileHitAsteroidCollision,
+  handleProjectileHitPilotCollision,
+  handleProjectileHitShipCollision,
+  handleProjectileHitYellowBlockCollision,
+  handleShipHitAsteroidCollision,
+  handleShipHitPilotCollision,
+  handleShipHitPowerUpCollision,
+  removeProjectileByBodyCollision,
+  type SimulationCollisionHandlersContext,
+} from "./simulationCollisionHandlers.js";
 
 // System imports
 import { updateBots } from "./AISystem.js";
@@ -117,7 +126,6 @@ import {
   updateHomingMissiles,
   checkHomingMissileCollisions,
   updateJoustCollisions,
-  damageJoustSword,
   updateTurret,
   updateTurretBullets,
 } from "./WeaponSystem.js";
@@ -235,33 +243,51 @@ export class AstroPartySimulation implements SimState {
       WALL_RESTITUTION_BY_PRESET[this.settings.wallRestitutionPreset],
       WALL_FRICTION_BY_PRESET[this.settings.wallFrictionPreset],
     );
+    const collisionContext = (): SimulationCollisionHandlersContext =>
+      this.createCollisionHandlersContext();
     setupCollisions(this.physics, {
       onProjectileHitShip: (projectileBody, shipBody) => {
-        this.handleProjectileHitShip(projectileBody, shipBody);
+        handleProjectileHitShipCollision(
+          collisionContext(),
+          projectileBody,
+          shipBody,
+        );
       },
       onProjectileHitPilot: (projectileBody, pilotBody) => {
-        this.handleProjectileHitPilot(projectileBody, pilotBody);
+        handleProjectileHitPilotCollision(
+          collisionContext(),
+          projectileBody,
+          pilotBody,
+        );
       },
       onShipHitPilot: (shipBody, pilotBody) => {
-        this.handleShipHitPilot(shipBody, pilotBody);
+        handleShipHitPilotCollision(collisionContext(), shipBody, pilotBody);
       },
       onProjectileHitWall: (projectileBody) => {
-        this.removeProjectileByBody(projectileBody);
+        removeProjectileByBodyCollision(collisionContext(), projectileBody);
       },
       onProjectileHitYellowBlock: (projectileBody, blockBody) => {
-        this.handleProjectileHitYellowBlock(projectileBody, blockBody);
+        handleProjectileHitYellowBlockCollision(
+          collisionContext(),
+          projectileBody,
+          blockBody,
+        );
       },
       onProjectileHitAsteroid: (projectileBody, asteroidBody) => {
-        this.handleProjectileHitAsteroid(projectileBody, asteroidBody);
+        handleProjectileHitAsteroidCollision(
+          collisionContext(),
+          projectileBody,
+          asteroidBody,
+        );
       },
       onShipHitAsteroid: (shipBody, asteroidBody) => {
-        this.handleShipHitAsteroid(shipBody, asteroidBody);
+        handleShipHitAsteroidCollision(collisionContext(), shipBody, asteroidBody);
       },
       onPilotHitAsteroid: (pilotBody, asteroidBody) => {
-        this.handlePilotHitAsteroid(pilotBody, asteroidBody);
+        handlePilotHitAsteroidCollision(collisionContext(), pilotBody, asteroidBody);
       },
       onShipHitPowerUp: (shipBody, powerUpBody) => {
-        this.handleShipHitPowerUp(shipBody, powerUpBody);
+        handleShipHitPowerUpCollision(collisionContext(), shipBody, powerUpBody);
       },
     });
   }
@@ -753,12 +779,12 @@ export class AstroPartySimulation implements SimState {
     updateProjectiles(this, dtSec);
     updatePowerUps(this, dtSec);
     updateLaserBeams(this);
-    this.checkLaserBeamBlockCollisions();
+    checkLaserBeamBlockCollisionsState(this.createCollisionHandlersContext());
     checkMineCollisions(this);
     updateHomingMissiles(this, dtSec);
     checkHomingMissileCollisions(this);
     updateJoustCollisions(this);
-    this.checkJoustYellowBlockCollisions();
+    checkJoustYellowBlockCollisionsState(this.createCollisionHandlersContext());
     updateTurret(this, dtSec);
     updateTurretBullets(this, dtSec);
     this.updateMapFeatures(dtSec);
@@ -1471,274 +1497,36 @@ export class AstroPartySimulation implements SimState {
     });
   }
 
-  private handleProjectileHitShip(projectileBody: Matter.Body, shipBody: Matter.Body): void {
-    const projectileId = this.getPluginString(projectileBody, "entityId");
-    const projectileOwnerId = this.getPluginString(projectileBody, "ownerId");
-    const shipPlayerId = this.getPluginString(shipBody, "playerId");
-    if (!projectileId || !projectileOwnerId || !shipPlayerId) return;
-    if (!this.projectileBodies.has(projectileId)) return;
-    if (projectileOwnerId === shipPlayerId) return;
-
-    const shipPlayer = this.players.get(shipPlayerId);
-    if (!shipPlayer || !shipPlayer.ship.alive) return;
-    if (shipPlayer.ship.invulnerableUntil > this.nowMs) return;
-
-    const powerUp = this.playerPowerUps.get(shipPlayerId);
-    if (powerUp?.type === "SHIELD") {
-      powerUp.shieldHits += 1;
-      this.removeProjectileBody(projectileId);
-      this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
-      this.triggerScreenShake(3, 0.1);
-      if (powerUp.shieldHits >= POWERUP_SHIELD_HITS) {
-        this.playerPowerUps.delete(shipPlayerId);
-      }
-      return;
-    }
-
-    const owner = this.players.get(projectileOwnerId);
-    this.removeProjectileBody(projectileId);
-    this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
-    this.playerPowerUps.delete(shipPlayerId);
-    this.onShipHit(owner, shipPlayer);
-  }
-
-  private handleProjectileHitPilot(projectileBody: Matter.Body, pilotBody: Matter.Body): void {
-    const projectileId = this.getPluginString(projectileBody, "entityId");
-    const projectileOwnerId = this.getPluginString(projectileBody, "ownerId");
-    const pilotPlayerId = this.getPluginString(pilotBody, "playerId");
-    if (!projectileId || !projectileOwnerId || !pilotPlayerId) return;
-    if (!this.projectileBodies.has(projectileId)) return;
-    const pilot = this.pilots.get(pilotPlayerId);
-    if (!pilot || !pilot.alive) return;
-    this.removeProjectileBody(projectileId);
-    this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
-    this.killPilot(pilotPlayerId, projectileOwnerId);
-  }
-
-  private handleShipHitPilot(shipBody: Matter.Body, pilotBody: Matter.Body): void {
-    const shipPlayerId = this.getPluginString(shipBody, "playerId");
-    const pilotPlayerId = this.getPluginString(pilotBody, "playerId");
-    if (!shipPlayerId || !pilotPlayerId) return;
-    if (shipPlayerId === pilotPlayerId) return;
-    const shipPlayer = this.players.get(shipPlayerId);
-    const pilot = this.pilots.get(pilotPlayerId);
-    if (!shipPlayer || !shipPlayer.ship.alive || !pilot || !pilot.alive) return;
-    this.killPilot(pilotPlayerId, shipPlayerId);
-  }
-
-  private handleProjectileHitAsteroid(projectileBody: Matter.Body, asteroidBody: Matter.Body): void {
-    const projectileId = this.getPluginString(projectileBody, "entityId");
-    const asteroidId = this.getPluginString(asteroidBody, "entityId");
-    if (!projectileId || !asteroidId) return;
-    if (!this.projectileBodies.has(projectileId)) return;
-    const asteroid = this.asteroids.find((item) => item.id === asteroidId && item.alive);
-    this.removeProjectileBody(projectileId);
-    this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
-    if (asteroid) {
-      hitAsteroid(this, asteroid);
-    }
-  }
-
-  private handleProjectileHitYellowBlock(
-    projectileBody: Matter.Body,
-    blockBody: Matter.Body,
-  ): void {
-    const projectileId = this.getPluginString(projectileBody, "entityId");
-    if (!projectileId) return;
-    if (!this.projectileBodies.has(projectileId)) return;
-
-    this.removeProjectileBody(projectileId);
-    this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
-
-    const rawBlockIndex = (blockBody.plugin as { blockIndex?: unknown } | undefined)
-      ?.blockIndex;
-    if (!Number.isInteger(rawBlockIndex)) return;
-    this.damageYellowBlock(rawBlockIndex as number, 1);
-  }
-
-  private handleShipHitAsteroid(shipBody: Matter.Body, asteroidBody: Matter.Body): void {
-    if (!ASTEROID_DAMAGE_SHIPS) return;
-    const shipPlayerId = this.getPluginString(shipBody, "playerId");
-    const asteroidId = this.getPluginString(asteroidBody, "entityId");
-    if (!shipPlayerId || !asteroidId) return;
-    const shipPlayer = this.players.get(shipPlayerId);
-    if (!shipPlayer || !shipPlayer.ship.alive) return;
-    if (shipPlayer.ship.invulnerableUntil > this.nowMs) return;
-    const asteroid = this.asteroids.find((item) => item.id === asteroidId && item.alive);
-    if (asteroid) {
-      this.destroyAsteroid(asteroid);
-    }
-    this.playerPowerUps.delete(shipPlayerId);
-    this.onShipHit(undefined, shipPlayer);
-  }
-
-  private handlePilotHitAsteroid(pilotBody: Matter.Body, asteroidBody: Matter.Body): void {
-    if (!ASTEROID_DAMAGE_SHIPS) return;
-    const pilotPlayerId = this.getPluginString(pilotBody, "playerId");
-    const asteroidId = this.getPluginString(asteroidBody, "entityId");
-    if (!pilotPlayerId || !asteroidId) return;
-    const pilot = this.pilots.get(pilotPlayerId);
-    if (!pilot || !pilot.alive) return;
-    const asteroid = this.asteroids.find((item) => item.id === asteroidId && item.alive);
-    if (asteroid) {
-      this.destroyAsteroid(asteroid);
-    }
-    this.killPilot(pilotPlayerId, "asteroid");
-  }
-
-  private handleShipHitPowerUp(shipBody: Matter.Body, powerUpBody: Matter.Body): void {
-    const shipPlayerId = this.getPluginString(shipBody, "playerId");
-    const powerUpId = this.getPluginString(powerUpBody, "entityId");
-    if (!shipPlayerId || !powerUpId) return;
-
-    if (this.playerPowerUps.get(shipPlayerId)) return;
-
-    const powerUp = this.powerUps.find((item) => item.id === powerUpId && item.alive);
-    if (!powerUp) return;
-
-    this.grantPowerUp(shipPlayerId, powerUp.type);
-    powerUp.alive = false;
-    this.removePowerUpBody(powerUpId);
-  }
-
-  private damageYellowBlock(blockIndex: number, amount: number): void {
-    const block = this.yellowBlocks[blockIndex];
-    if (!block || block.hp <= 0) return;
-    block.hp -= amount;
-    if (block.hp > 0) return;
-    block.hp = 0;
-    if (block.body) {
-      this.physics.removeBody(block.body);
-      this.yellowBlockBodyIndex.delete(block.body.id);
-      this.yellowBlockSwordHitCooldown.delete(blockIndex);
-      block.body = null;
-    }
-  }
-
-  private checkLaserBeamBlockCollisions(): void {
-    for (const beam of this.laserBeams) {
-      if (!beam.alive) continue;
-
-      const start = { x: beam.x, y: beam.y };
-      const end = {
-        x: beam.x + Math.cos(beam.angle) * LASER_BEAM_LENGTH,
-        y: beam.y + Math.sin(beam.angle) * LASER_BEAM_LENGTH,
-      };
-
-      for (let i = this.yellowBlocks.length - 1; i >= 0; i--) {
-        const block = this.yellowBlocks[i];
-        if (!block.body || block.hp <= 0) continue;
-        const half = block.block.width * 0.5;
-        if (
-          lineIntersectsRect(
-            start,
-            end,
-            block.body.position.x,
-            block.body.position.y,
-            half,
-          )
-        ) {
-          this.damageYellowBlock(i, 1);
-        }
-      }
-    }
-  }
-
-  private checkJoustYellowBlockCollisions(): void {
-    if (this.getCurrentMap().id !== 1) return;
-
-    for (const [playerId, powerUp] of this.playerPowerUps) {
-      if (powerUp?.type !== "JOUST") continue;
-      if (!powerUp.leftSwordActive && !powerUp.rightSwordActive) continue;
-
-      const player = this.players.get(playerId);
-      if (!player || !player.ship.alive) continue;
-
-      const coneLength = JOUST_SWORD_LENGTH + 15;
-      const coneWidth = Math.PI / 3;
-      const coneTipX = player.ship.x;
-      const coneTipY = player.ship.y;
-      const coneAngle = player.ship.angle;
-
-      for (let blockIndex = 0; blockIndex < this.yellowBlocks.length; blockIndex++) {
-        const block = this.yellowBlocks[blockIndex];
-        if (!block || block.hp <= 0 || !block.body) continue;
-
-        const corners = [
-          { x: block.block.x, y: block.block.y },
-          { x: block.block.x + block.block.width, y: block.block.y },
-          { x: block.block.x + block.block.width, y: block.block.y + block.block.height },
-          { x: block.block.x, y: block.block.y + block.block.height },
-        ];
-
-        let hit = false;
-        for (const corner of corners) {
-          if (
-            this.isPointInCone(
-              corner.x,
-              corner.y,
-              coneTipX,
-              coneTipY,
-              coneAngle,
-              coneLength,
-              coneWidth,
-            )
-          ) {
-            hit = this.tryDamageYellowBlockWithSword(blockIndex);
-            if (hit) {
-              const side = powerUp.leftSwordActive ? "left" : "right";
-              const swordBroke = damageJoustSword(powerUp, side);
-              this.triggerScreenShake(
-                swordBroke ? 5 : 3,
-                swordBroke ? 0.15 : 0.1,
-              );
-              if (!powerUp.leftSwordActive && !powerUp.rightSwordActive) {
-                this.playerPowerUps.delete(playerId);
-              }
-            }
-            break;
-          }
-        }
-
-        if (hit) break;
-      }
-    }
-  }
-
-  private tryDamageYellowBlockWithSword(blockIndex: number): boolean {
-    const now = this.nowMs;
-    const nextAllowed = this.yellowBlockSwordHitCooldown.get(blockIndex) ?? 0;
-    if (now < nextAllowed) return false;
-    this.yellowBlockSwordHitCooldown.set(blockIndex, now + 180);
-    this.damageYellowBlock(blockIndex, 1);
-    return true;
-  }
-
-  private isPointInCone(
-    pointX: number,
-    pointY: number,
-    tipX: number,
-    tipY: number,
-    coneAngle: number,
-    coneLength: number,
-    coneWidth: number,
-  ): boolean {
-    const dx = pointX - tipX;
-    const dy = pointY - tipY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance > coneLength) return false;
-
-    const pointAngle = Math.atan2(dy, dx);
-    const angleDiff = normalizeAngle(pointAngle - coneAngle);
-    return Math.abs(angleDiff) <= coneWidth * 0.5;
-  }
-
-  private removeProjectileByBody(projectileBody: Matter.Body): void {
-    const projectileId = this.getPluginString(projectileBody, "entityId");
-    if (!projectileId) return;
-    if (!this.projectileBodies.has(projectileId)) return;
-    this.removeProjectileBody(projectileId);
-    this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
+  private createCollisionHandlersContext(): SimulationCollisionHandlersContext {
+    return {
+      nowMs: this.nowMs,
+      players: this.players,
+      pilots: this.pilots,
+      asteroids: this.asteroids,
+      powerUps: this.powerUps,
+      playerPowerUps: this.playerPowerUps,
+      projectileBodies: this.projectileBodies,
+      yellowBlocks: this.yellowBlocks,
+      yellowBlockBodyIndex: this.yellowBlockBodyIndex,
+      yellowBlockSwordHitCooldown: this.yellowBlockSwordHitCooldown,
+      laserBeams: this.laserBeams,
+      physics: this.physics,
+      getCurrentMapId: () => this.getCurrentMap().id,
+      getPluginString: this.getPluginString.bind(this),
+      removeProjectileEntity: (projectileId: string) => {
+        this.removeProjectileBody(projectileId);
+        this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
+      },
+      triggerScreenShake: this.triggerScreenShake.bind(this),
+      onShipHit: this.onShipHit.bind(this),
+      killPilot: this.killPilot.bind(this),
+      hitAsteroid: (asteroid: RuntimeAsteroid) => {
+        hitAsteroid(this, asteroid);
+      },
+      destroyAsteroid: this.destroyAsteroid.bind(this),
+      grantPowerUp: this.grantPowerUp.bind(this),
+      removePowerUpBody: this.removePowerUpBody.bind(this),
+    };
   }
 
   private getPluginString(body: Matter.Body, key: string): string | null {
