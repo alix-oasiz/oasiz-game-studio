@@ -23,6 +23,21 @@ interface ShapePoint {
   y: number;
 }
 
+interface EntityTrailMeta {
+  anchor: ShapePoint;
+  maxAgeSec: number;
+  startRadius: number;
+  endRadius: number;
+  alpha: number;
+  blur: number;
+  sampleIntervalSec: number;
+  minSampleDistance: number;
+}
+
+interface EntityRenderMeta {
+  trail?: EntityTrailMeta;
+}
+
 function deriveCenterOfGravity(vertices: ReadonlyArray<ShapePoint>): ShapePoint {
   // Use the collider path's first vertex as the nose reference. This lets SVG edits
   // move the pivot without touching simulation code.
@@ -153,6 +168,106 @@ function parseSimplePathVertices(path: string, entityId: string): ShapePoint[] {
   return vertices;
 }
 
+function parseFiniteNumber(
+  value: unknown,
+  fieldPath: string,
+  fileName: string,
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(
+      `[generate-entity-assets] Invalid ${fieldPath} in ${fileName}: expected finite number`,
+    );
+  }
+  return value;
+}
+
+function parseRenderMeta(svg: string, fileName: string): EntityRenderMeta | undefined {
+  const metadataMatch = svg.match(
+    /<metadata\b[^>]*\bid=(["'])render-meta\1[^>]*>([\s\S]*?)<\/metadata>/i,
+  );
+  if (!metadataMatch) return undefined;
+
+  const rawJson = metadataMatch[2].trim();
+  if (rawJson.length <= 0) return undefined;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch (error) {
+    throw new Error(
+      `[generate-entity-assets] Invalid render-meta JSON in ${fileName}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`[generate-entity-assets] render-meta must be an object in ${fileName}`);
+  }
+
+  const parsedRecord = parsed as Record<string, unknown>;
+  const trailRaw = parsedRecord.trail;
+  if (!trailRaw || typeof trailRaw !== "object") {
+    return undefined;
+  }
+
+  const trailRecord = trailRaw as Record<string, unknown>;
+  const anchorRaw = trailRecord.anchor;
+  if (!anchorRaw || typeof anchorRaw !== "object") {
+    throw new Error(`[generate-entity-assets] trail.anchor missing in ${fileName}`);
+  }
+
+  const anchorRecord = anchorRaw as Record<string, unknown>;
+  const trail: EntityTrailMeta = {
+    anchor: {
+      x: parseFiniteNumber(anchorRecord.x, "trail.anchor.x", fileName),
+      y: parseFiniteNumber(anchorRecord.y, "trail.anchor.y", fileName),
+    },
+    maxAgeSec: parseFiniteNumber(trailRecord.maxAgeSec, "trail.maxAgeSec", fileName),
+    startRadius: parseFiniteNumber(trailRecord.startRadius, "trail.startRadius", fileName),
+    endRadius: parseFiniteNumber(trailRecord.endRadius, "trail.endRadius", fileName),
+    alpha: parseFiniteNumber(trailRecord.alpha, "trail.alpha", fileName),
+    blur: parseFiniteNumber(trailRecord.blur, "trail.blur", fileName),
+    sampleIntervalSec: parseFiniteNumber(
+      trailRecord.sampleIntervalSec,
+      "trail.sampleIntervalSec",
+      fileName,
+    ),
+    minSampleDistance: parseFiniteNumber(
+      trailRecord.minSampleDistance,
+      "trail.minSampleDistance",
+      fileName,
+    ),
+  };
+
+  if (trail.maxAgeSec <= 0) {
+    throw new Error(`[generate-entity-assets] trail.maxAgeSec must be > 0 in ${fileName}`);
+  }
+  if (trail.startRadius <= 0 || trail.endRadius < 0) {
+    throw new Error(
+      `[generate-entity-assets] trail radii must be non-negative (start > 0) in ${fileName}`,
+    );
+  }
+  if (trail.alpha < 0 || trail.alpha > 1) {
+    throw new Error(`[generate-entity-assets] trail.alpha must be in [0, 1] in ${fileName}`);
+  }
+  if (trail.blur < 0) {
+    throw new Error(`[generate-entity-assets] trail.blur must be >= 0 in ${fileName}`);
+  }
+  if (trail.sampleIntervalSec <= 0) {
+    throw new Error(
+      `[generate-entity-assets] trail.sampleIntervalSec must be > 0 in ${fileName}`,
+    );
+  }
+  if (trail.minSampleDistance < 0) {
+    throw new Error(
+      `[generate-entity-assets] trail.minSampleDistance must be >= 0 in ${fileName}`,
+    );
+  }
+
+  return { trail };
+}
+
 function main(): void {
   const projectRoot = resolve(import.meta.dirname, "..");
   const entitiesDir = join(projectRoot, "shared", "assets", "entities");
@@ -176,6 +291,7 @@ function main(): void {
     const colliderPath = extractPathById(svg, entry.colliderPathId, entry.file);
     const colliderVertices = parseSimplePathVertices(colliderPath, entityId);
     const centerOfGravityLocal = deriveCenterOfGravity(colliderVertices);
+    const renderMeta = parseRenderMeta(svg, entry.file);
 
     outEntries.push({
       id: entityId,
@@ -185,6 +301,7 @@ function main(): void {
       colliderPath,
       colliderVertices,
       centerOfGravityLocal,
+      renderMeta,
       renderScale: entry.renderScale ?? 1,
       physicsScale: entry.physicsScale ?? 1,
       slotDefaults: entry.slotDefaults ?? {},
@@ -201,6 +318,19 @@ function main(): void {
     "  x: number;\n" +
     "  y: number;\n" +
     "}\n\n" +
+    "export interface GeneratedEntityTrailMeta {\n" +
+    "  anchor: ShapePoint;\n" +
+    "  maxAgeSec: number;\n" +
+    "  startRadius: number;\n" +
+    "  endRadius: number;\n" +
+    "  alpha: number;\n" +
+    "  blur: number;\n" +
+    "  sampleIntervalSec: number;\n" +
+    "  minSampleDistance: number;\n" +
+    "}\n\n" +
+    "export interface GeneratedEntityRenderMeta {\n" +
+    "  trail?: GeneratedEntityTrailMeta;\n" +
+    "}\n\n" +
     "export interface GeneratedEntitySvgData {\n" +
     "  id: string;\n" +
     "  svgTemplate: string;\n" +
@@ -209,6 +339,7 @@ function main(): void {
     "  colliderPath: string;\n" +
     "  colliderVertices: ReadonlyArray<ShapePoint>;\n" +
     "  centerOfGravityLocal: ShapePoint;\n" +
+    "  renderMeta?: GeneratedEntityRenderMeta;\n" +
     "  renderScale: number;\n" +
     "  physicsScale: number;\n" +
     "  slotDefaults: Readonly<Record<string, string>>;\n" +

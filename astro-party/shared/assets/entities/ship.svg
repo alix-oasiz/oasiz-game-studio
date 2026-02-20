@@ -1,29 +1,106 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40" role="img" aria-label="Astro Party ship">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40" role="img" aria-label="Ship (vertical squash)">
   <defs>
     <style>
-      .slot-primary { fill: var(--slot-primary, #00f0ff); }
       .slot-secondary { fill: var(--slot-secondary, #ffffff); }
-      .slot-tertiary { fill: var(--slot-tertiary, #ff4400); }
       .slot-stroke { stroke: var(--slot-stroke, #ffffff); }
+      .stop-primary { stop-color: var(--slot-primary, #00f0ff); }
+      .stop-dark { stop-color: #07121a; }
     </style>
+
+    <linearGradient id="hullGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="stop-primary" stop-opacity="0.95"/>
+      <stop offset="0.60" class="stop-primary" stop-opacity="0.60"/>
+      <stop offset="1" class="stop-dark" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <linearGradient id="wingGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="stop-primary" stop-opacity="0.85"/>
+      <stop offset="1" class="stop-dark" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" class="stop-primary" stop-opacity="1.0"/>
+      <stop offset="45%" class="stop-primary" stop-opacity="0.55"/>
+      <stop offset="100%" class="stop-primary" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.25" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <g id="visual" transform="translate(0 0)">
-    <!-- Engine flame -->
-    <path class="slot-tertiary" d="M -6 0 L -10 -4 L -15 0 L -10 4 Z" />
+  <metadata id="render-meta">
+{
+  "trail": {
+    "anchor": { "x": -9.2, "y": 0.0 },
+    "maxAgeSec": 4.0,
+    "startRadius": 10.5,
+    "endRadius": 2.2,
+    "alpha": 0.48,
+    "blur": 14.0,
+    "sampleIntervalSec": 0.04,
+    "minSampleDistance": 0.7
+  }
+}
+  </metadata>
 
-    <!-- Ship hull (matches current rendered physics hull) -->
-    <path
-      class="slot-primary slot-stroke"
-      d="M 17 0 L -8.5 9 L -8.5 -9 Z"
-      stroke-width="1.8"
+  <!-- scale(1 0.8) is applied AFTER rotate => squashes screen-vertical -->
+  <g id="visual" filter="url(#softGlow)" transform="scale(1 0.8) rotate(90) scale(0.35) translate(-0.25 -4.5)">
+    <circle cx="0" cy="30" r="28" fill="url(#coreGlow)"/>
+
+    <polygon
+      points="-32.9,27.1 -49.9,22.7 -33.6,10.5 -19.2,23.0"
+      fill="url(#wingGrad)"
+      class="slot-stroke"
+      stroke-width="3"
+      stroke-linejoin="round"
+    />
+    <polygon
+      points="36.2,27.1 50.4,23.0 34.3,10.3 19.3,22.4"
+      fill="url(#wingGrad)"
+      class="slot-stroke"
+      stroke-width="3"
       stroke-linejoin="round"
     />
 
-    <!-- Cockpit -->
-    <circle class="slot-secondary" cx="3" cy="0" r="3.4" />
+    <polygon
+      points="0,-32 37,3 16,18 -16,18 -37,3"
+      fill="url(#hullGrad)"
+      class="slot-stroke"
+      stroke-width="3"
+      stroke-linejoin="round"
+    />
+
+    <polygon points="0,-22 26,4 0,16" fill="#000" opacity="0.18"/>
+    <polygon points="0,-22 -26,4 0,16" fill="#000" opacity="0.10"/>
+    <polygon points="-16,18 0,16 16,18 0,10" fill="#000" opacity="0.12"/>
+
+    <polygon points="0,-24 15,-11 0,-7 -15,-11" fill="#07121a" opacity="0.85"/>
+    <path class="slot-secondary" d="M -16 -14 L 0 -28 L 16 -14 L 12 -10 L 0 -20 L -12 -10 Z" opacity="0.95"/>
+
+    <polygon
+      points="0,34 13,24 0,14 -13,24"
+      fill="var(--slot-primary, #00f0ff)"
+      opacity="0.35"
+      class="slot-stroke"
+      stroke-width="3"
+      stroke-linejoin="round"
+    />
+    <polygon
+      points="0,31 9,24 0,17 -9,24"
+      fill="var(--slot-primary, #00f0ff)"
+      opacity="0.55"
+    />
   </g>
 
-  <!-- Canonical collider path for extractor tooling -->
-  <path id="collider" d="M 17 0 L -8.5 9 L -8.5 -9 Z" fill="none" stroke="none" />
+  <path
+    id="collider"
+    d="M 12.775 -0.07 L 0.525 10.29 L -6.475 14.042 L -10.325 -0.07 L -6.37 -14.042 L 0.525 -10.43 Z"
+    fill="none"
+    stroke="none"
+  />
 </svg>

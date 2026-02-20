@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40" role="img" aria-label="Astro Party ship">
+  <defs>
+    <style>
+      .slot-primary { fill: var(--slot-primary, #00f0ff); }
+      .slot-secondary { fill: var(--slot-secondary, #ffffff); }
+      .slot-tertiary { fill: var(--slot-tertiary, #ff4400); }
+      .slot-stroke { stroke: var(--slot-stroke, #ffffff); }
+    </style>
+  </defs>
+
+  <g id="visual" transform="translate(0 0)">
+    <!-- Engine flame -->
+    <path class="slot-tertiary" d="M -6 0 L -10 -4 L -15 0 L -10 4 Z" />
+
+    <!-- Ship hull (matches current rendered physics hull) -->
+    <path
+      class="slot-primary slot-stroke"
+      d="M 17 0 L -8.5 9 L -8.5 -9 Z"
+      stroke-width="1.8"
+      stroke-linejoin="round"
+    />
+
+    <!-- Cockpit -->
+    <circle class="slot-secondary" cx="3" cy="0" r="3.4" />
+  </g>
+
+  <!-- Canonical collider path for extractor tooling -->
+  <path id="collider" d="M 17 0 L -8.5 9 L -8.5 -9 Z" fill="none" stroke="none" />
+</svg>

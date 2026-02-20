@@ -1,5 +1,7 @@
 import {
   GENERATED_ENTITY_SVG_DATA,
+  type GeneratedEntityRenderMeta,
+  type GeneratedEntityTrailMeta,
   type GeneratedEntitySvgData,
   type ShapePoint,
 } from "./generated/EntitySvgData.js";
@@ -12,6 +14,7 @@ export interface EntityAssetDefinition {
   colliderPath: string;
   colliderVertices: ReadonlyArray<ShapePoint>;
   centerOfGravityLocal: Readonly<ShapePoint>;
+  renderMeta?: Readonly<EntityRenderMeta>;
   viewBox: Readonly<{
     minX: number;
     minY: number;
@@ -22,6 +25,21 @@ export interface EntityAssetDefinition {
   renderScale: number;
   physicsScale: number;
   slotDefaults: Readonly<Record<string, string>>;
+}
+
+export interface EntityTrailMeta {
+  anchor: Readonly<ShapePoint>;
+  maxAgeSec: number;
+  startRadius: number;
+  endRadius: number;
+  alpha: number;
+  blur: number;
+  sampleIntervalSec: number;
+  minSampleDistance: number;
+}
+
+export interface EntityRenderMeta {
+  trail?: Readonly<EntityTrailMeta>;
 }
 
 function scaleVertices(
@@ -50,6 +68,34 @@ function scalePoint(point: ShapePoint, scale: number): Readonly<ShapePoint> {
   });
 }
 
+function scaleTrailMeta(
+  trail: GeneratedEntityTrailMeta,
+  renderScale: number,
+): Readonly<EntityTrailMeta> {
+  return Object.freeze({
+    anchor: scalePoint(trail.anchor, renderScale),
+    maxAgeSec: trail.maxAgeSec,
+    startRadius: trail.startRadius * renderScale,
+    endRadius: trail.endRadius * renderScale,
+    alpha: trail.alpha,
+    blur: trail.blur,
+    sampleIntervalSec: trail.sampleIntervalSec,
+    minSampleDistance: trail.minSampleDistance * renderScale,
+  });
+}
+
+function scaleRenderMeta(
+  renderMeta: GeneratedEntityRenderMeta | undefined,
+  renderScale: number,
+): Readonly<EntityRenderMeta> | undefined {
+  if (!renderMeta) return undefined;
+  const out: EntityRenderMeta = {};
+  if (renderMeta.trail) {
+    out.trail = scaleTrailMeta(renderMeta.trail, renderScale);
+  }
+  return Object.freeze(out);
+}
+
 function buildDefinition(raw: GeneratedEntitySvgData): EntityAssetDefinition {
   const renderWidth = raw.viewBox.width * raw.renderScale;
   const renderHeight = raw.viewBox.height * raw.renderScale;
@@ -60,6 +106,7 @@ function buildDefinition(raw: GeneratedEntitySvgData): EntityAssetDefinition {
     colliderPath: raw.colliderPath,
     colliderVertices: scaleVertices(raw.colliderVertices, raw.physicsScale),
     centerOfGravityLocal: scalePoint(raw.centerOfGravityLocal, raw.physicsScale),
+    renderMeta: scaleRenderMeta(raw.renderMeta, raw.renderScale),
     viewBox: Object.freeze({
       minX: raw.viewBox.minX,
       minY: raw.viewBox.minY,
