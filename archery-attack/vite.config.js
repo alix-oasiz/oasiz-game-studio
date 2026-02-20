@@ -1,25 +1,12 @@
 import { defineConfig } from "vite";
-import { viteSingleFile } from "vite-plugin-singlefile";
 
-export default defineConfig(({ command }) => ({
-  plugins: command === "build" ? [viteSingleFile()] : [],
-  build: {
-    target: "esnext",
-    minify: true,
-    assetsInlineLimit: 100000000,
-    cssCodeSplit: false,
-    rollupOptions: {
-      output: {
-        inlineDynamicImports: true,
-      },
-    },
-  },
-  logLevel: command === "build" ? "warn" : "info",
+export default defineConfig({
   server: {
+    port: 5173,
+    strictPort: true,
     watch: {
       usePolling: true,
       interval: 500,
     },
   },
-}));
-
+});

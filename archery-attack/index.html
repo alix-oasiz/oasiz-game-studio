@@ -3,17 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <title>Archery Attack</title>
+  <title>Archery Attack — Game Switcher</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@700;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
       width: 100%;
@@ -21,543 +16,93 @@
       overflow: hidden;
       font-family: 'Inter', sans-serif;
       background: #0a0812;
-      touch-action: none;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
     }
 
-    #gameCanvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-
-    /* ============ OVERLAYS ============ */
-    .overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+    .tab-bar {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(10, 8, 18, 0.95);
-      z-index: 100;
-      transition: opacity 0.3s ease;
+      height: 44px;
+      background: #161222;
+      border-bottom: 1px solid rgba(221, 119, 51, 0.3);
+      z-index: 1000;
     }
 
-    .overlay.hidden {
-      display: none;
-    }
-
-    /* ============ START SCREEN ============ */
-    #startScreen {
-      background: linear-gradient(135deg, rgba(10, 15, 25, 0.98) 0%, rgba(20, 30, 40, 0.95) 100%);
-    }
-
-    .game-title {
-      font-family: 'Cinzel Decorative', 'Cinzel', serif;
-      font-size: clamp(32px, 8vw, 56px);
-      font-weight: 900;
-      color: #dd7733;
-      text-shadow:
-        0 0 30px rgba(221, 119, 51, 0.6),
-        0 0 60px rgba(221, 119, 51, 0.3),
-        0 4px 8px rgba(0, 0, 0, 0.8);
-      letter-spacing: 3px;
-      margin-bottom: 10px;
-      text-align: center;
-    }
-
-    .game-subtitle {
-      font-size: clamp(14px, 4vw, 18px);
-      color: #aa8866;
-      margin-bottom: 40px;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-    }
-
-    .start-btn {
-      background: linear-gradient(180deg, #dd7733 0%, #aa5522 100%);
-      color: #fff;
-      font-family: 'Cinzel', serif;
-      font-size: 24px;
-      font-weight: 700;
-      padding: 18px 60px;
-      border: none;
-      border-radius: 50px;
-      cursor: pointer;
-      box-shadow:
-        0 6px 0 #773311,
-        0 8px 20px rgba(0, 0, 0, 0.4),
-        0 0 30px rgba(221, 119, 51, 0.3);
-      transition: all 0.15s ease;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-    }
-
-    .start-btn:hover {
-      transform: translateY(-2px);
-      box-shadow:
-        0 8px 0 #773311,
-        0 12px 30px rgba(0, 0, 0, 0.5),
-        0 0 40px rgba(221, 119, 51, 0.5);
-    }
-
-    .start-btn:active {
-      transform: translateY(4px);
-      box-shadow:
-        0 2px 0 #773311,
-        0 4px 10px rgba(0, 0, 0, 0.3);
-    }
-
-    /* ============ HUD ============ */
-    #scoreDisplay {
-      position: fixed;
-      top: 45px;
-      left: 20px;
-      z-index: 50;
-      pointer-events: none;
-    }
-
-    @media (pointer: coarse) {
-      #scoreDisplay { top: 120px; }
-    }
-
-    .score-label {
-      font-size: 12px;
-      color: #aa8866;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 2px;
-    }
-
-    #currentScore {
-      font-family: 'Cinzel', serif;
-      font-size: 36px;
-      font-weight: 700;
-      color: #dd7733;
-      text-shadow: 0 2px 15px rgba(221, 119, 51, 0.5);
-    }
-
-    /* ============ BUTTONS ============ */
-    .icon-btn {
-      position: fixed;
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      border: none;
-      background: rgba(221, 119, 51, 0.9);
-      color: #fff;
-      font-size: 20px;
-      cursor: pointer;
+    .tab {
+      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(221, 119, 51, 0.3);
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-      z-index: 70;
-    }
-
-    .icon-btn:hover {
-      transform: scale(1.1);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-    }
-
-    .icon-btn:active {
-      transform: scale(0.95);
-    }
-
-    .icon-btn.hidden {
-      display: none;
-    }
-
-    #settingsBtn {
-      top: 45px;
-      right: 20px;
-    }
-
-    #pauseBtn {
-      top: 45px;
-      right: 80px;
-    }
-
-    @media (pointer: coarse) {
-      #settingsBtn { top: 120px; }
-      #pauseBtn { top: 120px; }
-    }
-
-    .icon-btn svg {
-      width: 22px;
-      height: 22px;
-      fill: currentColor;
-    }
-
-    /* ============ GAME OVER SCREEN ============ */
-    #gameOverScreen {
-      background: radial-gradient(circle at center, rgba(15, 20, 30, 0.98) 0%, rgba(5, 5, 10, 0.99) 100%);
-    }
-
-    .game-over-title {
-      font-family: 'Cinzel', serif;
-      font-size: clamp(32px, 8vw, 48px);
-      font-weight: 900;
-      color: #445566;
-      text-shadow: 0 0 20px rgba(68, 85, 102, 0.8);
-      margin-bottom: 30px;
-    }
-
-    .final-score {
-      font-size: 16px;
+      gap: 8px;
+      background: transparent;
+      border: none;
       color: #aa8866;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-    }
-
-    #finalScore {
-      font-family: 'Cinzel', serif;
-      font-size: clamp(48px, 12vw, 72px);
-      font-weight: 700;
-      color: #dd7733;
-      text-shadow: 0 0 30px rgba(221, 119, 51, 0.5);
-      margin-bottom: 40px;
-    }
-
-    .btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-    }
-
-    .menu-btn {
-      background: linear-gradient(180deg, #dd7733 0%, #aa5522 100%);
-      color: #fff;
       font-family: 'Inter', sans-serif;
-      font-size: 16px;
-      font-weight: 700;
-      padding: 14px 40px;
-      border: none;
-      border-radius: 30px;
-      cursor: pointer;
-      box-shadow: 0 4px 0 #773311, 0 6px 15px rgba(0, 0, 0, 0.3);
-      transition: all 0.15s ease;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      min-width: 200px;
-    }
-
-    .menu-btn:hover {
-      transform: translateY(-2px);
-    }
-
-    .menu-btn:active {
-      transform: translateY(2px);
-      box-shadow: 0 2px 0 #773311;
-    }
-
-    .menu-btn.secondary {
-      background: rgba(255, 255, 255, 0.1);
-      color: #aa8866;
-      box-shadow: none;
-      border: 2px solid #dd7733;
-    }
-
-    .menu-btn.secondary:hover {
-      background: rgba(221, 119, 51, 0.2);
-    }
-
-    /* ============ PAUSE SCREEN ============ */
-    #pauseScreen {
-      background: rgba(10, 8, 18, 0.95);
-    }
-
-    .pause-title {
-      font-family: 'Cinzel', serif;
-      font-size: 36px;
-      font-weight: 700;
-      color: #dd7733;
-      margin-bottom: 40px;
-    }
-
-    /* ============ SETTINGS MODAL ============ */
-    #settingsModal {
-      background: rgba(10, 12, 20, 0.95);
-    }
-
-    #settingsModal.hidden {
-      display: none;
-    }
-
-    .settings-panel {
-      background: rgba(20, 30, 45, 0.95);
-      border-radius: 20px;
-      padding: 30px;
-      min-width: 280px;
-      max-width: 90vw;
-      border: 1px solid rgba(221, 119, 51, 0.3);
-    }
-
-    .settings-title {
-      font-family: 'Cinzel', serif;
-      font-size: 24px;
-      font-weight: 700;
-      color: #dd7733;
-      text-align: center;
-      margin-bottom: 25px;
-    }
-
-    .settings-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(221, 119, 51, 0.2);
-    }
-
-    .settings-row:last-child {
-      border-bottom: none;
-    }
-
-    .settings-label {
-      font-size: 16px;
-      color: #aa8866;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .toggle {
-      width: 52px;
-      height: 28px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 14px;
-      cursor: pointer;
-      position: relative;
-      transition: background 0.2s ease;
-    }
-
-    .toggle::after {
-      content: '';
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 22px;
-      height: 22px;
-      background: #555;
-      border-radius: 50%;
-      transition: all 0.2s ease;
-    }
-
-    .toggle.active {
-      background: rgba(221, 119, 51, 0.3);
-    }
-
-    .toggle.active::after {
-      left: 27px;
-      background: #dd7733;
-    }
-
-    .settings-close {
-      margin-top: 25px;
-      width: 100%;
-      padding: 12px;
-      background: rgba(221, 119, 51, 0.1);
-      border: 1px solid #dd7733;
-      border-radius: 10px;
-      color: #dd7733;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
+      transition: all 0.2s ease;
       text-transform: uppercase;
       letter-spacing: 1px;
-      transition: all 0.2s ease;
+      border-bottom: 3px solid transparent;
+      padding: 0 16px;
     }
 
-    .settings-close:hover {
-      background: rgba(221, 119, 51, 0.2);
-    }
-
-    /* ============ FIRE BUTTON ============ */
-    #fireBtn {
-      position: fixed;
-      bottom: 40px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 120px;
-      height: 120px;
-      border-radius: 50%;
-      border: 4px solid rgba(221, 119, 51, 0.6);
-      background: radial-gradient(circle, rgba(221, 119, 51, 0.25) 0%, rgba(221, 119, 51, 0.08) 100%);
+    .tab:hover {
       color: #dd7733;
-      font-family: 'Cinzel', serif;
-      font-size: 14px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      cursor: pointer;
-      z-index: 60;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      touch-action: none;
-      -webkit-user-select: none;
-      user-select: none;
-      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-      box-shadow: 0 0 20px rgba(221, 119, 51, 0.15);
+      background: rgba(221, 119, 51, 0.05);
     }
 
-    #fireBtn .fire-ring {
-      position: absolute;
-      top: 4px;
-      left: 4px;
-      right: 4px;
-      bottom: 4px;
-      border-radius: 50%;
-      border: 3px solid transparent;
-      transition: border-color 0.1s ease;
+    .tab.active {
+      color: #dd7733;
+      border-bottom-color: #dd7733;
+      background: rgba(221, 119, 51, 0.1);
     }
 
-    #fireBtn .fire-label {
-      position: relative;
-      z-index: 1;
-      pointer-events: none;
+    .tab-icon {
+      font-size: 16px;
     }
 
-    #fireBtn.hidden {
-      display: none !important;
+    .game-frame {
+      display: none;
+      width: 100%;
+      height: calc(100% - 44px);
+      border: none;
     }
 
-    #fireBtn.state-focusing {
-      border-color: rgba(220, 80, 50, 0.8);
-      background: radial-gradient(circle, rgba(220, 80, 50, 0.3) 0%, rgba(220, 80, 50, 0.1) 100%);
-      box-shadow: 0 0 30px rgba(220, 80, 50, 0.3);
-    }
-
-    #fireBtn.state-focusing .fire-ring {
-      border-color: rgba(220, 180, 50, 0.5);
-    }
-
-    #fireBtn.state-steady {
-      border-color: rgba(50, 220, 50, 0.9);
-      background: radial-gradient(circle, rgba(50, 220, 50, 0.3) 0%, rgba(50, 220, 50, 0.1) 100%);
-      box-shadow: 0 0 40px rgba(50, 220, 50, 0.4);
-    }
-
-    #fireBtn.state-steady .fire-ring {
-      border-color: rgba(50, 255, 50, 0.8);
-    }
-
-    #fireBtn.state-flash {
-      border-color: rgba(255, 255, 100, 1);
-      background: radial-gradient(circle, rgba(255, 255, 100, 0.5) 0%, rgba(255, 200, 50, 0.2) 100%);
-      box-shadow: 0 0 50px rgba(255, 255, 100, 0.6);
-    }
-
-    #fireBtn:active {
-      transform: translateX(-50%) scale(0.95);
-    }
-
-    @media (pointer: coarse) {
-      #fireBtn {
-        bottom: 30px;
-      }
-    }
-
-    /* ============ HIDDEN UTILITY ============ */
-    .hidden {
-      display: none !important;
+    .game-frame.active {
+      display: block;
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-
-  <!-- HUD -->
-  <div id="scoreDisplay" class="hidden">
-    <div class="score-label">Score</div>
-    <div id="currentScore">0</div>
+  <div class="tab-bar">
+    <button class="tab active" data-game="horse-archery">
+      <span class="tab-icon">&#127942;</span>
+      Horse Archery
+    </button>
+    <button class="tab" data-game="ragdoll-archers">
+      <span class="tab-icon">&#128169;</span>
+      Ragdoll Archers
+    </button>
   </div>
 
-  <!-- Fire Button -->
-  <button id="fireBtn" class="hidden" aria-label="Fire">
-    <div class="fire-ring"></div>
-    <span class="fire-label">FIRE</span>
-  </button>
+  <iframe id="frame-horse-archery" class="game-frame active" src="http://localhost:5174/"></iframe>
+  <iframe id="frame-ragdoll-archers" class="game-frame" src="http://localhost:5175/"></iframe>
 
-  <!-- Settings Button -->
-  <button id="settingsBtn" class="icon-btn hidden" aria-label="Settings">
-    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-  </button>
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const frames = document.querySelectorAll('.game-frame');
 
-  <!-- Pause Button -->
-  <button id="pauseBtn" class="icon-btn hidden" aria-label="Pause">
-    <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-  </button>
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const game = tab.dataset.game;
 
-  <!-- Start Screen -->
-  <div id="startScreen" class="overlay">
-    <h1 class="game-title">ARCHERY<br>ATTACK</h1>
-    <p class="game-subtitle">Ride & Strike</p>
-    <button id="startButton" class="start-btn">Play</button>
-    <button id="startSettingsBtn" class="menu-btn secondary" style="margin-top: 20px;">Settings</button>
-  </div>
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
 
-  <!-- Game Over Screen -->
-  <div id="gameOverScreen" class="overlay hidden">
-    <h2 class="game-over-title">GAME OVER</h2>
-    <p class="final-score">Final Score</p>
-    <div id="finalScore">0</div>
-    <div class="btn-group">
-      <button id="restartButton" class="menu-btn">Play Again</button>
-      <button id="backToStartButton" class="menu-btn secondary">Main Menu</button>
-    </div>
-  </div>
-
-  <!-- Pause Screen -->
-  <div id="pauseScreen" class="overlay hidden">
-    <h2 class="pause-title">PAUSED</h2>
-    <div class="btn-group">
-      <button id="resumeButton" class="menu-btn">Resume</button>
-      <button id="pauseRestartButton" class="menu-btn secondary">Restart</button>
-      <button id="pauseMenuButton" class="menu-btn secondary">Main Menu</button>
-    </div>
-  </div>
-
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="overlay hidden">
-    <div class="settings-panel">
-      <h3 class="settings-title">Settings</h3>
-      <div class="settings-row">
-        <span class="settings-label">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#c4a058"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-          Music
-        </span>
-        <div id="musicToggle" class="toggle active"></div>
-      </div>
-      <div class="settings-row">
-        <span class="settings-label">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#c4a058"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-          Sound FX
-        </span>
-        <div id="fxToggle" class="toggle active"></div>
-      </div>
-      <div class="settings-row">
-        <span class="settings-label">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#c4a058"><path d="M0 15.998l5.002 5 1.412-1.416L1.418 14.58 0 15.998zm2.293-4.291A5.498 5.498 0 0 1 12 6.499a5.502 5.502 0 0 1 5.499 5.5c0 3.037-2.462 5.499-5.499 5.499a5.498 5.498 0 0 1-5.207-7.291L2.293 11.707zm19.122 3.706l1.412 1.416L17.825 22l-1.412-1.414 4.002-4.173z"/></svg>
-          Haptics
-        </span>
-        <div id="hapticToggle" class="toggle active"></div>
-      </div>
-      <button id="settingsClose" class="settings-close">Close</button>
-    </div>
-  </div>
-
-  <script type="module" src="/src/main.ts"></script>
+        frames.forEach(f => f.classList.remove('active'));
+        document.getElementById('frame-' + game).classList.add('active');
+      });
+    });
+  </script>
 </body>
 </html>
