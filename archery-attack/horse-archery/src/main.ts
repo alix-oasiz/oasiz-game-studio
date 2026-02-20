@@ -77,13 +77,13 @@ interface Particle {
 const CONFIG = {
   BOB_AMPLITUDE: 55,
   BOB_FREQUENCY: 0.003,
-  VELOCITY_TRANSFER: 2.0,
+  MAX_SPREAD_ANGLE: 0.3,   // ~17° max deviation at worst stability
   PERFECT_THRESHOLD: 0.82,
 
   HORSE_SPEED: 0.22,
 
   WORLD_WIDTH: 1500,
-  TARGETS_PER_LAP: 3,
+  TARGETS_PER_LAP: 5,
 
   DRAW_DURATION_MS: 1000,
   WOBBLE_START_MS: 300,
@@ -223,7 +223,7 @@ function generateTargets(): void {
   for (let i = 0; i < CONFIG.TARGETS_PER_LAP; i++) {
     const jitter = (Math.random() - 0.5) * spacing * 0.3;
     const worldX = spacing * (i + 1) + jitter;
-    const postHeight = 200 + Math.random() * 200; // tall posts — targets in upper screen
+    const postHeight = 150 + Math.random() * 250; // 150-400: low = easy quick shots, high = need arc peak
 
     targets.push({
       worldX,
@@ -286,30 +286,31 @@ function fireArrow(): void {
   const isPerfect = steadiness >= CONFIG.PERFECT_THRESHOLD && wobbleAmount < 0.1;
 
   const speed = CONFIG.ARROW_SPEED * drawProgress;
-  const angle45 = Math.PI / 4;
+  const baseAngle = Math.PI / 4; // 45 degrees
 
-  // 45-degree launch relative to screen (compensate for horse/camera movement)
-  const vx = world.speed + speed * Math.cos(angle45);
-  const vyBase = speed * Math.sin(angle45);
+  // Stability spread: poor timing on horse bob = arrow deviates from 45°
+  const stabilitySpread = (1 - steadiness) * CONFIG.MAX_SPREAD_ANGLE;
+  const wobbleSpread = wobbleAmount * CONFIG.MAX_SPREAD_ANGLE * 0.8;
+  const totalSpread = stabilitySpread + wobbleSpread;
+  const angleDeviation = (Math.random() - 0.5) * 2 * totalSpread;
 
-  // Wobble adds random spread
-  const wobbleVx = wobbleAmount > 0 ? (Math.random() - 0.5) * 2 * wobbleAmount * speed * 0.3 : 0;
-  const wobbleVy = wobbleAmount > 0 ? (Math.random() - 0.5) * 2 * wobbleAmount * speed * 0.3 : 0;
+  const finalAngle = baseAngle + angleDeviation;
 
-  // Bob transfer — core mechanic: horse bob velocity affects arrow trajectory
-  const addedVy = -horseBobVelocity * CONFIG.VELOCITY_TRANSFER;
+  // Launch relative to screen (compensate for horse/camera movement)
+  const vx = world.speed + speed * Math.cos(finalAngle);
+  const vy = speed * Math.sin(finalAngle);
 
   // Arrow starts from bow tip position (converted from screen to world coords)
-  const bowTipOffsetX = 127; // 3x-scaled local bow tip X offset from horse center
-  const bowTipOffsetY = 292; // 3x-scaled local bow tip Y offset above horse center
+  const bowTipOffsetX = 127;
+  const bowTipOffsetY = 292;
   const startWorldX = world.cameraX + bowTipOffsetX / pxPerUnit;
   const startHeight = (groundY - horse.screenY + bowTipOffsetY) / pxPerUnit;
 
   arrows.push({
     worldX: startWorldX,
     height: startHeight,
-    vx: vx + wobbleVx,
-    vy: vyBase + addedVy + wobbleVy,
+    vx,
+    vy,
     active: true,
     perfect: isPerfect,
   });
@@ -1400,7 +1401,7 @@ function gameLoop(timestamp: number): void {
   ctx.fillStyle = "rgba(255,255,255,0.3)";
   ctx.font = "11px monospace";
   ctx.textAlign = "right";
-  ctx.fillText("build 16", w - 10, h - 10);
+  ctx.fillText("build 17", w - 10, h - 10);
   ctx.textAlign = "left";
 
   animationFrameId = requestAnimationFrame(gameLoop);
