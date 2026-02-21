@@ -17,6 +17,7 @@ import {
   SCATTER_PROJECTILE_LIFETIME_MS,
   HOMING_MISSILE_SPEED,
   POWERUP_SHIELD_HITS,
+  MINE_DEPLOY_OFFSET,
 } from "../constants.js";
 import { normalizeAngle, clamp } from "../utils.js";
 import {
@@ -252,12 +253,11 @@ export function tryFire(
 
   if (powerUp?.type === "MINE" && powerUp.charges > 0) {
     powerUp.charges -= 1;
-    const mineOffset = 30;
     sim.mines.push({
       id: sim.nextEntityId("mine"),
       ownerId: player.id,
-      x: spawnX - Math.cos(ship.angle) * mineOffset,
-      y: spawnY - Math.sin(ship.angle) * mineOffset,
+      x: spawnX - Math.cos(ship.angle) * MINE_DEPLOY_OFFSET,
+      y: spawnY - Math.sin(ship.angle) * MINE_DEPLOY_OFFSET,
       spawnTime: sim.nowMs,
       alive: true,
       exploded: false,

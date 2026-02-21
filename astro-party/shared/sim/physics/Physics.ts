@@ -6,6 +6,7 @@ import {
   cloneShapeVertices,
   type ShapePoint,
 } from "../../geometry/EntityShapes.js";
+import { POWERUP_PICKUP_SIZE } from "../constants.js";
 import { CollisionCategory } from "./CollisionCategories.js";
 
 const { Engine, Bodies, Body, Events, Composite } = Matter;
@@ -283,7 +284,7 @@ export class Physics {
     type: import("../types.js").PowerUpType,
     powerUpId: string,
   ): Matter.Body {
-    const size = 25;
+    const size = POWERUP_PICKUP_SIZE;
     const body = Bodies.rectangle(x, y, size, size, {
       label: "powerup",
       isStatic: true,

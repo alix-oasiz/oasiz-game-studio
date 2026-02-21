@@ -17,6 +17,10 @@ import {
   ARENA_WIDTH,
   ARENA_HEIGHT,
 } from "../constants.js";
+import {
+  SHIP_JOUST_LOCAL_POINTS,
+  localPointToWorld,
+} from "../../geometry/ShipRenderAnchors.js";
 import { TURRET_TUNING } from "../mapFeatureTuning.js";
 import { normalizeAngle, clamp } from "../utils.js";
 import {
@@ -526,37 +530,17 @@ export function getJoustSwordGeometry(ship: ShipState): {
   left: { startX: number; startY: number; centerX: number; centerY: number };
   right: { startX: number; startY: number; centerX: number; centerY: number };
 } {
-  const shipX = ship.x;
-  const shipY = ship.y;
   const shipAngle = ship.angle;
-  const size = 15;
-  const cornerOffset = 8;
-
-  const topWingX =
-    shipX +
-    Math.cos(shipAngle) * (-size * 0.7) +
-    Math.cos(shipAngle - Math.PI / 2) * (-size * 0.6);
-  const topWingY =
-    shipY +
-    Math.sin(shipAngle) * (-size * 0.7) +
-    Math.sin(shipAngle - Math.PI / 2) * (-size * 0.6);
-  const bottomWingX =
-    shipX +
-    Math.cos(shipAngle) * (-size * 0.7) +
-    Math.cos(shipAngle + Math.PI / 2) * (-size * 0.6);
-  const bottomWingY =
-    shipY +
-    Math.sin(shipAngle) * (-size * 0.7) +
-    Math.sin(shipAngle + Math.PI / 2) * (-size * 0.6);
-
-  const leftStartX = topWingX - Math.cos(shipAngle) * cornerOffset;
-  const leftStartY = topWingY - Math.sin(shipAngle) * cornerOffset;
+  const leftStart = localPointToWorld(ship, SHIP_JOUST_LOCAL_POINTS.left);
+  const leftStartX = leftStart.x;
+  const leftStartY = leftStart.y;
   const leftEndX = leftStartX + Math.cos(shipAngle) * JOUST_SWORD_LENGTH;
   const leftEndY = leftStartY + Math.sin(shipAngle) * JOUST_SWORD_LENGTH;
 
   const rightAngle = shipAngle + Math.PI / 18;
-  const rightStartX = bottomWingX - Math.cos(shipAngle) * cornerOffset;
-  const rightStartY = bottomWingY - Math.sin(shipAngle) * cornerOffset;
+  const rightStart = localPointToWorld(ship, SHIP_JOUST_LOCAL_POINTS.right);
+  const rightStartX = rightStart.x;
+  const rightStartY = rightStart.y;
   const rightEndX = rightStartX + Math.cos(rightAngle) * JOUST_SWORD_LENGTH;
   const rightEndY = rightStartY + Math.sin(rightAngle) * JOUST_SWORD_LENGTH;
 

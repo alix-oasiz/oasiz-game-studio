@@ -14,6 +14,11 @@ import {
   MapId,
 } from "../../types";
 import { SeededRNG } from "../../../shared/sim/SeededRNG";
+import {
+  SHIP_JOUST_LOCAL_POINTS,
+  SHIP_SHIELD_RADII,
+  SHIP_VISUAL_REFERENCE_SIZE,
+} from "../../../shared/geometry/ShipRenderAnchors";
 import { EntitySpriteStore } from "./EntitySpriteStore";
 import { MapOverlayStore } from "./MapOverlayStore";
 import { PowerUpSpriteStore } from "./PowerUpSpriteStore";
@@ -643,7 +648,7 @@ export class Renderer {
     const { x, y, angle, invulnerableUntil } = state;
     const nowMs = this.getNowMs();
     const isInvulnerable = nowMs < invulnerableUntil;
-    const size = 15;
+    const size = SHIP_VISUAL_REFERENCE_SIZE;
 
     ctx.save();
     ctx.translate(x, y);
@@ -801,28 +806,16 @@ export class Renderer {
     if (joustLeftActive !== undefined || joustRightActive !== undefined) {
       const swordLength = GAME_CONFIG.POWERUP_JOUST_SIZE;
       const swordWidth = GAME_CONFIG.POWERUP_JOUST_WIDTH;
-      const size = 15;
 
       // Glow effect for lightsabers
       ctx.shadowColor = "#00ff44";
       ctx.shadowBlur = this.getEffectBlurPx(20, 8, 28);
 
-      // Ship triangle vertices (relative to center)
-      const noseX = size;
-      const noseY = 0;
-      const topWingX = -size * 0.7;
-      const topWingY = -size * 0.6;
-      const bottomWingX = -size * 0.7;
-      const bottomWingY = size * 0.6;
-
-      // Offset for swords to align with wing corners
-      const cornerOffset = 0;
-
       // Left sword - starts at left back corner (top wing), extends straight forward at 0 degrees
       if (joustLeftActive) {
-        // Start position: left back corner with offset toward the back
-        const startX = topWingX - cornerOffset;
-        const startY = topWingY;
+        // Start position from ship asset-derived local hardpoint.
+        const startX = SHIP_JOUST_LOCAL_POINTS.left.x;
+        const startY = SHIP_JOUST_LOCAL_POINTS.left.y;
 
         // Angle: 0 degrees from ship centerline (pointing straight forward)
         // Both swords point straight forward, parallel to ship direction
@@ -849,9 +842,9 @@ export class Renderer {
 
       // Right sword - starts at right back corner (bottom wing), extends straight forward at 0 degrees
       if (joustRightActive) {
-        // Start position: right back corner with offset toward the back
-        const startX = bottomWingX - cornerOffset;
-        const startY = bottomWingY;
+        // Start position from ship asset-derived local hardpoint.
+        const startX = SHIP_JOUST_LOCAL_POINTS.right.x;
+        const startY = SHIP_JOUST_LOCAL_POINTS.right.y;
 
         // Angle: 0 degrees from ship centerline (pointing straight forward)
         // Both swords point straight forward, parallel to ship direction
@@ -1492,7 +1485,7 @@ export class Renderer {
     ctx.lineWidth = 3;
 
     ctx.beginPath();
-    ctx.ellipse(0, 0, 25, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, SHIP_SHIELD_RADII.x, SHIP_SHIELD_RADII.y, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 

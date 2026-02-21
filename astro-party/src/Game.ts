@@ -45,6 +45,7 @@ import {
   isScoreSubmissionEligibleBotType,
   shouldSubmitScoreToPlatform,
 } from "../shared/sim/scoring.js";
+import { getShipTrailWorldPoint } from "../shared/geometry/ShipRenderAnchors";
 import { isClientDebugToolsRequested } from "./debug/debugTools";
 
 export class Game {
@@ -1108,9 +1109,9 @@ export class Game {
     renderState.networkShips.forEach((shipState) => {
       const joustPowerUp = this.playerPowerUps.get(shipState.playerId);
       if (joustPowerUp?.type === "JOUST") {
-        const shipAngle = shipState.angle;
-        const tailX = shipState.x - Math.cos(shipAngle) * 18;
-        const tailY = shipState.y - Math.sin(shipAngle) * 18;
+        const tailPoint = getShipTrailWorldPoint(shipState);
+        const tailX = tailPoint.x;
+        const tailY = tailPoint.y;
         const color = this.nitroColorIndex++ % 5 < 3 ? "#ff6600" : "#ffee00";
         this.renderer.spawnNitroParticle(tailX, tailY, color);
       }

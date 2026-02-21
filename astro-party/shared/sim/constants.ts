@@ -76,6 +76,7 @@ export const GREY_ASTEROID_MAX = 18;
 // ============= POWER-UPS =============
 
 export const POWERUP_DESPAWN_MS = 10000;
+export const POWERUP_PICKUP_SIZE = 25;
 export const POWERUP_PICKUP_RADIUS = 30;
 export const POWERUP_SHIELD_HITS = 2;
 export const POWERUP_MAGNETIC_RADIUS = 50;
@@ -116,6 +117,7 @@ export const SCATTER_PROJECTILE_LIFETIME_MS = 600;
 // ============= MINE =============
 
 export const MINE_SIZE = 12;
+export const MINE_DEPLOY_OFFSET = 30;
 export const MINE_EXPLOSION_RADIUS = 150;
 export const MINE_ARMING_DELAY_MS = 400;
 export const MINE_EXPLOSION_DURATION_MS = 500;

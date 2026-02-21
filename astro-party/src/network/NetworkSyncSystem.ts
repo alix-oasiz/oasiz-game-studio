@@ -3,6 +3,7 @@ import { NetworkManager } from "./NetworkManager";
 import { PlayerManager } from "../managers/PlayerManager";
 import { NETWORK_GAME_FEEL_TUNING } from "./gameFeel/NetworkGameFeelTuning";
 import { SHIP_DODGE_ANGLE_DEG } from "../../shared/sim/constants.js";
+import { getShipMuzzleWorldPoint } from "../../shared/geometry/ShipRenderAnchors";
 import {
   triggerMineArmingFeedback,
   triggerMineExplodeFeedback,
@@ -164,8 +165,9 @@ export class NetworkSyncSystem {
     if (!ship) return;
     const color =
       this.playerMgr.players.get(playerId)?.color.primary ?? "#ffffff";
-    const muzzleX = ship.x + Math.cos(ship.angle) * 18;
-    const muzzleY = ship.y + Math.sin(ship.angle) * 18;
+    const muzzlePoint = getShipMuzzleWorldPoint(ship);
+    const muzzleX = muzzlePoint.x;
+    const muzzleY = muzzlePoint.y;
     for (let i = 0; i < 3; i += 1) {
       this.renderer.spawnParticle(muzzleX, muzzleY, color, "hit");
     }
