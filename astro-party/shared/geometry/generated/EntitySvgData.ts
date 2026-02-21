@@ -238,8 +238,8 @@ export const GENERATED_ENTITY_SVG_DATA = [
       "x": -10.664,
       "y": 0
     },
-    "renderScale": 1.3,
-    "physicsScale": 1.3,
+    "renderScale": 1.6,
+    "physicsScale": 1.6,
     "slotDefaults": {
       "slot-primary": "#00f0ff",
       "slot-secondary": "#f5f5f5",
@@ -248,148 +248,223 @@ export const GENERATED_ENTITY_SVG_DATA = [
     }
   },
   {
-    "id": "pilot_death_burst",
-    "svgTemplate": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-20 -20 40 40\" role=\"img\" aria-label=\"Pilot death (suit burst)\">\n  <defs>\n    <style>\n      .slot-secondary { fill: var(--slot-secondary, #ffffff); }\n      .slot-stroke { stroke: var(--slot-stroke, #ffffff); }\n      .stop-primary { stop-color: var(--slot-primary, #00f0ff); }\n      .stop-dark { stop-color: #07121a; }\n    </style>\n\n    <!-- Suit metal -->\n    <linearGradient id=\"suitMetal\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">\n      <stop offset=\"0\" class=\"stop-primary\" stop-opacity=\"0.25\"/>\n      <stop offset=\"0.35\" class=\"stop-dark\" stop-opacity=\"1\"/>\n      <stop offset=\"1\" stop-color=\"#020508\" stop-opacity=\"1\"/>\n    </linearGradient>\n\n    <!-- Big energy burst -->\n    <radialGradient id=\"burstGlow\" cx=\"52%\" cy=\"48%\" r=\"62%\">\n      <stop offset=\"0\" class=\"stop-primary\" stop-opacity=\"0.98\"/>\n      <stop offset=\"0.35\" class=\"stop-primary\" stop-opacity=\"0.7\"/>\n      <stop offset=\"0.7\" class=\"stop-primary\" stop-opacity=\"0.25\"/>\n      <stop offset=\"1\" class=\"stop-primary\" stop-opacity=\"0\"/>\n    </radialGradient>\n\n    <!-- Hot core -->\n    <radialGradient id=\"core\" cx=\"50%\" cy=\"50%\" r=\"60%\">\n      <stop offset=\"0\" class=\"stop-primary\" stop-opacity=\"1\"/>\n      <stop offset=\"0.55\" class=\"stop-primary\" stop-opacity=\"0.7\"/>\n      <stop offset=\"1\" class=\"stop-primary\" stop-opacity=\"0\"/>\n    </radialGradient>\n\n    <filter id=\"softGlow\" x=\"-40%\" y=\"-40%\" width=\"180%\" height=\"180%\">\n      <feGaussianBlur stdDeviation=\"0.8\" result=\"b\"/>\n      <feMerge>\n        <feMergeNode in=\"b\"/>\n        <feMergeNode in=\"SourceGraphic\"/>\n      </feMerge>\n    </filter>\n\n    <filter id=\"shadow\" x=\"-30%\" y=\"-30%\" width=\"160%\" height=\"160%\">\n      <feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"0.6\" result=\"b\"/>\n      <feOffset in=\"b\" dx=\"0.4\" dy=\"0.55\" result=\"o\"/>\n      <feColorMatrix in=\"o\" type=\"matrix\"\n        values=\"0 0 0 0 0\n                0 0 0 0 0\n                0 0 0 0 0\n                0 0 0 0.26 0\" result=\"s\"/>\n      <feMerge>\n        <feMergeNode in=\"s\"/>\n        <feMergeNode in=\"SourceGraphic\"/>\n      </feMerge>\n    </filter>\n  </defs>\n\n  <g id=\"visual\" filter=\"url(#shadow)\">\n    <!-- Energy bloom -->\n    <circle cx=\"1.2\" cy=\"0\" r=\"12.6\" fill=\"url(#burstGlow)\" opacity=\"0.95\" filter=\"url(#softGlow)\"/>\n\n    <!-- Burst rays (ship-like triangles) -->\n    <g opacity=\"0.75\">\n      <polygon points=\"2,-15 4,-10 0,-11\" fill=\"var(--slot-primary, #00f0ff)\"/>\n      <polygon points=\"12,-10 9,-6 7,-10\" fill=\"var(--slot-primary, #00f0ff)\"/>\n      <polygon points=\"15,1 10,1 12,-2\" fill=\"var(--slot-primary, #00f0ff)\"/>\n      <polygon points=\"12,12 8,8 12,7\" fill=\"var(--slot-primary, #00f0ff)\"/>\n      <polygon points=\"-2,16 -1,11 3,13\" fill=\"var(--slot-primary, #00f0ff)\"/>\n      <polygon points=\"-13,10 -9,7 -10,12\" fill=\"var(--slot-primary, #00f0ff)\"/>\n      <polygon points=\"-16,-1 -11,-2 -13,2\" fill=\"var(--slot-primary, #00f0ff)\"/>\n      <polygon points=\"-12,-12 -9,-7 -13,-7\" fill=\"var(--slot-primary, #00f0ff)\"/>\n    </g>\n\n    <!-- Suit halves pulled apart (reads as \"burst open\") -->\n    <g opacity=\"0.92\">\n      <!-- Left half -->\n      <path\n        d=\"M -10.8 -6.8\n           L -1.2 -6.8\n           L -2.6 -1.0\n           L -2.6 1.0\n           L -1.2 6.8\n           L -9.2 6.8\n           Q -10.7 6.8 -11.6 5.2\n           L -13.1 2.2\n           Q -13.8 1.1 -13.8 0\n           Q -13.8 -1.1 -13.1 -2.2\n           L -11.6 -5.2\n           Q -10.7 -6.8 -10.8 -6.8 Z\"\n        fill=\"url(#suitMetal)\"\n        class=\"slot-stroke\"\n        stroke-width=\"0.95\"\n        stroke-linejoin=\"round\"\n        transform=\"translate(-1.0,0) rotate(-8)\"\n      />\n\n      <!-- Right half (with helmet stub) -->\n      <path\n        d=\"M 2.0 -6.8\n           L 5.2 -6.8\n           Q 7.3 -6.8 8.9 -5.2\n           L 10.8 -3.3\n           Q 11.9 -2.2 11.9 -0.8\n           L 11.9 0.8\n           Q 11.9 2.2 10.8 3.3\n           L 8.9 5.2\n           Q 7.3 6.8 5.2 6.8\n           L 2.0 6.8\n           L 0.6 1.0\n           L 0.6 -1.0 Z\"\n        fill=\"url(#suitMetal)\"\n        class=\"slot-stroke\"\n        stroke-width=\"0.95\"\n        stroke-linejoin=\"round\"\n        transform=\"translate(1.4,0) rotate(10)\"\n      />\n    </g>\n\n    <!-- Torn seam highlights -->\n    <path d=\"M -1.2 -6.7 L 0.6 -1.0 L 0.6 1.0 L -1.2 6.7\"\n      stroke=\"var(--slot-primary, #00f0ff)\" stroke-width=\"0.55\" opacity=\"0.9\" stroke-linecap=\"round\" />\n\n    <!-- Core shard (diamond like pilot chest) -->\n    <polygon points=\"-0.4,-2.4 2.4,0 -0.4,2.4 -3.0,0\" fill=\"var(--slot-primary, #00f0ff)\" opacity=\"0.88\" filter=\"url(#softGlow)\"/>\n\n    <!-- Helmet popped off (small, upper-right) -->\n    <g transform=\"translate(10.6,-7.8) rotate(18)\" opacity=\"0.95\">\n      <circle cx=\"0\" cy=\"0\" r=\"3.2\" fill=\"#07121a\" class=\"slot-stroke\" stroke-width=\"0.85\"/>\n      <path d=\"M -2.2 -1.2 Q 0 -2.2 2.2 -1.2 Q 2.6 0 2.2 1.2 Q 0 2.2 -2.2 1.2 Q -2.6 0 -2.2 -1.2 Z\"\n        fill=\"var(--slot-primary, #00f0ff)\" opacity=\"0.35\"/>\n    </g>\n\n    <!-- Small debris blocks (ship plating) -->\n    <g opacity=\"0.65\">\n      <polygon points=\"-8,-12 -5,-10 -8,-9 -10,-11\" fill=\"var(--slot-secondary, #ffffff)\"/>\n      <polygon points=\"6,12 9,10 10,13 7,14\" fill=\"var(--slot-secondary, #ffffff)\"/>\n      <polygon points=\"-14,6 -12,4 -11,7 -13,8\" fill=\"var(--slot-secondary, #ffffff)\"/>\n      <polygon points=\"14,4 16,2 16,5\" fill=\"var(--slot-secondary, #ffffff)\"/>\n    </g>\n\n    <!-- Tiny status light dying out -->\n    <circle cx=\"18.3\" cy=\"0\" r=\"0.85\" fill=\"#ff2b6f\" opacity=\"0.5\"/>\n  </g>\n\n  <path id=\"collider\" d=\"M -17.2 0\n       L -16.0 -5.6\n       L -11.2 -8.6\n       L -9.6 -7.2\n       L 2.8 -7.2\n       Q 5.0 -7.2 6.6 -5.6\n       L 8.4 -3.8\n       Q 9.6 -2.6 9.6 -0.8\n       L 9.6 -3.3\n       Q 12.4 -5.2 15.2 -4.0\n       Q 17.8 -2.8 17.8 0\n       Q 17.8 2.8 15.2 4.0\n       Q 12.4 5.2 9.6 3.3\n       L 9.6 0.8\n       Q 9.6 2.6 8.4 3.8\n       L 6.6 5.6\n       Q 5.0 7.2 2.8 7.2\n       L 4.8 8.4\n       L 5.3 9.5\n       L -8.1 9.5\n       L -11.2 8.6\n       L -16.0 5.6\n       Z\" fill=\"none\" stroke=\"none\"/>\n</svg>",
+    "id": "pilot_death_debris_visor",
+    "svgTemplate": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-8 -8 16 16\" role=\"img\" aria-label=\"Pilot death debris visor\">\n  <defs>\n    <style>\n      .slot-stroke { stroke: var(--slot-stroke, #e8f5ff); }\n    </style>\n    <radialGradient id=\"visorGlow\" cx=\"60%\" cy=\"46%\" r=\"55%\">\n      <stop offset=\"0\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.45\"/>\n      <stop offset=\"1\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.08\"/>\n    </radialGradient>\n    <clipPath id=\"visorCrackClip\">\n      <circle cx=\"0\" cy=\"0\" r=\"2.95\"/>\n    </clipPath>\n  </defs>\n\n  <g id=\"visual\">\n    <circle\n      cx=\"0\"\n      cy=\"0\"\n      r=\"3.2\"\n      fill=\"var(--slot-secondary, #0b1120)\"\n      class=\"slot-stroke\"\n      stroke-width=\"0.8\"\n    />\n    <ellipse cx=\"1.2\" cy=\"-0.2\" rx=\"2.3\" ry=\"1.5\" fill=\"url(#visorGlow)\"/>\n    <g clip-path=\"url(#visorCrackClip)\" opacity=\"0.62\">\n      <path\n        d=\"M -1.8 -1.6 L -0.6 -0.5 L -0.2 0.5 L 0.7 1.3 L 1.8 1.7\"\n        fill=\"none\"\n        stroke=\"#eaf9ff\"\n        stroke-width=\"0.22\"\n        stroke-linecap=\"round\"\n        stroke-linejoin=\"round\"\n      />\n      <path\n        d=\"M -0.5 -0.4 L -1.1 0.2 L -1.7 0.4\"\n        fill=\"none\"\n        stroke=\"#d6f5ff\"\n        stroke-width=\"0.16\"\n        stroke-linecap=\"round\"\n      />\n      <path\n        d=\"M -0.2 0.5 L 0.4 0.0 L 1.0 -0.1\"\n        fill=\"none\"\n        stroke=\"#d6f5ff\"\n        stroke-width=\"0.16\"\n        stroke-linecap=\"round\"\n      />\n      <path\n        d=\"M 0.6 1.2 L 0.2 1.8\"\n        fill=\"none\"\n        stroke=\"#d6f5ff\"\n        stroke-width=\"0.14\"\n        stroke-linecap=\"round\"\n      />\n    </g>\n    <circle cx=\"1.3\" cy=\"-1.3\" r=\"0.6\" fill=\"#eaf9ff\" opacity=\"0.28\"/>\n  </g>\n\n  <path\n    id=\"collider\"\n    d=\"M 0 -3.4 L 2.4 -2.4 L 3.4 0 L 2.4 2.4 L 0 3.4 L -2.4 2.4 L -3.4 0 L -2.4 -2.4 Z\"\n    fill=\"none\"\n    stroke=\"none\"\n  />\n</svg>",
     "viewBox": {
-      "minX": -20,
-      "minY": -20,
-      "width": 40,
-      "height": 40
+      "minX": -8,
+      "minY": -8,
+      "width": 16,
+      "height": 16
     },
     "colliderPathId": "collider",
-    "colliderPath": "M -17.2 0\n       L -16.0 -5.6\n       L -11.2 -8.6\n       L -9.6 -7.2\n       L 2.8 -7.2\n       Q 5.0 -7.2 6.6 -5.6\n       L 8.4 -3.8\n       Q 9.6 -2.6 9.6 -0.8\n       L 9.6 -3.3\n       Q 12.4 -5.2 15.2 -4.0\n       Q 17.8 -2.8 17.8 0\n       Q 17.8 2.8 15.2 4.0\n       Q 12.4 5.2 9.6 3.3\n       L 9.6 0.8\n       Q 9.6 2.6 8.4 3.8\n       L 6.6 5.6\n       Q 5.0 7.2 2.8 7.2\n       L 4.8 8.4\n       L 5.3 9.5\n       L -8.1 9.5\n       L -11.2 8.6\n       L -16.0 5.6\n       Z",
+    "colliderPath": "M 0 -3.4 L 2.4 -2.4 L 3.4 0 L 2.4 2.4 L 0 3.4 L -2.4 2.4 L -3.4 0 L -2.4 -2.4 Z",
     "colliderVertices": [
       {
-        "x": -17.2,
+        "x": 0,
+        "y": -3.4
+      },
+      {
+        "x": 2.4,
+        "y": -2.4
+      },
+      {
+        "x": 3.4,
         "y": 0
       },
       {
-        "x": -16,
-        "y": -5.6
+        "x": 2.4,
+        "y": 2.4
       },
       {
-        "x": -11.2,
-        "y": -8.6
+        "x": 0,
+        "y": 3.4
       },
       {
-        "x": -9.6,
-        "y": -7.2
+        "x": -2.4,
+        "y": 2.4
       },
       {
-        "x": 2.8,
-        "y": -7.2
-      },
-      {
-        "x": 5,
-        "y": -7.2
-      },
-      {
-        "x": 6.6,
-        "y": -5.6
-      },
-      {
-        "x": 8.4,
-        "y": -3.8
-      },
-      {
-        "x": 9.6,
-        "y": -2.6
-      },
-      {
-        "x": 9.6,
-        "y": -0.8
-      },
-      {
-        "x": 9.6,
-        "y": -3.3
-      },
-      {
-        "x": 12.4,
-        "y": -5.2
-      },
-      {
-        "x": 15.2,
-        "y": -4
-      },
-      {
-        "x": 17.8,
-        "y": -2.8
-      },
-      {
-        "x": 17.8,
+        "x": -3.4,
         "y": 0
       },
       {
-        "x": 17.8,
-        "y": 2.8
-      },
-      {
-        "x": 15.2,
-        "y": 4
-      },
-      {
-        "x": 12.4,
-        "y": 5.2
-      },
-      {
-        "x": 9.6,
-        "y": 3.3
-      },
-      {
-        "x": 9.6,
-        "y": 0.8
-      },
-      {
-        "x": 9.6,
-        "y": 2.6
-      },
-      {
-        "x": 8.4,
-        "y": 3.8
-      },
-      {
-        "x": 6.6,
-        "y": 5.6
-      },
-      {
-        "x": 5,
-        "y": 7.2
-      },
-      {
-        "x": 2.8,
-        "y": 7.2
-      },
-      {
-        "x": 4.8,
-        "y": 8.4
-      },
-      {
-        "x": 5.3,
-        "y": 9.5
-      },
-      {
-        "x": -8.1,
-        "y": 9.5
-      },
-      {
-        "x": -11.2,
-        "y": 8.6
-      },
-      {
-        "x": -16,
-        "y": 5.6
+        "x": -2.4,
+        "y": -2.4
       }
     ],
     "centerOfGravityLocal": {
-      "x": -17.2,
-      "y": 0
+      "x": 0,
+      "y": -3.4
     },
-    "renderScale": 1.15,
+    "renderScale": 1,
     "physicsScale": 1,
     "slotDefaults": {
       "slot-primary": "#00f0ff",
-      "slot-secondary": "#ffffff",
-      "slot-stroke": "#ffffff"
+      "slot-secondary": "#0b1120",
+      "slot-stroke": "#e8f5ff"
+    }
+  },
+  {
+    "id": "pilot_death_debris_shell_left",
+    "svgTemplate": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-8 -8 16 16\" role=\"img\" aria-label=\"Pilot death debris shell left\">\n  <defs>\n    <linearGradient id=\"shellBodyGrad\" x1=\"0.12\" y1=\"0.06\" x2=\"0.92\" y2=\"0.94\">\n      <stop offset=\"0\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.34\"/>\n      <stop offset=\"0.46\" stop-color=\"var(--slot-secondary, #141d2a)\" stop-opacity=\"1\"/>\n      <stop offset=\"1\" stop-color=\"#030a12\" stop-opacity=\"1\"/>\n    </linearGradient>\n    <linearGradient id=\"panelGlow\" x1=\"0\" y1=\"0.4\" x2=\"1\" y2=\"0.55\">\n      <stop offset=\"0\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.30\"/>\n      <stop offset=\"1\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.05\"/>\n    </linearGradient>\n  </defs>\n\n  <g id=\"visual\">\n    <path\n      d=\"M -5.8 -4.8 L 4.7 -5.3 L 4.1 -0.3 L 4.8 4.8 L -1.8 5.3 L -4.0 3.6 L -6.1 0.3 L -6.1 -3.5 Z\"\n      fill=\"url(#shellBodyGrad)\"\n      stroke=\"var(--slot-stroke, #cfe8ff)\"\n      stroke-width=\"1.05\"\n      stroke-linejoin=\"round\"\n      stroke-linecap=\"round\"\n    />\n    <path\n      d=\"M -4.8 -3.6 L 3.5 -4.0 L 3.0 -0.5 L 3.5 3.6 L -1.5 3.9 L -3.1 2.8 L -4.7 0.4 L -4.7 -2.3 Z\"\n      fill=\"url(#panelGlow)\"\n      opacity=\"0.85\"\n    />\n    <path\n      d=\"M -2.6 -2.4 L -1.5 -0.9 L -2.1 0.4 L -0.9 1.9 L -1.7 3.2\"\n      fill=\"none\"\n      stroke=\"#02060c\"\n      stroke-width=\"0.35\"\n      stroke-linecap=\"round\"\n      stroke-linejoin=\"round\"\n      opacity=\"0.95\"\n    />\n    <path\n      d=\"M -2.6 -2.4 L -1.5 -0.9 L -2.1 0.4 L -0.9 1.9 L -1.7 3.2\"\n      fill=\"none\"\n      stroke=\"#000000\"\n      stroke-width=\"0.16\"\n      stroke-linecap=\"round\"\n      stroke-linejoin=\"round\"\n      opacity=\"0.88\"\n    />\n  </g>\n\n  <path\n    id=\"collider\"\n    d=\"M -5.8 -4.8 L 4.7 -5.3 L 4.1 -0.3 L 4.8 4.8 L -1.8 5.3 L -4.0 3.6 L -6.1 0.3 L -6.1 -3.5 Z\"\n    fill=\"none\"\n    stroke=\"none\"\n  />\n</svg>",
+    "viewBox": {
+      "minX": -8,
+      "minY": -8,
+      "width": 16,
+      "height": 16
+    },
+    "colliderPathId": "collider",
+    "colliderPath": "M -5.8 -4.8 L 4.7 -5.3 L 4.1 -0.3 L 4.8 4.8 L -1.8 5.3 L -4.0 3.6 L -6.1 0.3 L -6.1 -3.5 Z",
+    "colliderVertices": [
+      {
+        "x": -5.8,
+        "y": -4.8
+      },
+      {
+        "x": 4.7,
+        "y": -5.3
+      },
+      {
+        "x": 4.1,
+        "y": -0.3
+      },
+      {
+        "x": 4.8,
+        "y": 4.8
+      },
+      {
+        "x": -1.8,
+        "y": 5.3
+      },
+      {
+        "x": -4,
+        "y": 3.6
+      },
+      {
+        "x": -6.1,
+        "y": 0.3
+      },
+      {
+        "x": -6.1,
+        "y": -3.5
+      }
+    ],
+    "centerOfGravityLocal": {
+      "x": -5.8,
+      "y": -4.8
+    },
+    "renderScale": 1,
+    "physicsScale": 1,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#141d2a",
+      "slot-stroke": "#cfe8ff"
+    }
+  },
+  {
+    "id": "pilot_death_debris_shell_right",
+    "svgTemplate": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-8 -8 16 16\" role=\"img\" aria-label=\"Pilot death debris shell right\">\n  <defs>\n    <linearGradient id=\"shellBodyGrad\" x1=\"0.10\" y1=\"0.08\" x2=\"0.92\" y2=\"0.92\">\n      <stop offset=\"0\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.34\"/>\n      <stop offset=\"0.44\" stop-color=\"var(--slot-secondary, #162233)\" stop-opacity=\"1\"/>\n      <stop offset=\"1\" stop-color=\"#030a12\" stop-opacity=\"1\"/>\n    </linearGradient>\n    <linearGradient id=\"panelGlow\" x1=\"0.05\" y1=\"0.35\" x2=\"0.98\" y2=\"0.64\">\n      <stop offset=\"0\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.30\"/>\n      <stop offset=\"1\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.06\"/>\n    </linearGradient>\n  </defs>\n\n  <g id=\"visual\">\n    <path\n      d=\"M -4.9 -5.2 L 2.0 -5.4 L 4.9 -1.6 L 5.6 1.5 L 3.8 4.1 L 1.2 5.6 L -2.0 5.4 L -4.7 4.9 L -4.2 0.2 L -4.7 -2.1 Z\"\n      fill=\"url(#shellBodyGrad)\"\n      stroke=\"var(--slot-stroke, #cfe8ff)\"\n      stroke-width=\"1.05\"\n      stroke-linejoin=\"round\"\n      stroke-linecap=\"round\"\n    />\n    <path\n      d=\"M -3.9 -3.9 L 1.4 -4.0 L 3.9 -1.0 L 4.5 1.2 L 3.1 3.3 L 1.1 4.4 L -1.4 4.2 L -3.8 3.7 L -3.5 0.3 L -3.8 -1.8 Z\"\n      fill=\"url(#panelGlow)\"\n      opacity=\"0.86\"\n    />\n  </g>\n\n  <path\n    id=\"collider\"\n    d=\"M -4.9 -5.2 L 2.0 -5.4 L 4.9 -1.6 L 5.6 1.5 L 3.8 4.1 L 1.2 5.6 L -2.0 5.4 L -4.7 4.9 L -4.2 0.2 L -4.7 -2.1 Z\"\n    fill=\"none\"\n    stroke=\"none\"\n  />\n</svg>",
+    "viewBox": {
+      "minX": -8,
+      "minY": -8,
+      "width": 16,
+      "height": 16
+    },
+    "colliderPathId": "collider",
+    "colliderPath": "M -4.9 -5.2 L 2.0 -5.4 L 4.9 -1.6 L 5.6 1.5 L 3.8 4.1 L 1.2 5.6 L -2.0 5.4 L -4.7 4.9 L -4.2 0.2 L -4.7 -2.1 Z",
+    "colliderVertices": [
+      {
+        "x": -4.9,
+        "y": -5.2
+      },
+      {
+        "x": 2,
+        "y": -5.4
+      },
+      {
+        "x": 4.9,
+        "y": -1.6
+      },
+      {
+        "x": 5.6,
+        "y": 1.5
+      },
+      {
+        "x": 3.8,
+        "y": 4.1
+      },
+      {
+        "x": 1.2,
+        "y": 5.6
+      },
+      {
+        "x": -2,
+        "y": 5.4
+      },
+      {
+        "x": -4.7,
+        "y": 4.9
+      },
+      {
+        "x": -4.2,
+        "y": 0.2
+      },
+      {
+        "x": -4.7,
+        "y": -2.1
+      }
+    ],
+    "centerOfGravityLocal": {
+      "x": -4.9,
+      "y": -5.2
+    },
+    "renderScale": 1,
+    "physicsScale": 1,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#162233",
+      "slot-stroke": "#cfe8ff"
+    }
+  },
+  {
+    "id": "pilot_death_debris_core",
+    "svgTemplate": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-6 -6 12 12\" role=\"img\" aria-label=\"Pilot death debris core\">\n  <defs>\n    <radialGradient id=\"coreGlow\" cx=\"50%\" cy=\"50%\" r=\"65%\">\n      <stop offset=\"0\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"1\"/>\n      <stop offset=\"1\" stop-color=\"var(--slot-primary, #00f0ff)\" stop-opacity=\"0.58\"/>\n    </radialGradient>\n  </defs>\n\n  <g id=\"visual\">\n    <polygon\n      points=\"0,-2.9 2.8,0 0,2.9 -3.0,0\"\n      fill=\"url(#coreGlow)\"\n      stroke=\"var(--slot-stroke, #e9fcff)\"\n      stroke-width=\"0.8\"\n      stroke-linejoin=\"round\"\n    />\n    <polygon\n      points=\"0,-1.8 1.8,0 0,1.8 -1.9,0\"\n      fill=\"var(--slot-secondary, #05131d)\"\n      opacity=\"0.25\"\n    />\n  </g>\n\n  <path\n    id=\"collider\"\n    d=\"M 0 -2.9 L 2.8 0 L 0 2.9 L -3.0 0 Z\"\n    fill=\"none\"\n    stroke=\"none\"\n  />\n</svg>",
+    "viewBox": {
+      "minX": -6,
+      "minY": -6,
+      "width": 12,
+      "height": 12
+    },
+    "colliderPathId": "collider",
+    "colliderPath": "M 0 -2.9 L 2.8 0 L 0 2.9 L -3.0 0 Z",
+    "colliderVertices": [
+      {
+        "x": 0,
+        "y": -2.9
+      },
+      {
+        "x": 2.8,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 2.9
+      },
+      {
+        "x": -3,
+        "y": 0
+      }
+    ],
+    "centerOfGravityLocal": {
+      "x": 0,
+      "y": -2.9
+    },
+    "renderScale": 1,
+    "physicsScale": 1,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#05131d",
+      "slot-stroke": "#e9fcff"
     }
   }
 ] as const;

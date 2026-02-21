@@ -1,4 +1,7 @@
-import { Renderer } from "./systems/rendering/Renderer";
+import {
+  Renderer,
+  type ShipTrailVisualTuning,
+} from "./systems/rendering/Renderer";
 import { InputManager } from "./systems/input/Input";
 import { MultiInputManager } from "./systems/input/MultiInputManager";
 import { NetworkManager, type PlayerMetaMap } from "./network/NetworkManager";
@@ -1687,6 +1690,18 @@ export class Game {
 
   getDebugPhysicsTuningSnapshot(): DebugPhysicsTuningSnapshot | null {
     return this.network.getDebugPhysicsTuningSnapshot();
+  }
+
+  getShipTrailVisualTuning(): ShipTrailVisualTuning {
+    return this.renderer.getShipTrailVisualTuning();
+  }
+
+  setShipTrailVisualTuning(payload: Partial<ShipTrailVisualTuning>): void {
+    this.renderer.setShipTrailVisualTuning(payload);
+  }
+
+  resetShipTrailVisualTuning(): void {
+    this.renderer.resetShipTrailVisualTuning();
   }
 
   getDebugStatus(): {

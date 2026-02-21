@@ -97,6 +97,14 @@ export class GameRenderer {
       const renderTurret = ctx.networkTurret;
       const renderTurretBullets = ctx.networkTurretBullets;
 
+      renderShips.forEach((state) => {
+        if (!state.alive) return;
+        const player = ctx.players.get(state.playerId);
+        if (!player) return;
+        this.renderer.sampleShipTrail(state, player.color);
+      });
+      this.renderer.drawShipTrails();
+
       // Draw beams first so ship art can sit on top of the beam origin.
       renderLaserBeams.forEach((state) => {
         if (state.alive) {

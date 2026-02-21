@@ -18,11 +18,13 @@ import {
   SHIP_JOUST_LOCAL_POINTS,
   SHIP_SHIELD_RADII,
   SHIP_VISUAL_REFERENCE_SIZE,
+  getShipTrailWorldPoint,
 } from "../../../shared/geometry/ShipRenderAnchors";
 import {
   SHIP_COLLIDER_VERTICES,
   transformLocalVertices,
 } from "../../../shared/geometry/EntityShapes";
+import { getEntityAsset } from "../../../shared/geometry/EntityAssets";
 import { projectRayToArenaWall } from "../../../shared/sim/physics/geometryMath";
 import { EntitySpriteStore } from "./EntitySpriteStore";
 import { MapOverlayStore } from "./MapOverlayStore";
@@ -52,6 +54,11 @@ interface BulletCasing {
 }
 
 type PilotDebrisKind = "visor" | "shellLeft" | "shellRight" | "core";
+type PilotDebrisAssetId =
+  | "pilot_death_debris_visor"
+  | "pilot_death_debris_shell_left"
+  | "pilot_death_debris_shell_right"
+  | "pilot_death_debris_core";
 
 interface PilotDebrisPiece {
   kind: PilotDebrisKind;
@@ -65,6 +72,7 @@ interface PilotDebrisPiece {
   mass: number;
   life: number;
   maxLife: number;
+  persistent: boolean;
   primaryColor: string;
   secondaryColor: string;
   outlineColor: string;
@@ -79,7 +87,113 @@ interface PilotDeathBurstFx {
   color: string;
 }
 
+interface ShipTrailPoint {
+  x: number;
+  y: number;
+  atMs: number;
+}
+
+interface ShipTrailState {
+  color: string;
+  points: ShipTrailPoint[];
+}
+
+export interface ShipTrailVisualTuning {
+  outerWidth: number;
+  midWidth: number;
+  coreWidth: number;
+  outerAlpha: number;
+  midAlpha: number;
+  coreAlpha: number;
+}
+
+const DEFAULT_SHIP_TRAIL_VISUAL_TUNING: Readonly<ShipTrailVisualTuning> =
+  Object.freeze({
+    outerWidth: 12,
+    midWidth: 7,
+    coreWidth: 3.3,
+    outerAlpha: 0.06,
+    midAlpha: 0.12,
+    coreAlpha: 0.2,
+  });
+
+const SHIP_TRAIL_MAX_AGE_MS = 1400;
+const SHIP_TRAIL_MIN_SPEED_SQ = 0.2;
+const SHIP_TRAIL_SEGMENT_SPACING = 2.2;
+const SHIP_TRAIL_MIN_APPEND_DISTANCE = 0.7;
+const SHIP_TRAIL_MAX_INSERT_STEPS = 24;
+const SHIP_TRAIL_MAX_POINTS = 32;
+
+const DEFAULT_SHIP_TRAIL_CORE_COLOR = "#dffbff";
+
+interface ShipTrailRenderLayer {
+  width: number;
+  alpha: number;
+  color: string;
+}
+
+function buildShipTrailRenderLayers(
+  color: string,
+  tuning: ShipTrailVisualTuning,
+): ReadonlyArray<ShipTrailRenderLayer> {
+  return [
+    { width: tuning.outerWidth, alpha: tuning.outerAlpha, color },
+    { width: tuning.midWidth, alpha: tuning.midAlpha, color },
+    {
+      width: tuning.coreWidth,
+      alpha: tuning.coreAlpha,
+      color: DEFAULT_SHIP_TRAIL_CORE_COLOR,
+    },
+  ];
+}
+
+function clampShipTrailVisualTuning(
+  current: ShipTrailVisualTuning,
+  next: Partial<ShipTrailVisualTuning>,
+): ShipTrailVisualTuning {
+  const clamped: ShipTrailVisualTuning = { ...current };
+
+  if (Number.isFinite(next.outerWidth)) {
+    clamped.outerWidth = Math.max(0.1, Math.min(40, next.outerWidth as number));
+  }
+  if (Number.isFinite(next.midWidth)) {
+    clamped.midWidth = Math.max(0.1, Math.min(40, next.midWidth as number));
+  }
+  if (Number.isFinite(next.coreWidth)) {
+    clamped.coreWidth = Math.max(0.1, Math.min(40, next.coreWidth as number));
+  }
+  if (Number.isFinite(next.outerAlpha)) {
+    clamped.outerAlpha = Math.max(0, Math.min(1, next.outerAlpha as number));
+  }
+  if (Number.isFinite(next.midAlpha)) {
+    clamped.midAlpha = Math.max(0, Math.min(1, next.midAlpha as number));
+  }
+  if (Number.isFinite(next.coreAlpha)) {
+    clamped.coreAlpha = Math.max(0, Math.min(1, next.coreAlpha as number));
+  }
+
+  return clamped;
+}
+
+function isShipTrailVisualTuningEqual(
+  a: ShipTrailVisualTuning,
+  b: ShipTrailVisualTuning,
+): boolean {
+  return (
+    a.outerWidth === b.outerWidth &&
+    a.midWidth === b.midWidth &&
+    a.coreWidth === b.coreWidth &&
+    a.outerAlpha === b.outerAlpha &&
+    a.midAlpha === b.midAlpha &&
+    a.coreAlpha === b.coreAlpha
+  );
+}
+
 export class Renderer {
+  private static readonly PILOT_DEBRIS_BASELINE_PILOT_WIDTH = 52;
+  private static readonly PILOT_DEBRIS_SCALE_MULTIPLIER = 1;
+  private static readonly PILOT_DEBRIS_BASELINE_BUMP_RADIUS = 8.2;
+  private static readonly PILOT_DEBRIS_PERSISTENT_LIFE = 1;
   private static readonly MAX_BULLET_CASINGS = 96;
   private static readonly MAX_PILOT_DEBRIS_PIECES = 36;
   private static readonly MAX_PILOT_DEATH_BURSTS = 10;
@@ -89,6 +203,10 @@ export class Renderer {
   private bulletCasings: BulletCasing[] = [];
   private pilotDebrisPieces: PilotDebrisPiece[] = [];
   private pilotDeathBursts: PilotDeathBurstFx[] = [];
+  private shipTrails = new Map<string, ShipTrailState>();
+  private shipTrailVisualTuning: ShipTrailVisualTuning = {
+    ...DEFAULT_SHIP_TRAIL_VISUAL_TUNING,
+  };
   private screenShake = { intensity: 0, duration: 0, offsetX: 0, offsetY: 0 };
   private visualRng: SeededRNG;
   private gameTimeMs: number | null = null;
@@ -612,6 +730,7 @@ export class Renderer {
     this.bulletCasings = [];
     this.pilotDebrisPieces = [];
     this.pilotDeathBursts = [];
+    this.shipTrails.clear();
     this.previousProjectilePositions.clear();
     this.projectileDebugHistory.clear();
     this.screenShake.intensity = 0;
@@ -619,6 +738,23 @@ export class Renderer {
     this.screenShake.offsetX = 0;
     this.screenShake.offsetY = 0;
     this.centerHoleRotationState.clear();
+  }
+
+  getShipTrailVisualTuning(): ShipTrailVisualTuning {
+    return { ...this.shipTrailVisualTuning };
+  }
+
+  resetShipTrailVisualTuning(): void {
+    this.shipTrailVisualTuning = { ...DEFAULT_SHIP_TRAIL_VISUAL_TUNING };
+    this.shipTrails.clear();
+  }
+
+  setShipTrailVisualTuning(next: Partial<ShipTrailVisualTuning>): void {
+    if (!next || typeof next !== "object") return;
+    const nextClamped = clampShipTrailVisualTuning(this.shipTrailVisualTuning, next);
+    if (!isShipTrailVisualTuningEqual(nextClamped, this.shipTrailVisualTuning)) {
+      this.shipTrailVisualTuning = nextClamped;
+    }
   }
 
   private clampCameraZoom(zoom: number): number {
@@ -681,6 +817,115 @@ export class Renderer {
   }
 
   // ============= SHIP RENDERING =============
+
+  sampleShipTrail(state: ShipState, color: PlayerColor): void {
+    if (!state.alive) return;
+    const nowMs = this.getNowMs();
+    const speedSq = state.vx * state.vx + state.vy * state.vy;
+    if (speedSq < SHIP_TRAIL_MIN_SPEED_SQ) return;
+
+    const trailAnchor = getShipTrailWorldPoint(state);
+    let trail = this.shipTrails.get(state.playerId);
+    if (!trail) {
+      trail = { color: color.primary, points: [] };
+      this.shipTrails.set(state.playerId, trail);
+    }
+    trail.color = color.primary;
+    this.pruneExpiredShipTrailPoints(trail, nowMs);
+
+    const points = trail.points;
+    const lastPoint = points[points.length - 1];
+    if (!lastPoint) {
+      points.push({ x: trailAnchor.x, y: trailAnchor.y, atMs: nowMs });
+      return;
+    }
+
+    const dx = trailAnchor.x - lastPoint.x;
+    const dy = trailAnchor.y - lastPoint.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < SHIP_TRAIL_MIN_APPEND_DISTANCE) {
+      return;
+    }
+
+    const insertSteps = Math.min(
+      SHIP_TRAIL_MAX_INSERT_STEPS,
+      Math.floor(distance / SHIP_TRAIL_SEGMENT_SPACING),
+    );
+    for (let step = 1; step <= insertSteps; step += 1) {
+      const t = step / (insertSteps + 1);
+      points.push({
+        x: lastPoint.x + dx * t,
+        y: lastPoint.y + dy * t,
+        atMs: nowMs,
+      });
+    }
+    points.push({ x: trailAnchor.x, y: trailAnchor.y, atMs: nowMs });
+
+    if (points.length > SHIP_TRAIL_MAX_POINTS) {
+      points.splice(0, points.length - SHIP_TRAIL_MAX_POINTS);
+    }
+  }
+
+  drawShipTrails(): void {
+    const nowMs = this.getNowMs();
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    for (const [playerId, trail] of this.shipTrails) {
+      this.pruneExpiredShipTrailPoints(trail, nowMs);
+      if (trail.points.length < 2) {
+        if (trail.points.length === 0) {
+          this.shipTrails.delete(playerId);
+        }
+        continue;
+      }
+
+      this.drawShipTrailLayered(trail, nowMs);
+    }
+
+    ctx.restore();
+  }
+
+  private pruneExpiredShipTrailPoints(trail: ShipTrailState, nowMs: number): void {
+    const cutoff = nowMs - SHIP_TRAIL_MAX_AGE_MS;
+    while (trail.points.length > 0 && trail.points[0].atMs < cutoff) {
+      trail.points.shift();
+    }
+  }
+
+  private drawShipTrailLayered(trail: ShipTrailState, nowMs: number): void {
+    const { ctx } = this;
+    const layers = buildShipTrailRenderLayers(
+      trail.color,
+      this.shipTrailVisualTuning,
+    );
+
+    for (const layer of layers) {
+      for (let i = 1; i < trail.points.length; i += 1) {
+        const prev = trail.points[i - 1];
+        const curr = trail.points[i];
+        const age01 = this.clamp01((nowMs - curr.atMs) / SHIP_TRAIL_MAX_AGE_MS);
+        const fade = 1 - age01;
+        if (fade <= 0) continue;
+
+        const segmentAlpha = layer.alpha * fade * fade;
+        if (segmentAlpha <= 0.004) continue;
+
+        ctx.globalAlpha = segmentAlpha;
+        ctx.strokeStyle = layer.color;
+        ctx.lineWidth = layer.width * (0.4 + fade * 0.6);
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(curr.x, curr.y);
+        ctx.stroke();
+      }
+    }
+
+    ctx.globalAlpha = 1;
+  }
 
   drawShip(
     state: ShipState,
@@ -956,7 +1201,14 @@ export class Renderer {
     const nowMs = this.getNowMs();
     const isFlashing =
       survivalProgress > 0.6 && Math.floor(nowMs / 150) % 2 === 0;
-    this.bumpPilotDebrisWithBody(x, y, 8.2, state.vx, state.vy);
+    const pilotScale = this.getPilotDebrisScaleFactor();
+    this.bumpPilotDebrisWithBody(
+      x,
+      y,
+      Renderer.PILOT_DEBRIS_BASELINE_BUMP_RADIUS * pilotScale,
+      state.vx,
+      state.vy,
+    );
 
     ctx.save();
     ctx.translate(x, y);
@@ -1624,6 +1876,7 @@ export class Renderer {
     y: number,
     primaryColor: string,
   ): void {
+    const pilotScale = this.getPilotDebrisScaleFactor();
     const templates: ReadonlyArray<{
       kind: PilotDebrisKind;
       offsetX: number;
@@ -1686,24 +1939,31 @@ export class Renderer {
       const launchAngle =
         baseAngle + (this.random() - 0.5) * template.angleJitter;
       const speed =
-        template.speedMin +
-        this.random() * (template.speedMax - template.speedMin);
-      const radiusJitter = template.radius * (0.92 + this.random() * 0.18);
-      const life = 2.1 + this.random() * 0.9;
+        template.speedMin * pilotScale +
+        this.random() * (template.speedMax - template.speedMin) * pilotScale;
+      const radiusJitter =
+        template.radius * pilotScale * (0.92 + this.random() * 0.18);
       const mass = Math.max(0.7, radiusJitter * radiusJitter * 0.06);
 
       this.pilotDebrisPieces.push({
         kind: template.kind,
-        x: x + template.offsetX + (this.random() - 0.5) * 1.1,
-        y: y + template.offsetY + (this.random() - 0.5) * 1.1,
+        x:
+          x +
+          template.offsetX * pilotScale +
+          (this.random() - 0.5) * 1.1 * pilotScale,
+        y:
+          y +
+          template.offsetY * pilotScale +
+          (this.random() - 0.5) * 1.1 * pilotScale,
         vx: Math.cos(launchAngle) * speed,
         vy: Math.sin(launchAngle) * speed,
         angle: this.random() * Math.PI * 2,
         angularVelocity: (this.random() - 0.5) * 3.2,
         radius: radiusJitter,
         mass,
-        life,
-        maxLife: life,
+        life: Renderer.PILOT_DEBRIS_PERSISTENT_LIFE,
+        maxLife: Renderer.PILOT_DEBRIS_PERSISTENT_LIFE,
+        persistent: true,
         primaryColor: primaryColor,
         secondaryColor: template.secondaryColor,
         outlineColor: template.outlineColor,
@@ -1727,18 +1987,6 @@ export class Renderer {
       ctx.save();
       ctx.translate(burst.x, burst.y);
       ctx.rotate(burst.angle + phase * 5.8);
-
-      const burstScale =
-        phase < 0.32 ? 0.9 - phase * 0.85 : 0.63 + (phase - 0.32) * 1.8;
-      ctx.save();
-      ctx.scale(burstScale, burstScale);
-      ctx.globalAlpha = Math.max(0, 0.7 * (1 - phase));
-      this.entitySprites.drawEntity(ctx, "pilot_death_burst", {
-        "slot-primary": burst.color,
-        "slot-secondary": "#ffffff",
-        "slot-stroke": "#e8f7ff",
-      });
-      ctx.restore();
 
       ctx.globalAlpha = Math.max(0, 0.76 * (1 - phase));
       ctx.fillStyle = burst.color;
@@ -1774,9 +2022,64 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  private getPilotDebrisAssetId(kind: PilotDebrisKind): PilotDebrisAssetId {
+    switch (kind) {
+      case "visor":
+        return "pilot_death_debris_visor";
+      case "shellLeft":
+        return "pilot_death_debris_shell_left";
+      case "shellRight":
+        return "pilot_death_debris_shell_right";
+      case "core":
+        return "pilot_death_debris_core";
+    }
+  }
+
+  private getPilotDebrisBaseRadius(kind: PilotDebrisKind): number {
+    const pilotScale = this.getPilotDebrisScaleFactor();
+    switch (kind) {
+      case "visor":
+        return 4.1 * pilotScale;
+      case "shellLeft":
+        return 5.8 * pilotScale;
+      case "shellRight":
+        return 5.4 * pilotScale;
+      case "core":
+        return 2.9 * pilotScale;
+    }
+  }
+
+  private getPilotDebrisScaleFactor(): number {
+    const pilotRenderWidth = getEntityAsset("pilot").renderSize.width;
+    return (
+      (pilotRenderWidth / Renderer.PILOT_DEBRIS_BASELINE_PILOT_WIDTH) *
+      Renderer.PILOT_DEBRIS_SCALE_MULTIPLIER
+    );
+  }
+
   private drawPilotDebrisPiece(piece: PilotDebrisPiece, alpha: number): void {
     if (alpha <= 0) return;
     const { ctx } = this;
+
+    const spriteAssetId = this.getPilotDebrisAssetId(piece.kind);
+    const baseRadius = this.getPilotDebrisBaseRadius(piece.kind);
+    const spriteScale = Math.max(0.45, piece.radius / baseRadius);
+
+    ctx.save();
+    ctx.translate(piece.x, piece.y);
+    ctx.rotate(piece.angle);
+    ctx.scale(spriteScale, spriteScale);
+    ctx.globalAlpha = alpha;
+    const drewSprite = this.entitySprites.drawEntity(ctx, spriteAssetId, {
+      "slot-primary": piece.primaryColor,
+      "slot-secondary": piece.secondaryColor,
+      "slot-stroke": piece.outlineColor,
+    });
+    ctx.restore();
+    if (drewSprite) {
+      return;
+    }
+
     ctx.save();
     ctx.translate(piece.x, piece.y);
     ctx.rotate(piece.angle);
@@ -1922,10 +2225,12 @@ export class Renderer {
         piece.vy = -Math.abs(piece.vy) * 0.38;
       }
 
-      piece.life -= dt;
-      const speedSq = piece.vx * piece.vx + piece.vy * piece.vy;
-      if (speedSq < 16 && piece.life < piece.maxLife * 0.45) {
-        piece.life -= dt * 1.35;
+      if (!piece.persistent) {
+        piece.life -= dt;
+        const speedSq = piece.vx * piece.vx + piece.vy * piece.vy;
+        if (speedSq < 16 && piece.life < piece.maxLife * 0.45) {
+          piece.life -= dt * 1.35;
+        }
       }
     }
 

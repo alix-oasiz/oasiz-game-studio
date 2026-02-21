@@ -4,6 +4,7 @@ import type {
   DebugPhysicsTuningPayload,
   DebugPhysicsTuningSnapshot,
 } from "../types";
+import type { ShipTrailVisualTuning } from "../systems/rendering/Renderer";
 import {
   getActiveConfigFromSettings,
   resolveGlobalValues,
@@ -22,6 +23,7 @@ interface SliderField<T extends string> {
 type ConfigKey = keyof DebugPhysicsTuningSnapshot["config"];
 type MaterialKey = keyof DebugPhysicsTuningSnapshot["materials"];
 type GlobalKey = keyof DebugPhysicsTuningSnapshot["globals"];
+type TrailKey = keyof ShipTrailVisualTuning;
 
 const MODE_OPTIONS: BaseGameMode[] = ["STANDARD", "SANE", "CHAOTIC"];
 
@@ -338,6 +340,57 @@ const GLOBAL_FIELDS: ReadonlyArray<SliderField<GlobalKey>> = [
   },
 ];
 
+const TRAIL_FIELDS: ReadonlyArray<SliderField<TrailKey>> = [
+  {
+    key: "outerWidth",
+    label: "Trail Outer Width",
+    min: 0.1,
+    max: 40,
+    step: 0.1,
+    hint: "Higher: larger soft neon envelope.",
+  },
+  {
+    key: "midWidth",
+    label: "Trail Mid Width",
+    min: 0,
+    max: 40,
+    step: 0.1,
+    hint: "Higher: thicker mid glow around the core.",
+  },
+  {
+    key: "coreWidth",
+    label: "Trail Core Width",
+    min: 0,
+    max: 20,
+    step: 0.1,
+    hint: "Higher: thicker bright center streak.",
+  },
+  {
+    key: "outerAlpha",
+    label: "Trail Outer Alpha",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    hint: "Higher: stronger outer haze intensity.",
+  },
+  {
+    key: "midAlpha",
+    label: "Trail Mid Alpha",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    hint: "Higher: brighter middle glow layer.",
+  },
+  {
+    key: "coreAlpha",
+    label: "Trail Core Alpha",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    hint: "Higher: brighter center highlight.",
+  },
+];
+
 export interface PhysicsLabController {
   open: () => void;
   close: () => void;
@@ -358,6 +411,7 @@ export function createPhysicsLabController(
   let configInputs: Record<ConfigKey, HTMLInputElement> | null = null;
   let materialInputs: Record<MaterialKey, HTMLInputElement> | null = null;
   let globalInputs: Record<GlobalKey, HTMLInputElement> | null = null;
+  let trailInputs: Record<TrailKey, HTMLInputElement> | null = null;
   let applyTimeout: ReturnType<typeof window.setTimeout> | null = null;
   let suppressApply = false;
 
@@ -379,12 +433,15 @@ export function createPhysicsLabController(
   ): {
     baseMode?: BaseGameMode;
     tuning?: DebugPhysicsTuningPayload | null;
+    trailTuning?: Partial<ShipTrailVisualTuning>;
   } | null => {
     if (!isRecord(value)) return null;
 
     const baseModeValue = value.baseMode;
     const tuningSource = "tuning" in value ? value.tuning : value;
     const hasRootTuningKey = "tuning" in value;
+    const trailSource =
+      "trailTuning" in value ? value.trailTuning : undefined;
 
     let baseMode: BaseGameMode | undefined;
     if (baseModeValue !== undefined) {
@@ -395,7 +452,13 @@ export function createPhysicsLabController(
     }
 
     if (tuningSource === null) {
-      return { baseMode, tuning: null };
+      return {
+        baseMode,
+        tuning: null,
+        trailTuning: isRecord(trailSource)
+          ? (trailSource as Partial<ShipTrailVisualTuning>)
+          : undefined,
+      };
     }
     if (!isRecord(tuningSource)) {
       return null;
@@ -406,12 +469,25 @@ export function createPhysicsLabController(
       "materialOverrides" in tuningSource ||
       "globalOverrides" in tuningSource;
     if (!hasKnownTuningKey) {
-      return hasRootTuningKey ? { baseMode, tuning: null } : null;
+      const hasTrail = isRecord(trailSource);
+      if (!hasRootTuningKey && !hasTrail) {
+        return null;
+      }
+      return {
+        baseMode,
+        tuning: hasRootTuningKey ? null : undefined,
+        trailTuning: hasTrail
+          ? (trailSource as Partial<ShipTrailVisualTuning>)
+          : undefined,
+      };
     }
 
     return {
       baseMode,
       tuning: tuningSource as DebugPhysicsTuningPayload,
+      trailTuning: isRecord(trailSource)
+        ? (trailSource as Partial<ShipTrailVisualTuning>)
+        : undefined,
     };
   };
 
@@ -443,7 +519,8 @@ export function createPhysicsLabController(
       const payload = buildPayloadFromInputs();
       const ok = game.setDebugPhysicsTuning(payload);
       if (!ok) return;
-      setStatus("Applied local physics overrides (mode-relative)");
+      applyTrailFromInputs();
+      setStatus("Applied local lab overrides");
     }, 60);
   };
 
@@ -475,7 +552,7 @@ export function createPhysicsLabController(
   };
 
   const writeSnapshotToInputs = (snapshot: DebugPhysicsTuningSnapshot): void => {
-    if (!configInputs || !materialInputs || !globalInputs) return;
+    if (!configInputs || !materialInputs || !globalInputs || !trailInputs) return;
     suppressApply = true;
     for (const field of CONFIG_FIELDS) {
       const input = configInputs[field.key];
@@ -492,7 +569,30 @@ export function createPhysicsLabController(
       input.value = String(snapshot.globals[field.key]);
       updateValueLabel(input);
     }
+    const trailTuning = game.getShipTrailVisualTuning();
+    for (const field of TRAIL_FIELDS) {
+      const input = trailInputs[field.key];
+      input.value = String(trailTuning[field.key]);
+      updateValueLabel(input);
+    }
     suppressApply = false;
+  };
+
+  const buildTrailTuningFromInputs = (): Partial<ShipTrailVisualTuning> => {
+    if (!trailInputs) {
+      return game.getShipTrailVisualTuning();
+    }
+    const current = game.getShipTrailVisualTuning();
+    const next: Partial<ShipTrailVisualTuning> = {};
+    for (const field of TRAIL_FIELDS) {
+      const value = Number(trailInputs[field.key].value);
+      next[field.key] = Number.isFinite(value) ? value : current[field.key];
+    }
+    return next;
+  };
+
+  const applyTrailFromInputs = (): void => {
+    game.setShipTrailVisualTuning(buildTrailTuningFromInputs());
   };
 
   const buildPayloadFromInputs = (): DebugPhysicsTuningPayload | null => {
@@ -552,13 +652,23 @@ export function createPhysicsLabController(
   };
 
   const refreshFromSim = (): void => {
+    const trailTuning = game.getShipTrailVisualTuning();
+    if (trailInputs) {
+      suppressApply = true;
+      for (const field of TRAIL_FIELDS) {
+        const input = trailInputs[field.key];
+        input.value = String(trailTuning[field.key]);
+        updateValueLabel(input);
+      }
+      suppressApply = false;
+    }
     const snapshot = getSnapshot();
     if (!snapshot) return;
     writeSnapshotToInputs(snapshot);
     if (modeSelect) {
       modeSelect.value = game.getBaseMode();
     }
-    setStatus("Loaded current simulation values");
+    setStatus("Loaded simulation + trail values");
   };
 
   const handleModeChange = (): void => {
@@ -576,6 +686,7 @@ export function createPhysicsLabController(
     const payload = {
       baseMode: modeSelect.value as BaseGameMode,
       tuning: buildPayloadFromInputs(),
+      trailTuning: buildTrailTuningFromInputs(),
     };
     const text = JSON.stringify(payload, null, 2);
     try {
@@ -611,7 +722,7 @@ export function createPhysicsLabController(
 
     const parsed = extractPastedTuning(parsedRaw);
     if (!parsed) {
-      setStatus("JSON shape not recognized. Expected { baseMode, tuning }.");
+      setStatus("JSON shape not recognized. Expected { baseMode, tuning, trailTuning }.");
       return;
     }
 
@@ -628,6 +739,9 @@ export function createPhysicsLabController(
     } else if (parsed.baseMode) {
       const ok = game.setDebugPhysicsTuning(null);
       if (!ok) return;
+    }
+    if (parsed.trailTuning) {
+      game.setShipTrailVisualTuning(parsed.trailTuning);
     }
 
     window.setTimeout(() => {
@@ -678,10 +792,11 @@ export function createPhysicsLabController(
     resetBtn.className = "qa-physics-lab-btn";
     resetBtn.textContent = "Reset";
     resetBtn.addEventListener("click", () => {
+      game.resetShipTrailVisualTuning();
       const ok = game.setDebugPhysicsTuning(null);
       if (!ok) return;
       refreshFromSim();
-      setStatus("Reset to current mode defaults");
+      setStatus("Reset physics + trail to defaults");
     });
 
     const copyBtn = document.createElement("button");
@@ -760,9 +875,25 @@ export function createPhysicsLabController(
     });
     globalsSection.appendChild(globalsGrid);
 
+    const trailSection = document.createElement("section");
+    trailSection.className = "qa-physics-lab-section";
+    trailSection.innerHTML = '<h4 class="qa-physics-lab-heading">Ship Trail (Visual)</h4>';
+
+    const trailGrid = document.createElement("div");
+    trailGrid.className = "qa-physics-lab-grid";
+    trailInputs = {} as Record<TrailKey, HTMLInputElement>;
+
+    TRAIL_FIELDS.forEach((field) => {
+      const row = buildSliderRow(field, "trail", queueApply);
+      trailInputs![field.key] = row.input;
+      trailGrid.appendChild(row.container);
+    });
+    trailSection.appendChild(trailGrid);
+
     leftColumn.appendChild(configSection);
     rightColumn.appendChild(materialsSection);
     rightColumn.appendChild(globalsSection);
+    rightColumn.appendChild(trailSection);
     sections.appendChild(leftColumn);
     sections.appendChild(rightColumn);
 
