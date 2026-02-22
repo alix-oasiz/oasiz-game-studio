@@ -188,9 +188,11 @@ interface BrokenKnifePiece {
 interface Coin {
   angle: number; // Angle when embedded (0-360)
   collected: boolean; // Whether coin has been collected
-  animating: boolean; // Whether coin is animating to top left
+  animating: boolean; // Whether coin is animating to coin display
   animX: number; // Current animation X
   animY: number; // Current animation Y
+  animStartX: number; // Fixed start X of animation (impact point)
+  animStartY: number; // Fixed start Y of animation (impact point)
   animProgress: number; // Animation progress (0-1)
   spawnScale: number; // Spawn animation scale (0-1)
 }
@@ -400,22 +402,27 @@ class LevelGenerator {
     // Rotation direction
     const rotationDirection = this.rng.next() < 0.5 ? -1 : 1;
     
-    // Rotation pattern (more complex patterns in later levels)
-    const patternTypes: RotationPatternType[] = [
-      "constant",
-      "ramp_up_down",
-      "pulse",
-      "breathing",
-    ];
+    // Rotation pattern:
+    // Levels 1-14  (levelIndex 0-13):  constant only — uniform speed, just gets faster
+    // Levels 15-29 (levelIndex 14-28): speed-variation patterns unlocked (no reverse)
+    // Levels 30+   (levelIndex 29+):   reverse-rotation patterns also unlocked
+    let patternTypes: RotationPatternType[];
     
-    if (progress > 0.3) {
-      patternTypes.push("alternating", "reverse_smooth");
-    }
-    if (progress > 0.6) {
-      patternTypes.push("staged");
-    }
-    if (progress > 0.8) {
-      patternTypes.push("chaotic");
+    if (levelIndex < 15) {
+      // Pure constant speed — no variation at all
+      patternTypes = ["constant"];
+    } else if (levelIndex < 30) {
+      // Speed changes allowed, but no direction reversal
+      patternTypes = ["constant", "ramp_up_down", "pulse", "breathing"];
+    } else {
+      // Full pattern pool including reverse/alternating
+      patternTypes = ["constant", "ramp_up_down", "pulse", "breathing", "alternating", "reverse_smooth"];
+      if (levelIndex >= 50) {
+        patternTypes.push("staged");
+      }
+      if (levelIndex >= 70) {
+        patternTypes.push("chaotic");
+      }
     }
     
     const rotationPattern = this.rng.choice(patternTypes);
@@ -728,6 +735,12 @@ class KnifeHitGame {
   private cachedKnifePreviewWidth: number = 0;
   private cachedKnifePreviewHeight: number = 0;
   private cachedKnifePreviewWeapon: WeaponType | null = null;
+  // Cached coin display rect to avoid getBoundingClientRect every frame
+  private cachedCoinDisplayX: number = 60;
+  private cachedCoinDisplayY: number = 60;
+  private coinDisplayRectDirty: boolean = true;
+  // Cached isMobile value (only changes on resize)
+  private isMobile: boolean = false;
   private debugPanel: HTMLElement;
   private debugContent: HTMLElement;
   private settingsIconBtn: HTMLElement;
@@ -1363,8 +1376,11 @@ class KnifeHitGame {
     const n = Math.max(0, Math.floor(amount));
     if (n <= 0) return;
     this.coinBank = Math.max(0, Math.floor(this.coinBank + n));
-    this.updateLevelDisplay();
-    this.refreshWeaponShopUI();
+    // Defer DOM updates to avoid layout reflow stutter on coin hit
+    requestAnimationFrame(() => {
+      this.updateLevelDisplay();
+      this.refreshWeaponShopUI();
+    });
   }
 
   private canAfford(cost: number): boolean {
@@ -1458,7 +1474,8 @@ class KnifeHitGame {
 
     this.viewW = cssW;
     this.viewH = cssH;
-    this.dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    // Cap DPR at 2 to keep canvas resolution manageable on high-DPR devices (e.g. iPhone DPR=3)
+    this.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
     this.canvas.width = Math.floor(cssW * this.dpr);
     this.canvas.height = Math.floor(cssH * this.dpr);
@@ -1466,6 +1483,11 @@ class KnifeHitGame {
     // Ensure the canvas displays at CSS pixel size
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
+
+    // Cache isMobile (expensive matchMedia call)
+    this.isMobile = window.matchMedia("(pointer: coarse)").matches;
+    // Mark coin display rect as stale after resize
+    this.coinDisplayRectDirty = true;
   }
 
   private handleInput(e: MouseEvent | TouchEvent): void {
@@ -1490,9 +1512,17 @@ class KnifeHitGame {
     if (this.knivesToThrow <= 0) return;
     if (this.knives.some(k => k.isFlying)) return; // Only one knife flying at a time
     
-    // Use a stable bottom-center throw origin in game coordinates (CSS px)
-    const canvasX = this.viewW * 0.5;
-    const canvasY = this.viewH * 0.9;
+    // Derive throw origin from the actual knifePreviewImage element position so
+    // the knife visually launches from the UI knife on both desktop and mobile.
+    let canvasX = this.viewW * 0.5;
+    let canvasY = this.viewH * 0.9;
+    if (this.knifePreviewImage && this.knifePreviewImage.offsetParent !== null) {
+      const rect = this.knifePreviewImage.getBoundingClientRect();
+      const canvasRect = this.canvas.getBoundingClientRect();
+      // Center of the preview image in canvas-local CSS pixels
+      canvasX = rect.left - canvasRect.left + rect.width / 2;
+      canvasY = rect.top - canvasRect.top + rect.height / 2;
+    }
 
     // Get fruit center position
     const fruitCenterX = this.viewW * CONFIG.FRUIT_CENTER_X;
@@ -1779,6 +1809,8 @@ class KnifeHitGame {
         animating: false,
         animX: 0,
         animY: 0,
+        animStartX: 0,
+        animStartY: 0,
         animProgress: 0,
         spawnScale: 0, // Start at 0 for zoom-in animation
       };
@@ -2335,6 +2367,8 @@ class KnifeHitGame {
               coin.animating = true;
               coin.animX = impactX;
               coin.animY = impactY;
+              coin.animStartX = impactX;
+              coin.animStartY = impactY;
               coin.animProgress = 0;
               
               // Add to persistent coin bank
@@ -3790,8 +3824,15 @@ class KnifeHitGame {
   }
   
   private updateCoinAnimations(dt: number): void {
-    const targetX = 60; // Top left corner X (with padding)
-    const targetY = 60; // Top left corner Y (with padding)
+    // Target: the actual coinDisplay element position in canvas-local CSS pixels
+    let targetX = 60;
+    let targetY = 60;
+    if (this.coinDisplay) {
+      const coinRect = this.coinDisplay.getBoundingClientRect();
+      const canvasRect = this.canvas.getBoundingClientRect();
+      targetX = coinRect.left - canvasRect.left + coinRect.width / 2;
+      targetY = coinRect.top - canvasRect.top + coinRect.height / 2;
+    }
     
     for (const coin of this.coins) {
       if (coin.animating) {
@@ -3807,11 +3848,9 @@ class KnifeHitGame {
         const t = coin.animProgress;
         const eased = 1 - Math.pow(1 - t, 3);
         
-        // Interpolate position
-        const startX = coin.animX;
-        const startY = coin.animY;
-        coin.animX = startX + (targetX - startX) * eased;
-        coin.animY = startY + (targetY - startY) * eased;
+        // Interpolate from fixed start position to target (avoids compounding drift)
+        coin.animX = coin.animStartX + (targetX - coin.animStartX) * eased;
+        coin.animY = coin.animStartY + (targetY - coin.animStartY) * eased;
       }
     }
   }
@@ -3819,12 +3858,9 @@ class KnifeHitGame {
   private drawCoins(centerX: number, centerY: number): void {
     if (!this.fruit) return;
     
-    const targetX = 60; // Top left corner X
-    const targetY = 60; // Top left corner Y
-    
     for (const coin of this.coins) {
       if (coin.collected && coin.animating) {
-        // Draw coin animating to top left
+        // Draw coin animating to coin display — fade out as it approaches
         this.drawCoin(coin.animX, coin.animY, 1.0 - coin.animProgress, 1.0);
       } else if (!coin.collected) {
         // Draw coin spinning with fruit
