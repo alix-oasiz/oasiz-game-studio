@@ -1,5 +1,26 @@
 import Matter from "matter-js";
 
+// Static imports for car assets (iOS WebView compatibility)
+import carBlue from "../assets/cars/blue.png";
+import carBrown from "../assets/cars/brown.png";
+import carCyan from "../assets/cars/cyan.png";
+import carDarkBlue from "../assets/cars/dark blue.png";
+import carGreen from "../assets/cars/green.png";
+import carPurple from "../assets/cars/purple.png";
+import carRed from "../assets/cars/red.png";
+import carYellow from "../assets/cars/yellow.png";
+
+const CAR_IMPORTS: Record<string, string> = {
+  "blue": carBlue,
+  "brown": carBrown,
+  "cyan": carCyan,
+  "dark blue": carDarkBlue,
+  "green": carGreen,
+  "purple": carPurple,
+  "red": carRed,
+  "yellow": carYellow,
+};
+
 type GameState = "MENU" | "SEARCHING" | "PLAYING" | "GOAL" | "GAME_OVER";
 type MatchMode = "BOT" | "LOCAL_2P";
 
@@ -1101,6 +1122,7 @@ class GoalDuelGame {
   private selectedCountry = "gb";
 
   private carImages = new Map<string, HTMLImageElement>();
+  private carLoadPromise: Promise<void> | null = null;
   private flagImages = new Map<string, HTMLImageElement>(); // Preloaded flag images
 
   constructor() {
@@ -1329,19 +1351,40 @@ class GoalDuelGame {
       this.selectedCountry = savedCountry;
     }
 
-    // Preload car images
+    // Preload car images using static imports (iOS WebView compatibility)
+    const carLoadPromises: Promise<void>[] = [];
     for (const name of this.carNames) {
-      const url = new URL("../assets/cars/" + name + ".png", import.meta.url).toString();
+      const importUrl = CAR_IMPORTS[name];
+      if (!importUrl) {
+        console.error("[Game] No import URL for car:", name);
+        continue;
+      }
+      
       const img = new Image();
-      img.onerror = () => {
-        console.error("[Game] Failed to load car image:", name, url);
-      };
-      img.onload = () => {
-        console.log("[Game] Loaded car image:", name);
-      };
-      img.src = url;
+      const loadPromise = new Promise<void>((resolve, reject) => {
+        img.onerror = () => {
+          console.error("[Game] Failed to load car image:", name);
+          this.debugLog("error", `Failed to load car: ${name}`);
+          // Don't reject - allow game to continue with fallback rendering
+          resolve();
+        };
+        img.onload = () => {
+          console.log("[Game] Loaded car image:", name);
+          this.debugLog("info", `Car loaded: ${name} (${img.naturalWidth}x${img.naturalHeight})`);
+          resolve();
+        };
+        img.src = importUrl;
+      });
+      carLoadPromises.push(loadPromise);
       this.carImages.set(name, img);
     }
+    
+    // Store promise to wait for assets before starting match
+    this.carLoadPromise = Promise.all(carLoadPromises).then(() => {
+      console.log("[Game] All car images loaded");
+    }).catch((err) => {
+      console.error("[Game] Some car images failed to load:", err);
+    });
 
     // Preload flag images (same way as car images - eagerly)
     for (const country of this.countries) {
@@ -1460,13 +1503,21 @@ class GoalDuelGame {
       const img = document.createElement("img");
       img.alt = name;
       img.decoding = "async";
+      // Reduce sprite size in selection panel
+      img.style.width = "60px";
+      img.style.height = "auto";
+      img.style.objectFit = "contain";
       const carImg = this.carImages.get(name);
       if (carImg && carImg.naturalWidth > 0 && carImg.naturalHeight > 0) {
         img.src = carImg.src;
       } else {
-        // Fallback: use the URL directly if image not loaded yet
-        const url = new URL("../assets/cars/" + name + ".png", import.meta.url).toString();
-        img.src = url;
+        // Fallback: use static import if available
+        const importUrl = CAR_IMPORTS[name];
+        if (importUrl) {
+          img.src = importUrl;
+        } else {
+          console.error("[Game] No import URL for car in UI:", name);
+        }
         img.onerror = () => {
           console.error("[Game] Failed to load car image in UI:", name);
         };
@@ -2165,6 +2216,12 @@ class GoalDuelGame {
     const maxRadius = 30;
     
     const updateJoystick = (dx: number, dy: number) => {
+      // Ensure playerCar exists before accessing its angle
+      if (!this.playerCar) {
+        console.warn("[Game] updateJoystick: playerCar not initialized");
+        return;
+      }
+      
       const distance = Math.hypot(dx, dy);
       const scale = distance > maxRadius ? maxRadius / distance : 1;
       const px = dx * scale;
@@ -2207,6 +2264,7 @@ class GoalDuelGame {
     };
 
     const handleJoystickStart = (x: number, y: number, pointerId: number) => {
+      // Allow joystick during PLAYING, GOAL, and countdown (countdownActive is checked in applyCarControls)
       if (this.state !== "PLAYING" && this.state !== "GOAL") return;
       
       const rect = this.elJoyWrap.getBoundingClientRect();
@@ -2249,11 +2307,16 @@ class GoalDuelGame {
       }
     };
 
-    // Bind joystick events
+    // Bind joystick events (pointer events + touch fallback for iOS WebView)
     if (this.elJoyWrap) {
+      // Pointer events (desktop + modern mobile)
       this.elJoyWrap.addEventListener("pointerdown", (e) => {
         e.preventDefault();
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        try {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        } catch (err) {
+          // setPointerCapture may not work in all iOS WebViews
+        }
         handleJoystickStart(e.clientX, e.clientY, e.pointerId);
       });
       
@@ -2267,6 +2330,7 @@ class GoalDuelGame {
         if (this.joy.id === e.pointerId) {
           e.preventDefault();
           handleJoystickEnd();
+          pointerHandled = false;
         }
       });
       
@@ -2274,8 +2338,61 @@ class GoalDuelGame {
         if (this.joy.id === e.pointerId) {
           e.preventDefault();
           handleJoystickEnd();
+          pointerHandled = false;
         }
       });
+      
+      // Touch events fallback (iOS WebView compatibility)
+      // Use a flag to prevent both pointer and touch from firing simultaneously
+      let touchHandled = false;
+      let touchId: number | null = null;
+      
+      this.elJoyWrap.addEventListener("touchstart", (e) => {
+        // If pointer events are already handling this, ignore touch
+        if (pointerHandled || (this.joy.active && this.joy.id !== null && !touchHandled)) {
+          return;
+        }
+        
+        e.preventDefault();
+        e.stopPropagation();
+        touchHandled = true;
+        pointerHandled = false; // Disable pointer when touch fires
+        const touch = e.touches[0];
+        if (touch) {
+          touchId = touch.identifier;
+          handleJoystickStart(touch.clientX, touch.clientY, touch.identifier);
+        }
+      }, { passive: false });
+      
+      this.elJoyWrap.addEventListener("touchmove", (e) => {
+        if (!this.joy.active || !touchHandled || touchId === null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const touch = Array.from(e.touches).find(t => t.identifier === touchId);
+        if (touch) {
+          handleJoystickMove(touch.clientX, touch.clientY);
+        }
+      }, { passive: false });
+      
+      this.elJoyWrap.addEventListener("touchend", (e) => {
+        if (touchHandled && touchId !== null) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleJoystickEnd();
+          touchId = null;
+          touchHandled = false;
+        }
+      }, { passive: false });
+      
+      this.elJoyWrap.addEventListener("touchcancel", (e) => {
+        if (touchHandled && touchId !== null) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleJoystickEnd();
+          touchId = null;
+          touchHandled = false;
+        }
+      }, { passive: false });
     }
 
     // Boost button
@@ -2296,12 +2413,31 @@ class GoalDuelGame {
       this.boostTouch = false;
       this.elBtnBoost.classList.remove("active");
     };
+    // Boost button (pointer + touch fallback for iOS)
     this.elBtnBoost.addEventListener("pointerdown", (e) => {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      try {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      } catch (err) {
+        // setPointerCapture may not work in all iOS WebViews
+      }
       boostDown();
     });
     this.elBtnBoost.addEventListener("pointerup", () => boostUp());
     this.elBtnBoost.addEventListener("pointercancel", () => boostUp());
+    
+    // Touch fallback for iOS WebView
+    this.elBtnBoost.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      boostDown();
+    }, { passive: false });
+    this.elBtnBoost.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      boostUp();
+    }, { passive: false });
+    this.elBtnBoost.addEventListener("touchcancel", (e) => {
+      e.preventDefault();
+      boostUp();
+    }, { passive: false });
 
     // Player 2 joystick (for LOCAL_2P mode)
     const updateJoystickP2 = (dx: number, dy: number) => {
@@ -2392,9 +2528,14 @@ class GoalDuelGame {
 
     // Bind player 2 joystick events
     if (this.elJoyWrapP2) {
+      // Pointer events (desktop + modern mobile)
       this.elJoyWrapP2.addEventListener("pointerdown", (e) => {
         e.preventDefault();
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        try {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        } catch (err) {
+          // setPointerCapture may not work in all iOS WebViews
+        }
         handleJoystickStartP2(e.clientX, e.clientY, e.pointerId);
       });
       
@@ -2417,6 +2558,42 @@ class GoalDuelGame {
           handleJoystickEndP2();
         }
       });
+      
+      // Touch events fallback (iOS WebView compatibility)
+      let touchIdP2: number | null = null;
+      this.elJoyWrapP2.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        if (touch) {
+          touchIdP2 = touch.identifier;
+          handleJoystickStartP2(touch.clientX, touch.clientY, touch.identifier);
+        }
+      }, { passive: false });
+      
+      this.elJoyWrapP2.addEventListener("touchmove", (e) => {
+        if (!this.joyP2.active || touchIdP2 === null) return;
+        e.preventDefault();
+        const touch = Array.from(e.touches).find(t => t.identifier === touchIdP2);
+        if (touch) {
+          handleJoystickMoveP2(touch.clientX, touch.clientY);
+        }
+      }, { passive: false });
+      
+      this.elJoyWrapP2.addEventListener("touchend", (e) => {
+        if (touchIdP2 !== null) {
+          e.preventDefault();
+          handleJoystickEndP2();
+          touchIdP2 = null;
+        }
+      }, { passive: false });
+      
+      this.elJoyWrapP2.addEventListener("touchcancel", (e) => {
+        if (touchIdP2 !== null) {
+          e.preventDefault();
+          handleJoystickEndP2();
+          touchIdP2 = null;
+        }
+      }, { passive: false });
     }
 
     // Player 2 boost button
@@ -2916,7 +3093,16 @@ class GoalDuelGame {
     }, 1500);
   }
 
-  private startMatch(limitSec?: number): void {
+  private async startMatch(limitSec?: number): Promise<void> {
+    // Wait for car assets to load before starting (iOS WebView compatibility)
+    if (this.carLoadPromise) {
+      try {
+        await this.carLoadPromise;
+      } catch (err) {
+        console.warn("[Game] Car assets not fully loaded, continuing anyway:", err);
+      }
+    }
+    
     this.matchMode = this.pendingMode;
     this.playerScore = 0;
     this.botScore = 0;
@@ -3891,7 +4077,10 @@ class GoalDuelGame {
     
     // Debug: log update cycle occasionally
     if (Math.random() < 0.01) { // ~1% of frames
-      this.debugLog("info", `Update: state=${this.state}, dt=${dt.toFixed(4)}, zoom=${this.currentZoom.toFixed(2)}`);
+      // Reduced debug logging frequency to prevent stutters
+      if (Math.random() < 0.01) {
+        this.debugLog("info", `Update: state=${this.state}, dt=${dt.toFixed(4)}, zoom=${this.currentZoom.toFixed(2)}`);
+      }
     }
     
     // During countdown: allow car controls (revving) but prevent movement and ball physics
@@ -4540,7 +4729,10 @@ class GoalDuelGame {
 
     // Debug: log render info occasionally
     if (Math.random() < 0.01) { // ~1% of frames
-      this.debugLog("render", `Render: ${w}x${h}, canvas=${this.canvas.width}x${this.canvas.height}, state=${this.state}, DPR=${window.devicePixelRatio || 1}`);
+      // Reduced debug logging frequency to prevent stutters
+      if (Math.random() < 0.01) {
+        this.debugLog("render", `Render: ${w}x${h}, canvas=${this.canvas.width}x${this.canvas.height}, state=${this.state}, DPR=${window.devicePixelRatio || 1}`);
+      }
     }
 
     ctx.clearRect(0, 0, w, h);
@@ -4596,8 +4788,8 @@ class GoalDuelGame {
       ctx.shadowBlur = 30;
       ctx.shadowColor = "rgba(255, 255, 255, 0.8)";
       
-      // Debug: log goal image drawing
-      if (Math.random() < 0.1) {
+      // Debug: log goal image drawing (reduced frequency)
+      if (Math.random() < 0.01) {
         this.debugLog("render", `drawGoalImage: ${imgW}x${imgH}, display=${displayW}x${displayH}, scale=${scale}`);
       }
       ctx.drawImage(
@@ -5044,8 +5236,8 @@ class GoalDuelGame {
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      // Debug: log drawImage calls occasionally
-      if (Math.random() < 0.01) {
+      // Debug: log drawImage calls very rarely (reduced frequency to prevent stutters)
+      if (Math.random() < 0.001) {
         this.debugLog("render", `drawCarSprite: ${carName}, img=${img.naturalWidth}x${img.naturalHeight}, draw=${desiredW}x${desiredH}`);
       }
       ctx.drawImage(img, -desiredW * 0.5, -desiredH * 0.5, desiredW, desiredH);
