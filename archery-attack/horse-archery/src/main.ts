@@ -707,6 +707,22 @@ function getArrowSpawnPointWorld(): { worldX: number; height: number } {
   };
 }
 
+function getPlayerHeadScreenPosition(): { x: number; y: number } {
+  const placement = getRiderPlacement();
+  if (placement) {
+    return {
+      x: placement.saddleTargetX + placement.riderW * 0.03,
+      y: placement.saddleTargetY - placement.riderH * 0.53,
+    };
+  }
+
+  const horseScale = 3 * gameScale;
+  return {
+    x: horse.screenX + 5 * horseScale,
+    y: horse.screenY - 86 * horseScale,
+  };
+}
+
 function sampleRiderAnchorFromHorseFrame(): void {
   if (!characterFrameCanvas || !characterFrameCtx) return;
   const now = performance.now();
@@ -2328,7 +2344,7 @@ function drawDrawMeter(): void {
   const meterX = w * 0.5;
   const meterW = Math.max(104, 120 * s);
   const meterH = Math.max(8, 10 * s);
-  const bottomOffset = isMobile ? 110 : 90;
+  const bottomOffset = 110;
   const meterY = h - Math.max(64, bottomOffset * s);
   const barX = meterX - meterW / 2;
   const barY = meterY;
@@ -2376,8 +2392,10 @@ function drawHUD(): void {
   const hudLeftX = 20;
   const labelX = hudLeftX;
   const valueX = hudLeftX + Math.max(66, 74 * gameScale);
-  const startY = isMobile ? 138 : 62;
   const rowGap = Math.max(27, 29 * gameScale);
+  const hudRows = 4;
+  const hudBlockHeight = rowGap * (hudRows - 1);
+  const startY = h * 0.5 - hudBlockHeight * 0.5;
   const waveY = startY;
   const hitsY = waveY + rowGap;
   const scoreY = hitsY + rowGap;
@@ -2402,27 +2420,38 @@ function drawHUD(): void {
   ctx.fillText(score.toString(), valueX, scoreY);
 
   ctx.fillStyle = urgent ? "#FF3333" : "rgba(255, 255, 255, 0.95)";
-  ctx.font = `bold ${timeFontSize}px 'Sora', sans-serif`;
   ctx.shadowColor = urgent ? "rgba(255, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.55)";
   ctx.shadowBlur = urgent ? 14 : 8;
-  ctx.fillText(timerText, valueX, timeY);
+  if (urgent) {
+    const panicProgress = Math.max(0, Math.min(1, (5000 - timeRemaining) / 5000));
+    const growthScale = 1 + panicProgress * 0.55;
+    const pulse = 1 + Math.sin(environmentTime * 0.045) * (0.03 + panicProgress * 0.07);
+    const finalScale = growthScale * pulse;
+    const shakeAmp = 0.8 + panicProgress * 2.8;
+    const shakeX = Math.sin(environmentTime * 0.11) * shakeAmp;
+    const shakeY = Math.cos(environmentTime * 0.16) * shakeAmp;
 
-  const quiverLabelY = timeY + rowGap;
-  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-  ctx.shadowBlur = 8;
-  ctx.textAlign = "left";
-  ctx.fillStyle = "rgba(200, 170, 120, 0.95)";
-  ctx.font = `bold ${labelFontSize}px 'Sora', sans-serif`;
-  ctx.fillText("QUIVER", labelX, quiverLabelY);
+    ctx.save();
+    ctx.translate(valueX + shakeX, timeY + shakeY);
+    ctx.scale(finalScale, finalScale);
+    ctx.font = `bold ${timeFontSize}px 'Sora', sans-serif`;
+    ctx.fillText(timerText, 0, 0);
+    ctx.restore();
+  } else {
+    ctx.font = `bold ${timeFontSize}px 'Sora', sans-serif`;
+    ctx.fillText(timerText, valueX, timeY);
+  }
 
-  const quiverStartX = valueX;
-  const quiverY = quiverLabelY - Math.max(11, 12 * gameScale);
+  const headPos = getPlayerHeadScreenPosition();
+  const quiverCenterX = headPos.x - 20;
+  const quiverY = headPos.y + Math.max(24, 28 * gameScale) - 90;
   ctx.shadowBlur = 0;
   const arrowSpacing = Math.max(15, 17 * gameScale);
   const arrowStemH = Math.max(10, 12 * gameScale);
   const arrowHeadH = Math.max(5, 6 * gameScale);
   const arrowHalfW = Math.max(3.5, 4.5 * gameScale);
   const maxQuiver = getMaxQuiverArrows();
+  const quiverStartX = quiverCenterX - ((maxQuiver - 1) * arrowSpacing) / 2;
   for (let i = 0; i < maxQuiver; i++) {
     const x = quiverStartX + i * arrowSpacing;
     const filled = i < ammoCount;
@@ -2444,18 +2473,39 @@ function drawHUD(): void {
   }
 
   if (isReloading) {
-    const reloadX = valueX;
-    const reloadY = quiverY + arrowHeadH + arrowStemH + Math.max(12, 14 * gameScale);
-    const reloadW = Math.max(58, 72 * gameScale);
-    const reloadH = Math.max(6, 8 * gameScale);
     const reloadT = 1 - reloadRemaining / CONFIG.RELOAD_MS;
-    ctx.fillStyle = "rgba(60, 45, 30, 0.5)";
-    ctx.fillRect(reloadX, reloadY, reloadW, reloadH);
-    ctx.fillStyle = "rgba(232, 190, 92, 0.95)";
-    ctx.fillRect(reloadX, reloadY, reloadW * Math.max(0, Math.min(1, reloadT)), reloadH);
+    const clampedReloadT = Math.max(0, Math.min(1, reloadT));
+    const quiverSpan = (maxQuiver - 1) * arrowSpacing;
+    const centerX = quiverStartX + quiverSpan * 0.5;
+    const centerY = quiverY - Math.max(26, 30 * gameScale);
+    const ringRadius = Math.max(15, 19 * gameScale);
+    const ringWidth = Math.max(3, 4 * gameScale);
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + Math.PI * 2 * clampedReloadT;
+
+    ctx.fillStyle = "rgba(23, 16, 11, 0.4)";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius + ringWidth, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(60, 45, 30, 0.75)";
+    ctx.lineWidth = ringWidth;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(232, 190, 92, 0.95)";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, ringRadius, startAngle, endAngle);
+    ctx.stroke();
+    ctx.lineCap = "butt";
+
     ctx.fillStyle = "rgba(255, 230, 190, 0.95)";
     ctx.font = `bold ${Math.max(9, Math.round(9 * gameScale))}px 'Sora', sans-serif`;
-    ctx.fillText("RELOADING", reloadX, reloadY - Math.max(4, 5 * gameScale));
+    ctx.textAlign = "center";
+    ctx.fillText("RELOADING", centerX, centerY - ringRadius - Math.max(8, 10 * gameScale));
+    ctx.textAlign = "left";
   }
 
   if (isDrawing) {
