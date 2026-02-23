@@ -220,6 +220,7 @@ let score = 0;
 let timeRemaining = CONFIG.ROUND_TIME_MS;
 let waveNumber = 1;
 let waveHits = 0;
+let waveHitMarkProgress: number[] = [];
 let settings: Settings = loadSettings();
 let animationFrameId: number;
 let lastTime = 0;
@@ -277,6 +278,7 @@ let musicTrack: HTMLAudioElement | null = null;
 let bowPullTrack: HTMLAudioElement | null = null;
 let draftAutoAdvanceTimer: number | null = null;
 let draftChoices: UpgradeId[] = [];
+const HIT_MARK_ANIM_MS = 320;
 
 const sfxTracks: Record<string, HTMLAudioElement | null> = {
   uiTap: null,
@@ -984,6 +986,7 @@ function beginWave(nextWave: number): void {
   draftChoices = [];
   waveNumber = nextWave;
   waveHits = 0;
+  waveHitMarkProgress = new Array(CONFIG.WAVE_HIT_GOAL).fill(0);
   timeRemaining = CONFIG.ROUND_TIME_MS;
   setWorldSpeedForWave();
 
@@ -1386,6 +1389,7 @@ function startGame(): void {
   ammoCount = getMaxQuiverArrows();
   isReloading = false;
   reloadRemaining = 0;
+  environmentTime = 0;
 
   world.cameraX = 0;
   horse.screenY = horse.baseY;
@@ -2565,47 +2569,114 @@ function drawScorePopups(): void {
   ctx.textAlign = "left";
 }
 
-function drawDrawMeter(): void {
-  const s = gameScale;
-  const meterX = w * 0.5;
-  const meterW = Math.max(104, 120 * s);
-  const meterH = Math.max(8, 10 * s);
-  const bottomOffset = 110;
-  const meterY = h - Math.max(64, bottomOffset * s);
-  const barX = meterX - meterW / 2;
-  const barY = meterY;
-  const labelFontSize = Math.max(11, Math.round(11 * s));
+function drawCircularActionMeter(
+  centerX: number,
+  centerY: number,
+  progress: number,
+  label: string,
+  progressColor: string,
+  trackColor: string,
+  labelColor: string,
+  clockwise: boolean,
+): void {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const ringRadius = Math.max(15, 19 * gameScale);
+  const ringWidth = Math.max(3, 4 * gameScale);
+  const startAngle = -Math.PI / 2;
+  const sweep = Math.PI * 2 * clampedProgress;
+  const endAngle = clockwise ? startAngle + sweep : startAngle - sweep;
 
-  ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+  ctx.fillStyle = "rgba(23, 16, 11, 0.4)";
   ctx.beginPath();
-  ctx.roundRect(barX - 2, barY - 2, meterW + 4, meterH + 4, 4 * s);
+  ctx.arc(centerX, centerY, ringRadius + ringWidth, 0, Math.PI * 2);
   ctx.fill();
 
-  let fillColor: string;
-  if (wobbleAmount > 0.1) {
-    fillColor = "#FF4444";
-  } else if (drawProgress >= 0.95) {
-    fillColor = "#FFDD44";
-  } else {
-    fillColor = "#44CC44";
-  }
-
-  ctx.fillStyle = fillColor;
+  ctx.strokeStyle = trackColor;
+  ctx.lineWidth = ringWidth;
   ctx.beginPath();
-  ctx.roundRect(barX, barY, meterW * drawProgress, meterH, 3 * s);
-  ctx.fill();
+  ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+  ctx.stroke();
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-  ctx.font = `bold ${labelFontSize}px 'Sora', sans-serif`;
+  ctx.strokeStyle = progressColor;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, ringRadius, startAngle, endAngle, !clockwise);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+
+  ctx.fillStyle = labelColor;
+  ctx.font = `bold ${Math.max(9, Math.round(9 * gameScale))}px 'Sora', sans-serif`;
   ctx.textAlign = "center";
-  const label =
-    wobbleAmount > 0.1
-      ? "WOBBLING!"
-      : drawProgress >= 0.95
-        ? "FULL DRAW"
-        : "DRAWING...";
-  ctx.fillText(label, meterX, barY - Math.max(8, 10 * s));
+  ctx.fillText(label, centerX, centerY - ringRadius - Math.max(8, 10 * gameScale));
   ctx.textAlign = "left";
+}
+
+function drawHitTargetSlot(centerX: number, centerY: number, radius: number, markProgress: number): void {
+  for (let i = 0; i < CONFIG.RING_COLORS.length; i++) {
+    const r = radius * (1 - i / CONFIG.RING_COLORS.length);
+    if (r < 0.6) continue;
+    ctx.fillStyle = CONFIG.RING_COLORS[i];
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(34, 26, 20, 0.9)";
+  ctx.lineWidth = Math.max(1, 1.2 * gameScale);
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const p = Math.max(0, Math.min(1, markProgress));
+  if (p <= 0) return;
+  const half = radius * 0.88;
+  ctx.strokeStyle = "rgba(227, 48, 48, 0.98)";
+  ctx.lineWidth = Math.max(2.1, 2.9 * gameScale);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  if (p < 0.5) {
+    const t = p / 0.5;
+    ctx.moveTo(centerX - half, centerY - half);
+    ctx.lineTo(centerX - half + (half * 2) * t, centerY - half + (half * 2) * t);
+  } else {
+    const t = (p - 0.5) / 0.5;
+    ctx.moveTo(centerX - half, centerY - half);
+    ctx.lineTo(centerX + half, centerY + half);
+    ctx.moveTo(centerX + half, centerY - half);
+    ctx.lineTo(centerX + half - (half * 2) * t, centerY - half + (half * 2) * t);
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
+}
+
+function drawHitTracker(): void {
+  const count = CONFIG.WAVE_HIT_GOAL;
+  if (count <= 0) return;
+  const trackerY = Math.max(56, 68 * gameScale);
+  const slotGap = Math.max(18, Math.min(30, (w * 0.7) / Math.max(1, count - 1)));
+  const slotRadius = Math.max(6, Math.min(11, slotGap * 0.32));
+  const totalWidth = slotGap * (count - 1);
+  const startX = w * 0.5 - totalWidth * 0.5;
+
+  const panelPadX = Math.max(16, 20 * gameScale);
+  const panelPadY = Math.max(10, 12 * gameScale);
+  const panelX = startX - slotRadius - panelPadX;
+  const panelY = trackerY - slotRadius - panelPadY;
+  const panelW = totalWidth + slotRadius * 2 + panelPadX * 2;
+  const panelH = slotRadius * 2 + panelPadY * 2;
+  ctx.fillStyle = "rgba(30, 20, 12, 0.44)";
+  ctx.beginPath();
+  ctx.roundRect(panelX, panelY, panelW, panelH, Math.max(10, 12 * gameScale));
+  ctx.fill();
+  ctx.strokeStyle = "rgba(240, 210, 160, 0.2)";
+  ctx.lineWidth = Math.max(1, 1.2 * gameScale);
+  ctx.beginPath();
+  ctx.roundRect(panelX, panelY, panelW, panelH, Math.max(10, 12 * gameScale));
+  ctx.stroke();
+
+  for (let i = 0; i < count; i++) {
+    const x = startX + i * slotGap;
+    drawHitTargetSlot(x, trackerY, slotRadius, waveHitMarkProgress[i] || 0);
+  }
 }
 
 function drawHUD(): void {
@@ -2623,12 +2694,11 @@ function drawHUD(): void {
   const labelX = hudLeftX;
   const valueX = hudLeftX + Math.max(66, 74 * gameScale);
   const rowGap = Math.max(27, 29 * gameScale);
-  const hudRows = 3;
+  const hudRows = 2;
   const hudBlockHeight = rowGap * (hudRows - 1);
   const startY = h * 0.5 - hudBlockHeight * 0.5;
   const waveY = startY;
-  const hitsY = waveY + rowGap;
-  const scoreY = hitsY + rowGap;
+  const scoreY = waveY + rowGap;
 
   const hudPanelX = hudLeftX - Math.max(10, 12 * gameScale);
   const hudPanelY = waveY - Math.max(24, 28 * gameScale);
@@ -2655,7 +2725,6 @@ function drawHUD(): void {
   ctx.fillStyle = "rgba(200, 170, 120, 0.95)";
   ctx.font = `bold ${labelFontSize}px 'Sora', sans-serif`;
   ctx.fillText("WAVE", labelX, waveY);
-  ctx.fillText("HITS", labelX, hitsY);
   ctx.fillText("SCORE", labelX, scoreY);
 
   ctx.textAlign = "left";
@@ -2663,11 +2732,12 @@ function drawHUD(): void {
   ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
   ctx.font = `bold ${valueFontSize}px 'Sora', sans-serif`;
   ctx.fillText(waveNumber.toString(), valueX, waveY);
-  ctx.fillText(waveHits.toString() + "/" + CONFIG.WAVE_HIT_GOAL.toString(), valueX, hitsY);
   ctx.fillText(score.toString(), valueX, scoreY);
 
+  drawHitTracker();
+
   const timerX = w * 0.5;
-  const timerY = Math.max(120, 132 * gameScale);
+  const timerY = h - Math.max(64, 110 * gameScale);
   const timerR = Math.round(245 + (255 - 245) * lastTenRatio);
   const timerG = Math.round(245 + (60 - 245) * lastTenRatio);
   const timerB = Math.round(245 + (60 - 245) * lastTenRatio);
@@ -2696,18 +2766,38 @@ function drawHUD(): void {
   const arrowHalfW = Math.max(3.5, 4.5 * gameScale);
   const maxQuiver = getMaxQuiverArrows();
   const quiverStartX = quiverCenterX - ((maxQuiver - 1) * arrowSpacing) / 2;
+  const quiverSpan = (maxQuiver - 1) * arrowSpacing;
+  const actionCircleX = quiverStartX + quiverSpan * 0.5;
+  const actionCircleY = quiverY - Math.max(42, 48 * gameScale);
+
+  const quiverPadX = Math.max(10, 12 * gameScale);
+  const quiverPadY = Math.max(7, 9 * gameScale);
+  const quiverBgX = quiverStartX - arrowHalfW - quiverPadX;
+  const quiverBgY = quiverY - quiverPadY;
+  const quiverBgW = quiverSpan + arrowHalfW * 2 + quiverPadX * 2;
+  const quiverBgH = arrowHeadH + arrowStemH + quiverPadY * 2;
+  ctx.fillStyle = "rgba(30, 20, 12, 0.44)";
+  ctx.beginPath();
+  ctx.roundRect(quiverBgX, quiverBgY, quiverBgW, quiverBgH, Math.max(8, 10 * gameScale));
+  ctx.fill();
+  ctx.strokeStyle = "rgba(240, 210, 160, 0.2)";
+  ctx.lineWidth = Math.max(1, 1.3 * gameScale);
+  ctx.beginPath();
+  ctx.roundRect(quiverBgX, quiverBgY, quiverBgW, quiverBgH, Math.max(8, 10 * gameScale));
+  ctx.stroke();
+
   for (let i = 0; i < maxQuiver; i++) {
     const x = quiverStartX + i * arrowSpacing;
     const filled = i < ammoCount;
-    const alpha = filled ? 0.95 : 0.24;
-    ctx.strokeStyle = "rgba(236, 228, 211, " + alpha.toFixed(3) + ")";
+    const alpha = filled ? 1 : 0.22;
+    ctx.strokeStyle = filled ? "#FFFFFF" : "rgba(236, 228, 211, " + alpha.toFixed(3) + ")";
     ctx.lineWidth = Math.max(1.4, 2 * gameScale);
     ctx.beginPath();
     ctx.moveTo(x, quiverY + arrowHeadH);
     ctx.lineTo(x, quiverY + arrowHeadH + arrowStemH);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(189, 198, 212, " + alpha.toFixed(3) + ")";
+    ctx.fillStyle = filled ? "#FFFFFF" : "rgba(189, 198, 212, " + alpha.toFixed(3) + ")";
     ctx.beginPath();
     ctx.moveTo(x, quiverY);
     ctx.lineTo(x - arrowHalfW, quiverY + arrowHeadH);
@@ -2718,42 +2808,33 @@ function drawHUD(): void {
 
   if (isReloading) {
     const reloadT = 1 - reloadRemaining / CONFIG.RELOAD_MS;
-    const clampedReloadT = Math.max(0, Math.min(1, reloadT));
-    const quiverSpan = (maxQuiver - 1) * arrowSpacing;
-    const centerX = quiverStartX + quiverSpan * 0.5;
-    const centerY = quiverY - Math.max(42, 48 * gameScale);
-    const ringRadius = Math.max(15, 19 * gameScale);
-    const ringWidth = Math.max(3, 4 * gameScale);
-    const startAngle = -Math.PI / 2;
-    const endAngle = startAngle + Math.PI * 2 * clampedReloadT;
-
-    ctx.fillStyle = "rgba(23, 16, 11, 0.4)";
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, ringRadius + ringWidth, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(60, 45, 30, 0.75)";
-    ctx.lineWidth = ringWidth;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = "rgba(232, 190, 92, 0.95)";
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, ringRadius, startAngle, endAngle);
-    ctx.stroke();
-    ctx.lineCap = "butt";
-
-    ctx.fillStyle = "rgba(255, 230, 190, 0.95)";
-    ctx.font = `bold ${Math.max(9, Math.round(9 * gameScale))}px 'Sora', sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText("RELOADING", centerX, centerY - ringRadius - Math.max(8, 10 * gameScale));
-    ctx.textAlign = "left";
-  }
-
-  if (isDrawing) {
-    drawDrawMeter();
+    drawCircularActionMeter(
+      actionCircleX,
+      actionCircleY,
+      reloadT,
+      "RELOADING",
+      "rgba(232, 190, 92, 0.95)",
+      "rgba(60, 45, 30, 0.75)",
+      "rgba(255, 230, 190, 0.95)",
+      false,
+    );
+  } else if (isDrawing) {
+    const drawLabel = wobbleAmount > 0.1 ? "WOBBLING" : "DRAWING";
+    const drawColor = wobbleAmount > 0.1
+      ? "rgba(235, 96, 96, 0.95)"
+      : drawProgress >= 0.95
+        ? "rgba(108, 240, 199, 0.96)"
+        : "rgba(84, 209, 255, 0.95)";
+    drawCircularActionMeter(
+      actionCircleX,
+      actionCircleY,
+      drawProgress,
+      drawLabel,
+      drawColor,
+      "rgba(22, 48, 64, 0.82)",
+      "rgba(198, 236, 255, 0.95)",
+      true,
+    );
   }
 }
 
@@ -2802,6 +2883,15 @@ function update(dt: number): void {
   updateWorld(dt);
   updateDraw(dt);
   updateFireButton();
+  const trackedHits = Math.min(CONFIG.WAVE_HIT_GOAL, waveHits);
+  for (let i = 0; i < CONFIG.WAVE_HIT_GOAL; i++) {
+    if (i < trackedHits) {
+      const next = (waveHitMarkProgress[i] || 0) + dt / HIT_MARK_ANIM_MS;
+      waveHitMarkProgress[i] = Math.max(0, Math.min(1, next));
+    } else {
+      waveHitMarkProgress[i] = 0;
+    }
+  }
   if (isReloading) {
     reloadRemaining -= dt;
     if (reloadRemaining <= 0) {
