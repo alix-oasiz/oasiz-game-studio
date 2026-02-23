@@ -166,77 +166,78 @@ function saveLevelProgress(): void {
 let settings: Settings = loadSettings();
 
 // Background music (plays across all screens)
-const bgMusic = new Audio(new URL("../assets/Bg.mp3", import.meta.url).toString());
+const bgMusic = new Audio(new URL("..public/assets/Bg.mp3", import.meta.url).toString());
 bgMusic.loop = true;
 bgMusic.preload = "auto";
 bgMusic.volume = 0.35;
 
-// FX: dot selection pop (use a small pool for rapid retriggers)
+// Web Audio API for low-latency SFX (HTMLAudioElement.play() blocks the main thread)
+let sfxCtx: AudioContext | null = null;
+let popBuffer: AudioBuffer | null = null;
+let tapBuffer: AudioBuffer | null = null;
+let winBuffer: AudioBuffer | null = null;
+
+function getSfxContext(): AudioContext {
+  if (!sfxCtx) {
+    sfxCtx = new AudioContext();
+  }
+  return sfxCtx;
+}
+
+function resumeSfxContext(): void {
+  if (sfxCtx && sfxCtx.state === "suspended") {
+    sfxCtx.resume().catch(() => {});
+  }
+}
+
+async function loadSfxBuffer(url: string): Promise<AudioBuffer | null> {
+  try {
+    const ctx = getSfxContext();
+    const resp = await fetch(url);
+    const ab = await resp.arrayBuffer();
+    return await ctx.decodeAudioData(ab);
+  } catch (err) {
+    console.log("[TwoDots] Failed to decode SFX buffer:", err);
+    return null;
+  }
+}
+
+function playSfxBuffer(buffer: AudioBuffer | null, volume: number): void {
+  if (!buffer) return;
+  try {
+    const ctx = getSfxContext();
+    if (ctx.state === "suspended") return;
+    const src = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+    src.buffer = buffer;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(0);
+  } catch (_) {}
+}
+
+// Pre-load SFX buffers (async, non-blocking)
 const popFxUrl = new URL("../assets/pop.mp3", import.meta.url).toString();
-const popFxPool: HTMLAudioElement[] = Array.from({ length: 6 }, () => {
-  const a = new Audio(popFxUrl);
-  a.preload = "auto";
-  a.volume = 0.65;
-  return a;
-});
-let popFxIdx = 0;
+const tapFxUrl = new URL("../assets/tap.mp3", import.meta.url).toString();
+const winFxUrl = new URL("../assets/Win.mp3", import.meta.url).toString();
+loadSfxBuffer(popFxUrl).then(b => { popBuffer = b; });
+loadSfxBuffer(tapFxUrl).then(b => { tapBuffer = b; });
+loadSfxBuffer(winFxUrl).then(b => { winBuffer = b; });
 
 function playPopFx(): void {
   if (!settings.fx) return;
-  const a = popFxPool[popFxIdx];
-  popFxIdx = (popFxIdx + 1) % popFxPool.length;
-
-  try {
-    a.currentTime = 0;
-    const p = a.play();
-    if (p) {
-      p.catch((err) => {
-        console.log("[TwoDots] Pop FX play blocked:", err);
-      });
-    }
-  } catch (err) {
-    console.log("[TwoDots] Pop FX play failed:", err);
-  }
+  playSfxBuffer(popBuffer, 0.65);
 }
-
-// FX: win crown animation sound
-const winFx = new Audio(new URL("../assets/Win.mp3", import.meta.url).toString());
-winFx.preload = "auto";
-winFx.volume = 0.7;
 
 function playWinFx(): void {
   if (!settings.fx) return;
-  try {
-    winFx.currentTime = 0;
-    const p = winFx.play();
-    if (p) {
-      p.catch((err) => {
-        console.log("[TwoDots] Win FX play blocked:", err);
-      });
-    }
-  } catch (err) {
-    console.log("[TwoDots] Win FX play failed:", err);
-  }
+  playSfxBuffer(winBuffer, 0.7);
 }
-
-// FX: button tap sound
-const tapFx = new Audio(new URL("../assets/tap.mp3", import.meta.url).toString());
-tapFx.preload = "auto";
-tapFx.volume = 0.6;
 
 function playTapFx(): void {
   if (!settings.fx) return;
-  try {
-    tapFx.currentTime = 0;
-    const p = tapFx.play();
-    if (p) {
-      p.catch((err) => {
-        console.log("[TwoDots] Tap FX play blocked:", err);
-      });
-    }
-  } catch (err) {
-    console.log("[TwoDots] Tap FX play failed:", err);
-  }
+  playSfxBuffer(tapBuffer, 0.6);
 }
 
 async function applyMusicSetting(): Promise<void> {
@@ -257,11 +258,10 @@ async function applyMusicSetting(): Promise<void> {
 
 function hookFirstUserGestureForMusic(): void {
   const startOnGesture = () => {
-    // Only attempt if enabled; if enabled later, the toggle handler will call applyMusicSetting().
     void applyMusicSetting();
+    resumeSfxContext();
   };
 
-  // Pointerdown covers mouse + touch; keep it once to avoid noisy retries.
   document.addEventListener("pointerdown", startOnGesture, { once: true, passive: true });
 }
 
@@ -305,6 +305,21 @@ if (!ctx) {
   throw new Error("Could not get 2D context");
 }
 
+// Cached values updated on resize to avoid per-frame matchMedia/reflow
+let cachedIsMobile = window.matchMedia("(pointer: coarse)").matches;
+let cachedCanvasRect = canvas.getBoundingClientRect();
+
+// Offscreen HUD cache - avoids redrawing panels/text/ribbons every frame
+let hudLayer: HTMLCanvasElement | null = null;
+let hudLayerCtx: CanvasRenderingContext2D | null = null;
+let hudDirty = true;
+let hudLayerW = 0;
+let hudLayerH = 0;
+
+function invalidateHud(): void {
+  hudDirty = true;
+}
+
 // Layout calculations
 let cellSize = 0;
 let gridOffsetX = 0;
@@ -315,7 +330,7 @@ function calculateLayout(): void {
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
-  const isMobile = window.matchMedia("(pointer: coarse)").matches;
+  const isMobile = cachedIsMobile;
   
   hudHeight = isMobile ? h * 0.12 : h * 0.1;
   
@@ -340,7 +355,8 @@ function calculateLayout(): void {
 }
 
 function resizeCanvas(): void {
-  const isMobile = window.matchMedia("(pointer: coarse)").matches;
+  cachedIsMobile = window.matchMedia("(pointer: coarse)").matches;
+  const isMobile = cachedIsMobile;
   const dpr = window.devicePixelRatio || 1;
   
   if (isMobile) {
@@ -357,6 +373,8 @@ function resizeCanvas(): void {
   }
   
   calculateLayout();
+  cachedCanvasRect = canvas.getBoundingClientRect();
+  invalidateHud();
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -555,17 +573,16 @@ function updateRipples(): void {
 }
 
 function drawRipples(renderCtx: CanvasRenderingContext2D): void {
+  if (ripples.length === 0) return;
   for (const ripple of ripples) {
     const radius = cellSize * DOT_SIZE_MULTIPLIER * ripple.scale;
-    
-    renderCtx.save();
     renderCtx.globalAlpha = ripple.alpha;
     renderCtx.fillStyle = COLOR_HEX[ripple.color];
     renderCtx.beginPath();
     renderCtx.arc(ripple.x, ripple.y, radius, 0, Math.PI * 2);
     renderCtx.fill();
-    renderCtx.restore();
   }
+  renderCtx.globalAlpha = 1;
 }
 
 // Floating text functions (chain pop feedback)
@@ -605,15 +622,15 @@ function updateFloatingTexts(): void {
 }
 
 function drawFloatingTexts(renderCtx: CanvasRenderingContext2D, isMobile: boolean): void {
+  if (floatingTexts.length === 0) return;
+  renderCtx.fillStyle = "#666666";
+  renderCtx.font = `600 ${isMobile ? 18 : 20}px 'Nunito', sans-serif`;
+  renderCtx.textAlign = "center";
   for (const ft of floatingTexts) {
-    renderCtx.save();
     renderCtx.globalAlpha = ft.alpha;
-    renderCtx.fillStyle = "#666666";
-    renderCtx.font = `600 ${isMobile ? 18 : 20}px 'Nunito', sans-serif`;
-    renderCtx.textAlign = "center";
     renderCtx.fillText(ft.text, ft.x, ft.y);
-    renderCtx.restore();
   }
+  renderCtx.globalAlpha = 1;
 }
 
 // Chain selection
@@ -701,6 +718,7 @@ async function processChain(chain: Position[]): Promise<void> {
     scoreGained += 100; // Bonus for loop
   }
   score += scoreGained;
+  invalidateHud();
   
   // Update objectives with shake animation
   const colorCounts: Partial<Record<DotColor, number>> = {};
@@ -744,6 +762,7 @@ async function processChain(chain: Position[]): Promise<void> {
   
   // Decrease moves
   movesRemaining--;
+  invalidateHud();
   
   // Check win/lose
   checkGameState();
@@ -951,7 +970,7 @@ function handlePointerDown(e: PointerEvent | TouchEvent): void {
   e.preventDefault();
   const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
   const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-  const rect = canvas.getBoundingClientRect();
+  const rect = cachedCanvasRect;
   const x = clientX - rect.left;
   const y = clientY - rect.top;
   
@@ -995,7 +1014,7 @@ function handlePointerMove(e: PointerEvent | TouchEvent): void {
   
   const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
   const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-  const rect = canvas.getBoundingClientRect();
+  const rect = cachedCanvasRect;
   const x = clientX - rect.left;
   const y = clientY - rect.top;
   
@@ -1035,10 +1054,6 @@ canvas.addEventListener("pointermove", handlePointerMove);
 canvas.addEventListener("pointerup", handlePointerUp);
 canvas.addEventListener("pointerleave", handlePointerUp);
 
-canvas.addEventListener("touchstart", handlePointerDown);
-canvas.addEventListener("touchmove", handlePointerMove);
-canvas.addEventListener("touchend", handlePointerUp);
-canvas.addEventListener("touchcancel", handlePointerUp);
 
 // Wheel event for scrolling level selector
 canvas.addEventListener("wheel", (e: WheelEvent) => {
@@ -1103,15 +1118,21 @@ function drawDot(renderCtx: CanvasRenderingContext2D, x: number, y: number, colo
   const centerY = y + size / 2;
   const radius = size * DOT_SIZE_MULTIPLIER;
   
+  // Fast path: no transform needed (vast majority of frames during gameplay)
+  if (alpha === 1 && scaleX === 1 && scaleY === 1) {
+    renderCtx.fillStyle = COLOR_HEX[color];
+    renderCtx.beginPath();
+    renderCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    renderCtx.fill();
+    return;
+  }
+  
   renderCtx.save();
   renderCtx.globalAlpha = alpha;
-  
-  // Apply squash/stretch transform from center bottom of dot
   renderCtx.translate(centerX, centerY + radius);
   renderCtx.scale(scaleX, scaleY);
   renderCtx.translate(-centerX, -(centerY + radius));
   
-  // Flat colored dot (no gradient, no shadow, no highlight)
   renderCtx.fillStyle = COLOR_HEX[color];
   renderCtx.beginPath();
   renderCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -1162,7 +1183,7 @@ function render(): void {
   
   ctx.clearRect(0, 0, w, h);
   
-  const isMobile = window.matchMedia("(pointer: coarse)").matches;
+  const isMobile = cachedIsMobile;
   
   // Background (same for start screen and gameplay)
   ctx.fillStyle = "#FFFFFF";
@@ -1187,11 +1208,28 @@ function render(): void {
     return;
   }
   
-  // Draw top HUD (moves, objectives)
-  drawTopHUD(ctx, isMobile);
-  
-  // Draw bottom HUD (star, score/level)
-  drawBottomHUD(ctx, isMobile);
+  // Draw HUD from offscreen cache (avoids re-rendering panels/text/clip every frame)
+  if (!hudLayer || hudLayerW !== canvas.width || hudLayerH !== canvas.height) {
+    hudLayer = document.createElement("canvas");
+    hudLayer.width = canvas.width;
+    hudLayer.height = canvas.height;
+    hudLayerCtx = hudLayer.getContext("2d")!;
+    hudLayerW = canvas.width;
+    hudLayerH = canvas.height;
+    hudDirty = true;
+  }
+  if (hudDirty && hudLayerCtx) {
+    const ldpr = window.devicePixelRatio || 1;
+    hudLayerCtx.setTransform(ldpr, 0, 0, ldpr, 0, 0);
+    hudLayerCtx.clearRect(0, 0, w, h);
+    drawTopHUD(hudLayerCtx, isMobile);
+    drawBottomHUD(hudLayerCtx, isMobile);
+    hudDirty = false;
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(hudLayer!, 0, 0);
+  ctx.restore();
   
   // Grid background
   ctx.fillStyle = "#FFFFFF";
@@ -1250,7 +1288,7 @@ function drawGameOverScreen(message: string, color: string): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
   ctx.fillRect(0, 0, w, h);
   
-  const isMobile = window.matchMedia("(pointer: coarse)").matches;
+  const isMobile = cachedIsMobile;
   ctx.fillStyle = color;
   ctx.font = `700 ${isMobile ? 28 : 36}px 'Nunito', sans-serif`;
   ctx.textAlign = "center";
@@ -1270,27 +1308,22 @@ function drawPanelBackground(
   width: number,
   height: number
 ): void {
-  // Draw card background with shadow
-  renderCtx.save();
+  // Draw shadow as offset rectangle (avoids expensive per-frame gaussian blur)
+  renderCtx.fillStyle = "rgba(0, 0, 0, 0.06)";
+  renderCtx.beginPath();
+  renderCtx.roundRect(x + 1, y + 2, width, height, PANEL_BORDER_RADIUS);
+  renderCtx.fill();
+
   renderCtx.fillStyle = "#f0f0f1";
-  renderCtx.shadowColor = "rgba(0, 0, 0, 0.08)";
-  renderCtx.shadowBlur = 6;
-  renderCtx.shadowOffsetY = 2;
-  
   renderCtx.beginPath();
   renderCtx.roundRect(x, y, width, height, PANEL_BORDER_RADIUS);
   renderCtx.fill();
-  renderCtx.restore();
   
-  // Draw bottom highlight (same as start button style)
-  renderCtx.save();
-  renderCtx.beginPath();
-  renderCtx.roundRect(x, y, width, height, PANEL_BORDER_RADIUS);
-  renderCtx.clip();
-  
+  // Bottom inset bar (replaces expensive clip-based highlight)
   renderCtx.fillStyle = "rgba(0, 0, 0, 0.15)";
-  renderCtx.fillRect(x, y + height - 4, width, 4);
-  renderCtx.restore();
+  renderCtx.beginPath();
+  renderCtx.roundRect(x, y + height - 4, width, 4, [0, 0, PANEL_BORDER_RADIUS, PANEL_BORDER_RADIUS]);
+  renderCtx.fill();
 }
 
 function drawTopHUD(renderCtx: CanvasRenderingContext2D, isMobile: boolean): void {
@@ -1689,6 +1722,7 @@ function updateObjectiveShake(deltaTime: number): void {
   for (const obj of objectives) {
     if (obj.shakeTime > 0) {
       obj.shakeTime -= deltaTime;
+      invalidateHud();
       
       // When shake completes, apply pending count
       if (obj.shakeTime <= 0) {
