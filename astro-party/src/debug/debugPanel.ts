@@ -3,6 +3,7 @@ import { PLAYER_COLORS, type PlayerData, type PowerUpType } from "../types";
 import { elements } from "../ui/elements";
 import type { ScreenController } from "../ui/screens";
 import { createPhysicsLabController } from "./physicsLab";
+import { SeededRNG } from "../../shared/sim/SeededRNG";
 
 interface DebugPanelOptions {
   game: Game;
@@ -325,15 +326,26 @@ function showGameEndPreview(
   elements.winnerName.textContent = winner.name;
 }
 
+function hashTextSeed(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 function buildMockPlayers(livePlayers: PlayerData[]): PlayerData[] {
   const source = livePlayers.length > 0 ? livePlayers : buildFallbackPlayers();
 
-  const mock = source.map((player) => {
+  const mock = source.map((player, index) => {
+    const baseSeed = hashTextSeed(player.id + "|" + player.name + "|" + index);
+    const rng = new SeededRNG(baseSeed);
     return {
       ...player,
-      score: Math.floor(Math.random() * 9000) + 100,
-      roundWins: Math.floor(Math.random() * 4),
-      kills: Math.floor(Math.random() * 20),
+      score: rng.nextInt(100, 9099),
+      roundWins: rng.nextInt(0, 3),
+      kills: rng.nextInt(0, 19),
       state: "ACTIVE" as const,
     };
   });

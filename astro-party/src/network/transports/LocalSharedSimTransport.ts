@@ -25,6 +25,7 @@ import type {
   PlayerMetaMap,
 } from "./NetworkTransport";
 import { isClientDebugToolsRequested } from "../../debug/debugTools";
+import { SeededRNG } from "../../../shared/sim/SeededRNG";
 
 class LocalPlayerState implements NetworkPlayerState {
   constructor(
@@ -83,6 +84,7 @@ export class LocalSharedSimTransport implements NetworkTransport {
   private lastDebugToolsEnabled: boolean | null = null;
   private lastDebugSessionTainted: boolean | null = null;
   private lastMapId: number | null = null;
+  private roomCodeFallbackRng = new SeededRNG(Date.now() >>> 0);
 
   setCallbacks(callbacks: NetworkCallbacks): void {
     this.callbacks = callbacks;
@@ -638,8 +640,20 @@ export class LocalSharedSimTransport implements NetworkTransport {
   private generateRoomCode(): string {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let out = "";
+    const cryptoProvider = globalThis.crypto;
     for (let i = 0; i < 4; i += 1) {
-      const idx = Math.floor(Math.random() * alphabet.length);
+      let next = 0;
+      if (
+        cryptoProvider &&
+        typeof cryptoProvider.getRandomValues === "function"
+      ) {
+        const randomBuffer = new Uint32Array(1);
+        cryptoProvider.getRandomValues(randomBuffer);
+        next = randomBuffer[0];
+      } else {
+        next = this.roomCodeFallbackRng.nextUint32();
+      }
+      const idx = next % alphabet.length;
       out += alphabet[idx];
     }
     return out;

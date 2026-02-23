@@ -26,6 +26,8 @@ Thumbs.db
 assets/
 audio/
 
-# Track Astro Party source art assets
-!astro-party/shared/assets/
-!astro-party/shared/assets/**
+# Track asset folders inside Astro Party only
+!astro-party/**/asset/
+!astro-party/**/asset/**
+!astro-party/**/assets/
+!astro-party/**/assets/**

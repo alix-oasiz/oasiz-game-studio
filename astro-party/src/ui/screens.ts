@@ -4,6 +4,7 @@ import { SettingsManager } from "../SettingsManager";
 import { elements } from "./elements";
 import { escapeHtml } from "./text";
 import { createUIFeedback } from "../feedback/uiFeedback";
+import { SeededRNG } from "../../shared/sim/SeededRNG";
 
 type Screen = "start" | "lobby" | "game" | "end";
 
@@ -43,30 +44,37 @@ function updateStarfieldGradient(mapId: number): void {
   bg.style.background = `radial-gradient(220% 105% at top center, ${gradient.inner} 10%, ${gradient.mid} 40%, ${gradient.outer})`;
 }
 
-function initStarfield(): void {
+function resolveStarCount(): number {
+  return 800;
+}
+
+function initStarfield(seed: number): void {
   const layer = elements.starsLayer;
-  const starCount = 800;
+  const starCount = resolveStarCount();
   const r = 800;
+  const rng = new SeededRNG(seed >>> 0);
 
   for (let i = 0; i < starCount; i++) {
     const star = document.createElement("div");
     star.className = "star-node";
 
-    const s = 0.2 + Math.random() * 1;
-    const curR = r + Math.random() * 300;
+    const s = 0.2 + rng.nextRange(0, 1);
+    const curR = r + rng.nextRange(0, 300);
 
-    const starColor = Math.random() > 0.7 ? "#F7F7B6" : "#ffffff";
+    const starColor = rng.next() > 0.7 ? "#F7F7B6" : "#ffffff";
     const rgb = hexToRgb(starColor);
     if (rgb) {
-      const brightness = 0.5 + Math.random() * 0.5;
+      const brightness = 0.5 + rng.nextRange(0, 0.5);
       star.style.background = `rgb(${Math.round(rgb.r * brightness)}, ${Math.round(rgb.g * brightness)}, ${Math.round(rgb.b * brightness)})`;
     }
 
-    const size = 1 + Math.random() * 2;
+    const size = 1 + rng.nextRange(0, 2);
     star.style.width = `${size}px`;
     star.style.height = `${size}px`;
 
-    star.style.transform = `translate3d(0,0,-${curR}px) rotateY(${Math.random() * 360}deg) rotateX(${Math.random() * -50}deg) scale(${s},${s})`;
+    const rotY = rng.nextRange(0, 360);
+    const rotX = rng.nextRange(-50, 0);
+    star.style.transform = `translate3d(0,0,-${curR}px) rotateY(${rotY}deg) rotateX(${rotX}deg) scale(${s},${s})`;
     star.style.transformOrigin = `0 0 ${curR}px`;
 
     layer.appendChild(star);
@@ -169,7 +177,10 @@ export function createScreenController(
 
     if (screen === "game") {
       if (!starfieldInitialized) {
-        initStarfield();
+        const roundSeed = game.getRngSeed();
+        const starfieldSeed =
+          roundSeed !== null ? (roundSeed ^ 0x73a5f1c3) >>> 0 : 0x73a5f1c3;
+        initStarfield(starfieldSeed);
         starfieldInitialized = true;
       }
       const currentMapId = game.getMapId();

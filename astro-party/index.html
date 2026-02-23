@@ -155,6 +155,7 @@
       width: var(--vw);
       height: var(--vh);
       overflow: hidden;
+      z-index: 1;
     }
 
     #gameCanvas {
@@ -2246,11 +2247,13 @@
       overflow: hidden;
       pointer-events: none;
       opacity: 0;
+      visibility: hidden;
       transition: opacity 0.5s ease;
     }
 
     .stars-container.active {
       opacity: 1;
+      visibility: visible;
     }
 
     .stars-bg {
@@ -2278,63 +2281,12 @@
       left: 50%;
       transform-style: preserve-3d;
       animation: starsRotate 90s infinite linear;
+      animation-play-state: paused;
+      will-change: transform;
     }
 
-    @keyframes starsRotate {
-      0% {
-        transform: perspective(400px) rotateZ(20deg) rotateX(-40deg) rotateY(0);
-      }
-      100% {
-        transform: perspective(400px) rotateZ(20deg) rotateX(-40deg) rotateY(-360deg);
-      }
-    }
-
-    .star-node {
-      position: absolute;
-      background: #fff;
-      border-radius: 50%;
-      transform-origin: center center;
-    }
-
-    #game-wrapper {
-      position: fixed;
-      top: var(--vv-offset-y);
-      left: var(--vv-offset-x);
-      width: var(--vw);
-      height: var(--vh);
-      overflow: hidden;
-      z-index: 1;
-    }
-
-    .stars-container.active {
-      opacity: 1;
-    }
-
-    .stars-bg {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-attachment: fixed;
-    }
-
-    .stars-wrapper {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      width: 0;
-      height: 0;
-      perspective: 500px;
-      perspective-origin: 50% 100%;
-    }
-
-    .stars-layer {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform-style: preserve-3d;
-      animation: starsRotate 90s infinite linear;
+    .stars-container.active .stars-layer {
+      animation-play-state: running;
     }
 
     @keyframes starsRotate {
