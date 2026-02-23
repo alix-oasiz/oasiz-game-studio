@@ -358,8 +358,23 @@ export function createScreenController(
 
 export function bindEndScreenUI(game: Game): void {
   const feedback = createUIFeedback("endScreen");
+  const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const tapGuardUntilByElement = new WeakMap<EventTarget, number>();
+  const END_BUTTON_TAP_GUARD_MS = 450;
 
-  elements.continueBtn.addEventListener("click", async () => {
+  const shouldHandleTap = (target: EventTarget | null): boolean => {
+    if (!isCoarsePointer || !target) return true;
+    const now = performance.now();
+    const guardUntil = tapGuardUntilByElement.get(target) ?? 0;
+    if (now < guardUntil) {
+      return false;
+    }
+    tapGuardUntilByElement.set(target, now + END_BUTTON_TAP_GUARD_MS);
+    return true;
+  };
+
+  elements.continueBtn.addEventListener("click", async (event) => {
+    if (!shouldHandleTap(event.currentTarget)) return;
     feedback.subtle();
     if (game.isLeader()) {
       elements.continueBtn.disabled = true;
@@ -372,7 +387,8 @@ export function bindEndScreenUI(game: Game): void {
     }
   });
 
-  elements.playAgainBtn.addEventListener("click", async () => {
+  elements.playAgainBtn.addEventListener("click", async (event) => {
+    if (!shouldHandleTap(event.currentTarget)) return;
     feedback.subtle();
     if (game.isLeader()) {
       elements.continueBtn.disabled = true;
@@ -385,7 +401,8 @@ export function bindEndScreenUI(game: Game): void {
     }
   });
 
-  elements.leaveEndBtn.addEventListener("click", async () => {
+  elements.leaveEndBtn.addEventListener("click", async (event) => {
+    if (!shouldHandleTap(event.currentTarget)) return;
     feedback.subtle();
     elements.leaveEndBtn.disabled = true;
     elements.leaveEndBtn.textContent = "Leaving...";
