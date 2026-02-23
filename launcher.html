@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oasiz Game Studio - Launcher</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .header {
+            padding: 40px 32px 24px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            margin-top: 8px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px 32px;
+            flex-wrap: wrap;
+        }
+
+        .controls input {
+            background: #16161e;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            width: 300px;
+            outline: none;
+        }
+
+        .controls input:focus {
+            border-color: rgba(255,255,255,0.25);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            padding: 12px 32px 40px;
+        }
+
+        .card {
+            background: #16161e;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .card:hover {
+            background: #1e1e2a;
+            border-color: rgba(255,255,255,0.15);
+            transform: translateY(-2px);
+        }
+
+        .card .name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            text-transform: capitalize;
+        }
+
+        .card .tag {
+            font-size: 0.75rem;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Fullscreen game iframe */
+        .game-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            z-index: 1000;
+        }
+
+        .game-overlay.active { display: block; }
+
+        .game-overlay iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 12px; left: 12px;
+            z-index: 1001;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            display: none;
+            backdrop-filter: blur(8px);
+        }
+
+        .back-btn.active { display: block; }
+        .back-btn:hover { background: rgba(255,255,255,0.15); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Oasiz Game Studio</h1>
+        <p id="count"></p>
+    </div>
+    <div class="controls">
+        <input type="text" id="search" placeholder="Search games..." autofocus>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="game-overlay" id="overlay">
+        <iframe id="gameFrame" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+    </div>
+    <button class="back-btn" id="backBtn">Back to Launcher</button>
+
+    <script>
+        const games = [
+            "abyssal-fall","altos-adventure","arrow-arena","block-blast","block-breaker-chaos",
+            "block-buster","cannon-blaster","car-balance","draw-the-thing","dual-block-dodge",
+            "dungeon-loop","endless-hexagon","extended-golf","goal-duel","hoops-jump",
+            "imposter","neon-push","paddle-bounce","paper-plane","police-chase",
+            "race-the-sun-challenge","race-the-sun","rising-tomb","saw-dodge","stack",
+            "temple-run","threes","two-dots","vampire-survivors","wave-mode","wave-runner","wordfall"
+        ];
+
+        const grid = document.getElementById("grid");
+        const search = document.getElementById("search");
+        const overlay = document.getElementById("overlay");
+        const backBtn = document.getElementById("backBtn");
+        const gameFrame = document.getElementById("gameFrame");
+        const count = document.getElementById("count");
+
+        function render(filter = "") {
+            const filtered = games.filter(g => g.includes(filter.toLowerCase()));
+            count.textContent = `${filtered.length} games`;
+            grid.innerHTML = filtered.map(g => `
+                <a class="card" data-game="${g}" href="#">
+                    <span class="name">${g.replace(/-/g, " ")}</span>
+                    <span class="tag">Play</span>
+                </a>
+            `).join("");
+        }
+
+        search.addEventListener("input", e => render(e.target.value));
+
+        grid.addEventListener("click", e => {
+            const card = e.target.closest(".card");
+            if (!card) return;
+            e.preventDefault();
+            const game = card.dataset.game;
+            gameFrame.src = `/${game}/dist/index.html`;
+            overlay.classList.add("active");
+            backBtn.classList.add("active");
+        });
+
+        backBtn.addEventListener("click", () => {
+            overlay.classList.remove("active");
+            backBtn.classList.remove("active");
+            gameFrame.src = "";
+        });
+
+        document.addEventListener("keydown", e => {
+            if (e.key === "Escape" && overlay.classList.contains("active")) {
+                backBtn.click();
+            }
+        });
+
+        render();
+    </script>
+</body>
+</html>

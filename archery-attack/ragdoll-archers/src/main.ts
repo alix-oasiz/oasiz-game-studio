@@ -101,7 +101,6 @@ interface FloatText {
 interface Upgrade {
   name: string;
   desc: string;
-  cost: number;
   apply: () => void;
 }
 
@@ -132,7 +131,7 @@ const ARROW_LEN = 30;
 const MAX_ARROW_SPD = 18;
 const MIN_ARROW_SPD = 6;
 const ARROW_DMG_BASE = 25;
-const HEADSHOT_MULT = 2.0;
+const HEADSHOT_MULT = 5.0;
 const SHOOT_CD = 0.6;
 
 const BODY_SEGS: [number, number][] = [
@@ -155,7 +154,9 @@ const TOWER_H_RATIO = 0.28;
 const TROLL_SCALE = 1.4;
 const TROLL_ATK_CD = 2.0;
 const TROLL_SWING_DUR = 0.6;
-const PULL_CLICK_RADIUS = 55;
+const PULL_CLICK_RADIUS = 82;
+const QUIVER_BASE_CAPACITY = 5;
+const RELOAD_TIME = 1.2;
 
 // ============= DOM & GLOBALS =============
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
@@ -176,6 +177,8 @@ let playState: PlayState = "WAVE_INTRO";
 let w = window.innerWidth;
 let h = window.innerHeight;
 let groundY = 0;
+let dpr = 1;
+let gameScale = 1;
 
 let settings: Settings = loadSettings();
 let animFrameId = 0;
@@ -193,6 +196,12 @@ let playerSpdMult = 1;
 let playerCritChance = 0;
 let playerArrowCount = 1;
 let playerDeathTimer = 0;
+let quiverMax = QUIVER_BASE_CAPACITY;
+let quiverCount = QUIVER_BASE_CAPACITY;
+let reloading = false;
+let reloadTimer = 0;
+let reloadSpeedMult = 1;
+let headshotHeal = 0;
 
 // Tower state
 let towerX = 0;
@@ -213,7 +222,6 @@ let particles: Particle[] = [];
 let floats: FloatText[] = [];
 
 // Game progress
-let skulls = 0;
 let score = 0;
 let wave = 0;
 
@@ -235,10 +243,17 @@ let audioCtx: AudioContext | null = null;
 
 // ============= CANVAS & SETTINGS =============
 function resize(): void {
+  dpr = window.devicePixelRatio || 1;
   w = window.innerWidth;
   h = window.innerHeight;
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  gameScale = Math.min(w, h) / 900;
+
   groundY = Math.floor(h * 0.78);
   towerX = Math.floor(w * 0.12);
   towerTopY = groundY - Math.floor(h * TOWER_H_RATIO);
@@ -860,6 +875,10 @@ function handleArrowHit(a: Arrow, r: Ragdoll, hitResult: number): void {
   if (headshot) {
     addFloat(a.x, a.y - 35, "HEADSHOT!", "#ffff00");
     playSound("headshot");
+    if (headshotHeal > 0 && a.team === 0 && towerHp > 0) {
+      towerHp = Math.min(towerHp + headshotHeal, towerMaxHp);
+      addFloat(a.x, a.y - 55, `+${headshotHeal} HP`, "#44cc44");
+    }
   } else {
     playSound("hit");
   }
@@ -958,6 +977,14 @@ function updatePlayer(dt: number): void {
 
   shootCD = Math.max(0, shootCD - dt);
 
+  if (reloading) {
+    reloadTimer -= dt;
+    if (reloadTimer <= 0) {
+      reloading = false;
+      quiverCount = quiverMax;
+    }
+  }
+
   // Slingshot: power is computed from mouse distance in mousemove handler
   // No hold-to-charge logic needed
 
@@ -986,7 +1013,7 @@ function updatePlayer(dt: number): void {
 }
 
 function playerFire(): void {
-  if (!player.alive || shootCD > 0 || aimPower < 0.05) return;
+  if (!player.alive || shootCD > 0 || aimPower < 0.05 || reloading || quiverCount <= 0) return;
 
   const speed =
     (MIN_ARROW_SPD + aimPower * (MAX_ARROW_SPD - MIN_ARROW_SPD)) *
@@ -1015,6 +1042,11 @@ function playerFire(): void {
   playSound("shoot");
   triggerHaptic("light");
   shootCD = SHOOT_CD;
+  quiverCount--;
+  if (quiverCount <= 0) {
+    reloading = true;
+    reloadTimer = RELOAD_TIME * reloadSpeedMult;
+  }
 
   // Recoil on player
   const recoil = 1.5;
@@ -1028,15 +1060,8 @@ function updateEnemies(dt: number): void {
     if (e.state === "dead") continue;
     if (!e.ragdoll.alive) {
       e.state = "dead";
-      skulls += e.skullReward;
       score += e.skullReward * 100;
-      currentScoreEl.textContent = skulls.toString();
-      addFloat(
-        e.ragdoll.pts[HEAD].x,
-        e.ragdoll.pts[HEAD].y - 25,
-        `+${e.skullReward}`,
-        "#dd7733",
-      );
+      currentScoreEl.textContent = score.toString();
       continue;
     }
 
@@ -1124,26 +1149,38 @@ function startNextWave(): void {
 function spawnWaveEnemies(): void {
   const baseHp = 30 + wave * 3;
   const baseDmg = 10 + wave * 3;
-  const isBoss = wave % 5 === 0;
+  const isBossWave = wave % 5 === 0;
 
   let count: number;
-  if (isBoss) {
-    count = 2 + Math.floor(wave / 5);
+  if (isBossWave) {
+    count = 3 + Math.floor(wave / 3);
   } else if (wave <= 2) {
-    count = 3;
-  } else if (wave <= 5) {
-    count = 4 + Math.floor(wave / 2);
+    count = 4;
   } else {
-    count = Math.min(12, 5 + wave);
+    count = 4 + wave * 2;
   }
 
+  let smallCount = 0;
   for (let i = 0; i < count; i++) {
     const spawnX = w + 60 + i * 80 + Math.random() * 40;
     const targetX = towerX + TOWER_W / 2 + 10 + i * 15;
-    const hp = isBoss ? baseHp * 4 : baseHp;
-    const scale = isBoss ? 1.7 : TROLL_SCALE;
-    const headColor = isBoss ? "#2a4a2a" : "#3a5a3a";
-    const bodyColor = isBoss ? "#4a6a4a" : "#5a7a5a";
+
+    // Boss wave: all bosses. Normal wave: boss every 5-10 small trolls
+    let makeBoss: boolean;
+    if (isBossWave) {
+      makeBoss = true;
+    } else if (wave >= 3 && smallCount > 0 && smallCount % (5 + Math.floor(Math.random() * 6)) === 0) {
+      makeBoss = true;
+    } else {
+      makeBoss = false;
+    }
+
+    if (!makeBoss) smallCount++;
+
+    const hp = makeBoss ? baseHp * 4 : baseHp;
+    const scale = (makeBoss ? 1.7 : TROLL_SCALE) * gameScale;
+    const headColor = makeBoss ? "#2a4a2a" : "#3a5a3a";
+    const bodyColor = makeBoss ? "#4a6a4a" : "#5a7a5a";
 
     const ragdoll = createRagdoll(
       spawnX,
@@ -1160,9 +1197,9 @@ function spawnWaveEnemies(): void {
       targetX,
       attackTimer: TROLL_ATK_CD,
       swingPhase: 0,
-      damage: isBoss ? baseDmg * 2 : baseDmg,
+      damage: makeBoss ? baseDmg * 2 : baseDmg,
       state: "walking",
-      skullReward: isBoss ? 5 : 1,
+      skullReward: makeBoss ? 5 : 1,
     });
   }
 }
@@ -1177,7 +1214,6 @@ function generateUpgrades(): void {
     () => ({
       name: "+100 TOWER HP",
       desc: "Increase tower max health by 100",
-      cost: 2,
       apply() {
         towerMaxHp += 100;
         towerHp = Math.min(towerHp + 100, towerMaxHp);
@@ -1186,7 +1222,6 @@ function generateUpgrades(): void {
     () => ({
       name: "+30% DMG",
       desc: "Arrow damage increased by 30%",
-      cost: 3,
       apply() {
         playerDmg *= 1.3;
       },
@@ -1194,7 +1229,6 @@ function generateUpgrades(): void {
     () => ({
       name: "REPAIR",
       desc: "Fully restore tower health",
-      cost: 1,
       apply() {
         towerHp = towerMaxHp;
       },
@@ -1202,17 +1236,30 @@ function generateUpgrades(): void {
     () => ({
       name: "+SPEED",
       desc: "Arrows fly 25% faster",
-      cost: 2,
       apply() {
         playerSpdMult *= 1.25;
       },
     }),
     () => ({
-      name: "CRIT+",
-      desc: "+15% critical hit chance",
-      cost: 3,
+      name: "VAMPIRIC",
+      desc: "Headshots heal tower for 15 HP",
       apply() {
-        playerCritChance = Math.min(playerCritChance + 0.15, 0.5);
+        headshotHeal += 15;
+      },
+    }),
+    () => ({
+      name: "FAST RELOAD",
+      desc: "Reload 30% faster",
+      apply() {
+        reloadSpeedMult *= 0.7;
+      },
+    }),
+    () => ({
+      name: "+1 ARROW",
+      desc: "Add 1 arrow to your quiver",
+      apply() {
+        quiverMax++;
+        quiverCount = quiverMax;
       },
     }),
   ];
@@ -1221,7 +1268,6 @@ function generateUpgrades(): void {
     pool.push(() => ({
       name: "MULTI-SHOT",
       desc: `Fire ${playerArrowCount + 1} arrows at once`,
-      cost: 5,
       apply() {
         playerArrowCount++;
       },
@@ -1238,10 +1284,6 @@ function generateUpgrades(): void {
 function applyUpgrade(idx: number): void {
   if (idx < 0 || idx >= upgradeOpts.length) return;
   const up = upgradeOpts[idx];
-  if (skulls < up.cost) return;
-  skulls -= up.cost;
-  score -= up.cost;
-  currentScoreEl.textContent = skulls.toString();
   up.apply();
   playSound("upgrade");
   triggerHaptic("success");
@@ -1636,23 +1678,145 @@ function drawFlyingArrows(): void {
   }
 }
 
+function drawQuiver(): void {
+  if (!player || !player.alive) return;
+
+  const qx = towerX - 25;
+  const qy = towerTopY - 2;
+  const arrowH = 20;
+  const spacing = 7;
+
+  for (let i = 0; i < quiverMax; i++) {
+    const ax = qx - i * spacing;
+    const filled = i < quiverCount;
+
+    if (filled) {
+      // Arrow shaft (vertical)
+      ctx.strokeStyle = "#8B7355";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ax, qy);
+      ctx.lineTo(ax, qy - arrowH + 5);
+      ctx.stroke();
+      // Tip
+      ctx.fillStyle = "#C0C0C0";
+      ctx.beginPath();
+      ctx.moveTo(ax, qy - arrowH);
+      ctx.lineTo(ax - 2.5, qy - arrowH + 6);
+      ctx.lineTo(ax + 2.5, qy - arrowH + 6);
+      ctx.closePath();
+      ctx.fill();
+      // Fletching
+      ctx.fillStyle = "rgba(200, 50, 50, 0.7)";
+      ctx.beginPath();
+      ctx.moveTo(ax, qy);
+      ctx.lineTo(ax - 2.5, qy - 5);
+      ctx.lineTo(ax, qy - 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(ax, qy);
+      ctx.lineTo(ax + 2.5, qy - 5);
+      ctx.lineTo(ax, qy - 5);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Empty slot outline
+      ctx.strokeStyle = "rgba(139, 115, 85, 0.25)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(ax, qy);
+      ctx.lineTo(ax, qy - arrowH);
+      ctx.stroke();
+    }
+  }
+
+  // Reload indicator
+  if (reloading) {
+    const cx = qx - ((quiverMax - 1) * spacing) / 2;
+    const cy = qy - arrowH - 14;
+    const radius = 8;
+    const progress = 1 - reloadTimer / (RELOAD_TIME * reloadSpeedMult);
+
+    // Background circle
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Progress arc
+    ctx.strokeStyle = "#88ccff";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+    ctx.stroke();
+    ctx.lineCap = "butt";
+  }
+}
+
 function drawPullIndicator(): void {
-  if (!player || !player.alive || playState !== "WAVE_ACTIVE" || aiming) return;
+  if (!player || !player.alive || playState !== "WAVE_ACTIVE") return;
 
-  const bowHand = player.pts[R_HAND];
-  const f = player.facing;
-  const pullZoneX = bowHand.x - f * 20;
-  const pullZoneY = bowHand.y;
-  const t = performance.now() * 0.003;
-  const pulse = 1 + Math.sin(t) * 0.08;
-  const alpha = 0.25 + Math.sin(t) * 0.1;
+  if (!aiming) {
+    // Idle: pulsing circle showing click zone
+    const bowHand = player.pts[R_HAND];
+    const f = player.facing;
+    const pullZoneX = bowHand.x - f * 20;
+    const pullZoneY = bowHand.y;
+    const t = performance.now() * 0.003;
+    const pulse = 1 + Math.sin(t) * 0.08;
+    const alpha = 0.25 + Math.sin(t) * 0.1;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = "#88ccff";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(pullZoneX, pullZoneY, PULL_CLICK_RADIUS * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
 
+  // Aiming: red arrow from shoulder toward mouse, tip at mouse (capped at max pull)
+  const sx = player.pts[R_SHOULDER].x;
+  const sy = player.pts[R_SHOULDER].y;
+  const dx = mx - sx;
+  const dy = my - sy;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d < 5) return;
+
+  const nx = dx / d;
+  const ny = dy / d;
+  const maxDist = 130; // matches slingshot max pull
+  const clampedDist = Math.min(d, maxDist);
+  const tipX = sx + nx * clampedDist;
+  const tipY = sy + ny * clampedDist;
+
+  const alpha = 0.4 + aimPower * 0.6;
   ctx.globalAlpha = alpha;
-  ctx.strokeStyle = "#88ccff";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#ff3333";
+  ctx.fillStyle = "#ff3333";
+  ctx.lineWidth = 2 + aimPower * 1.5;
+
+  // Shaft
   ctx.beginPath();
-  ctx.arc(pullZoneX, pullZoneY, PULL_CLICK_RADIUS * pulse, 0, Math.PI * 2);
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(tipX, tipY);
   ctx.stroke();
+
+  // Arrowhead at shoulder pointing in fire direction
+  const headLen = 8 + aimPower * 6;
+  const headAngle = Math.atan2(-ny, -nx);
+  const ha1 = headAngle + Math.PI * 0.78;
+  const ha2 = headAngle - Math.PI * 0.78;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx + Math.cos(ha1) * headLen, sy + Math.sin(ha1) * headLen);
+  ctx.lineTo(sx + Math.cos(ha2) * headLen, sy + Math.sin(ha2) * headLen);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.globalAlpha = 1;
 }
 
@@ -1672,7 +1836,7 @@ function drawFloats(): void {
     const alpha = f.life / f.maxLife;
     ctx.globalAlpha = alpha;
     ctx.fillStyle = f.color;
-    ctx.font = "bold 16px 'Inter', sans-serif";
+    ctx.font = `bold ${Math.round(16 * gameScale)}px 'Inter', sans-serif`;
     ctx.fillText(f.text, f.x, f.y);
   }
   ctx.globalAlpha = 1;
@@ -1684,14 +1848,14 @@ function drawWaveIntro(): void {
   const alpha = Math.min(1, waveIntroTimer / 0.5) * Math.min(1, (1.5 - waveIntroTimer + 0.5) / 0.5);
   ctx.globalAlpha = clamp(alpha, 0, 1);
   ctx.fillStyle = "#dd7733";
-  ctx.font = "bold 48px 'Cinzel', serif";
+  ctx.font = `bold ${Math.round(48 * gameScale)}px 'Cinzel', serif`;
   ctx.textAlign = "center";
   ctx.fillText(`WAVE ${wave}`, w / 2, h * 0.35);
 
   if (wave % 5 === 0) {
     ctx.fillStyle = "#ff44ff";
-    ctx.font = "bold 24px 'Cinzel', serif";
-    ctx.fillText("BOSS!", w / 2, h * 0.35 + 45);
+    ctx.font = `bold ${Math.round(24 * gameScale)}px 'Cinzel', serif`;
+    ctx.fillText("BOSS!", w / 2, h * 0.35 + 45 * gameScale);
   }
 
   ctx.textAlign = "left";
@@ -1707,17 +1871,17 @@ function drawUpgradeShop(): void {
 
   // Title
   ctx.fillStyle = "#dd7733";
-  ctx.font = "bold 36px 'Cinzel', serif";
+  ctx.font = `bold ${Math.round(36 * gameScale)}px 'Cinzel', serif`;
   ctx.textAlign = "center";
-  ctx.fillText("UPGRADES", w / 2, h * 0.18);
+  ctx.fillText("CHOOSE UPGRADE", w / 2, h * 0.18);
 
   ctx.fillStyle = "#aa8866";
-  ctx.font = "16px 'Inter', sans-serif";
-  ctx.fillText(`${skulls} Skulls Available`, w / 2, h * 0.18 + 35);
+  ctx.font = `${Math.round(16 * gameScale)}px 'Inter', sans-serif`;
+  ctx.fillText("Pick one", w / 2, h * 0.18 + 35 * gameScale);
 
   // Cards
-  const cardW = Math.min(170, (w - 80) / 3);
-  const cardH = 190;
+  const cardW = Math.min(170 * gameScale, (w - 80) / 3);
+  const cardH = 160 * gameScale;
   const gap = 20;
   const totalW =
     upgradeOpts.length * cardW + (upgradeOpts.length - 1) * gap;
@@ -1729,52 +1893,46 @@ function drawUpgradeShop(): void {
   for (let i = 0; i < upgradeOpts.length; i++) {
     const cx = startX + i * (cardW + gap);
     const up = upgradeOpts[i];
-    const afford = skulls >= up.cost;
     const hover = upgradeHover === i;
 
     upgradeCardRects.push({ x: cx, y: cardY, w: cardW, h: cardH });
 
     // Card BG
-    ctx.fillStyle = hover && afford
+    ctx.fillStyle = hover
       ? "rgba(221, 119, 51, 0.25)"
       : "rgba(15, 25, 40, 0.92)";
     ctx.beginPath();
     ctx.roundRect(cx, cardY, cardW, cardH, 12);
     ctx.fill();
 
-    ctx.strokeStyle = afford ? "#dd7733" : "#444";
+    ctx.strokeStyle = hover ? "#ffaa55" : "#dd7733";
     ctx.lineWidth = 2;
     ctx.stroke();
 
     // Name
-    ctx.fillStyle = afford ? "#dd7733" : "#666";
-    ctx.font = "bold 18px 'Cinzel', serif";
+    ctx.fillStyle = "#dd7733";
+    ctx.font = `bold ${Math.round(18 * gameScale)}px 'Cinzel', serif`;
     ctx.textAlign = "center";
-    ctx.fillText(up.name, cx + cardW / 2, cardY + 45);
+    ctx.fillText(up.name, cx + cardW / 2, cardY + 50);
 
     // Description
-    ctx.fillStyle = afford ? "#aa8866" : "#555";
-    ctx.font = "13px 'Inter', sans-serif";
+    ctx.fillStyle = "#aa8866";
+    ctx.font = `${Math.round(13 * gameScale)}px 'Inter', sans-serif`;
     wrapText(
       up.desc,
       cx + cardW / 2,
-      cardY + 75,
+      cardY + 80,
       cardW - 24,
       17,
     );
-
-    // Cost
-    ctx.fillStyle = afford ? "#dd7733" : "#663333";
-    ctx.font = "bold 22px 'Cinzel', serif";
-    ctx.fillText(`${up.cost} Skulls`, cx + cardW / 2, cardY + cardH - 30);
   }
 
   // Skip hint
   ctx.fillStyle = "#666";
-  ctx.font = "14px 'Inter', sans-serif";
+  ctx.font = `${Math.round(14 * gameScale)}px 'Inter', sans-serif`;
   ctx.textAlign = "center";
   ctx.fillText(
-    "Click to buy  |  SPACE to skip",
+    "SPACE to skip",
     w / 2,
     h * 0.32 + cardH + 50,
   );
@@ -1826,7 +1984,7 @@ function drawHUD(): void {
     ctx.strokeRect(barX, barY + yOff, barW, barH);
 
     ctx.fillStyle = "#aa8866";
-    ctx.font = "11px 'Inter', sans-serif";
+    ctx.font = `${Math.round(11 * gameScale)}px 'Inter', sans-serif`;
     ctx.fillText(
       `TOWER HP ${Math.ceil(towerHp)}/${towerMaxHp}`,
       barX,
@@ -1834,6 +1992,11 @@ function drawHUD(): void {
     );
 
     ctx.fillText(`Wave ${wave}`, barX, barY + yOff + barH + 28);
+
+    // Ammo counter
+    const ammoText = reloading ? "RELOADING..." : `ARROWS: ${quiverCount}/${quiverMax}`;
+    ctx.fillStyle = reloading ? "#88ccff" : "#aa8866";
+    ctx.fillText(ammoText, barX, barY + yOff + barH + 42);
   }
 }
 
@@ -1876,6 +2039,7 @@ function render(): void {
       drawRagdoll(player, null, 0);
     }
     drawPullIndicator();
+    drawQuiver();
   }
 
   drawFlyingArrows();
@@ -1973,6 +2137,8 @@ function update(dt: number): void {
       if (player.alive && checkWaveComplete()) {
         playState = "WAVE_COMPLETE";
         waveCompleteTimer = 1.0;
+        reloading = false;
+        quiverCount = quiverMax;
       }
       break;
 
@@ -2021,6 +2187,7 @@ function setupInput(): void {
     const pullZoneY = bowHand.y;
     const clickDist = dist(e.clientX, e.clientY, pullZoneX, pullZoneY);
     if (clickDist > PULL_CLICK_RADIUS) return;
+    if (reloading) return;
 
     mdown = true;
     mx = e.clientX;
@@ -2104,6 +2271,7 @@ function setupInput(): void {
       const pullZoneY = bowHand.y;
       const touchDist = dist(touch.clientX, touch.clientY, pullZoneX, pullZoneY);
       if (touchDist > PULL_CLICK_RADIUS) return;
+      if (reloading) return;
 
       mdown = true;
       mx = touch.clientX;
@@ -2274,7 +2442,6 @@ function setupToggles(): void {
 function startGame(): void {
   gameState = "PLAYING";
   wave = 0;
-  skulls = 0;
   score = 0;
   playerDmg = ARROW_DMG_BASE;
   playerMaxHp = 100;
@@ -2286,7 +2453,7 @@ function startGame(): void {
   towerMaxHp = 500;
   towerFlash = 0;
 
-  currentScoreEl.textContent = "0";
+  currentScoreEl.textContent = score.toString();
 
   player = createRagdoll(
     towerX,
@@ -2294,6 +2461,7 @@ function startGame(): void {
     1,
     playerMaxHp,
     "#4488ff",
+    gameScale,
   );
   enemies = [];
   arrows = [];
@@ -2304,6 +2472,12 @@ function startGame(): void {
   aiming = false;
   mdown = false;
   shootCD = 0;
+  quiverMax = QUIVER_BASE_CAPACITY;
+  quiverCount = QUIVER_BASE_CAPACITY;
+  reloading = false;
+  reloadTimer = 0;
+  reloadSpeedMult = 1;
+  headshotHeal = 0;
 
   startScreen.classList.add("hidden");
   gameOverScreen.classList.add("hidden");
@@ -2325,7 +2499,7 @@ function triggerGameOver(): void {
   }
 
   triggerHaptic("error");
-  finalScoreEl.textContent = skulls.toString();
+  finalScoreEl.textContent = score.toString();
   scoreDisplay.classList.add("hidden");
   pauseBtn.classList.add("hidden");
   settingsBtn.classList.add("hidden");
