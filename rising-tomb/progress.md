@@ -1,0 +1,154 @@
+Original prompt: kanka geri aldım çünkü kalite düşmesine rağmen fps düzelmedi, oyunu test edip en çok yük alan metod ve scriptleri loglayıp analiz yapabilir misin
+
+- Hedef: Kaliteyi düşürmeden performans darboğazını ölçmek.
+- Plan: `?profile=1` ile açılan metod-profiler + canvas op sayaçları eklemek, Playwright ile mobil emülasyonda koşup logları toplayarak analiz etmek.
+- Uygulama: `?profile=1` ile açılan metod-profiler ve canvas operasyon sayaçları eklendi.
+  - Toplanan metrikler: metod toplam/ortalama/max süreleri, pencere bazlı frame CPU süresi, canvas op adetleri (`drawImage`, `fillRect`, `fill`, `stroke`, `arc`, gradient oluşturma).
+- Test komutları:
+  - Mobil idle profil: `/tmp/perf-mobile-idle.log`
+  - Mobil aktif profil: `/tmp/perf-mobile-active.log`
+- Bulgular (PLAYING):
+  - En pahalı metod açık ara `render.drawMaze`.
+  - İkinci büyük maliyet `render.compositeToDisplay` (offscreen canvas -> display blit, bloom dahil).
+  - `update.*` metodları toplamda düşük maliyetli; update tarafı ana darboğaz değil.
+  - Canvas op yoğunluğu çok yüksek: 3 sn pencerede yaklaşık `drawImage ~30k-44k`, `fillRect ~84k-125k`, `gradients ~19k-29k`.
+- Sonuç: Sorun ağırlıklı olarak render aşamasında (özellikle maze + postprocess/composite), chunk üretiminde değil.
+- Not: Playwright `#playBtn` normal click'i menü animasyonu nedeniyle "element is not stable" hatası verebiliyor; profiling scripti bu yüzden DOM üzerinden click event dispatch ederek başlatıyor.
+- Genişletilmiş breakdown profiler eklendi:
+  - `drawMaze` alt segmentleri: `render.drawMaze.mainWalls`, `render.drawMaze.sideWalls`, `render.drawMaze.items`, `render.drawMaze.fog`, `render.drawMaze.sand`.
+  - Sayaçlar: `maze.mainWallTiles`, `maze.sideWallTiles`, `maze.itemTiles`, `maze.fogTiles`, `maze.sandSurfaceSamples`.
+- Analiz özeti (mobil emülasyon, PLAYING):
+  - Baskın maliyet `render.drawMaze.sideWalls` (çoğu pencerede `drawMaze` süresinin en büyük kısmı).
+  - `render.drawMaze.mainWalls` ikinci sırada ama sideWalls'tan belirgin düşük.
+  - `render.drawMaze.items` ve `render.drawMaze.fog` düşük/orta; darboğaz değil.
+  - Sayaçlar side-wall hacmini doğruluyor: 3s pencerede ~`5k-27k` side wall tile çizimi.
+  - Sonuç: `drawMaze` içindeki side-wall dekor katmanı ana darboğaz adayı.
+- Ham log dosyaları:
+  - `/tmp/perf-mobile-idle.log`
+  - `/tmp/perf-mobile-active.log`
+- Breakdown bulguları (özet):
+  - `render.drawMaze.sideWalls` sürekli en pahalı alt segment.
+  - `render.drawMaze.mainWalls` ikinci sırada.
+  - `render.drawMaze.items` ve `render.drawMaze.fog` düşük maliyetli.
+  - 3 saniyelik PLAYING pencerelerinde sayaçlar tipik olarak:
+    - `maze.sideWallTiles`: ~15k-33k
+    - `maze.mainWallTiles`: ~2.3k-4.0k
+    - `maze.fogTiles`: ~3.4k-5.8k
+    - `maze.itemTiles`: ~178-432
+- İstek: side wall'lar her frame devasa aralıkta çizilmesin, chunk oluşurken spawn edilip görünür alanda render edilsin.
+- Uygulama:
+  - `SideWallSpawn` veri modeli eklendi.
+  - Chunk üretiminde (`generateChunk`) satır başına side-wall spawn listesi cache'lendi.
+  - Margin collider duvarları `forceMarginWalls` ile chunk oluşturma anında row'a işlendi.
+  - `drawMaze.sideWalls` artık `startRow-100..+200` yerine yalnızca `row0..row1` görünür satırları çiziyor.
+- Doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+- Yeni istek: Yukarı ilerlerken oluşan donmayı azaltmak için chunk üretimi yerine pooling/reuse yaklaşımı.
+- Uygulama (src/main.ts):
+  - `ChunkTemplate` modeli eklendi (`rows`, `sideWallSpawns`).
+  - Chunk prune sırasında template'ler `recycledChunkTemplates` havuzuna alınıyor.
+  - `generateChunk` içinde önce havuzdan template çekilip `placeChunkRows(...)` ile tekrar sahneye yerleştiriliyor; havuz boşsa normal procedural üretim yapılıyor.
+  - Oyun resetinde pooling map/array yapıları temizleniyor.
+- Not: Bu yaklaşım tile-object spawn etmediği için mevcut map mimarisiyle uyumlu bir "pooling" karşılığıdır (chunk row verisini tekrar kullanır).
+- Ek doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - Playwright burst testi (`output/web-game/shot-0..5.png`) ✅
+  - Bu koşuda yeni console/page error dosyası oluşmadı.
+- Sonraki adım önerisi:
+  - Eğer mobilde halen chunk geçişinde spike varsa, resette N adet template prewarm edilip runtime procedural generate çağrısı ilk dakikalarda tamamen sıfırlanabilir.
+- Bugfix (chunk seam mismatch):
+  - Reused chunk template'lerine `entryX` eklendi.
+  - `placeChunkRows(...)` artık seam satırında yeni chunk girişini (`entryX`) template'in orijinal girişine (`templateEntryX`) yatay bir dot koridoruyla bağlıyor.
+  - Böylece pool'dan gelen chunk farklı girişte reuse edilse bile chunk sınırında kopukluk oluşmuyor.
+- Doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+- Ek seam güvenliği:
+  - Chunk giriş seçimi artık sadece `dot/power` değil, `wall/empty` dışındaki tüm yol tile'larını kabul ediyor.
+  - `MonotonicUpPath.generate` içinde prev-row komşuluk kontrolü de aynı şekilde güncellendi.
+  - Amaç: trap/buff tile üstünden gelen chunk geçişlerinde yanlış giriş seçilip kopuk seam oluşmasını engellemek.
+- Pooling seam düzeltmesi v2:
+  - Havuz artık tek listeden değil `entryX` bazlı bucket map'ten çalışıyor.
+  - Yeni chunk sadece aynı `entryX` bucket'ındaki template'i reuse ediyor.
+  - Böylece farklı giriş kolonundan gelen template'in seam'de ara duvar/blok geometrisini bozması engellendi.
+  - Pool kapasite limiti korunuyor (`maxRecycledChunkTemplates`).
+- Chaser catch-up logic: 5x when more than 1 chunk behind player; returns to 1x at <=1 chunk behind.
+- Corridor rule added: no more than 6 consecutive upward tiles in same column; forced lateral break inserted when limit is hit (including top-exit stitching).
+- Reworked UI input handling with pointer-first bindPress() (dedupes click/pointer/touch) and applied it to start menu, settings toggles/labels/close/backdrop, pause/game-over buttons.
+- Mobile swipe listeners remain canvas-scoped; UI buttons no longer depend on global window touch behavior.
+- Validation: npm run build passed; Playwright client smoke run completed against #optionsBtn flow.
+- Yeni istek: "karakter bazen yukarı giderken chunklar o an oluşuyor sıkışma oluyor".
+- Düzeltme (src/main.ts):
+  - `CHUNK_PRELOAD_AHEAD` eklendi (3).
+  - `ensureRowsForView` içinde görünür pencerenin üst chunk ID'sine göre `0..CHUNK_PRELOAD_AHEAD` aralığında chunk pre-activate ediliyor.
+  - `pruneChunksBehindCamera` da sabit 3 çağrı yerine aynı preload döngüsü kullanıyor.
+  - Amaç: oyuncu chunk sınırına gelmeden bir chunk daha erken üretip anlık hitch'i öne çekmek/azaltmak.
+- Doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - Playwright smoke: `web_game_playwright_client` ile 2 iterasyon (`output/web-game/shot-0.png`, `shot-1.png`) ✅
+- Yeni istek: "dashte oyun anlık drop yiyor".
+- Düzeltme (src/main.ts):
+  - Dash sırasında path traversal içindeki pickup geri bildirimleri (`audio.click`, `triggerHaptic`) tile başına çağrılmıyor.
+  - `collectedDots` ve `collectedPowerLikeItems` sayaçları ile pickup’lar dash sonunda tek seferde geri bildirim veriyor.
+  - Öncelik: power/special pickup varsa tek `power+medium haptic`, yoksa tek `dot+light haptic`.
+  - Amaç: tek frame içinde onlarca audio/haptic çağrısından kaynaklanan spike/drop’u azaltmak.
+- Doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `web_game_playwright_client` smoke run ✅ (console/page error üretmedi)
+  - Ek Playwright kontrolü (DOM üzerinden `#playBtn` dispatch + yön inputları) ✅ (`clickResult: clicked`, `errors: []`)
+- Yeni istek: "genel fps düşük mü başka bottleneck mi, graph aç".
+- Uygulama (src/main.ts):
+  - Profil modu `?profile=1` iken aktif olacak canlı monitor grafiği eklendi.
+  - Sol üst overlay artık metin + çizim paneli içeriyor.
+  - Grafikte 4 seri var: `Frame ms`, `Max Frame ms` (spike), `Update ms`, `Render ms`.
+  - Referans çizgileri eklendi: `16.7ms (~60 FPS)` ve `33.3ms (~30 FPS)`.
+  - Son değer legend'ı eklendi (`F/Mx/U/R + fps`) ve mevcut sayaç metni korunarak güncellendi.
+- Doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - Playwright smoke (`?profile=1`) ✅
+  - Ek Playwright tam sayfa kontrolü: overlay bulundu, text+canvas dolu (`errors: []`) ✅
+- Yeni istek: "mobilde fps 30 sabit, dash'te anlık drop var; 60fps akıcı olsun".
+- Uygulama (src/main.ts, mobil render optimizasyonları):
+  - Dash efektleri azaltıldı:
+    - Dash sırasında parçacık spawn olasılığı mobilde `0.3 -> 0.08`.
+    - `spawnDashParticles` mobilde `1-2` parçacık üretir (desktop `3-5`).
+    - `updateDashSpeedLines` mobilde `3 -> 1` line spawn, max line sayısı sınırlandı (`10`).
+  - Particle maliyeti düşürüldü:
+    - Mobilde landing/death glow (shadow blur + ekstra arc) kapatıldı.
+    - Arkaplan tozu mobilde seyrekleştirildi (`maxParticles 8`, düşük spawn chance).
+  - Maze render sadeleştirildi:
+    - Ana duvar border çizimleri mobilde kapatıldı.
+    - Side-wall render mobilde yarı yoğunluk (tek/çift satır) ve border kapalı.
+    - Fog of war mobilde kapatıldı.
+    - Sand dune path sampling mobilde seyrekleştirildi (`step 20`).
+  - Frame başı pahalı katmanlar mobilde kapatıldı:
+    - `drawDoppelgangerAura`, `drawAmbientDust`, `drawSandSurfaceEffects`, `drawVignette` mobilde skip.
+  - Doppelganger trail mobilde gradient yerine düz daire ile çiziliyor.
+- Doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - `web_game_playwright_client` smoke (`?profile=1`) ✅ (yeni error dosyası oluşmadı)
+
+- 2026-02-20: Rising sand wave speed updated in src/main.ts -> base speed x3; if wave is >=2 chunks behind player, apply extra x7 catch-up multiplier (effective x21).
+- Yeni istek: "oyun kasıyor düzelt".
+- Uygulama (src/main.ts):
+  - Adaptif performans modu eklendi (`frameTimeEmaMs`, `lowPerfMode`).
+  - Frame time EMA loop içinde güncelleniyor; hysteresis ile yük altında low-perf mode açılıp kapanıyor.
+  - Low-perf mode açıkken pahalı katmanlar geçici olarak kapatılıyor:
+    - `render.drawAmbientDust`
+    - `render.drawSandSurfaceEffects`
+    - `render.drawVignette`
+    - `render.bloom`
+  - `render.drawMaze.sideWalls` low-perf mode'da seyrek çizime geçiyor (tek/çift satır), side border çizimi kapanıyor.
+- Doğrulama:
+  - `npm run typecheck` ✅
+  - `npm run build` ✅
+  - Playwright smoke (`web_game_playwright_client`, `?profile=1`, 3 iterasyon) ✅
+  - Son screenshot kontrolü: oyun ekranı render ediliyor, görünür regresyon yok (`output/web-game/shot-2.png`).
+- Not:
+  - Bu çözüm kaliteyi kalıcı düşürmeden yalnızca yük anlarında pahalı efektleri adaptif azaltır.

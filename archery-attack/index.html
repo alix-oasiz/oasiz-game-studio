@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Archery Attack — Game Switcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      background: #0a0812;
+    }
+
+    .tab-bar {
+      display: flex;
+      height: 44px;
+      background: #161222;
+      border-bottom: 1px solid rgba(221, 119, 51, 0.3);
+      z-index: 1000;
+    }
+
+    .tab {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: transparent;
+      border: none;
+      color: #aa8866;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 3px solid transparent;
+      padding: 0 16px;
+    }
+
+    .tab:hover {
+      color: #dd7733;
+      background: rgba(221, 119, 51, 0.05);
+    }
+
+    .tab.active {
+      color: #dd7733;
+      border-bottom-color: #dd7733;
+      background: rgba(221, 119, 51, 0.1);
+    }
+
+    .tab-icon {
+      font-size: 16px;
+    }
+
+    .game-frame {
+      display: none;
+      width: 100%;
+      height: calc(100% - 44px);
+      border: none;
+    }
+
+    .game-frame.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="tab-bar">
+    <button class="tab active" data-game="horse-archery">
+      <span class="tab-icon">&#127942;</span>
+      Horse Archery
+    </button>
+    <button class="tab" data-game="ragdoll-archers">
+      <span class="tab-icon">&#128169;</span>
+      Ragdoll Archers
+    </button>
+  </div>
+
+  <iframe id="frame-horse-archery" class="game-frame active" src="http://localhost:5174/"></iframe>
+  <iframe id="frame-ragdoll-archers" class="game-frame" src="http://localhost:5175/"></iframe>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const frames = document.querySelectorAll('.game-frame');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const game = tab.dataset.game;
+
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        frames.forEach(f => f.classList.remove('active'));
+        document.getElementById('frame-' + game).classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

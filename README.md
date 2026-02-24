@@ -43,17 +43,7 @@ Start by forking this repository to your own GitHub account:
    cd oasiz-game-studio
    ```
 
-### Step 2: Choose a Game from the Backlog
-
-Check out the **[Game Backlog](./BACKLOG.md)** for a list of popular mobile games you can build. Pick one that interests you and **confirm with the Oasiz team before starting** to avoid overlap with other developers.
-
-### Step 3: Create Your Game
-
-You have two paths to create a game:
-
-#### Option A: Start from Scratch
-
-Use this approach when building something entirely new.
+### Step 2: Create Your Game
 
 ```bash
 # 1. Copy the template folder
@@ -74,34 +64,7 @@ bun run dev
 bun run build
 ```
 
-#### Option B: Fork an Existing Game
-
-Use this approach when you want to iterate on a proven design or learn from existing code.
-
-```bash
-# 1. Copy an existing game (e.g., car-balance, paddle-bounce, threes)
-cp -r car-balance/ your-game-name/
-
-# 2. Navigate to your game folder  
-cd your-game-name/
-
-# 3. Install dependencies
-bun install
-
-# 4. Iterate and customize!
-bun run dev
-
-# 5. Build when ready
-bun run build
-```
-
-**Recommended games to fork:**
-- `car-balance` - Good for physics-based games
-- `paddle-bounce` - Classic arcade mechanics
-- `threes` - Puzzle game patterns
-- `police-chase` - Endless runner style
-
-### Step 4: Submit a Pull Request
+### Step 3: Submit a Pull Request
 
 When your game is complete and tested:
 
@@ -323,6 +286,13 @@ Categories: `arcade`, `puzzle`, `party`, `action`, `strategy`, `casual`
 
 If you skip this file, defaults will be used (folder name as title, "test" for description/category, portrait-locked).
 
+**Update vs. new game:** The platform uses the **`title`** (from `publish.json`) combined with your **account email** (from `OASIZ_EMAIL`) to determine whether to update an existing game or create a new one:
+- **Same title + same email** = updates the existing game
+- **Different title + same email** = creates a new game
+- **Same title + different email** = creates a new game (each creator has their own namespace)
+
+To upload a new version of the same game, just keep the title the same and run `bun run upload` again. To create a separate new game, change the `title` in `publish.json`.
+
 #### 3. Upload Your Game
 
 ```bash
@@ -339,7 +309,6 @@ bun run upload your-game-name --dry-run     # Test without uploading
 
 # Combine options:
 bun run upload your-game-name horizontal --skip-build
-
 # List all available games
 bun run upload --list
 ```

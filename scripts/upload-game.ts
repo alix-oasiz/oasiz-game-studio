@@ -708,6 +708,7 @@ async function main(): Promise<void> {
     console.log("Options:");
     console.log("  horizontal     Upload as landscape-friendly (verticalOnly=false)");
     console.log("  vertical       Upload as portrait-locked (verticalOnly=true, default)");
+    console.log("  new            Upload as a new game (ignore existing gameId)");
     console.log("  --list, -l     List available game folders");
     console.log("  --skip-build   Skip the build step (use existing dist/)");
     console.log("  --dry-run      Build but don't upload (test mode)");
@@ -735,6 +736,7 @@ async function main(): Promise<void> {
   const skipBuild = args.includes("--skip-build");
   const dryRun = args.includes("--dry-run");
   const useInlining = args.includes("--inline");
+  const uploadAsNew = args.includes("new");
 
   // Orientation: "horizontal" → verticalOnly=false, "vertical" or omitted → verticalOnly=true
   const hasHorizontal = args.includes("horizontal");
@@ -753,6 +755,10 @@ async function main(): Promise<void> {
   // Read publish config
   const publishConfig = await readPublishConfig(gamePath);
   logSuccess(`Loaded publish.json: "${publishConfig.title}"`);
+
+  if (uploadAsNew) {
+    logInfo("Uploading as NEW game (ignoring existing gameId)");
+  }
 
   // Build the game
   if (!skipBuild) {
@@ -785,7 +791,7 @@ async function main(): Promise<void> {
     description: publishConfig.description,
     category: publishConfig.category,
     email: CREATOR_EMAIL!,
-    gameId: publishConfig.gameId,
+    gameId: uploadAsNew ? undefined : publishConfig.gameId,
     isMultiplayer: publishConfig.isMultiplayer,
     maxPlayers: publishConfig.maxPlayers,
     verticalOnly: orientationOverride ?? publishConfig.verticalOnly,

@@ -1,0 +1,195 @@
+#########################
+#.........C..C.........#
+#.......................#
+#.........####..........#
+#.........#  #..........#
+#.........#  #..........#
+#####.....#  #.....#####
+    #.....#  #.....#
+    #.....####.....#
+    #...............#
+    #....C.....C....#
+    #################
+    #...............#
+    #..X..=======..X#
+    #...............#
+    #################
+          #.....#
+          #..P..#
+          #.....#
+          #######
+          #.....#
+          #.....#
+          #######
+#########################
+#.............C.........#
+#..#######..#####..######
+#..#.....#..#...#..#....
+#..#..C..#..#...#..#....
+#..#####.#..###.#..#####
+#........#......#......
+####..#########..#######
+#......#.......#.......
+#..C...#..#######..C....
+#########################
+#.............#........#
+#.###########.#.#.######
+#.#.........#.#.#.#....
+#.#.#######.#.#.#.#....
+#.#.#.....#.#.#.#.#....
+#.#.#.###.#.#.#.#.#....
+#.#.#.#X#.#.#.#.#.#....
+#.#.#.###.#.#.#.#.#....
+#.#.#.....#.#.#.#.#....
+#.###########.#.#.######
+#.............#........#
+#########################
+#..C...................#
+#.#######.###########..#
+#.#.....#.#.........#..#
+#.#.###.#.#.#######.#..#
+#.#.#X#.#.#.#.....#.#..#
+#.#.###.#.#.#.###.#.#..#
+#.#.....#.#.#.#...#.#..#
+#.#########.#.#.#####..#
+#...........#.#........#
+#########################
+#...........C...........#
+#..###################.#
+#..#.................#.#
+#..#.#######.#######.#.#
+#..#.#.....#.#.....#.#.#
+#..#.#.###.#.#.###.#.#.#
+#..#.#.#X#.#.#.#X#.#.#.#
+#..#.#.###.#.#.###.#.#.#
+#..#.#.....#.#.....#.#.#
+#..###################.#
+#.......................#
+#########################
+~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
+🧠 GENERATION RULES (THIS IS THE IMPORTANT PART)
+
+These rules are what make Cursor-generated procedural maps NOT break.
+
+1️⃣ CORE SOLVABILITY RULES (Never Break These)
+✅ Rule 1: One Guaranteed Vertical Path
+
+Every chunk must contain at least one full vertical corridor
+
+Corridor width ≥ 1 tile
+
+No traps allowed fully blocking it
+
+This ensures water pressure never softlocks the player.
+
+✅ Rule 2: Sliding Safety
+
+Any corridor longer than 6 tiles must:
+
+End in a wall OR
+
+Have a side exit
+
+Never allow infinite sliding loops.
+
+✅ Rule 3: Traps Are Optional, Not Mandatory
+
+Traps may guard coins, never the only exit
+
+The player must always be able to bypass traps
+
+2️⃣ CHUNK STRUCTURE RULES (Endless Friendly)
+
+Each chunk should be:
+
+Height: 8–14 tiles
+Width: constant across all chunks
+
+
+Chunk types you rotate between:
+
+Chunk Type	Purpose
+Intro	Safe learning
+Shaft	Fast vertical movement
+Horizontal	Timing challenge
+Zigzag	Direction switching
+Open Room	Breathing space
+Trap Room	Risk / reward
+3️⃣ VARIATION RULES (What Changes Each Run)
+🔄 Rule A: Mirror & Rotate
+
+Randomly mirror chunks horizontally
+
+Rarely rotate 180° (only if vertical exits still align)
+
+🔄 Rule B: Coin Logic
+
+Coins form lines pointing toward safe routes
+
+Coin count per chunk: 2–6
+
+Never place coins in dead ends without exits
+
+🔄 Rule C: Trap Budget
+
+Per chunk:
+
+Easy: 0–1 traps
+
+Medium: 1–2 traps
+
+Hard: 2–3 traps
+
+Never exceed trap budget.
+
+🔄 Rule D: Hazard Lane Mutation
+
+For ======= lanes:
+
+Randomize length
+
+Sometimes break into two shorter lanes
+
+Occasionally replace with moving enemy
+
+4️⃣ WATER RULES (EXTREMELY IMPORTANT)
+🌊 Water Speed Curve
+Start speed: very slow
+Increase every 15–20 seconds
+Cap speed after 2–3 minutes
+
+🌊 Safe Zone Rule
+
+Every chunk must give:
+
+≥ 2 seconds of movement time
+
+No immediate forced trap at entry
+
+5️⃣ SIMPLE GENERATION ALGORITHM (Cursor Loves This)
+
+You can paste this logic directly:
+
+1. Start with intro chunk
+2. While game is running:
+   - Pick next chunk type
+   - Apply random variation rules
+   - Validate solvability rules
+   - Append above current map
+3. Remove chunks below water
+
+🔥 WHY THIS WORKS (Design Insight)
+
+Water creates urgency
+
+Coins teach routing
+
+Traps add spice, not frustration
+
+Vertical focus keeps it fast
+
+Chunk system prevents impossible maps
+
+This is exactly how Tomb of the Mask avoids rage quits.

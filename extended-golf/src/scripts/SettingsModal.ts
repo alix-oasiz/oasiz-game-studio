@@ -114,10 +114,6 @@ export default class SettingsModal {
 
         // Hide settings button by default (shown during gameplay)
         this.setVisible(false);
-
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/997351de-2588-4a8c-ab40-731c1e4f75c0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsModal.ts:create',message:'SettingsModal.create() completed - panel reset',data:{isOpen:this.isOpen,panelHidden:this.settingsPanel?.classList.contains('hidden')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
     }
 
     /**
@@ -142,9 +138,11 @@ export default class SettingsModal {
             // Play SFX
             this.playSFX("ButtonClick");
 
-            // Trigger haptic
-            if (typeof (window as any).triggerHaptic === "function") {
-                (window as any).triggerHaptic("light");
+            // Trigger haptic (respect settings)
+            if (localStorage.getItem('golf_settings_haptics') !== 'false') {
+                if (typeof (window as any).triggerHaptic === "function") {
+                    (window as any).triggerHaptic("light");
+                }
             }
 
             callback();
@@ -204,7 +202,7 @@ export default class SettingsModal {
         this.isOpen = false;
 
         this.settingsPanel?.classList.add("hidden");
-        this.scene.matter.world.resume();
+        (this.scene as any).physicsPaused = false;
 
         if (this.scene.scene.isActive("Menu")) {
             this.scene.scene.bringToTop("Menu");
@@ -226,10 +224,10 @@ export default class SettingsModal {
         }
 
         if (this.isOpen) {
-            this.scene.matter.world.pause();
+            (this.scene as any).physicsPaused = true;
             this.scene.scene.bringToTop();
         } else {
-            this.scene.matter.world.resume();
+            (this.scene as any).physicsPaused = false;
             if (this.scene.scene.isActive("Menu")) {
                 this.scene.scene.bringToTop("Menu");
             }
@@ -241,10 +239,6 @@ export default class SettingsModal {
      * Called on scene shutdown/restart to prevent stale handlers.
      */
     public destroy() {
-        // #region agent log
-        fetch('http://127.0.0.1:7245/ingest/997351de-2588-4a8c-ab40-731c1e4f75c0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsModal.ts:destroy',message:'SettingsModal.destroy() called',data:{wasOpen:this.isOpen},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
-
         if (this.abortController) {
             this.abortController.abort();
             this.abortController = null;

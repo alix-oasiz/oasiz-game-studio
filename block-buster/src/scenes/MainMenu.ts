@@ -125,18 +125,15 @@ export default class MainMenu extends Phaser.Scene {
         });
 
         btnTop.on('pointerdown', () => {
-            // Click Animation
             this.tweens.add({
                 targets: playBtnContainer,
-                y: btnCoords.y + 10, // Move down to simulate press
+                y: btnCoords.y + 10,
                 duration: 50,
                 yoyo: true,
                 onComplete: () => {
                     this.startGame();
                 }
             });
-
-            // Sound
             this.sound.play('blockPop');
         });
 

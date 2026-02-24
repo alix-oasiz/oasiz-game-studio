@@ -1,29 +1,17 @@
-Run 'bun run build' after making/changing games
-
 # Game Development Rules
 Follow these rules for any game development task:
 
-### 1. Setup
-- **Clone Template**: `cp -r template/ <game-name>`
-- **Structure**: All game code resides in the `src/` directory. `src/main.ts` is the entry point, but code can be split across multiple files within `src/`. Entry in `index.html`.
-- **Install**: Run `bun install` in the game folder.
-- **Build**: Run `bun run build` **from within the game folder** (e.g., `cd police-chase && bun run build`). Do NOT run from root or frontend—those are separate builds.
+### 1. Logic & Style
+- **TypeScript**: Use TypeScript for all logic. No JavaScript in `index.html`.
+- **CSS**: Place CSS in `<style>` tag in `index.html`.
+- **Logs**: Always use `console.log('[FunctionName]', message)`.
+- **Backticks**: Never use backticks inside template literals.
 
 ### 2. Multiplayer Games (Playroom Kit)
 
-If you are building a **multiplayer game**, use [Playroom Kit](https://docs.joinplayroom.com/) for real-time networking. Reference `draw-the-thing/` as a working example.
+If you are building a **multiplayer game**, use [Playroom Kit](https://docs.joinplayroom.com/) for real-time networking.
 
-#### Setup
-1. Install the Playroom Kit npm package:
-   ```bash
-   bun add playroomkit
-   ```
-2. Include the UMD script in your HTML (for non-bundled usage):
-   ```html
-   <script src="https://unpkg.com/playroomkit/multiplayer.full.umd.js" crossorigin="anonymous"></script>
-   ```
-
-#### Key Patterns (from `draw-the-thing`)
+#### Key Patterns
 
 **Connecting to a Room:**
 ```typescript
@@ -106,39 +94,9 @@ if (window.__ROOM_CODE__) {
 }
 ```
 
-See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for complete implementation.
-
-> 📚 **For more in-depth Playroom Kit knowledge**, see [`playroom_js.md`](./playroom_js.md) which covers additional API functions like RPC calls, kicking players, and detailed state management examples.
-
 ---
 
-### 3. External Tools & APIs
-- **Image Generation**: Use `tools/imageGenerator.ts` to generate 2D images via Replicate (`openai/gpt-image-1.5`). 
-  - **Asset Creation**: Proactively use this tool to create all necessary game assets including textures, backgrounds, buttons, and UI elements.
-  - **Prompting**: Instruct the model to create solid borders with a white background for sprites and objects.
-- **Background Removal**: Use `tools/backgroundRemover.ts` to remove backgrounds from images via Replicate. 
-  - Use this for game sprites, characters, items, or any objects that need transparent backgrounds for canvas layering.
-  - Call: `await removeBackground('input.png', 'output.png')` — returns a Buffer with transparent background.
-- **Music Generation**: Use `tools/musicGenerator.ts` to generate music and audio via Replicate (`google/lyria-2`).
-  - **Audio Creation**: Use this tool to create background music, sound effects, and ambient audio for games.
-  - **Call**: `await generateMusic('upbeat retro game soundtrack', 'output.wav')` — returns a Buffer with audio data.
-  - **Options**: Optionally pass `{ negativePrompt: '...', seed: 123 }` as third parameter for more control.
-  - **Prompting Tips**: Be descriptive about genre, mood, tempo, and instruments. Examples:
-    - "epic orchestral battle theme with dramatic drums and brass"
-    - "peaceful 8-bit chiptune melody for a puzzle game menu"
-    - "tense electronic ambient music with synth pads for a sci-fi game"
-  - **Audio CDN**: Generated audio files are hosted at `https://assets.oasiz.ai/audio/`. Reference audio in games using this base URL (e.g., `fetch("https://assets.oasiz.ai/audio/game-music.wav")`).
-- **UploadThing (File Hosting)**: Use `UTApi` from `uploadthing/server` to upload local files and get public URLs. Requires `UPLOADTHING_TOKEN`.
-  - To upload a Buffer: `await utapi.uploadFiles([new File([buffer], 'filename.png')])`
-  - Get URL from response: `response.data.url`
-
-### 4. Logic & Style
-- **TypeScript**: Use TypeScript for all logic. No JavaScript in `index.html`.
-- **CSS**: Place CSS in `<style>` tag in `index.html`.
-- **Logs**: Always use `console.log('[FunctionName]', message)`.
-- **Backticks**: Never use backticks inside template literals.
-
-### 5. Design & Polish
+### 3. Design & Polish
 - **Professionalism**: These games will be shown to thousands of people; they must look and feel professional.
 - **Aesthetics**: Make the games beautiful. Use high-quality visual assets, smooth animations, and polished UI.
 - **Start Screens**: Create stunning start screens that immediately engage players and establish the game's theme.
@@ -146,7 +104,7 @@ See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for com
 - **Settings Button (REQUIRED)**: Every game MUST include a settings button with toggles for Music, FX, and Haptics. See Technical Requirements for full details.
 
 
-### 6. Technical Requirements
+### 4. Technical Requirements
 
 - **No Emojis**: Use icons from a library instead of Emojis, they look unprofessional and inconsistent across platforms.
 
@@ -281,7 +239,7 @@ See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for com
     ```
 
 
-### 7. Performance & Code Quality
+### 5. Performance & Code Quality
 
 - **No Random Values in Render Loops (CRITICAL)**:
   - NEVER use `Math.random()` or `randomRange()` inside `draw*()` or `render()` functions
@@ -331,7 +289,7 @@ See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for com
 - **Meta Tags**:
   - Use `<meta name="mobile-web-app-capable" content="yes">` (NOT `apple-mobile-web-app-capable` which is deprecated)
 
-### 8. Handheld Console (Game Boy) UI Design
+### 6. Handheld Console (Game Boy) UI Design
 
 When creating games that use a physical handheld console (Game Boy) aesthetic, follow these precise sizing and positioning guidelines to ensure a professional feel and mobile ergonomics:
 
@@ -361,9 +319,9 @@ When creating games that use a physical handheld console (Game Boy) aesthetic, f
 - **Interactive UI (Pause/Settings)**:
   - Follow the **Top Safe Area** requirements: `top: 115px - 120px` on mobile and `45px` on desktop.
 
-# Coding Agent Guidelines: High Score Submission & Haptics
+# Coding Agent Guidelines: High Score Submission, Haptics, and Game State
 
-This document explains how games generated by the Oasis coding agent must handle score submission and haptic feedback to integrate with the platform's systems on both web and mobile.
+This document explains how games generated by the Oasis coding agent must handle score submission, haptic feedback, and persistent game state to integrate with the platform's systems on both web and mobile.
 
 ## 1. High Score Submission: `window.submitScore`
 
@@ -409,6 +367,37 @@ window.triggerHaptic(type);
     - *Example (Paddle Bounce)*: `success` for a perfect center hit, `medium` for an edge hit.
 - **Continuous Actions**: For continuous controls (like a D-Pad or tilt buttons), trigger a `"light"` haptic on the initial press to provide a tactile "click."
 - **Major Events**: Use `"heavy"` sparingly for game-changing events like bomb explosions or major screen shakes.
+
+## 3. Game State Persistence: `window.loadGameState` / `window.saveGameState`
+
+Games can load and persist per-user state for the current game via injected runtime helpers:
+
+```javascript
+const state = window.loadGameState();
+window.saveGameState({ ...state, level: 3 });
+```
+
+### Requirements:
+1. **Object Only**: State payloads must be plain JSON objects (not arrays, not primitives).
+2. **Availability**: The platform injects these functions automatically. Check for existence to avoid local-dev crashes.
+3. **No Custom Persistence Layer**: Do not build your own backend bridge in game code.
+4. **No Local Progress Storage**: Do not use `localStorage` for cross-session game progress/state. Use `window.saveGameState` so state is synced per game per user across web/mobile.
+
+### Runtime API:
+- `window.loadGameState(): Record<string, unknown>`  
+  Returns the latest persisted state object for this user and game.
+- `window.saveGameState(state: Record<string, unknown>): void`  
+  Queues a save for the provided state object.
+- `window.flushGameState(): void`  
+  Forces an immediate flush of any pending state save (usually not needed, but available for important checkpoints).
+
+## When to Save Game State
+
+Use `window.saveGameState` at meaningful checkpoints such as:
+1. Level editor changes
+2. Inventory/progression updates
+3. Checkpoint or run-end snapshots
+4. User-created content updates
 
 ## When to Submit Scores
 
@@ -458,10 +447,26 @@ private onGameOver(): void {
 }
 ```
 
+### Game State Pattern
+```typescript
+private loadPersistentState(): Record<string, unknown> {
+  if (typeof (window as any).loadGameState === "function") {
+    return (window as any).loadGameState();
+  }
+  return {};
+}
+
+private savePersistentState(nextState: Record<string, unknown>): void {
+  if (typeof (window as any).saveGameState === "function") {
+    (window as any).saveGameState(nextState);
+  }
+}
+```
+
 ## How It Works Under the Hood (For Context)
 
-- **On Web**: The platform injects scripts that listen for these calls. `submitScore` sends a `postMessage` to the parent window. `triggerHaptic` uses the Web Vibration API as a fallback.
-- **On Mobile**: The platform injects a bridge into the WebView. Both functions send messages to the native React Native layer via `ReactNativeWebView.postMessage`, which handles the API calls and triggers native haptic styles.
+- **On Web**: The platform injects scripts that listen for these calls. `submitScore` and `saveGameState` send `postMessage` events to the parent window. `triggerHaptic` uses the Web Vibration API as a fallback.
+- **On Mobile**: The platform injects a bridge into the WebView. `submitScore`, `triggerHaptic`, and `saveGameState` route through `ReactNativeWebView.postMessage`, which forwards to native handlers.
 
 ## Agent Instructions
 
@@ -469,7 +474,9 @@ When writing game logic:
 - **Always** include a `score` variable for the current session.
 - **Always** call `window.submitScore(this.score)` when the game ends (Game Over).
 - **Always** implement haptic feedback for key interactions (hits, pickups, UI).
+- **Always** use `window.loadGameState()` / `window.saveGameState(state)` for per-user persistent game data.
 - **Check** for the existence of these functions before calling them.
 - **Never** track high scores, "best" scores, or most recent scores locally.
+- **Never** store cross-session gameplay progress in `localStorage`.
 - **Never** display a "Best" or "High Score" UI element. Only show the current session's score.
 - **Never** attempt to implement the storage logic or native bridge within the game code itself.

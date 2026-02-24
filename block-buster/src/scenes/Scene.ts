@@ -3,24 +3,6 @@
 /* START OF COMPILED CODE */
 
 /* START-USER-IMPORTS */
-import {
-	getAllAnimDefs,
-	DAMAGE_IMPACT,
-	DAMAGE_KILL,
-	BALL_SPAWN,
-	DUPLICATE_SPLIT,
-	DASH_TRAIL,
-	LASER_IMPACT,
-	LASER_ACTIVATION,
-	ELECTRIC_CHAIN,
-	ELECTRIC_STRIKE,
-	ELECTRIC_ENDPOINT,
-	BOMB_EXPLOSION,
-	BOMB_SHOCKWAVE,
-	BOMB_SMOKE,
-	BOMB_PREFLASH,
-	BURST_FLASH,
-} from "../SpriteAnimConfig";
 /* END-USER-IMPORTS */
 
 export default class Scene extends Phaser.Scene {
@@ -54,40 +36,46 @@ export default class Scene extends Phaser.Scene {
 	private level: number = 1;
 	private enemiesDefeated: number = 0; // To track leveling
 	private enemySpeed: number = 1;
-	private enemyHP: number = 3.8;
+	private enemyHP: number = 1;
 
 	// Shop & Combat Stats
 	private bulletDamage: number = 1;
-	private damageCost: number = 100;
+	private damageCost: number = 150;
 
 	// Spiral Burst Stats
 	private ballCost: number = 50;
+	private ballLevel: number = 0;
 	private spiralAngle: number = -Math.PI / 2; // Start from top
-	private duplicateCost: number = 50;
+	private orbitCost: number = 100;
 
-	private spawnDistance: number = 55; // Spacing between rings of blocks
+	private spawnDistance: number = 75; // Spacing between rings of blocks
 	private spawnTimer!: Phaser.Time.TimerEvent;
 
 	// Upgrade Levels
 	private damageLevel: number = 1;
-	private duplicateLevel: number = 0;
+	private orbitLevel: number = 0;
+	private orbitBalls: Phaser.GameObjects.Arc[] = [];
+	private orbitRadius: number = 80;
+	private orbitAngle: number = 0;
+	private orbitTrailGraphics!: Phaser.GameObjects.Graphics;
 	private laserLevel: number = 0;
-	private laserCost: number = 200;
+	private laserCost: number = 300;
 	private laserChance: number = 0;
 	private electricLevel: number = 0;
-	private electricCost: number = 200;
+	private electricCost: number = 300;
 	private electricChance: number = 0;
 	private bombLevel: number = 0;
-	private bombCost: number = 200;
+	private bombCost: number = 300;
 	private bombChance: number = 0;
 
-	private duplicateMaxed: boolean = false;
+	// No max levels - all upgrades are infinite
 	private purchaseStartTime: number = 0;
 	private currentCatchUpMultiplier: number = 1;
 
 	// Level Management
 	private wavesSpawned: number = 0;
 	private isLevelActive: boolean = true;
+	private gameOverTriggered: boolean = false;
 	private lastSpawnedDistance: number = 0; // Track distance of last wave for spacing
 
 	// Visuals
@@ -95,6 +83,7 @@ export default class Scene extends Phaser.Scene {
 	private trailEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
 	private impactEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
 	private explosionEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+	private bulletGlowSprites: Map<Phaser.GameObjects.Arc, Phaser.GameObjects.Image> = new Map();
 
 	private bgMusic!: Phaser.Sound.BaseSound;
 	private audioSettings: { music: boolean, fx: boolean } = { music: true, fx: true };
@@ -104,11 +93,75 @@ export default class Scene extends Phaser.Scene {
 	private currentDynamicColor: number = 0x242424; // Initial background color
 	private colorTransitionTimer!: Phaser.Time.TimerEvent;
 
+	// World & Camera Panning
+	private worldWidth: number = 0;
+	private worldHeight: number = 0;
+	private isPanning: boolean = false;
+	private fireTrailEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+
 	create(data: { isTestMode?: boolean }) {
 
 		this.editorCreate();
 
-		this.cameras.main.setZoom(0.8);
+		// Remove debug overlay if present from previous session
+		const dbgEl = document.getElementById('_dbg_overlay');
+		if (dbgEl) dbgEl.remove();
+
+		// Reset all game state for clean restarts
+		this.money = 100;
+		this.level = 1;
+		this.enemiesDefeated = 0;
+		this.enemySpeed = 1;
+		this.enemyHP = 1;
+		this.bulletDamage = 1;
+		this.damageCost = 150;
+		this.ballCost = 50;
+		this.ballLevel = 0;
+		this.spiralAngle = -Math.PI / 2;
+		this.orbitCost = 100;
+		this.spawnDistance = 75;
+		this.damageLevel = 1;
+		this.orbitLevel = 0;
+		this.orbitBalls = [];
+		this.orbitRadius = 80;
+		this.orbitAngle = 0;
+		this.laserLevel = 0;
+		this.laserCost = 300;
+		this.laserChance = 0;
+		this.electricLevel = 0;
+		this.electricCost = 300;
+		this.electricChance = 0;
+		this.bombLevel = 0;
+		this.bombCost = 300;
+		this.bombChance = 0;
+		this.purchaseStartTime = 0;
+		this.currentCatchUpMultiplier = 1;
+		this.wavesSpawned = 0;
+		this.isLevelActive = true;
+		this.gameOverTriggered = false;
+		this.lastSpawnedDistance = 0;
+		this.score = 0;
+		this.lastBlockPopPlayTime = 0;
+		this.lastShopRefresh = 0;
+		this.globalWorldSpeed = 0.6;
+		this.input.enabled = true;
+		this.isPanning = false;
+
+		// Clean up glow sprites from previous session
+		this.bulletGlowSprites.forEach((glow) => glow.destroy());
+		this.bulletGlowSprites.clear();
+
+		// World extends equally in all directions beyond the visible area
+		const zoom = 0.55;
+		const visibleW = this.scale.width / zoom;
+		const visibleH = this.scale.height / zoom;
+		const panPadding = 1200;
+		this.worldWidth = visibleW + panPadding * 2;
+		this.worldHeight = visibleH + panPadding * 2;
+
+		this.cameras.main.setZoom(0.55);
+		this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+		this.cameras.main.centerOn(this.worldWidth / 2, this.worldHeight / 2);
 
 		// Initial background color setup - Start with Black
 		this.currentDynamicColor = 0x000000;
@@ -122,8 +175,8 @@ export default class Scene extends Phaser.Scene {
 			loop: true
 		});
 
-		const centerX = this.scale.width / 2;
-		const centerY = this.scale.height / 2;
+		const centerX = this.worldWidth / 2;
+		const centerY = this.worldHeight / 2;
 		this.centerTarget = this.add.zone(centerX, centerY, 10, 10);
 
 		// Create Idle Hexagon (Visual Only)
@@ -150,8 +203,7 @@ export default class Scene extends Phaser.Scene {
 		this.idleHexagon.fillPath();
 		this.idleHexagon.strokePath();
 
-		// Add colored glow
-		this.idleHexagon.postFX.addGlow(0x00ff00, 2.5, 0, false, 0.1, 16);
+		// No glow behind hexagon — keep center clean
 
 		this.enemies = this.add.group();
 		this.bullets = this.add.group();
@@ -170,17 +222,17 @@ export default class Scene extends Phaser.Scene {
 		if (!this.textures.exists('bulletTrail')) {
 			const graphics = this.make.graphics({ x: 0, y: 0 });
 			graphics.fillStyle(0xffffff, 1);
-			graphics.fillCircle(10, 10, 10); // Match bullet radius
-			graphics.generateTexture('bulletTrail', 20, 20);
+			graphics.fillCircle(18, 18, 18); // Match bullet radius
+			graphics.generateTexture('bulletTrail', 36, 36);
 		}
 
 		this.trailEmitter = this.add.particles(0, 0, 'bulletTrail', {
 			speed: 0,
 			scale: { start: 1, end: 0.2 },
 			alpha: { start: 0.25, end: 0 },
-			lifespan: 150,
+			lifespan: 90,
 			blendMode: 'NORMAL',
-			frequency: -1 // Manual emission
+			frequency: -1
 		});
 
 		this.impactEmitter = this.add.particles(0, 0, 'particle', {
@@ -201,6 +253,138 @@ export default class Scene extends Phaser.Scene {
 			quantity: 30,
 			emitting: false,
 			tint: 0xff4444 // Reddish tint
+		});
+
+		// Fire trail texture (small warm circle for tier 2+)
+		if (!this.textures.exists('fireTrail')) {
+			const g = this.make.graphics({ x: 0, y: 0 });
+			g.fillStyle(0xffffff, 1);
+			g.fillCircle(6, 6, 6);
+			g.generateTexture('fireTrail', 12, 12);
+		}
+
+		// Pre-rendered glow textures (replaces expensive per-object postFX.addGlow shaders)
+		const glowSize = 56;
+		const glowCenter = glowSize / 2;
+		if (!this.textures.exists('glowWhite')) {
+			const g = this.make.graphics({ x: 0, y: 0 });
+			g.fillStyle(0xffffff, 0.15);
+			g.fillCircle(glowCenter, glowCenter, glowCenter);
+			g.fillStyle(0xffffff, 0.1);
+			g.fillCircle(glowCenter, glowCenter, glowCenter * 0.65);
+			g.generateTexture('glowWhite', glowSize, glowSize);
+			g.destroy();
+		}
+
+		this.fireTrailEmitter = this.add.particles(0, 0, 'fireTrail', {
+			speed: { min: 5, max: 30 },
+			scale: { start: 0.8, end: 0 },
+			alpha: { start: 0.6, end: 0 },
+			lifespan: 120,
+			blendMode: 'ADD',
+			tint: [0xff4400, 0xff8800, 0xffcc00],
+			frequency: -1
+		});
+
+		// Touch-to-pan camera using raw DOM events (bypasses Phaser's per-frame batching)
+		const panBarHeight = 180;
+		let lastScreenX = 0;
+		let lastScreenY = 0;
+		const panCam = this.cameras.main;
+		const gameCanvas = this.game.canvas;
+
+		// Zoom limits: default 0.55, zoom in to 0.85, zoom out to 0.38
+		const zoomMin = 0.38;
+		const zoomMax = 0.85;
+		const zoomDefault = 0.55;
+		let pinchStartDist = 0;
+		let pinchStartZoom = zoomDefault;
+		let isPinching = false;
+
+		const getTouchDist = (e: TouchEvent): number => {
+			const a = e.touches[0];
+			const b = e.touches[1];
+			return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+		};
+
+		const clampZoom = (z: number): number => Math.min(zoomMax, Math.max(zoomMin, z));
+
+		const onTouchStart = (e: TouchEvent) => {
+			if (e.touches.length === 2) {
+				isPinching = true;
+				this.isPanning = false;
+				pinchStartDist = getTouchDist(e);
+				pinchStartZoom = panCam.zoom;
+				return;
+			}
+			if (e.touches.length === 1) {
+				const t = e.touches[0];
+				if (t.clientY > window.innerHeight - panBarHeight) return;
+				this.isPanning = true;
+				lastScreenX = t.clientX;
+				lastScreenY = t.clientY;
+			}
+		};
+		const onTouchMove = (e: TouchEvent) => {
+			if (isPinching && e.touches.length === 2) {
+				const dist = getTouchDist(e);
+				const scale = dist / pinchStartDist;
+				panCam.setZoom(clampZoom(pinchStartZoom * scale));
+				return;
+			}
+			if (!this.isPanning || e.touches.length !== 1) return;
+			const t = e.touches[0];
+			const dx = t.clientX - lastScreenX;
+			const dy = t.clientY - lastScreenY;
+			panCam.scrollX -= dx / panCam.zoom;
+			panCam.scrollY -= dy / panCam.zoom;
+			lastScreenX = t.clientX;
+			lastScreenY = t.clientY;
+		};
+		const onTouchEnd = (e: TouchEvent) => {
+			if (e.touches.length < 2) isPinching = false;
+			if (e.touches.length === 0) this.isPanning = false;
+		};
+		const onWheel = (e: WheelEvent) => {
+			e.preventDefault();
+			const zoomDelta = e.deltaY > 0 ? -0.03 : 0.03;
+			panCam.setZoom(clampZoom(panCam.zoom + zoomDelta));
+		};
+
+		gameCanvas.addEventListener('touchstart', onTouchStart, { passive: true });
+		gameCanvas.addEventListener('touchmove', onTouchMove, { passive: true });
+		gameCanvas.addEventListener('touchend', onTouchEnd, { passive: true });
+		gameCanvas.addEventListener('wheel', onWheel, { passive: false });
+
+		// Clean up raw DOM listeners when scene shuts down (prevents stacking on restart)
+		this.events.once('shutdown', () => {
+			gameCanvas.removeEventListener('touchstart', onTouchStart);
+			gameCanvas.removeEventListener('touchmove', onTouchMove);
+			gameCanvas.removeEventListener('touchend', onTouchEnd);
+			gameCanvas.removeEventListener('wheel', onWheel);
+		});
+
+		// Desktop mouse panning (kept via Phaser since mouse events are reliable)
+		this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+			if (p.event instanceof TouchEvent) return;
+			const ev = p.event as MouseEvent;
+			if (ev.clientY > window.innerHeight - panBarHeight) return;
+			this.isPanning = true;
+			lastScreenX = ev.clientX;
+			lastScreenY = ev.clientY;
+		});
+		this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+			if (p.event instanceof TouchEvent) return;
+			if (!this.isPanning || !p.isDown) return;
+			const ev = p.event as MouseEvent;
+			panCam.scrollX -= (ev.clientX - lastScreenX) / panCam.zoom;
+			panCam.scrollY -= (ev.clientY - lastScreenY) / panCam.zoom;
+			lastScreenX = ev.clientX;
+			lastScreenY = ev.clientY;
+		});
+		this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+			if (p.event instanceof TouchEvent) return;
+			this.isPanning = false;
 		});
 
 		// Start UI Scene
@@ -224,7 +408,7 @@ export default class Scene extends Phaser.Scene {
 			this.bulletDamage = 80;
 			// Removed old stats
 			this.damageLevel = 20;
-			this.duplicateLevel = 20;
+			this.orbitLevel = 5;
 			this.laserLevel = 6;
 			this.laserChance = 20;
 			this.damageCost = 6000;
@@ -232,20 +416,20 @@ export default class Scene extends Phaser.Scene {
 
 			// Difficulty Scaling (Level 100 difficulty)
 			// Speed caps at Level 20
-			this.enemyHP = 2 + (100 - 1) * 1.0; // Scaled HP
-			this.enemySpeed = 1 + (19 * 0.037); // Max speed (level 20 cap)
-			this.globalWorldSpeed = 2 + (19 * 0.11); // Max speed (level 20 cap)
+			this.enemyHP = 1 + (100 - 1) * 0.5; // Scaled HP
+			this.enemySpeed = 1 + (19 * 0.055);
+			this.globalWorldSpeed = 3 + (19 * 0.165);
 
-			// Update UI initial states
 			this.time.delayedCall(100, () => {
 				this.events.emit('update-money', this.money);
 				this.events.emit('update-level', this.level);
+				this.events.emit('update-score', this.score);
 			});
 		} else {
-			// Normal Mode: ALSO emit initial states after delay to ensure UI is ready
 			this.time.delayedCall(100, () => {
 				this.events.emit('update-money', this.money);
 				this.events.emit('update-level', this.level);
+				this.events.emit('update-score', this.score);
 			});
 		}
 
@@ -258,118 +442,93 @@ export default class Scene extends Phaser.Scene {
 		this.events.on('request-upgrade', (type: string) => {
 			// Enforce 5-second initial lock
 			if (this.time.now - this.purchaseStartTime < 5000) {
-				this.events.emit('update-shop-prices', { totalLocked: true });
+				this.updateShopUI();
 				return;
 			}
 
 			// Enforce Lock: Cannot buy anything else until first ball is bought
 			if (type !== 'balls' && this.ballCost <= 50) {
-				this.events.emit('update-shop-prices', { totalLocked: true });
+				this.updateShopUI();
 				return;
 			}
 
 			let purchased = false;
+
+			// Cost scaling helper: linear x1.4 up to level 10, then exponential x1.8 after
+			const nextCost = (currentCost: number, level: number): number => {
+				if (level <= 10) {
+					return Math.round((currentCost * 1.4) / 50) * 50;
+				}
+				return Math.round((currentCost * 1.8) / 50) * 50;
+			};
+
 			if (type === 'damage') {
 				if (this.money >= this.damageCost) {
 					this.addMoney(-this.damageCost);
 					this.damageLevel++;
-					this.bulletDamage += 0.11; // Stretched: 0.3 * (15/40)
-
-					if (this.damageLevel >= 60 || this.damageCost >= 6000) {
-						this.damageCost = 6000;
-					} else {
-						this.damageCost = Math.round((this.damageCost * 1.5) / 50) * 50;
-						if (this.damageCost > 6000) this.damageCost = 6000;
-					}
-
+					this.bulletDamage += 0.11;
+					this.damageCost = nextCost(this.damageCost, this.damageLevel);
 					this.updateShopUI();
+					this.refreshBulletVisuals();
 					purchased = true;
 				}
 			} else if (type === 'balls') {
 				if (this.money >= this.ballCost) {
 					this.addMoney(-this.ballCost);
+					this.ballLevel++;
 					this.spawnBall();
 					this.updateShopUI();
 					purchased = true;
 				}
-			} else if (type === 'duplicate') {
-				if (!this.duplicateMaxed && this.money >= this.duplicateCost) {
-					this.addMoney(-this.duplicateCost);
-					this.duplicateLevel++;
-
-					// Each upgrade adds +1 ball.
-					// Cost logic:
-					if (this.duplicateCost === 23650) {
-						this.duplicateMaxed = true;
-					} else {
-						this.duplicateCost = Math.round((this.duplicateCost * 1.5) / 50) * 50;
-						if (this.duplicateCost > 23650) this.duplicateCost = 23650;
-					}
-
+			} else if (type === 'orbit') {
+				if (this.money >= this.orbitCost) {
+					this.addMoney(-this.orbitCost);
+					this.orbitLevel++;
+					this.spawnOrbitBall();
+					this.orbitCost = nextCost(this.orbitCost, this.orbitLevel);
 					this.updateShopUI();
 					purchased = true;
 				}
 			} else if (type === 'laser') {
-				if (this.laserLevel < 6 && this.money >= this.laserCost) {
+				if (this.money >= this.laserCost) {
 					this.addMoney(-this.laserCost);
 					this.laserLevel++;
-
-					// Level 1 = 5%, +1.25% each level up to 10%
 					if (this.laserLevel === 1) {
 						this.laserChance = 5;
 					} else {
 						this.laserChance += 1.25;
 					}
-
-					if (this.laserLevel < 6) {
-						this.laserCost = Math.round((this.laserCost * 1.5) / 50) * 50;
-					}
-
+					this.laserCost = nextCost(this.laserCost, this.laserLevel);
 					this.updateShopUI();
 					purchased = true;
 				}
 			} else if (type === 'electric') {
-				if (this.electricLevel < 5 && this.money >= this.electricCost) {
+				if (this.money >= this.electricCost) {
 					this.addMoney(-this.electricCost);
 					this.electricLevel++;
-
-					// Level 1 = 10%, +2.5% each level up to 20%? 
-					// User said "5 kez updatesi olsun" and "ilk satın alındığında %10"
-					// I will do 10, 12, 14, 16, 18, 20 or similar.
 					if (this.electricLevel === 1) {
 						this.electricChance = 5;
 					} else {
 						this.electricChance += 1.25;
 					}
-
-					if (this.electricLevel < 5) {
-						this.electricCost = Math.round((this.electricCost * 1.5) / 50) * 50;
-					}
-
+					this.electricCost = nextCost(this.electricCost, this.electricLevel);
 					this.updateShopUI();
 					purchased = true;
 				}
 			} else if (type === 'bomb') {
-				if (this.bombLevel < 5 && this.money >= this.bombCost) {
+				if (this.money >= this.bombCost) {
 					this.addMoney(-this.bombCost);
 					this.bombLevel++;
-
-					// Level 1 = 5%, +1.25% each level up to 10%
 					if (this.bombLevel === 1) {
 						this.bombChance = 5;
 					} else {
 						this.bombChance += 1.25;
 					}
-
-					if (this.bombLevel < 5) {
-						this.bombCost = Math.round((this.bombCost * 1.5) / 50) * 50;
-					}
-
+					this.bombCost = nextCost(this.bombCost, this.bombLevel);
 					this.updateShopUI();
 					purchased = true;
 				}
 			} else if (type === 'burst') {
-				// Burst Cost = Ball Cost * 2
 				const cost = this.ballCost * 2;
 				if (this.money >= cost) {
 					this.addMoney(-cost);
@@ -387,6 +546,27 @@ export default class Scene extends Phaser.Scene {
 		// Listen for UI requesting update
 		this.events.on('request-shop-update', this.updateShopUI, this);
 
+		// Submit current score on request
+		this.events.on('request-current-score', () => {
+			console.log('[Scene] Score submission requested:', this.score);
+			this.events.emit('submit-score-value', this.score);
+		});
+
+		// Re-center camera on the hexagon with a smooth tween
+		this.events.on('request-recenter', () => {
+			const cam = this.cameras.main;
+			const targetX = this.getWorldCenterX() - cam.width / 2;
+			const targetY = this.getWorldCenterY() - cam.height / 2;
+			this.tweens.add({
+				targets: cam,
+				scrollX: targetX,
+				scrollY: targetY,
+				duration: 300,
+				ease: 'Power2'
+			});
+			this.triggerHaptic('light');
+		});
+
 		// Initial UI Update
 		this.updateShopUI();
 
@@ -396,50 +576,205 @@ export default class Scene extends Phaser.Scene {
 		// Initialize Audio
 		this.initAudio();
 
-		// Create sprite animations for skill effects
-		this.createSkillAnimations();
+		// VFX system uses code-generated effects (no sprite atlases needed)
 	}
 
-	// ── Sprite Animation System ─────────────────────────────────────────
+	// ── Code-Generated VFX System ───────────────────────────────────────
 
-	createSkillAnimations() {
-		const defs = getAllAnimDefs();
-		console.log("[Scene] Creating", defs.length, "sprite animations");
+	/** Expanding ring burst - great for spawn, kills, activations */
+	vfxRingBurst(x: number, y: number, color: number, radius: number = 40, thickness: number = 4, dur: number = 300) {
+		const ring = this.add.circle(x, y, 4, undefined, 0);
+		ring.setStrokeStyle(thickness, color);
+		ring.setDepth(60);
+		ring.setBlendMode(Phaser.BlendModes.ADD);
+		this.tweens.add({
+			targets: ring,
+			radius: radius,
+			alpha: 0,
+			duration: dur,
+			ease: 'Cubic.easeOut',
+			onComplete: () => ring.destroy()
+		});
+	}
 
-		for (const def of defs) {
-			// Skip if animation already exists (e.g. shared keys)
-			if (this.anims.exists(def.key)) continue;
+	/** Flash circle that pops then fades */
+	vfxFlash(x: number, y: number, color: number, size: number = 30, dur: number = 200) {
+		const flash = this.add.circle(x, y, size, color, 0.7);
+		flash.setDepth(58);
+		flash.setBlendMode(Phaser.BlendModes.ADD);
+		this.tweens.add({
+			targets: flash,
+			scale: 2.5,
+			alpha: 0,
+			duration: dur,
+			ease: 'Cubic.easeOut',
+			onComplete: () => flash.destroy()
+		});
+	}
 
-			const frames: Phaser.Types.Animations.AnimationFrame[] = [];
-			for (let i = 0; i < def.frames; i++) {
-				frames.push({ key: def.key + "_" + i });
-			}
-
-			this.anims.create({
-				key: def.key,
-				frames: frames,
-				frameRate: def.fps,
-				repeat: 0,
+	/** Radial particle burst using existing particle texture */
+	vfxParticleBurst(x: number, y: number, color: number, count: number = 12, speed: number = 200, life: number = 400) {
+		for (let i = 0; i < count; i++) {
+			const angle = (Math.PI * 2 / count) * i + Phaser.Math.FloatBetween(-0.2, 0.2);
+			const spd = speed * Phaser.Math.FloatBetween(0.5, 1.2);
+			const vx = Math.cos(angle) * spd;
+			const vy = Math.sin(angle) * spd;
+			const sz = Phaser.Math.Between(3, 7);
+			const dot = this.add.circle(x, y, sz, color, 1);
+			dot.setDepth(59);
+			dot.setBlendMode(Phaser.BlendModes.ADD);
+			this.tweens.add({
+				targets: dot,
+				x: x + vx * (life / 1000),
+				y: y + vy * (life / 1000),
+				alpha: 0,
+				scale: 0.1,
+				duration: life,
+				ease: 'Cubic.easeOut',
+				onComplete: () => dot.destroy()
 			});
 		}
 	}
 
-	/**
-	 * Play a one-shot sprite animation at a position, then auto-destroy.
-	 */
-	playEffect(animKey: string, x: number, y: number, scale: number = 2, depth: number = 60): Phaser.GameObjects.Sprite {
-		// Use first frame texture as the initial texture
-		const sprite = this.add.sprite(x, y, animKey + "_0");
-		sprite.setScale(scale);
-		sprite.setDepth(depth);
-		sprite.setBlendMode(Phaser.BlendModes.ADD);
+	/** Star-shaped burst lines radiating outward */
+	vfxStarBurst(x: number, y: number, color: number, rays: number = 6, length: number = 50, dur: number = 300) {
+		for (let i = 0; i < rays; i++) {
+			const angle = (Math.PI * 2 / rays) * i;
+			const g = this.add.graphics();
+			g.lineStyle(3, color, 1);
+			const ex = x + Math.cos(angle) * length;
+			const ey = y + Math.sin(angle) * length;
+			g.lineBetween(x, y, ex, ey);
+			g.setDepth(57);
+			g.setBlendMode(Phaser.BlendModes.ADD);
+			this.tweens.add({
+				targets: g,
+				alpha: 0,
+				duration: dur,
+				ease: 'Power2',
+				onComplete: () => g.destroy()
+			});
+		}
+	}
 
-		sprite.play(animKey);
-		sprite.once("animationcomplete", () => {
-			sprite.destroy();
-		});
+	// ── Composed VFX for game events ────────────────────────────────────
 
-		return sprite;
+	/** Kill effect - tier determines color and intensity */
+	vfxKill(x: number, y: number) {
+		const tier = this.getDamageTier();
+		const colors = [0x66ccff, 0x44ff88, 0xff8833, 0xff3344];
+		const c = colors[tier] || colors[0];
+		const count = 8 + tier * 4;
+		const radius = 35 + tier * 15;
+		this.vfxRingBurst(x, y, c, radius, 3 + tier, 250 + tier * 50);
+		this.vfxParticleBurst(x, y, c, count, 150 + tier * 50, 300 + tier * 50);
+		if (tier >= 2) this.vfxFlash(x, y, c, 20 + tier * 5);
+	}
+
+	/** Ball spawn flash at center */
+	vfxBallSpawn(x: number, y: number) {
+		this.vfxRingBurst(x, y, 0x44aaff, 50, 3, 300);
+		this.vfxFlash(x, y, 0x88ccff, 20, 200);
+		this.vfxStarBurst(x, y, 0x44aaff, 5, 35, 250);
+	}
+
+	/** Burst activation flash */
+	vfxBurstFlash(x: number, y: number) {
+		this.vfxFlash(x, y, 0xffff44, 35, 250);
+		this.vfxRingBurst(x, y, 0xffcc00, 60, 4, 350);
+		this.vfxStarBurst(x, y, 0x00ffff, 8, 45, 300);
+	}
+
+	/** Burst ball trail dash */
+	vfxDashTrail(x: number, y: number) {
+		this.vfxFlash(x, y, 0x00ffff, 12, 150);
+	}
+
+	/** Laser activation flash at source */
+	vfxLaserActivation(x: number, y: number, tier: number) {
+		const colors = [0x4488ff, 0xff8800, 0xff2222];
+		const c = colors[tier] || colors[0];
+		this.vfxFlash(x, y, c, 25, 200);
+		this.vfxRingBurst(x, y, c, 40, 3, 250);
+	}
+
+	/** Laser impact on enemy */
+	vfxLaserImpact(x: number, y: number, tier: number) {
+		const colors = [0x4488ff, 0xff8800, 0xff2222];
+		const c = colors[tier] || colors[0];
+		this.vfxParticleBurst(x, y, c, 6 + tier * 2, 100, 250);
+		this.vfxFlash(x, y, 0xffffff, 10, 150);
+	}
+
+	/** Electric strike at source */
+	vfxElectricStrike(x: number, y: number, tier: number) {
+		const colors = [0x00ffff, 0xaa44ff, 0xffff00];
+		const c = colors[tier] || colors[0];
+		this.vfxFlash(x, y, c, 20, 200);
+		this.vfxStarBurst(x, y, c, 4 + tier * 2, 30 + tier * 10, 250);
+	}
+
+	/** Electric chain zap at source */
+	vfxElectricChain(x: number, y: number, tier: number) {
+		const colors = [0x00ffff, 0xaa44ff, 0xffff00];
+		const c = colors[tier] || colors[0];
+		this.vfxRingBurst(x, y, c, 30, 2, 200);
+	}
+
+	/** Electric endpoint burst */
+	vfxElectricEndpoint(x: number, y: number, tier: number) {
+		const colors = [0x00ffff, 0xaa44ff, 0xffff00];
+		const c = colors[tier] || colors[0];
+		this.vfxParticleBurst(x, y, c, 4 + tier, 80, 200);
+	}
+
+	/** Bomb pre-flash */
+	vfxBombPreflash(x: number, y: number) {
+		this.vfxFlash(x, y, 0xff6600, 30, 150);
+	}
+
+	/** Bomb main explosion - tier scales size and intensity */
+	vfxBombExplosion(x: number, y: number, tier: number) {
+		const colors = [0xff8800, 0xff4400, 0xff0044];
+		const c = colors[tier] || colors[0];
+		const radius = 60 + tier * 25;
+		this.vfxFlash(x, y, c, 40 + tier * 15, 400);
+		this.vfxRingBurst(x, y, c, radius, 5 + tier * 2, 400 + tier * 50);
+		this.vfxParticleBurst(x, y, c, 16 + tier * 8, 200 + tier * 50, 500);
+		this.vfxStarBurst(x, y, 0xffcc44, 6 + tier * 2, radius * 0.8, 350);
+		if (tier >= 1) {
+			this.time.delayedCall(80, () => {
+				this.vfxRingBurst(x, y, 0xffaa00, radius * 0.6, 3, 300);
+			});
+		}
+	}
+
+	/** Bomb smoke aftermath */
+	vfxBombSmoke(x: number, y: number, tier: number) {
+		const count = 5 + tier * 3;
+		for (let i = 0; i < count; i++) {
+			const ox = Phaser.Math.Between(-20, 20);
+			const oy = Phaser.Math.Between(-20, 20);
+			const sz = Phaser.Math.Between(8, 16 + tier * 4);
+			const smoke = this.add.circle(x + ox, y + oy, sz, 0x888888, 0.3);
+			smoke.setDepth(54);
+			this.tweens.add({
+				targets: smoke,
+				y: smoke.y - Phaser.Math.Between(20, 50),
+				scale: Phaser.Math.FloatBetween(1.5, 2.5),
+				alpha: 0,
+				duration: Phaser.Math.Between(400, 700),
+				ease: 'Cubic.easeOut',
+				onComplete: () => smoke.destroy()
+			});
+		}
+	}
+
+	/** Red block explosion */
+	vfxRedExplosion(x: number, y: number) {
+		this.vfxFlash(x, y, 0xff2222, 35, 300);
+		this.vfxRingBurst(x, y, 0xff4444, 50, 4, 350);
+		this.vfxParticleBurst(x, y, 0xff6644, 14, 180, 400);
 	}
 
 	/**
@@ -447,20 +782,19 @@ export default class Scene extends Phaser.Scene {
 	 * Tier 0: Level 1-15, Tier 1: Level 16-30, Tier 2: Level 31-45, Tier 3: Level 46-60
 	 */
 	getDamageTier(): number {
-		if (this.damageLevel >= 46) return 3;
-		if (this.damageLevel >= 31) return 2;
-		if (this.damageLevel >= 16) return 1;
+		if (this.damageLevel >= 15) return 3;
+		if (this.damageLevel >= 8) return 2;
+		if (this.damageLevel >= 4) return 1;
 		return 0;
 	}
 
 	/**
-	 * Get the duplicate tier (0-3) based on current duplicate level.
-	 * Tier 0: Level 1-5, Tier 1: Level 6-10, Tier 2: Level 11-15, Tier 3: Level 16-20
+	 * Get the orbit tier (0-3) based on current orbit level.
 	 */
-	getDuplicateTier(): number {
-		if (this.duplicateLevel >= 16) return 3;
-		if (this.duplicateLevel >= 11) return 2;
-		if (this.duplicateLevel >= 6) return 1;
+	getOrbitTier(): number {
+		if (this.orbitLevel >= 16) return 3;
+		if (this.orbitLevel >= 11) return 2;
+		if (this.orbitLevel >= 6) return 1;
 		return 0;
 	}
 
@@ -507,12 +841,64 @@ export default class Scene extends Phaser.Scene {
 		}
 	}
 
-	resize(gameSize: Phaser.Structs.Size, baseSize: Phaser.Structs.Size, displaySize: Phaser.Structs.Size, resolution: number) {
-		const width = gameSize.width;
-		const height = gameSize.height;
+	/** Apply tier-based glow sprite behind a bullet (replaces postFX.addGlow) */
+	applyBulletFX(bullet: Phaser.GameObjects.Arc, tier: number) {
+		// Remove existing glow sprite if any
+		const existing = this.bulletGlowSprites.get(bullet);
+		if (existing) {
+			existing.destroy();
+			this.bulletGlowSprites.delete(bullet);
+		}
 
-		const centerX = width / 2;
-		const centerY = height / 2;
+		if (tier <= 0) return;
+
+		const tints: Record<number, number> = { 1: 0x44ff44, 2: 0xff8800, 3: 0xff4400 };
+		const scales: Record<number, number> = { 1: 0.8, 2: 0.95, 3: 1.1 };
+
+		const glow = this.add.image(bullet.x, bullet.y, 'glowWhite');
+		glow.setTint(tints[tier]);
+		glow.setScale(scales[tier]);
+		glow.setBlendMode(Phaser.BlendModes.ADD);
+		glow.setDepth(bullet.depth - 1);
+		this.bulletGlowSprites.set(bullet, glow);
+	}
+
+	/** Destroy a bullet and its associated glow sprite */
+	destroyBulletGlow(bullet: Phaser.GameObjects.Arc) {
+		const glow = this.bulletGlowSprites.get(bullet);
+		if (glow) {
+			glow.destroy();
+			this.bulletGlowSprites.delete(bullet);
+		}
+	}
+
+	/** Update all existing bullet colors and FX to match current damage tier */
+	refreshBulletVisuals() {
+		const tier = this.getDamageTier();
+		const tint = this.getBulletTint();
+
+		this.bullets.getChildren().forEach((child: any) => {
+			const bullet = child as Phaser.GameObjects.Arc;
+			if (!bullet.active) return;
+			// Skip burst balls (cyan) and extra/duplicate balls (magenta)
+			if (bullet.getData('isBurst')) return;
+			if (bullet.getData('isDuplicate')) return;
+
+			bullet.setFillStyle(tint);
+			this.applyBulletFX(bullet, tier);
+		});
+	}
+
+	resize(gameSize: Phaser.Structs.Size, baseSize: Phaser.Structs.Size, displaySize: Phaser.Structs.Size, resolution: number) {
+		const z = this.cameras.main.zoom || 0.55;
+		const panPadding = 1200;
+		this.worldWidth = gameSize.width / z + panPadding * 2;
+		this.worldHeight = gameSize.height / z + panPadding * 2;
+
+		const centerX = this.worldWidth / 2;
+		const centerY = this.worldHeight / 2;
+
+		this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
 		if (this.centerTarget) {
 			this.centerTarget.setPosition(centerX, centerY);
@@ -521,13 +907,6 @@ export default class Scene extends Phaser.Scene {
 		if (this.idleHexagon) {
 			this.idleHexagon.setPosition(centerX, centerY);
 		}
-
-
-		// Note: enemies and bullets are dynamic so they don't strictly need repositioning relative to center immediately,
-		// but spawn logic uses current center so new ones will be correct.
-
-		// FIX: Update existing enemies to face the NEW center
-		// Otherwise they keep moving towards the OLD center, causing drift/overlap.
 		if (this.enemies) {
 			this.enemies.getChildren().forEach((child: any) => {
 				const enemy = child as Phaser.GameObjects.Container;
@@ -546,17 +925,20 @@ export default class Scene extends Phaser.Scene {
 		const burstCost = this.ballCost * 2;
 
 		this.events.emit('update-shop-prices', {
+			money: Math.floor(this.money),
 			damage: Math.round(this.damageCost),
 			balls: Math.round(this.ballCost),
-			duplicate: Math.round(this.duplicateCost),
+			ballsLv: this.ballLevel,
+			orbit: Math.round(this.orbitCost),
 			laser: Math.round(this.laserCost),
 			electric: Math.round(this.electricCost),
 			bomb: Math.round(this.bombCost),
 			burst: Math.round(burstCost),
-			duplicateMax: this.duplicateMaxed,
-			laserMax: this.laserLevel >= 6,
-			electricMax: this.electricLevel >= 5,
-			bombMax: this.bombLevel >= 5,
+			damageLv: this.damageLevel,
+			orbitLv: this.orbitLevel,
+			laserLv: this.laserLevel,
+			electricLv: this.electricLevel,
+			bombLv: this.bombLevel,
 			locked: ballLocked,
 			timeLocked: timeLocked
 		});
@@ -568,8 +950,13 @@ export default class Scene extends Phaser.Scene {
 		}
 	}
 
+	/** World center X (shorthand to avoid repeated division) */
+	getWorldCenterX(): number { return this.worldWidth / 2; }
+	/** World center Y */
+	getWorldCenterY(): number { return this.worldHeight / 2; }
+
 	// World Speed Control
-	private globalWorldSpeed: number = 0.2;
+	private globalWorldSpeed: number = 0.55;
 
 	// Helper to calculate speed multiplier based on screen size
 	// Mobile reference: ~850px height.
@@ -586,11 +973,12 @@ export default class Scene extends Phaser.Scene {
 
 		this.wavesSpawned++;
 
-
-		// Ekranın yarısının biraz fazlası yarıçap
-		const centerX = this.scale.width / 2;
-		const centerY = this.scale.height / 2;
-		const radius = Math.max(this.scale.width, this.scale.height) * 0.84;
+		const centerX = this.getWorldCenterX();
+		const centerY = this.getWorldCenterY();
+		const maxDim = Math.max(this.worldWidth, this.worldHeight);
+		// Gradually push spawn point further: starts at 0.55x, grows by 0.03 per wave, caps at 1.1x
+		const spawnMult = Math.min(1.1, 0.55 + (this.wavesSpawned - 1) * 0.03);
+		const radius = maxDim * spawnMult;
 
 		// Bir dairede kaç kutu olsun?
 		const count = 50;
@@ -623,15 +1011,14 @@ export default class Scene extends Phaser.Scene {
 			const rand = Phaser.Math.Between(0, 100);
 
 			let color = 0xffffff;
-			let hp = 2; // Default (White)
+			let hp = 1; // Default (White) - one hit kill
 			let type = 'white';
 			let moneyValue = 2 + (this.level - 1) * 0.4; // Money income stretched (1 * 0.4)
 
-			// HP Scaling Formulas (Stretched to 40 levels)
-			// Base HP same, increments scaled by 0.375 (15/40)
-			const whiteHP = 3.8 + (this.level - 1) * 1.5;
-			const blueHP = 7.6 + (this.level - 1) * 3;
-			const redHP = 11.4 + (this.level - 1) * 4.5;
+			// HP Scaling: White = 1-hit kill early, Blue = tanky, Red = strongest
+			const whiteHP = 1 + (this.level - 1) * 0.8;
+			const blueHP = 3 + (this.level - 1) * 2.5;
+			const redHP = 6 + (this.level - 1) * 5;
 
 			if (rand < redChance) {
 				color = 0xff0000;
@@ -711,45 +1098,46 @@ export default class Scene extends Phaser.Scene {
 	}
 
 	spawnBurst() {
-		this.updateShopUI(); // Safe to call
+		this.updateShopUI();
 
-		const centerX = this.scale.width / 2;
-		const centerY = this.scale.height / 2;
+		const centerX = this.getWorldCenterX();
+		const centerY = this.getWorldCenterY();
 
-		// Play light burst flash at center when burst activates
-		this.playEffect(BURST_FLASH.key, centerX, centerY, BURST_FLASH.scale, 55);
+		this.vfxBurstFlash(centerX, centerY);
+		this.playSound('burstFire', 0.6);
 
-		// 8 Balls, 10 Bounces, fired with delay
 		this.time.addEvent({
-			delay: 100, // 100ms delay between shots for "scanning" effect
-			repeat: 7,   // Total 8 shots
+			delay: 100,
+			repeat: 7,
 			callback: () => {
 				this.spawnSingleBall(10, 0x00ffff, true);
 				this.playSound('ballShoot', 0.5, Phaser.Math.Between(-300, 300));
-
-				// Play dash trail on each fired ball
-				this.playEffect(DASH_TRAIL.key, centerX, centerY, DASH_TRAIL.scale, 54);
+				this.vfxDashTrail(centerX, centerY);
 			},
 			callbackScope: this
 		});
 	}
 
 	spawnSingleBall(bounces: number, color: number, isBurst: boolean = false) {
-		const centerX = this.scale.width / 2;
-		const centerY = this.scale.height / 2;
+		const centerX = this.getWorldCenterX();
+		const centerY = this.getWorldCenterY();
 		const speed = 25;
 
 		const vx = Math.cos(this.spiralAngle) * speed;
 		const vy = Math.sin(this.spiralAngle) * speed;
 
-		// Tint burst balls with tier color for visual feedback
 		const bulletColor = isBurst ? 0x00ffff : this.getBulletTint();
-		const bullet = this.add.circle(centerX, centerY, 10, bulletColor);
+		const bullet = this.add.circle(centerX, centerY, 18, bulletColor);
 		this.bullets.add(bullet);
 		bullet.setData('vx', vx);
 		bullet.setData('vy', vy);
 		bullet.setData('bounces', bounces);
-		bullet.setData('isDuplicate', isBurst); // Treat as "duplicate" type (finite bounces)
+		bullet.setData('isDuplicate', isBurst);
+		bullet.setData('isBurst', isBurst);
+
+		if (!isBurst) {
+			this.applyBulletFX(bullet, this.getDamageTier());
+		}
 
 		// Also apply duplicate level to bursts?
 		// "duplicate satın alındığında her updatinde + 1 topla birlikte"
@@ -764,7 +1152,6 @@ export default class Scene extends Phaser.Scene {
 	}
 
 	spawnBall() {
-		// Graduated Price Increase system
 		let increment = 50;
 		if (this.level >= 15) increment = 2000;
 		else if (this.level >= 10) increment = 1000;
@@ -773,12 +1160,11 @@ export default class Scene extends Phaser.Scene {
 		this.ballCost += increment;
 		this.updateShopUI();
 
-		const centerX = this.scale.width / 2;
-		const centerY = this.scale.height / 2;
+		const centerX = this.getWorldCenterX();
+		const centerY = this.getWorldCenterY();
 		const speed = 25;
 
-		// Play spawn animation at center
-		this.playEffect(BALL_SPAWN.key, centerX, centerY, BALL_SPAWN.scale, 55);
+		this.vfxBallSpawn(centerX, centerY);
 
 		// Helper to fire
 		const fire = (angleOffset: number, isExtra: boolean) => {
@@ -786,7 +1172,7 @@ export default class Scene extends Phaser.Scene {
 
 			// SMART TARGETING: Occasionaly target the nearest enemy if it's far but incoming
 			// Only for the main shot (isExtra === false) AND after 30 seconds
-			if (!isExtra && this.enemies.getLength() > 0 && (this.time.now - this.purchaseStartTime > 30000)) {
+			if (!isExtra && this.enemies.getLength() > 0 && (this.time.now - this.purchaseStartTime > 5000)) {
 				const rand = Phaser.Math.Between(0, 100);
 				if (rand < 30) { // 30% chance to "lock on" to a random but close-ish enemy
 					const nearest = this.getNearestEnemy(centerX, centerY);
@@ -802,33 +1188,142 @@ export default class Scene extends Phaser.Scene {
 			const c = isExtra ? 0xff00ff : this.getBulletTint();
 			const b = isExtra ? 15 : 9999; // Infinite for main
 
-			const bullet = this.add.circle(centerX, centerY, 10, c);
+			const bullet = this.add.circle(centerX, centerY, 18, c);
 			this.bullets.add(bullet);
 			bullet.setData('vx', vx);
 			bullet.setData('vy', vy);
 			bullet.setData('bounces', b);
 			bullet.setData('isDuplicate', isExtra);
+
+			if (!isExtra) {
+				this.applyBulletFX(bullet, this.getDamageTier());
+			}
 		};
 
 		// Main Shot
 		fire(0, false);
 
-		// Duplicate Shots
-		if (this.duplicateLevel > 0) {
-			for (let i = 0; i < this.duplicateLevel; i++) {
-				const offset = Phaser.Math.FloatBetween(-0.2, 0.2);
-				fire(offset, true);
-			}
+		this.playSound('ballShoot', 0.6, Phaser.Math.Between(-300, 300));
+	}
 
-			// Play tiered split effect at center
-			const splitTier = this.getDuplicateTier();
-			const splitDef = DUPLICATE_SPLIT[splitTier];
-			if (splitDef) {
-				this.playEffect(splitDef.key, centerX, centerY, splitDef.scale, 55);
-			}
+	spawnOrbitBall() {
+		const centerX = this.getWorldCenterX();
+		const centerY = this.getWorldCenterY();
+
+		// Each new orbit ball gets evenly spaced
+		const count = this.orbitBalls.length + 1;
+		const angleStep = (Math.PI * 2) / count;
+
+		const ball = this.add.circle(centerX, centerY, 8, 0x00ffcc);
+		ball.setData('orbitIndex', this.orbitBalls.length);
+		this.orbitBalls.push(ball);
+
+		// Re-distribute angles evenly for all orbit balls
+		for (let i = 0; i < this.orbitBalls.length; i++) {
+			this.orbitBalls[i].setData('orbitIndex', i);
 		}
 
-		this.playSound('ballShoot', 0.6, Phaser.Math.Between(-300, 300));
+		// Expand radius slightly with more balls
+		this.orbitRadius = 80 + (this.orbitBalls.length - 1) * 8;
+
+		this.playSound('orbitHit', 0.5);
+		this.vfxBallSpawn(centerX, centerY);
+	}
+
+	updateOrbitBalls() {
+		if (this.orbitBalls.length === 0) return;
+
+		const centerX = this.getWorldCenterX();
+		const centerY = this.getWorldCenterY();
+		const count = this.orbitBalls.length;
+		const angleStep = (Math.PI * 2) / count;
+		const now = this.time.now;
+
+		// Rotate orbit - speed increases slightly with more balls
+		this.orbitAngle += 0.025 + count * 0.003;
+
+		// Draw trail ring with pulsing glow
+		if (!this.orbitTrailGraphics) {
+			this.orbitTrailGraphics = this.add.graphics();
+			this.orbitTrailGraphics.setDepth(48);
+		}
+		this.orbitTrailGraphics.clear();
+		const pulse = 0.1 + Math.sin(now * 0.003) * 0.05;
+		this.orbitTrailGraphics.lineStyle(1.5, 0x00ffcc, pulse);
+		this.orbitTrailGraphics.strokeCircle(centerX, centerY, this.orbitRadius);
+
+		// Update each orbit ball position
+		for (let i = 0; i < count; i++) {
+			const ball = this.orbitBalls[i];
+			if (!ball.active) continue;
+
+			const angle = this.orbitAngle + i * angleStep;
+			const prevX = ball.x;
+			const prevY = ball.y;
+			ball.x = centerX + Math.cos(angle) * this.orbitRadius;
+			ball.y = centerY + Math.sin(angle) * this.orbitRadius;
+
+			// Check collision with enemies (throttled per enemy)
+			this.enemies.getChildren().forEach((child: any) => {
+				const enemy = child as Phaser.GameObjects.Container;
+				if (!enemy.active) return;
+
+				const dist = Phaser.Math.Distance.Between(ball.x, ball.y, enemy.x, enemy.y);
+				if (dist < 50) {
+					// Throttle: only damage same enemy once every 300ms per orbit ball
+					const hitKey = 'orbitHit_' + i;
+					const lastHit = enemy.getData(hitKey) || 0;
+					if (now - lastHit < 300) return;
+					enemy.setData(hitKey, now);
+
+					let hp = enemy.getData('hp');
+					const dmg = this.bulletDamage * 0.75;
+					hp -= dmg;
+					enemy.setData('hp', hp);
+
+					this.showDamageText(enemy.x, enemy.y, dmg);
+					this.playSound('orbitPing', 0.2, Phaser.Math.Between(-200, 200));
+
+					if (hp <= 0) {
+						const reward = enemy.getData('moneyValue') || 10;
+
+						if (enemy.getData('originalColor') === 0xff0000) {
+							this.triggerExplosion(enemy.x, enemy.y);
+							this.playSound('redBlockExplosion');
+						}
+
+						// On-kill procs from orbit kills
+						if (this.laserChance > 0 && Phaser.Math.Between(0, 100) < this.laserChance) {
+							const lvx = Math.cos(angle);
+							const lvy = Math.sin(angle);
+							this.fireLaser(enemy.x, enemy.y, lvx, lvy);
+						}
+						if (this.electricChance > 0 && Phaser.Math.Between(0, 100) < this.electricChance) {
+							this.triggerElectricEffect(enemy.x, enemy.y);
+						}
+						if (this.bombChance > 0 && Phaser.Math.Between(0, 100) < this.bombChance) {
+							this.triggerBombExplosion(enemy.x, enemy.y);
+						}
+
+						enemy.destroy();
+						this.addMoney(reward);
+						this.addScore(100);
+						this.showFloatingText(enemy.x, enemy.y, "+" + Math.floor(reward));
+						this.trackProgress();
+					} else {
+						// Flash enemy with orbit color
+						const top = enemy.getByName('top') as Phaser.GameObjects.Rectangle;
+						if (top) {
+							const orig = top.fillColor;
+							top.setFillStyle(0x00ffcc);
+							this.time.delayedCall(80, () => {
+								if (enemy.active && top.active) top.setFillStyle(orig);
+							});
+						}
+					}
+				}
+			});
+		}
 	}
 
 	update() {
@@ -868,22 +1363,23 @@ export default class Scene extends Phaser.Scene {
 			this.idleHexagon.rotation += 0.005;
 		}
 
+		// ORBIT BALL UPDATE
+		this.updateOrbitBalls();
 
 		// Game Over Check: If we are not running updates or scene paused?
 		// Actually we just stop physics or ignore updates if game over.
 		// Let's add a flag? Or just destroy looking at logic below.
 
 		// CATCH-UP MECHANIC: If nearest enemy is far, increase speed
-		// "4 blok mesafe" ~ 200-250px. Let's use 250px.
 		if (this.enemies.getLength() > 0) {
-			const cx = this.scale.width / 2;
-			const cy = this.scale.height / 2;
+			const cx = this.getWorldCenterX();
+			const cy = this.getWorldCenterY();
 			const nearest = this.getNearestEnemy(cx, cy);
 			if (nearest) {
 				const dist = Phaser.Math.Distance.Between(cx, cy, nearest.x, nearest.y);
 				// If distance > 250, speed up (1.5x)
 				if (dist > 250) {
-					this.currentCatchUpMultiplier = 1.6;
+					this.currentCatchUpMultiplier = 1.3;
 				} else {
 					this.currentCatchUpMultiplier = 1.0;
 				}
@@ -921,39 +1417,55 @@ export default class Scene extends Phaser.Scene {
 		const bulletsArray = this.bullets.getChildren();
 		const enemiesArray = this.enemies.getChildren();
 
-		// Tersten döngü kurmak, döngü sırasında eleman silerken güvenlidir
 		for (let i = bulletsArray.length - 1; i >= 0; i--) {
 			const bullet = bulletsArray[i] as Phaser.GameObjects.Arc;
 
-			if (!bullet.active) continue;
+			if (!bullet.active) {
+				this.destroyBulletGlow(bullet);
+				continue;
+			}
 
 			// Her frame güncel hızı al (çünkü sekerken değişebilir)
 			const vx = bullet.getData('vx');
 			const vy = bullet.getData('vy');
 
-			// 2.A HOMING LOGIC (Slight pull towards nearest enemy)
-			// Only for the main ball (isDuplicate === false) AND after 30 seconds
-			if (!bullet.getData('isDuplicate') && this.enemies.getLength() > 0 && (this.time.now - this.purchaseStartTime > 30000)) {
+			// 2.A HOMING LOGIC (Very gentle pull towards nearest enemy)
+			// Only for the main ball (isDuplicate === false) AND after 5 seconds
+			if (!bullet.getData('isDuplicate') && this.enemies.getLength() > 0 && (this.time.now - this.purchaseStartTime > 5000)) {
 				const nearest = this.getNearestEnemy(bullet.x, bullet.y);
 				if (nearest) {
-					const targetAngle = Phaser.Math.Angle.Between(bullet.x, bullet.y, nearest.x, nearest.y);
-					const currentAngle = Math.atan2(vy, vx);
+					const distToEnemy = Phaser.Math.Distance.Between(bullet.x, bullet.y, nearest.x, nearest.y);
 
-					// Dynamic Homing Intensity:
-					// If bullet is moving AWAY from center, increase homing to bring it back to action
-					const distToCenter = Phaser.Math.Distance.Between(bullet.x, bullet.y, this.scale.width / 2, this.scale.height / 2);
-					const movingOut = (vx * (bullet.x - this.scale.width / 2) + vy * (bullet.y - this.scale.height / 2)) > 0;
+					// Only apply gentle homing when reasonably close to an enemy
+					if (distToEnemy < 300) {
+						const targetAngle = Phaser.Math.Angle.Between(bullet.x, bullet.y, nearest.x, nearest.y);
+						const currentAngle = Math.atan2(vy, vx);
+						const lerpFactor = 0.008;
+						const newAngle = Phaser.Math.Angle.RotateTo(currentAngle, targetAngle, lerpFactor);
+						const speedValue = Math.sqrt(vx * vx + vy * vy);
+						bullet.setData('vx', Math.cos(newAngle) * speedValue);
+						bullet.setData('vy', Math.sin(newAngle) * speedValue);
+					}
+				}
+			}
 
-					// Base homing strength scales with distance to center
-					let lerpFactor = 0.02;
-					if (distToCenter > 250) lerpFactor = 0.04; // Far from character = more pull
-					if (movingOut && distToCenter > 400) lerpFactor = 0.08; // Very far and escaping = strong pull
-
-					const newAngle = Phaser.Math.Angle.RotateTo(currentAngle, targetAngle, lerpFactor);
-					const speedValue = Math.sqrt(vx * vx + vy * vy);
-
-					bullet.setData('vx', Math.cos(newAngle) * speedValue);
-					bullet.setData('vy', Math.sin(newAngle) * speedValue);
+			// Gentle center tendency - very slight pull towards center so balls don't drift forever
+			{
+				const cx = this.getWorldCenterX();
+				const cy = this.getWorldCenterY();
+				const dx = cx - bullet.x;
+				const dy = cy - bullet.y;
+				const distToCenter = Math.sqrt(dx * dx + dy * dy);
+				// Only apply when far from center (beyond 500px); strength grows with distance
+				if (distToCenter > 500) {
+					const pull = 0.0015 * ((distToCenter - 500) / 500);
+					const cvx = bullet.getData('vx') + dx * pull;
+					const cvy = bullet.getData('vy') + dy * pull;
+					// Maintain speed so it's a direction nudge, not acceleration
+					const spd = Math.sqrt(bullet.getData('vx') ** 2 + bullet.getData('vy') ** 2);
+					const newSpd = Math.sqrt(cvx * cvx + cvy * cvy);
+					bullet.setData('vx', (cvx / newSpd) * spd);
+					bullet.setData('vy', (cvy / newSpd) * spd);
 				}
 			}
 
@@ -963,16 +1475,48 @@ export default class Scene extends Phaser.Scene {
 			bullet.x += updatedVx;
 			bullet.y += updatedVy;
 
-			// Emit trail particle
-			this.trailEmitter.emitParticleAt(bullet.x, bullet.y);
+			// Sync glow sprite position
+			const glowSprite = this.bulletGlowSprites.get(bullet);
+			if (glowSprite) {
+				glowSprite.x = bullet.x;
+				glowSprite.y = bullet.y;
+			}
 
-			// Ekran dışına çıkarsa yok et - Çok geniş sınırlar (Görünmez olduktan sonra bile devam etsin)
-			const bounds = { x: 0, y: 0, width: this.scale.width, height: this.scale.height };
-			if (!Phaser.Geom.Rectangle.ContainsPoint(
-				new Phaser.Geom.Rectangle(-1000, -1000, bounds.width + 2000, bounds.height + 2000),
-				new Phaser.Geom.Point(bullet.x, bullet.y))) {
-				bullet.destroy();
-				continue;
+			// Emit trail particle (every 2nd frame to halve particle count)
+			const frameNum = this.game.getFrame();
+			if (frameNum % 2 === 0) {
+				this.trailEmitter.emitParticleAt(bullet.x, bullet.y);
+			}
+
+			// Fire trail for high-tier damage balls (every 3rd frame)
+			if (!bullet.getData('isBurst') && !bullet.getData('isDuplicate')) {
+				const tier = this.getDamageTier();
+				if (tier >= 3 && frameNum % 3 === 0) {
+					this.fireTrailEmitter.emitParticleAt(
+						bullet.x + Phaser.Math.FloatBetween(-8, 8),
+						bullet.y + Phaser.Math.FloatBetween(-8, 8)
+					);
+				} else if (tier >= 2 && frameNum % 3 === 0) {
+					this.fireTrailEmitter.emitParticleAt(bullet.x, bullet.y);
+				}
+			}
+
+			// Wrap around world edges so balls never disappear
+			const wrapMargin = 50;
+			let wrapped = false;
+			if (bullet.x < -wrapMargin) { bullet.x = this.worldWidth + wrapMargin; wrapped = true; }
+			else if (bullet.x > this.worldWidth + wrapMargin) { bullet.x = -wrapMargin; wrapped = true; }
+			if (bullet.y < -wrapMargin) { bullet.y = this.worldHeight + wrapMargin; wrapped = true; }
+			else if (bullet.y > this.worldHeight + wrapMargin) { bullet.y = -wrapMargin; wrapped = true; }
+
+			// Nudge direction slightly on wrap so ball doesn't loop through the same gaps
+			if (wrapped) {
+				let bvx = bullet.getData('vx');
+				let bvy = bullet.getData('vy');
+				const bAngle = Math.atan2(bvy, bvx) + Phaser.Math.FloatBetween(-0.3, 0.3);
+				const bSpeed = Math.sqrt(bvx * bvx + bvy * bvy);
+				bullet.setData('vx', Math.cos(bAngle) * bSpeed);
+				bullet.setData('vy', Math.sin(bAngle) * bSpeed);
 			}
 
 			// Çarpışma Kontrolü (Basit Mesafe Kontrolü)
@@ -988,7 +1532,7 @@ export default class Scene extends Phaser.Scene {
 
 					// 1. DÜŞMAN HASARI
 					let hp = enemy.getData('hp');
-					const damageDealt = this.bulletDamage;
+					const damageDealt = bullet.getData('isBurst') ? this.bulletDamage * 2 : this.bulletDamage;
 					hp -= damageDealt;
 					enemy.setData('hp', hp);
 
@@ -1030,14 +1574,7 @@ export default class Scene extends Phaser.Scene {
 						this.trackProgress();
 						this.triggerHaptic('medium');
 
-						// Tiered Kill Effect Sprite (replaces old particle explosion)
-						const killTier = this.getDamageTier();
-						const killDef = DAMAGE_KILL[killTier];
-						if (killDef) {
-							this.playEffect(killDef.key, enemy.x, enemy.y, killDef.scale);
-						}
-
-						// Keep some particles for extra juice
+						this.vfxKill(enemy.x, enemy.y);
 						this.impactEmitter.explode(10, bullet.x, bullet.y);
 					} else {
 						// Canı kaldıysa renk değiştir (Hasar aldığını belli et - Kırmızılaş)
@@ -1045,12 +1582,7 @@ export default class Scene extends Phaser.Scene {
 						this.triggerHaptic('light');
 						this.playSound('blockPop');
 
-						// Tiered Impact Effect Sprite
-						const impactTier = this.getDamageTier();
-						const impactDef = DAMAGE_IMPACT[impactTier];
-						if (impactDef) {
-							this.playEffect(impactDef.key, bullet.x, bullet.y, impactDef.scale * 0.8);
-						}
+						// Tiered Impact Effect Sprite (removed for cleaner visuals)
 
 
 
@@ -1097,7 +1629,6 @@ export default class Scene extends Phaser.Scene {
 							});
 						}
 
-						this.impactEmitter.explode(5, bullet.x, bullet.y);
 					}
 
 					// 2. MERMİ SEKME MANTIĞI
@@ -1130,27 +1661,8 @@ export default class Scene extends Phaser.Scene {
 
 						let bounceAngle = Math.atan2(dy, dx);
 
-						// CENTER-STEERING BOUNCE: 15% base chance, increased to 25% if "Far" (> 275px from center)
-						// Only AFTER 30 seconds to keep early game natural
-						const distToCenter = Phaser.Math.Distance.Between(bullet.x, bullet.y, this.scale.width / 2, this.scale.height / 2);
-						const isFar = distToCenter > 275;
-						const chance = isFar ? 25 : 15;
-
-						if (speed > 30 && Phaser.Math.Between(0, 100) < chance && (this.time.now - this.purchaseStartTime > 30000)) {
-							const cx = this.scale.width / 2;
-							const cy = this.scale.height / 2;
-
-							// Target "karaktere yakın olan bloklardan biri"
-							const nearEnemy = this.getEnemyNearCenter();
-							const targetX = nearEnemy ? nearEnemy.x : cx;
-							const targetY = nearEnemy ? nearEnemy.y : cy;
-
-							// Angle towards center area with slight noise
-							bounceAngle = Phaser.Math.Angle.Between(bullet.x, bullet.y, targetX, targetY) + Phaser.Math.FloatBetween(-0.2, 0.2);
-						} else {
-							// Normal radial bounce with offset
-							bounceAngle += Phaser.Math.FloatBetween(-0.5, 0.5);
-						}
+						// Normal radial bounce with offset
+						bounceAngle += Phaser.Math.FloatBetween(-0.5, 0.5);
 
 						vx = Math.cos(bounceAngle) * speed;
 						vy = Math.sin(bounceAngle) * speed;
@@ -1167,6 +1679,7 @@ export default class Scene extends Phaser.Scene {
 							if (b <= 0) {
 								console.log("Duplicate Ball Explode!");
 								this.triggerExplosion(bullet.x, bullet.y);
+								this.destroyBulletGlow(bullet);
 								bullet.destroy();
 								break; // Stop checking this bullet
 							}
@@ -1183,13 +1696,23 @@ export default class Scene extends Phaser.Scene {
 
 	private score: number = 0;
 
+	private lastShopRefresh: number = 0;
+
 	addMoney(amount: number) {
 		this.money += amount;
 		this.events.emit('update-money', Math.floor(this.money));
+
+		// Throttle shop UI refresh to avoid performance issues on rapid kills
+		const now = this.time.now;
+		if (now - this.lastShopRefresh > 500) {
+			this.lastShopRefresh = now;
+			this.updateShopUI();
+		}
 	}
 
 	addScore(amount: number) {
 		this.score += amount;
+		this.events.emit('update-score', this.score);
 	}
 
 	showFloatingText(x: number, y: number, message: string) {
@@ -1232,14 +1755,14 @@ export default class Scene extends Phaser.Scene {
 		this.events.emit('update-level', this.level);
 		this.triggerHaptic('success');
 
-		// Increase difficulty (Stretched to 40 levels)
-		this.enemyHP += 1.0; // (0.5 * 2)
+		// Increase difficulty
+		this.enemyHP += 1.5;
 
 		// Speed acceleration stretched AND halved
 		// And caps at Level 40
 		if (this.level <= 40) {
-			this.enemySpeed += 0.007; // (0.0185 * 0.375 / 2)
-			this.globalWorldSpeed += 0.02; // (0.055 * 0.375 / 2)
+			this.enemySpeed += 0.006;
+			this.globalWorldSpeed += 0.015;
 		}
 
 		// Reset Level State
@@ -1278,8 +1801,14 @@ export default class Scene extends Phaser.Scene {
 	}
 
 	triggerGameOver() {
+		if (this.gameOverTriggered) return;
+		this.gameOverTriggered = true;
+
 		console.log("GAME OVER");
 		this.triggerHaptic('error');
+
+		// Disable input BEFORE pause so it's guaranteed
+		this.input.enabled = false;
 
 		// Pause Game Loop
 		this.scene.pause();
@@ -1304,21 +1833,13 @@ export default class Scene extends Phaser.Scene {
 	}
 
 	triggerExplosion(x: number, y: number) {
-		// Visual Effect - particles + sprite
 		this.explosionEmitter.explode(30, x, y);
-
-		// Play an explosion sprite (use damage tier kill effect for consistency)
-		const killTier = this.getDamageTier();
-		const killDef = DAMAGE_KILL[killTier];
-		if (killDef) {
-			this.playEffect(killDef.key, x, y, killDef.scale * 1.5, 59);
-		}
+		this.vfxRedExplosion(x, y);
 
 		// Haptics
 		this.triggerHaptic('heavy');
 
-		// Camera Shake
-		this.cameras.main.shake(200, 0.01);
+		// Camera Shake (disabled)
 
 		// AoE Damage
 		const explosionRadius = 150;
@@ -1506,8 +2027,7 @@ export default class Scene extends Phaser.Scene {
 		const endX = x + Math.cos(angle) * length;
 		const endY = y + Math.sin(angle) * length;
 
-		// Activation flash at source
-		this.playEffect(LASER_ACTIVATION.key, x, y, LASER_ACTIVATION.scale, 55);
+		this.vfxLaserActivation(x, y, tier);
 
 		// Visuals: Laser Beam
 		const graphics = this.add.graphics();
@@ -1552,9 +2072,6 @@ export default class Scene extends Phaser.Scene {
 			}
 		});
 
-		// Apply Instant Destroy with tiered impact sprites
-		const impactDef = LASER_IMPACT[tier];
-
 		enemieshit.forEach(enemy => {
 			if (!enemy.active) return;
 
@@ -1565,12 +2082,7 @@ export default class Scene extends Phaser.Scene {
 				this.playSound('redBlockExplosion');
 			}
 
-			// Tiered impact sprite at each enemy hit location
-			if (impactDef) {
-				this.playEffect(impactDef.key, enemy.x, enemy.y, impactDef.scale);
-			}
-
-			// Keep some particles
+			this.vfxLaserImpact(enemy.x, enemy.y, tier);
 			this.impactEmitter.explode(8, enemy.x, enemy.y);
 
 			enemy.destroy();
@@ -1600,8 +2112,8 @@ export default class Scene extends Phaser.Scene {
 	}
 
 	getEnemyNearCenter(): Phaser.GameObjects.Container | null {
-		const cx = this.scale.width / 2;
-		const cy = this.scale.height / 2;
+		const cx = this.getWorldCenterX();
+		const cy = this.getWorldCenterY();
 
 		let nearest: Phaser.GameObjects.Container | null = null;
 		let minDist = Infinity;
@@ -1623,8 +2135,12 @@ export default class Scene extends Phaser.Scene {
 	triggerElectricEffect(sourceX: number, sourceY: number) {
 		const tier = this.getElectricTier();
 		const nearbyEnemies: any[] = [];
-		const maxTargets = 15;
+		const maxTargets = 3 + Math.floor(this.electricLevel / 2);
 		const radius = 200;
+
+		const centerX = this.getWorldCenterX();
+		const centerY = this.getWorldCenterY();
+		const sourceDist = Phaser.Math.Distance.Between(centerX, centerY, sourceX, sourceY);
 
 		this.enemies.getChildren().forEach((child: any) => {
 			const target = child as Phaser.GameObjects.Container;
@@ -1632,38 +2148,29 @@ export default class Scene extends Phaser.Scene {
 
 			const dist = Phaser.Math.Distance.Between(sourceX, sourceY, target.x, target.y);
 			if (dist > 0 && dist < radius) {
-				nearbyEnemies.push({ target, dist });
+				const targetDist = Phaser.Math.Distance.Between(centerX, centerY, target.x, target.y);
+				const isBehind = targetDist > sourceDist;
+				nearbyEnemies.push({ target, dist, isBehind });
 			}
 		});
 
-		nearbyEnemies.sort((a, b) => a.dist - b.dist);
+		nearbyEnemies.sort((a, b) => {
+			if (a.isBehind && !b.isBehind) return -1;
+			if (!a.isBehind && b.isBehind) return 1;
+			return a.dist - b.dist;
+		});
 		const targets = nearbyEnemies.slice(0, maxTargets);
 
 		const damage = this.bulletDamage / 2;
 
-		// Play lightning strike sprite at origin
-		const strikeDef = ELECTRIC_STRIKE[tier];
-		if (strikeDef) {
-			this.playEffect(strikeDef.key, sourceX, sourceY, strikeDef.scale, 58);
-		}
-
-		// Play chain effect sprite at origin
-		const chainDef = ELECTRIC_CHAIN[tier];
-		if (chainDef) {
-			this.playEffect(chainDef.key, sourceX, sourceY, chainDef.scale, 56);
-		}
+		this.vfxElectricStrike(sourceX, sourceY, tier);
+		this.vfxElectricChain(sourceX, sourceY, tier);
 
 		targets.forEach(t => {
 			const enemy = t.target;
 
-			// Keep drawn lightning for the actual chain visual
 			this.drawLightning(sourceX, sourceY, enemy.x, enemy.y, tier);
-
-			// Play endpoint burst sprite at each target
-			const endpointDef = ELECTRIC_ENDPOINT[tier];
-			if (endpointDef) {
-				this.playEffect(endpointDef.key, enemy.x, enemy.y, endpointDef.scale * 0.8, 57);
-			}
+			this.vfxElectricEndpoint(enemy.x, enemy.y, tier);
 
 			// Deal Damage
 			let hp = enemy.getData('hp');
@@ -1810,49 +2317,19 @@ export default class Scene extends Phaser.Scene {
 	triggerBombExplosion(x: number, y: number) {
 		const tier = this.getBombTier();
 
-		// Pre-flash effect
-		this.playEffect(BOMB_PREFLASH.key, x, y, BOMB_PREFLASH.scale, 58);
+		this.vfxBombPreflash(x, y);
+		this.vfxBombExplosion(x, y, tier);
+		this.time.delayedCall(150, () => {
+			this.vfxBombSmoke(x, y, tier);
+		});
 
-		// Tiered explosion sprite (main visual)
-		const explosionDef = BOMB_EXPLOSION[tier];
-		if (explosionDef) {
-			this.playEffect(explosionDef.key, x, y, explosionDef.scale, 60);
-		}
-
-		// Shockwave ring (expanding AoE indicator)
-		const shockDef = BOMB_SHOCKWAVE[tier];
-		if (shockDef) {
-			const shockSprite = this.playEffect(shockDef.key, x, y, shockDef.scale * 0.5, 55);
-			// Scale up the shockwave over time for expanding ring effect
-			this.tweens.add({
-				targets: shockSprite,
-				scaleX: shockDef.scale * 1.5,
-				scaleY: shockDef.scale * 1.5,
-				alpha: 0.3,
-				duration: 400,
-			});
-		}
-
-		// Delayed smoke aftermath
-		const smokeDef = BOMB_SMOKE[tier];
-		if (smokeDef) {
-			this.time.delayedCall(150, () => {
-				this.playEffect(smokeDef.key, x, y, smokeDef.scale, 54);
-			});
-		}
-
-		// Keep some particles for extra impact
 		this.explosionEmitter.explode(40, x, y);
 
 		// Play explosion sound
-		this.playSound('redBlockExplosion');
+		this.playSound('bombBlast', 0.7);
 
 		// Haptics
 		this.triggerHaptic('heavy');
-
-		// Camera Shake (stronger at higher tiers)
-		const shakeIntensity = 0.015 + tier * 0.005;
-		this.cameras.main.shake(300, shakeIntensity);
 
 		// AoE Damage - radius increases with tier
 		const explosionRadius = 150 + tier * 25;

@@ -158,6 +158,8 @@
             text-transform: uppercase;
             padding: 0 1rem;
             height: 40px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .ui-button::before {
@@ -176,14 +178,10 @@
 
         .ui-button:hover {
             background-color: #4e4e5e;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 0px 0px var(--button-shadow);
         }
 
         .ui-button:active {
             background-color: #2a2a35;
-            transform: translateY(4px);
-            box-shadow: none;
         }
 
         .ui-button:active::before {
@@ -304,6 +302,8 @@
             gap: 0.5rem;
             padding: 0.5rem;
             overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-x;
         }
 
         .upgrades-scroll::-webkit-scrollbar {
@@ -317,29 +317,42 @@
 
         .upgrade-btn {
             flex: none;
-            min-width: 85px;
-            height: 64px;
+            min-width: 90px;
+            height: 76px;
             display: flex;
             flex-direction: column;
             padding: 0.25rem;
+            touch-action: pan-x;
         }
 
         .upgrade-btn .label {
             font-size: 8px;
-            margin-bottom: 0.125rem;
             color: white;
+            margin-bottom: 2px;
         }
 
         .upgrade-btn .price {
             font-size: 10px;
         }
 
-        .skill-icon {
-            width: 24px;
-            height: 24px;
-            image-rendering: pixelated;
-            margin-bottom: 0.125rem;
+        .skill-desc {
+            display: block;
+            font-size: 5px;
+            color: #d1d5db;
+            font-family: 'Press Start 2P', cursive;
+            margin-bottom: 2px;
+            line-height: 1.3;
         }
+
+        .lv-badge {
+            display: block;
+            font-size: 6px;
+            color: #fde047;
+            font-family: 'Press Start 2P', cursive;
+            margin-top: 2px;
+        }
+
+        
 
         .modal-overlay {
             position: fixed;
@@ -348,10 +361,11 @@
             bottom: 0;
             left: 0;
             background-color: rgba(0, 0, 0, 0.8);
-            z-index: 100;
+            z-index: 200;
             display: flex;
             align-items: center;
             justify-content: center;
+            pointer-events: auto;
         }
 
         .modal-content {
@@ -415,6 +429,49 @@
 </head>
 
 <body>
+    <!-- Loading Screen (shows instantly before JS loads) -->
+    <div id="loading-screen" style="
+        position: fixed; inset: 0; z-index: 9999;
+        background: #1a1a2e;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        transition: opacity 0.4s ease;
+    ">
+        <div style="
+            font-family: 'Press Start 2P', monospace;
+            font-size: 20px; color: #ffffff;
+            margin-bottom: 24px;
+            text-align: center;
+        ">BLOCK BUSTER</div>
+        <div style="
+            width: 180px; height: 8px;
+            background: #333; border-radius: 4px;
+            overflow: hidden;
+        ">
+            <div id="loading-bar" style="
+                width: 0%; height: 100%;
+                background: #00A1E4; border-radius: 4px;
+                transition: width 0.3s ease;
+            "></div>
+        </div>
+        <div style="
+            font-family: 'Press Start 2P', monospace;
+            font-size: 8px; color: #888;
+            margin-top: 12px;
+        ">LOADING...</div>
+    </div>
+    <script>
+        // Animate loading bar while JS bundle downloads (before Phaser starts)
+        (function() {
+            var bar = document.getElementById('loading-bar');
+            var pct = 0;
+            var iv = setInterval(function() {
+                if (pct < 20) { pct += 2; bar.style.width = pct + '%'; }
+                else { clearInterval(iv); }
+            }, 100);
+        })();
+    </script>
+
     <!-- Force Font Load -->
     <div style="font-family: 'Press Start 2P'; padding: 0; margin: 0; position: absolute; visibility: hidden;">.</div>
     <div id="app" class="fixed-inset w-full h-full gradient-bg flex flex-col md-block overflow-hidden">
@@ -426,9 +483,9 @@
 
             <!-- Top Right Settings Button -->
             <!-- Fixed Positioning + Safe Area Margin -->
-            <div class="absolute top-4 right-4 z-50 pointer-events-auto oasiz-mt-safe">
+            <div class="absolute z-50 pointer-events-auto oasiz-mt-safe" style="top: 16px; right: 16px;">
                 <button id="btn-settings"
-                    class="ui-button bg-gray-700 shadow-lg w-12 h-12 flex items-center justify-center rounded-lg">
+                    class="ui-button" style="width: 48px; height: 48px; padding: 0; border-radius: 8px;">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -439,14 +496,38 @@
                 </button>
             </div>
 
+            <!-- Action Buttons (above shop bar) -->
+            <div class="pointer-events-none" style="display:flex;justify-content:flex-start;gap:8px;padding:0 12px 8px;">
+                <button id="btn-recenter" class="ui-button pointer-events-auto hidden"
+                    style="width:42px;height:42px;padding:0;border-radius:6px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <line x1="12" y1="2" x2="12" y2="6"></line>
+                        <line x1="12" y1="18" x2="12" y2="22"></line>
+                        <line x1="2" y1="12" x2="6" y2="12"></line>
+                        <line x1="18" y1="12" x2="22" y2="12"></line>
+                    </svg>
+                </button>
+                <button id="btn-submit-score" class="ui-button pointer-events-auto hidden"
+                    style="height:42px;padding:0 12px;border-radius:6px;font-size:8px;gap:6px;white-space:nowrap;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    SUBMIT
+                </button>
+            </div>
+
             <!-- Bottom Dashboard Bar -->
             <!-- Fixed at bottom, spans full width -->
             <div id="ui-bottom-bar" class="pointer-events-auto">
 
                 <!-- Row 1: Stats -->
                 <div class="stats-row">
-                    <div id="hud-money">MONEY: $0</div>
-                    <div id="hud-level">LEVEL: 1</div>
+                    <div id="hud-score">Score: 0</div>
+                    <div id="hud-money">Money: $100</div>
+                    <div id="hud-level">LV 1</div>
                 </div>
 
                 <!-- Row 2: Upgrades -->
@@ -465,10 +546,10 @@
                     </button>
 
 
-                    <!-- Duplicate Button -->
-                    <button id="btn-duplicate" class="ui-button upgrade-btn opacity-50 grayscale pointer-events-none">
-                        <span class="label">DUPLICATE</span>
-                        <span class="price text-purple-300">$200</span>
+                    <!-- Orbit Button -->
+                    <button id="btn-orbit" class="ui-button upgrade-btn opacity-50 grayscale pointer-events-none">
+                        <span class="label">ORBIT</span>
+                        <span class="price text-purple-300">$100</span>
                     </button>
 
                     <!-- Laser Button -->
@@ -499,46 +580,45 @@
 
             </div>
 
-            <!-- Settings Modal (Hidden by Default) -->
-            <div id="modal-settings" class="hidden modal-overlay pointer-events-auto">
-                <div class="pixel-card modal-content">
-                    <div class="section-label text-center text-lg">SETTINGS</div>
+        </div>
 
-                    <div class="settings-row">
-                        <span>MUSIC</span>
-                        <input type="checkbox" id="toggle-music" />
-                    </div>
-                    <div class="settings-row">
-                        <span>FX</span>
-                        <input type="checkbox" id="toggle-fx" />
-                    </div>
-                    <div class="settings-row">
-                        <span>HAPTICS</span>
-                        <input type="checkbox" id="toggle-haptics" />
-                    </div>
+        <!-- Settings Modal (Outside ui-layer for reliable interaction) -->
+        <div id="modal-settings" class="hidden modal-overlay" style="z-index: 200;">
+            <div class="pixel-card modal-content">
+                <div class="section-label text-center text-lg">SETTINGS</div>
 
-                    <button id="btn-close-settings" class="ui-button w-full">
-                        CLOSE
-                    </button>
+                <div class="settings-row">
+                    <span>MUSIC</span>
+                    <input type="checkbox" id="toggle-music" />
                 </div>
-            </div>
-
-            <!-- Game Over Modal (Hidden by Default) -->
-            <div id="modal-gameover" class="hidden modal-overlay pointer-events-auto"
-                style="background-color: rgba(127, 29, 29, 0.8);">
-                <div class="pixel-card modal-content items-center text-center">
-                    <div class="section-label text-xl" style="color: #dc2626;">GAME OVER</div>
-
-                    <div style="font-family: 'Press Start 2P', cursive; font-size: 14px; color: black;">SCORE</div>
-                    <div id="final-score"
-                        style="font-family: 'Press Start 2P', cursive; font-size: 20px; color: black;">0</div>
-
-                    <button id="btn-restart" class="ui-button w-full">
-                        RESTART
-                    </button>
+                <div class="settings-row">
+                    <span>FX</span>
+                    <input type="checkbox" id="toggle-fx" />
                 </div>
-            </div>
+                <div class="settings-row">
+                    <span>HAPTICS</span>
+                    <input type="checkbox" id="toggle-haptics" />
+                </div>
 
+                <button id="btn-close-settings" class="ui-button w-full">
+                    CLOSE
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Modal (Outside ui-layer for reliable interaction) -->
+        <div id="modal-gameover" class="hidden modal-overlay" style="z-index: 200; background-color: rgba(127, 29, 29, 0.8);">
+            <div class="pixel-card modal-content items-center text-center">
+                <div class="section-label text-xl" style="color: #dc2626;">GAME OVER</div>
+
+                <div style="font-family: 'Press Start 2P', cursive; font-size: 14px; color: black;">SCORE</div>
+                <div id="final-score"
+                    style="font-family: 'Press Start 2P', cursive; font-size: 20px; color: black;">0</div>
+
+                <button id="btn-restart" class="ui-button w-full">
+                    RESTART
+                </button>
+            </div>
         </div>
         <script type="module" src="/src/main.ts"></script>
 </body>

@@ -1012,12 +1012,19 @@ class CannonBlasterGame {
       this.updateProgressBar();
       const needed = this.getDestructionsNeededForNextUpgrade();
       if (this.destroyedSinceUpgrade >= needed) {
-        console.log(
-          "[Game] Triggering upgrade after",
-          this.destroyedSinceUpgrade,
-          "destructions (needed " + needed + ")"
-        );
-        this.showUpgradeScreen();
+        const available = getAvailableUpgrades(this.ownedUpgrades, this.lockedBranches);
+        if (available.length === 0) {
+          console.log("[Game] No upgrades available, skipping upgrade screen");
+          this.destroyedSinceUpgrade = 0;
+          this.updateProgressBar();
+        } else {
+          console.log(
+            "[Game] Triggering upgrade after",
+            this.destroyedSinceUpgrade,
+            "destructions (needed " + needed + ")"
+          );
+          this.showUpgradeScreen();
+        }
       }
     });
 
@@ -1230,6 +1237,18 @@ class CannonBlasterGame {
 
     // Render the schematic
     this.renderSchematic();
+
+    // Safety net: if no upgrades are purchasable, let the player continue immediately
+    const available = getAvailableUpgrades(this.ownedUpgrades, this.lockedBranches);
+    if (available.length === 0) {
+      console.log("[showUpgradeScreen] No upgrades available — enabling skip");
+      this.hasSelectedUpgrade = true;
+      const installBtn = document.getElementById("installBtn");
+      if (installBtn) {
+        installBtn.textContent = "All Systems Maxed - Continue";
+        installBtn.classList.add("active");
+      }
+    }
 
     document.getElementById("upgradeScreen")?.classList.remove("hidden");
   }

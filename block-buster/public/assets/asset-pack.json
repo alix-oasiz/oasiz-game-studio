@@ -30,6 +30,36 @@
                 "url": "assets/audio/BallShoot.wav",
                 "type": "audio",
                 "key": "ballShoot"
+            },
+            {
+                "url": "assets/audio/LaserZap.mp3",
+                "type": "audio",
+                "key": "laser"
+            },
+            {
+                "url": "assets/audio/ElectricZap.mp3",
+                "type": "audio",
+                "key": "electric"
+            },
+            {
+                "url": "assets/audio/BombBlast.mp3",
+                "type": "audio",
+                "key": "bombBlast"
+            },
+            {
+                "url": "assets/audio/BurstFire.mp3",
+                "type": "audio",
+                "key": "burstFire"
+            },
+            {
+                "url": "assets/audio/OrbitHit.mp3",
+                "type": "audio",
+                "key": "orbitHit"
+            },
+            {
+                "url": "assets/audio/OrbitPing.mp3",
+                "type": "audio",
+                "key": "orbitPing"
             }
         ]
     },

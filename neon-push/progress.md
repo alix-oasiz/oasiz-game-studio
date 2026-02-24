@@ -1,0 +1,69 @@
+Original prompt: colliderleri debugla
+- İnceleme başladı: collider/hitbox mantığı `src/scenes/Level.ts` dosyasında.
+- Sonraki adım: oyunu çalıştırıp Playwright ile çarpışma davranışını doğrulamak.
+- Collider debug görselleştirme eklendi (`src/scenes/Level.ts`).
+- Çizilenler: topun trap hitbox çemberi, zemin çarpışma eşiği, bariyer Y-collision bandı ve gap sınırları.
+- Build doğrulandı.
+- Trap collider kayıklığı düzeltildi.
+- `checkCollisions` artık `gapX/gapWidth` yerine trap rectangle geometrisi (`leftX/leftW/rightX/rightW`) ile circle-rect test yapıyor.
+- Debug cyan çizgiler de rectangle kenarlarından çizilecek şekilde güncellendi.
+- Kök neden: trap rectangle origin 0.5 iken genişlik runtime'da değiştiği için görsel kenar ile collider kenarı kayıyordu.
+- Düzeltme: trap/glow rectangle'lar `origin(0, 0.5)` yapıldı; `updateWorld` içinde X konumları sol kenardan (`0` ve `rightX`) verildi.
+- Yeni efekt: top hızından üretilen taper neon ribbon kuyruğu eklendi (iki katman + core çizgi).
+- Trail parçacık ayarları güçlendirildi (daha parlak/sık).
+- Yeni istek uygulandı: `launchBall` içindeki faz seçimi terslendi; artık sağa yapılan atıştan sonra ok sola, sola yapılan atıştan sonra sağa süpürmeye başlıyor.
+- Kuyruk efekti tamamlandı: taper neon ribbon + core layer + güçlendirilmiş partikül trail.
+- Launch sırasında emitter başlatma hatası (`setEmitting`) giderildi (`start`).
+- Kuyruk dışında kazara etkiyi önlemek için aim phase eski davranışta bırakıldı.
+- Aim bar davranışı güncellendi: artık tek yönlü doluyor, full olunca düşmüyor; hız yarıya yakın yavaşlatıldı.
+- Aim çizgisi taper neon/glow katmanlarıyla yeniden çizildi.
+- Bar ucuna yönüne bakan neon ok eklendi.
+- Her fırlatmadan sonra charge sıfırlanıp tekrar dolmaya başlıyor.
+- Aim oku davranışı güncellendi: ok artık doluma bağlı spawn olmuyor, sürekli şeffaf biçimde dönüyor.
+- Dolum efekti okun gövdesinde start->end fill şeklinde ilerliyor.
+- Full charge efekti eklendi: ok full dolduğunda ekstra glow + pulse ring + ışınlar çiziliyor.
+- Full durumda okun ucundan kısa aralıklarla particle pulse saçılıyor.
+- Full dolumda ok ucu ekstra parlıyor; ring pulse ve radial ışınlar eklendi.
+- Full dolumda kısa aralıklarla ok ucundan particle pulse saçılıyor.
+- Dönüş kuralı sadeleştirildi: başlangıç saat yönü, her atışta yön tersine dönüyor (tek hakim kural).
+- Sine/limit/tween temelli eski dönüş etkileri kaldırıldı.
+- Uçuş mesafesi mevcut haline göre 1.7x artırıldı.
+- Ok alanı yarım daireye sabitlendi (180°).
+- Ok sadece tıklamada yön değiştiriyor; o anki yönünün tam tersine dönüyor.
+- Sınırı geçtiğinde yön otomatik değişmiyor, sınırda bekliyor.
+- Uçuş mesafesi 1.7x boostlandı.
+- Trap sistemi güncellendi:
+  - Mevcut statik engel Trap1 olarak korundu (4 parça: sol/sağ + glowlar).
+  - Trap2 (dönen bar) görseli merkez halkalı, çıkıntılı ve neon parlak olacak şekilde yenilendi.
+  - Trap2 için 3 varyasyon eklendi: tek orta, alt-sol+üst-sağ, alt-sağ+üst-sol.
+  - Trap2 dönüş hızı yavaşlatıldı ve saat yönü/tersi random yapıldı.
+  - Spawn akışı sadeleşti: bu aşamada random sadece Trap1 ve Trap2 arasında.
+- Yeni istek uygulandı: yan duvar çıkıntı döngüsü `4 üçgen + 1 blok` olacak şekilde güncellendi.
+- Blok segmentte kare çıkıntı ağırlıklı, ek olarak dikdörtgen çıkıntı da üretilecek hale getirildi.
+- Çıkıntılar `getSideWallOffset` üzerinden sağ ve sol kenara aynı anda yansıtılıyor.
+- Kullanıcı geri bildirimi sonrası engebeler seyrekleştirildi: segment uzunluğu 2x yapıldı ve aktif çıkıntı bandı daraltıldı.
+- Yeni geri bildirim uygulandı: engebeler tekrar seyrekleştirildi (segment uzunluğu 3x, aktif band daha dar).
+- Dikdörtgen çıkıntılar daha geniş olacak şekilde `getRectSideOffset` içindeki genişlik ve span aralığı artırıldı.
+- Yeni istek uygulandı: kare çıkıntı segmentlerinde %50 olasılıkla neon hareketli kare engel spawn ediliyor.
+- Hareketli kareler iki çıkıntı arasında gidip geliyor ve her uçta 1 saniye bekliyor.
+- %25 olasılıkta çift kare spawn oluyor; alt alta yerleşip biri giderken diğeri geliyor.
+- Hareketli kareye değince karakter ölüyor (collision endGame).
+- Yeni özellik eklendi: sarı yıldırım collectible üst bölgede rastgele spawn oluyor.
+- Top yıldırıma değince pickup alınıyor ve sonraki 3 atış otomatik full-charge oluyor.
+- UI güncellendi: aktif güçlendirme varken `BOOST xN` olarak skor yanında görünüyor.
+- Ses entegrasyonu eklendi:
+  - `Preload` sahnesinde `bgMusic`, `chargedbuff`, `chargedjump`, `jump`, `dead` audio dosyaları preload edildi.
+  - `Level` sahnesinde arkaplan müziği loop çalışacak şekilde bağlandı (`ensureBgMusicPlaying`).
+  - Normal atışta `jump`, full-charge/maks atışta `chargedjump` çalacak şekilde ayrım yapıldı (charged çalarken normal jump tetiklenmiyor).
+  - Yıldırım buff pickup anında `chargedbuff` sesi eklendi.
+  - Ölüm anında `dead` sesi eklendi.
+- Haptic entegrasyonu eklendi (`Level.ts`):
+  - Normal zıplama: `triggerHaptic("light")`
+  - Full/charged zıplama: `triggerHaptic("medium")`
+  - Lightning buff pickup: `triggerHaptic("success")`
+  - Ölüm/çarpışma game over: `triggerHaptic("error")`
+  - Güvenli fallback: `window.triggerHaptic` yoksa sessizce geçiliyor.
+- Yeni istek uygulandı: Laser Grid aktivasyon sırası yukarıdan aşağı yerine aşağıdan yukarıya çevrildi.
+- Döngü korunuyor: ışınlar sıra sıra aktif oluyor, ardından tümü 1.5 saniye kapanıyor.
+- Kullanıcı isteğiyle bu adımda build/test çalıştırılmadı.
+- Laser Grid tüm ışınlar kapalı bekleme süresi 1.5s -> 3s olarak güncellendi.

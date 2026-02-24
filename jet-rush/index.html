@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Jet Rush</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      @font-face {
+        font-family: "Ethnocentric";
+        src: url("assets/fonts/Ethnocentric-Regular.otf") format("opentype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      :root {
+        --text-main: rgba(255, 255, 255, 0.95);
+        --text-soft: rgba(255, 255, 255, 0.55);
+        --accent: #00d4ff;
+        --accent-glow: rgba(0, 212, 255, 0.4);
+        --danger: #ff4466;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Ethnocentric", "Orbitron", sans-serif;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        touch-action: none;
+        background: #000;
+        font-family: "Ethnocentric", "Orbitron", sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      body * {
+        font-family: "Ethnocentric", "Orbitron", sans-serif !important;
+      }
+
+      #gameContainer {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+      }
+
+      #gameContainer canvas {
+        display: block;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      /* ── Start Screen ── */
+
+      #startScreen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        z-index: 20;
+        cursor: pointer;
+        background: radial-gradient(ellipse at 50% 40%, rgba(0, 20, 40, 0.6) 0%, rgba(0, 0, 0, 0.85) 100%);
+      }
+
+      .start-title {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(2.8rem, 14vw, 5.5rem);
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-main);
+        line-height: 1;
+        text-align: center;
+        text-shadow: 0 0 40px var(--accent-glow), 0 0 80px rgba(0, 212, 255, 0.2);
+      }
+
+      .start-subtitle {
+        margin-top: 12px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.7rem, 3vw, 1rem);
+        font-weight: 500;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--accent);
+        opacity: 0.7;
+      }
+
+      .start-cta {
+        margin-top: 40px;
+        font-size: clamp(0.85rem, 3.5vw, 1.1rem);
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+        animation: pulse 2.2s ease-in-out infinite;
+      }
+
+      /* ── Game Over Screen ── */
+
+      #gameOverScreen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+        cursor: pointer;
+        background: radial-gradient(ellipse at 50% 40%, rgba(40, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.85) 100%);
+      }
+
+      .gameover-label {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.72rem, 3vw, 0.88rem);
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+
+      .gameover-score {
+        margin-top: 8px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(4rem, 22vw, 8rem);
+        font-weight: 700;
+        color: var(--text-main);
+        line-height: 1;
+        text-shadow: 0 0 30px var(--accent-glow);
+      }
+
+      .gameover-cta {
+        margin-top: 36px;
+        font-size: clamp(0.85rem, 3.5vw, 1.1rem);
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+        animation: pulse 2.2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 1; }
+      }
+
+      /* ── HUD ── */
+
+      #hud {
+        position: fixed;
+        top: 28px;
+        left: 0;
+        right: 0;
+        z-index: 10;
+        pointer-events: none;
+        display: flex;
+        justify-content: center;
+      }
+
+      .hud-score {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(1.6rem, 6vw, 2.4rem);
+        font-weight: 700;
+        color: var(--text-main);
+        text-shadow: 0 0 20px var(--accent-glow);
+        letter-spacing: 0.06em;
+      }
+
+      .hud-orbs {
+        position: fixed;
+        top: 28px;
+        left: 20px;
+        z-index: 10;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.9rem, 3.5vw, 1.2rem);
+        font-weight: 600;
+        color: #00ffcc;
+        text-shadow: 0 0 12px rgba(0, 255, 200, 0.5);
+      }
+
+      .hud-orbs .orb-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #00ffcc;
+        box-shadow: 0 0 8px rgba(0, 255, 200, 0.6);
+      }
+
+      .start-orbs {
+        margin-top: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.9rem, 3.5vw, 1.15rem);
+        font-weight: 600;
+        color: #00ffcc;
+        text-shadow: 0 0 12px rgba(0, 255, 200, 0.4);
+        opacity: 0.85;
+      }
+
+      .start-orbs .orb-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #00ffcc;
+        box-shadow: 0 0 8px rgba(0, 255, 200, 0.6);
+      }
+
+      .gameover-orbs {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.9rem, 3.5vw, 1.15rem);
+        font-weight: 600;
+        color: #00ffcc;
+        text-shadow: 0 0 12px rgba(0, 255, 200, 0.4);
+      }
+
+      .gameover-orbs .orb-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #00ffcc;
+        box-shadow: 0 0 8px rgba(0, 255, 200, 0.6);
+      }
+
+      /* ── Settings Button ── */
+
+      .icon-btn {
+        position: fixed;
+        top: 45px;
+        right: 20px;
+        width: 54px;
+        height: 54px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        background: rgba(0, 10, 30, 0.6);
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+        z-index: 12;
+        transition: transform 0.16s ease, background 0.16s ease;
+        cursor: pointer;
+      }
+
+      .icon-btn:active {
+        transform: scale(0.94);
+      }
+
+      .icon-btn svg {
+        width: 24px;
+        height: 24px;
+        fill: currentColor;
+      }
+
+      /* ── Settings Modal ── */
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 22px;
+        background: radial-gradient(ellipse at 50% 40%, transparent 20%, rgba(0, 0, 0, 0.7) 100%);
+        backdrop-filter: blur(12px);
+      }
+
+      .modal-card {
+        width: min(100%, 320px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 28px;
+      }
+
+      .modal-title {
+        font-family: "Orbitron", sans-serif;
+        color: var(--text-main);
+        font-size: clamp(1.4rem, 7vw, 2rem);
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .settings-list {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .setting-row {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: var(--text-main);
+        padding: 14px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+        font-family: "Orbitron", sans-serif;
+      }
+
+      .setting-row:last-child {
+        border-bottom: none;
+      }
+
+      .setting-name {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .setting-title {
+        font-size: 1rem;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .setting-state {
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+
+      .switch {
+        width: 46px;
+        height: 26px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        position: relative;
+        flex-shrink: 0;
+        transition: background 0.2s ease;
+      }
+
+      .switch::after {
+        content: "";
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.5);
+        top: 3px;
+        left: 3px;
+        transition: transform 0.2s ease, background 0.2s ease;
+      }
+
+      .setting-row.active .switch {
+        background: rgba(0, 212, 255, 0.35);
+      }
+
+      .setting-row.active .switch::after {
+        transform: translateX(20px);
+        background: #ffffff;
+      }
+
+      /* ── Mobile Controls ── */
+
+      .mobile-controls {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 0 20px 120px;
+        pointer-events: none;
+        z-index: 11;
+      }
+
+      .ctrl-group {
+        display: flex;
+        gap: 12px;
+        pointer-events: none;
+      }
+
+      .ctrl-btn {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 10, 30, 0.5);
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+        pointer-events: auto;
+        transition: transform 0.1s ease, background 0.1s ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .ctrl-btn:active {
+        transform: scale(0.92);
+        background: rgba(0, 212, 255, 0.25);
+      }
+
+      .ctrl-btn svg {
+        width: 32px;
+        height: 32px;
+        fill: currentColor;
+      }
+
+      @media (pointer: coarse) {
+        #hud {
+          top: 100px;
+        }
+
+        .hud-orbs {
+          top: 100px;
+        }
+
+        .icon-btn {
+          top: 120px;
+          right: 16px;
+        }
+
+        .setting-row {
+          min-height: 56px;
+        }
+      }
+
+      @media (pointer: fine) {
+        .mobile-controls {
+          display: none !important;
+        }
+      }
+
+      /* ── Shop Button (Start Screen) ── */
+
+      .shop-btn {
+        margin-top: 28px;
+        padding: 12px 36px;
+        border: 1px solid rgba(0, 212, 255, 0.35);
+        border-radius: 12px;
+        background: rgba(0, 20, 50, 0.6);
+        color: var(--accent);
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.8rem, 3vw, 1rem);
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .shop-btn:active {
+        transform: scale(0.95);
+      }
+
+      .shop-btn:hover {
+        background: rgba(0, 40, 80, 0.7);
+        border-color: var(--accent);
+      }
+
+      .shop-btn svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+      }
+
+      /* ── Rotate Button (Start Screen, Mobile Only) ── */
+
+      .rotate-btn {
+        margin-top: 18px;
+        padding: 10px 28px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        background: rgba(0, 10, 30, 0.55);
+        color: var(--text-soft);
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .rotate-btn:active {
+        transform: scale(0.95);
+      }
+
+      .rotate-btn:hover {
+        background: rgba(0, 30, 60, 0.6);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      .rotate-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+        pointer-events: none;
+      }
+
+      @media (pointer: coarse) {
+        .rotate-btn {
+          display: flex;
+        }
+      }
+
+      /* ── Forced Landscape (CSS rotation for portrait WebViews) ── */
+
+      body.force-landscape {
+        width: 100vh;
+        height: 100vw;
+        transform: rotate(90deg);
+        transform-origin: top left;
+        position: absolute;
+        top: 0;
+        left: 100vw;
+        overflow: hidden;
+      }
+
+      /* ── Shop Modal ── */
+
+      #shopModal {
+        position: fixed;
+        inset: 0;
+        z-index: 35;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at 50% 30%, rgba(0, 15, 35, 0.95) 0%, rgba(0, 0, 0, 0.98) 100%);
+        backdrop-filter: blur(16px);
+      }
+
+      .shop-container {
+        width: min(100%, 420px);
+        height: 100%;
+        max-height: 700px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        position: relative;
+      }
+
+      .shop-header {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .shop-title {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(1.2rem, 5vw, 1.6rem);
+        font-weight: 700;
+        color: var(--text-main);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .shop-orbs {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.8rem, 3vw, 1rem);
+        font-weight: 600;
+        color: #00ffcc;
+        text-shadow: 0 0 10px rgba(0, 255, 200, 0.4);
+      }
+
+      .shop-orbs .orb-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #00ffcc;
+        box-shadow: 0 0 8px rgba(0, 255, 200, 0.6);
+      }
+
+      .shop-close {
+        width: 40px;
+        height: 40px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-soft);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: background 0.15s ease;
+        flex-shrink: 0;
+      }
+
+      .shop-close:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .shop-close svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+
+      /* Preview area */
+
+      .shop-preview-wrap {
+        flex: 1;
+        width: 100%;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 180px;
+        max-height: 400px;
+        overflow: hidden;
+      }
+
+      .shop-preview-wrap canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block;
+        border-radius: 12px;
+      }
+
+      .shop-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 48px;
+        height: 48px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 50%;
+        background: rgba(0, 10, 30, 0.7);
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        z-index: 2;
+        transition: transform 0.12s ease, background 0.12s ease;
+      }
+
+      .shop-nav:active {
+        transform: translateY(-50%) scale(0.9);
+      }
+
+      .shop-nav:hover {
+        background: rgba(0, 30, 60, 0.85);
+      }
+
+      .shop-nav svg {
+        width: 24px;
+        height: 24px;
+        fill: currentColor;
+      }
+
+      .shop-nav.prev { left: 8px; }
+      .shop-nav.next { right: 8px; }
+
+      .shop-ship-name {
+        margin-top: 12px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(1.1rem, 5vw, 1.5rem);
+        font-weight: 700;
+        color: var(--text-main);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        text-shadow: 0 0 20px var(--accent-glow);
+      }
+
+      .shop-dots {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+      }
+
+      .shop-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      .shop-dot.active {
+        background: var(--accent);
+        transform: scale(1.3);
+        box-shadow: 0 0 8px var(--accent-glow);
+      }
+
+      /* Action button */
+
+      .shop-action-btn {
+        margin-top: 20px;
+        width: 100%;
+        max-width: 280px;
+        padding: 14px 24px;
+        border: none;
+        border-radius: 14px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.9rem, 3.5vw, 1.1rem);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: transform 0.12s ease, opacity 0.15s ease;
+      }
+
+      .shop-action-btn:active {
+        transform: scale(0.96);
+      }
+
+      .shop-buy {
+        background: linear-gradient(135deg, #00b4d8, #0077b6);
+        color: #fff;
+        box-shadow: 0 4px 20px rgba(0, 180, 216, 0.35);
+      }
+
+      .shop-select {
+        background: linear-gradient(135deg, #00b894, #00997a);
+        color: #fff;
+        box-shadow: 0 4px 20px rgba(0, 184, 148, 0.3);
+      }
+
+      .shop-equipped {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-soft);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        cursor: default;
+      }
+
+      .shop-equipped:active {
+        transform: none;
+      }
+
+      .shop-locked {
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .shop-buy-price::before {
+        content: "";
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #00ffcc;
+        box-shadow: 0 0 6px rgba(0, 255, 200, 0.5);
+        margin-right: 4px;
+        vertical-align: middle;
+      }
+
+      @keyframes shopShake {
+        0%, 100% { transform: translateX(0); }
+        20% { transform: translateX(-6px); }
+        40% { transform: translateX(6px); }
+        60% { transform: translateX(-4px); }
+        80% { transform: translateX(4px); }
+      }
+
+      .shop-btn-shake {
+        animation: shopShake 0.4s ease;
+      }
+
+      @media (pointer: coarse) {
+        .shop-container {
+          padding: 16px;
+          padding-top: 100px;
+          padding-bottom: 40px;
+          max-height: none;
+        }
+        .shop-preview-wrap {
+          max-height: 45vh;
+        }
+        .shop-nav {
+          width: 44px;
+          height: 44px;
+        }
+      }
+
+      @media (pointer: coarse) and (orientation: landscape),
+             (pointer: coarse) and (max-height: 500px) {
+        .shop-container {
+          padding-top: 16px;
+          padding-bottom: 16px;
+        }
+        .shop-preview-wrap {
+          max-height: 35vh;
+          min-height: 100px;
+        }
+        .shop-ship-name {
+          margin-top: 6px;
+          font-size: clamp(0.9rem, 3.5vw, 1.2rem);
+        }
+        .shop-dots {
+          margin-top: 4px;
+        }
+        .shop-action-btn {
+          margin-top: 10px;
+          padding: 10px 20px;
+        }
+      }
+
+      body.force-landscape .shop-container {
+        padding-top: 16px;
+        padding-bottom: 16px;
+      }
+
+      body.force-landscape .shop-preview-wrap {
+        max-height: 35vh;
+        min-height: 100px;
+      }
+
+      body.force-landscape .shop-ship-name {
+        margin-top: 6px;
+      }
+
+      body.force-landscape .shop-action-btn {
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameContainer"></div>
+
+    <div id="hud" class="hidden">
+      <span id="scoreDisplay" class="hud-score">0</span>
+    </div>
+
+    <div id="hudOrbs" class="hud-orbs hidden">
+      <span class="orb-dot"></span>
+      <span id="orbDisplay">0</span>
+    </div>
+
+    <button id="settingsBtn" class="icon-btn hidden" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M19.43 12.98a7.55 7.55 0 0 0 .05-.98 7.55 7.55 0 0 0-.05-.98l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.06 7.06 0 0 0-1.7-.98l-.38-2.65A.5.5 0 0 0 14 1h-4a.5.5 0 0 0-.49.41l-.38 2.65a7.06 7.06 0 0 0-1.7.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64L4.57 11a7.55 7.55 0 0 0-.05.98 7.55 7.55 0 0 0 .05.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .6.22l2.49-1a7.06 7.06 0 0 0 1.7.98l.38 2.65a.5.5 0 0 0 .49.41h4a.5.5 0 0 0 .49-.41l.38-2.65a7.06 7.06 0 0 0 1.7-.98l2.49 1a.5.5 0 0 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"
+        />
+      </svg>
+    </button>
+
+    <!-- Start Screen -->
+    <div id="startScreen">
+      <div class="start-title">Jet Rush</div>
+      <div class="start-subtitle">Navigate the void</div>
+      <div class="start-orbs">
+        <span class="orb-dot"></span>
+        <span id="startOrbTotal">0</span>
+      </div>
+      <div class="start-cta">Tap to Fly</div>
+      <button id="shopBtn" class="shop-btn">
+        <svg viewBox="0 0 24 24"><path d="M18.36 9l.6-3H5.04l.6 3h12.72zM20 4H4l-1 5h.01L4 20h16l.99-11H21l-1-5zM6 18V11h12v7H6z"/></svg>
+        Shop
+      </button>
+      <button id="rotateBtn" class="rotate-btn">
+        <svg viewBox="0 0 24 24"><path d="M7.34 6.41L.86 12.9l6.49 6.48 6.49-6.48-6.5-6.49zM3.69 12.9l3.66-3.66L11 12.9l-3.66 3.66-3.65-3.66zm15.67-6.26A8.95 8.95 0 0 0 13 4V.76L8.76 5 13 9.24V6c1.79 0 3.58.68 4.95 2.05a7.007 7.007 0 0 1 0 9.9 6.973 6.973 0 0 1-7.79 1.44l-1.49 1.49C10.02 21.62 11.51 22 13 22c2.3 0 4.61-.88 6.36-2.64a8.98 8.98 0 0 0 0-12.72z"/></svg>
+        <span id="rotateBtnLabel">Landscape</span>
+      </button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="hidden">
+      <div class="gameover-label">Distance</div>
+      <div id="finalScore" class="gameover-score">0</div>
+      <div class="gameover-orbs">
+        <span class="orb-dot"></span>
+        <span id="finalOrbs">0</span>
+      </div>
+      <div class="gameover-cta">Tap to Retry</div>
+    </div>
+
+    <!-- Shop Modal -->
+    <div id="shopModal" class="hidden">
+      <div class="shop-container">
+        <div class="shop-header">
+          <span class="shop-title">Ships</span>
+          <div class="shop-orbs">
+            <span class="orb-dot"></span>
+            <span id="shopOrbCount">0</span>
+          </div>
+          <button id="shopCloseBtn" class="shop-close" aria-label="Close shop">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <div id="shopPreviewWrap" class="shop-preview-wrap">
+          <canvas id="shopCanvas"></canvas>
+          <button id="shopPrev" class="shop-nav prev" aria-label="Previous ship">
+            <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          </button>
+          <button id="shopNext" class="shop-nav next" aria-label="Next ship">
+            <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+          </button>
+        </div>
+
+        <div id="shopShipName" class="shop-ship-name">Viper</div>
+        <div id="shopDots" class="shop-dots"></div>
+
+        <button id="shopBuyBtn" class="shop-action-btn shop-equipped">
+          <span id="shopBuyLabel">Equipped</span>
+          <span id="shopBuyPrice" class="shop-buy-price"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-title">Settings</div>
+
+        <div class="settings-list">
+          <button id="musicToggle" class="setting-row active">
+            <span class="setting-name">
+              <span class="setting-title">Music</span>
+              <span id="musicState" class="setting-state">On</span>
+            </span>
+            <span class="switch"></span>
+          </button>
+
+          <button id="fxToggle" class="setting-row active">
+            <span class="setting-name">
+              <span class="setting-title">FX</span>
+              <span id="fxState" class="setting-state">On</span>
+            </span>
+            <span class="switch"></span>
+          </button>
+
+          <button id="hapticsToggle" class="setting-row active">
+            <span class="setting-name">
+              <span class="setting-title">Haptics</span>
+              <span id="hapticsState" class="setting-state">On</span>
+            </span>
+            <span class="switch"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="mobileControls" class="mobile-controls hidden">
+      <div class="ctrl-group">
+        <button id="btnLeft" class="ctrl-btn" aria-label="Move Left">
+          <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        </button>
+      </div>
+      <div class="ctrl-group">
+        <button id="btnRight" class="ctrl-btn" aria-label="Move Right">
+          <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

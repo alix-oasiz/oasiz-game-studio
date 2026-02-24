@@ -37,18 +37,8 @@ window.addEventListener('load', async function () {
 			autoCenter: Phaser.Scale.NO_CENTER
 		},
 		scene: [Boot, Preload, Level, Menu, BallSelect, MapSelect],
-		physics: {
-			default: 'matter',
-			matter: {
-				debug: false,
-				gravity: { y: 2, x: 0 },
-				runner: {
-					isFixed: false, // Variable delta-time: prevents "slow motion" when FPS drops
-					fps: 60
-				},
-				autoUpdate: false // We will step the world manually in Level.ts for perfect Delta-Time sync
-			}
-		}
+		// Box2D is standalone (not a Phaser plugin) - no Phaser physics needed
+		physics: false as any
 	});
 
 	// Handle window resize and orientation for better mobile experience

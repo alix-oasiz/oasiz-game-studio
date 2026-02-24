@@ -145,3 +145,15 @@ export function getAllAnimDefs(): AnimDef[] {
 		return true;
 	});
 }
+
+// ── Lookup map: animation key -> atlas texture key (dir) ─────────────
+const _animKeyToDir = new Map<string, string>();
+
+export function getAnimAtlasKey(animKey: string): string {
+	if (_animKeyToDir.size === 0) {
+		for (const def of getAllAnimDefs()) {
+			_animKeyToDir.set(def.key, def.dir);
+		}
+	}
+	return _animKeyToDir.get(animKey) || animKey;
+}
