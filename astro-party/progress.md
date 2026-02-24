@@ -718,3 +718,27 @@ TODO / Follow-ups:
   - `astro-party`: `bun run build` passed after debug split.
 - Size impact:
   - `Renderer.ts` reduced to 1076 lines after these follow-up passes.
+- Renderer entity split pass:
+  - Added `src/systems/rendering/EntityVisualsRenderer.ts` and moved core entity visual rendering out of `Renderer`:
+    - `drawShip` (including ammo/powerup indicators, invulnerability flash, joust swords)
+    - `drawPilot` (including swim-arm animation helpers + survival ring)
+    - `drawAsteroid`
+    - `drawProjectile` (with optional dev collider overlay)
+  - `Renderer` now delegates those APIs to `EntityVisualsRenderer` and no longer owns pilot arm helper methods or entity-specific constants.
+  - `EntityVisualsRenderer` uses callback dependencies for effect bumping, shield drawing, time, and blur scaling so behavior remains identical while reducing coupling.
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Size impact:
+  - `Renderer.ts` reduced to 610 lines after this pass.
+- Renderer viewport/camera split pass:
+  - Added `src/systems/rendering/RenderViewportController.ts` and moved viewport sizing + camera transform responsibilities out of `Renderer`:
+    - canvas DPR resize/layout sizing
+    - camera focus/zoom state + clamping
+    - world-transform application
+    - screen-space blur scaling helper for effect glows
+  - `Renderer` now delegates `resize`, `setCamera`, `resetCamera`, `clear`, and camera transform application to `RenderViewportController`.
+  - Removed remaining inline camera utility methods from `Renderer` (`clampCameraZoom`, `getViewportZoomCompensation`, `getEffectiveCameraZoom`, `getClampedCameraFocus`, local `clamp`).
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Size impact:
+  - `Renderer.ts` reduced to 496 lines after this pass.
