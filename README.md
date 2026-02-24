@@ -56,7 +56,7 @@ cd your-game-name/
 bun install
 
 # 4. Start building!
-# - Game logic goes in src/main.ts
+# - Game logic starts in src/main.ts
 # - HTML/CSS goes in index.html
 bun run dev
 
@@ -90,7 +90,8 @@ When your game is complete and tested:
 ```
 your-game-name/
 ├── src/
-│   └── main.ts      # All game logic (TypeScript)
+│   ├── main.ts      # Entry point for the game logic
+│   └── ...          # Other TypeScript modules
 ├── index.html       # Entry point + CSS styles
 ├── package.json     # Dependencies
 ├── tsconfig.json    # TypeScript config
@@ -98,7 +99,8 @@ your-game-name/
 ```
 
 **Key rules:**
-- All logic in `src/main.ts` (TypeScript only) (could be split into different reusable modules)
+- All game code resides in the `src/` directory.
+- `src/main.ts` is the entry point, but code can be split across multiple files within `src/`.
 - All CSS in `<style>` tags in `index.html`
 - No JavaScript in `index.html`
 
