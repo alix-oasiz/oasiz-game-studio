@@ -93,10 +93,12 @@ async function init(): Promise<void> {
   const startUI = createStartScreenUI(game);
   const lobbyUI = createLobbyUI(game, viewport.isMobile);
   bindEndScreenUI(game);
+  let currentPhase: GamePhase = "START";
 
   const syncScreenToPhase = (
     phase: GamePhase,
     triggerPhaseEffects: boolean,
+    previousPhase: GamePhase | null,
   ): void => {
     if (phase !== "LOBBY") {
       lobbyUI.closeMapPicker();
@@ -105,7 +107,7 @@ async function init(): Promise<void> {
     switch (phase) {
       case "START":
         screenController.showScreen("start");
-        startUI.resetStartButtons();
+        startUI.resetStartButtons(previousPhase !== "START");
         break;
       case "LOBBY":
         screenController.showScreen("lobby");
@@ -140,7 +142,9 @@ async function init(): Promise<void> {
   game.setUICallbacks({
     onPhaseChange: (phase: GamePhase) => {
       console.log("[Main] Phase changed:", phase);
-      syncScreenToPhase(phase, true);
+      const previousPhase = currentPhase;
+      currentPhase = phase;
+      syncScreenToPhase(phase, true, previousPhase);
     },
 
     onPlayersUpdate: (players: PlayerData[]) => {
@@ -187,6 +191,7 @@ async function init(): Promise<void> {
   settingsUI.updateSettingsUI();
   advancedSettingsUI.updateAdvancedSettingsUI();
   screenController.showScreen("start");
+  startUI.resetStartButtons(true);
 
   if (CLIENT_DEBUG_BUILD_ENABLED) {
     const { mountDebugPanel } = await import("./debug/debugPanel");
@@ -194,7 +199,7 @@ async function init(): Promise<void> {
       game,
       screenController,
       restoreLiveUi: () => {
-        syncScreenToPhase(game.getPhase(), false);
+        syncScreenToPhase(game.getPhase(), false, currentPhase);
       },
     });
   }

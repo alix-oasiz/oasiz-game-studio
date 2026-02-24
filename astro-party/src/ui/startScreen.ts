@@ -3,11 +3,36 @@ import { elements } from "./elements";
 import { createUIFeedback } from "../feedback/uiFeedback";
 
 export interface StartScreenUI {
-  resetStartButtons: () => void;
+  resetStartButtons: (replayTitleIntro?: boolean) => void;
+  playTitleIntro: () => void;
 }
 
 export function createStartScreenUI(game: Game): StartScreenUI {
   const feedback = createUIFeedback("startScreen");
+  const titleWrap = document.getElementById("gameTitleWrap");
+  const startShell = document.querySelector<HTMLElement>("#startScreen .start-shell");
+
+  function playTitleIntro(): void {
+    if (!titleWrap && !startShell) {
+      return;
+    }
+
+    if (titleWrap) {
+      titleWrap.classList.remove("intro-active");
+    }
+    if (startShell) {
+      startShell.classList.remove("ui-intro-active");
+    }
+
+    void (titleWrap?.clientWidth ?? startShell?.clientWidth ?? 0);
+
+    if (titleWrap) {
+      titleWrap.classList.add("intro-active");
+    }
+    if (startShell) {
+      startShell.classList.add("ui-intro-active");
+    }
+  }
 
   function showJoinSection(): void {
     elements.mainButtons.style.display = "none";
@@ -22,12 +47,15 @@ export function createStartScreenUI(game: Game): StartScreenUI {
     elements.joinSection.classList.remove("active");
   }
 
-  function resetStartButtons(): void {
+  function resetStartButtons(replayTitleIntro = true): void {
     elements.createRoomBtn.disabled = false;
     elements.createRoomBtn.textContent = "Create Room";
     elements.localMatchBtn.disabled = false;
     elements.localMatchBtn.textContent = "Local Match";
     hideJoinSection();
+    if (replayTitleIntro) {
+      playTitleIntro();
+    }
   }
 
   elements.createRoomBtn.addEventListener("click", async () => {
@@ -130,5 +158,5 @@ export function createStartScreenUI(game: Game): StartScreenUI {
     elements.submitJoinBtn.textContent = "Join";
   });
 
-  return { resetStartButtons };
+  return { resetStartButtons, playTitleIntro };
 }

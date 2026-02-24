@@ -248,13 +248,23 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 18px;
+      gap: clamp(10px, 1.9vh, 18px);
       text-align: center;
+      width: min(1120px, 100%);
+      max-height: 100%;
+      padding-block: clamp(10px, 2.4vh, 24px);
+    }
+
+    .start-header,
+    .start-body,
+    .start-footer {
+      flex: 0 0 auto;
+      width: 100%;
     }
 
     .start-body {
       flex-direction: column;
-      gap: 16px;
+      gap: clamp(8px, 1.4vh, 16px);
       padding-top: 0;
     }
 
@@ -262,10 +272,11 @@
       justify-content: center;
       align-items: center;
       width: 100%;
+      margin-top: clamp(2px, 0.8vh, 10px);
     }
 
     .start-actions {
-      width: min(640px, 100%);
+      width: min(760px, 100%);
       display: flex;
       gap: 12px;
       justify-content: center;
@@ -306,23 +317,145 @@
     }
 
     /* ============= START SCREEN ============= */
-    .game-title {
-      font-family: 'Orbitron', sans-serif;
-      font-size: clamp(2.5rem, 10vw, 5rem);
-      font-weight: 900;
-      color: var(--cyan);
-      text-shadow: 0 0 20px var(--cyan), 0 0 40px var(--cyan);
-      letter-spacing: 0.1em;
-      margin-bottom: 0.5rem;
-      text-align: center;
+    .game-title-wrap {
+      position: relative;
+      width: clamp(300px, 62vw, 920px);
+      max-width: 100%;
+      max-height: min(56vh, 620px);
+      aspect-ratio: 2048 / 1365;
+      margin: 0 auto clamp(0.1rem, 0.7vh, 0.45rem);
+      overflow: visible;
+      pointer-events: none;
     }
+
+    .title-layer {
+      position: absolute;
+      inset: 0;
+      transform-origin: 50% 50%;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .title-layer.space {
+      transform: translate3d(-135%, 0, 0) scale(1.08);
+    }
+
+    .title-layer.force {
+      transform: translate3d(-118%, 0, 0) scale(1.02);
+    }
+
+    .title-layer img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: fill;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .game-title-wrap.intro-active .title-layer.space {
+      animation: titleSpaceCrash 620ms cubic-bezier(0.12, 0.98, 0.2, 1) both;
+    }
+
+    .game-title-wrap.intro-active .title-layer.force {
+      animation: titleForceSettle 550ms cubic-bezier(0.12, 0.98, 0.2, 1) 465ms
+        both;
+    }
+
+    @keyframes titleSpaceCrash {
+      0% {
+        opacity: 0;
+        transform: translate3d(-142%, 0, 0) scale(1.1);
+      }
+      58% {
+        opacity: 1;
+        transform: translate3d(7.2%, 0, 0) scale(1.02);
+      }
+      76% {
+        opacity: 1;
+        transform: translate3d(-2.4%, 0, 0) scale(0.996);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+
+    @keyframes titleForceSettle {
+      0% {
+        opacity: 0;
+        transform: translate3d(-132%, 0, 0) scale(1.04);
+      }
+      58% {
+        opacity: 1;
+        transform: translate3d(6.2%, 0, 0) scale(1.014);
+      }
+      78% {
+        opacity: 1;
+        transform: translate3d(-2.1%, 0, 0) scale(0.997);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+
+    .start-shell .subtitle,
+    .start-shell .controls-info,
+    .start-shell .start-helper,
+    .start-shell #mainButtons {
+      opacity: 0;
+      transform: translate3d(0, 18px, 0) scale(0.985);
+      filter: blur(10px) brightness(0.72);
+    }
+
+    .start-shell #mainButtons {
+      pointer-events: none;
+    }
+
+    .start-shell.ui-intro-active .subtitle {
+      animation: startUiReveal 460ms cubic-bezier(0.22, 0.95, 0.28, 1) 1020ms both;
+    }
+
+    .start-shell.ui-intro-active .controls-info {
+      animation: startUiReveal 500ms cubic-bezier(0.22, 0.95, 0.28, 1) 1140ms both;
+    }
+
+    .start-shell.ui-intro-active .start-helper {
+      animation: startUiReveal 500ms cubic-bezier(0.22, 0.95, 0.28, 1) 1200ms both;
+    }
+
+    .start-shell.ui-intro-active #mainButtons {
+      animation: startUiReveal 560ms cubic-bezier(0.2, 0.96, 0.26, 1) 1280ms both;
+      pointer-events: auto;
+    }
+
+    @keyframes startUiReveal {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 18px, 0) scale(0.985);
+        filter: blur(10px) brightness(0.72);
+      }
+      72% {
+        opacity: 1;
+        transform: translate3d(0, -2px, 0) scale(1.005);
+        filter: blur(0px) brightness(1.02);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0px) brightness(1);
+      }
+    }
+
 
     .subtitle {
       font-family: 'Orbitron', sans-serif;
       font-size: clamp(0.7rem, 2.5vw, 1rem);
       color: var(--magenta);
       letter-spacing: 0.3em;
-      margin-bottom: 1.5rem;
+      margin-bottom: clamp(0.45rem, 1.5vh, 1.2rem);
       text-transform: uppercase;
     }
 
@@ -1717,8 +1850,17 @@
       color: #666;
       font-size: 0.8rem;
       text-align: center;
-      margin-top: 0.5rem;
+      margin-top: 0.25rem;
       line-height: 1.8;
+    }
+
+    .start-actions .btn,
+    .join-section .btn-group .btn {
+      min-height: clamp(46px, 6.4vh, 56px);
+      font-size: clamp(0.82rem, 1.9vw, 1rem);
+      letter-spacing: 0.1em;
+      padding: 0.82rem 1rem;
+      white-space: nowrap;
     }
 
     .controls-info kbd {
@@ -2173,6 +2315,17 @@
 
     /* CSS rotation: render landscape layout when phone is held in portrait */
     @media (orientation: portrait) and (pointer: coarse) {
+      .splash-screen {
+        position: fixed;
+        width: var(--vh);
+        height: var(--vw);
+        transform: rotate(-90deg);
+        transform-origin: top left;
+        top: calc(var(--vh) + var(--vv-offset-y));
+        left: var(--vv-offset-x);
+        overflow: hidden;
+      }
+
       #game-wrapper {
         position: fixed;
         width: var(--vh);
@@ -2320,16 +2473,24 @@
         padding: 8px;
       }
 
+      .start-shell {
+        gap: clamp(8px, 1.5vh, 12px);
+        padding-block: 6px 10px;
+      }
+
       .start-body {
-        transform: translateY(10px);
+        transform: none;
+        gap: 8px;
       }
 
       .start-footer {
-        transform: translateY(14px);
+        transform: none;
+        margin-top: 4px;
       }
 
       .start-helper {
         display: block;
+        max-width: min(520px, 92vw);
       }
 
       /* Prevent overflow on all overlay screens */
@@ -2338,13 +2499,20 @@
         overflow: hidden;
       }
 
-      .game-title {
-        font-size: clamp(1.8rem, 6vw, 3.5rem);
+      .game-title-wrap {
+        width: min(88vw, 680px);
+        max-height: min(54vh, 320px);
+        margin-bottom: 0.15rem;
       }
 
       .subtitle {
         letter-spacing: 0.15em;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
+      }
+
+      .start-actions {
+        width: min(760px, 100%);
+        gap: 8px;
       }
 
       .winner-name {
@@ -2872,6 +3040,12 @@
       }
     }
 
+    @media (max-height: 760px) {
+      .game-title-wrap {
+        max-height: min(50vh, 500px);
+      }
+    }
+
     @media (pointer: coarse) and (orientation: landscape) {
       :root {
         --mobile-landscape-left-offset: var(--leave-btn-size);
@@ -2905,7 +3079,14 @@
       <div class="screen-shell start-shell">
         <div class="screen-header screen-center start-header">
           <div>
-            <h1 class="game-title">ASTRO PARTY</h1>
+            <div class="game-title-wrap" id="gameTitleWrap" role="img" aria-label="Space Force title">
+              <div class="title-layer space">
+                <img src="/assets/space_force_exact_split_v2_space.svg" alt="">
+              </div>
+              <div class="title-layer force">
+                <img src="/assets/space_force_exact_split_v2_force.svg" alt="">
+              </div>
+            </div>
             <p class="subtitle">Multiplayer Arena</p>
           </div>
         </div>
