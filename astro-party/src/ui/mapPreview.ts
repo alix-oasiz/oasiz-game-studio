@@ -1,7 +1,7 @@
 import { Game } from "../Game";
 import { MapId } from "../types";
-import { getMapOverlayUrl } from "../systems/rendering/MapOverlayRegistry";
-import { renderAssetStore } from "../systems/rendering/RenderAssetStore";
+import { getMapOverlayUrl } from "../systems/rendering/assets/MapOverlayRegistry";
+import { renderAssetStore } from "../systems/rendering/assets/RenderAssetStore";
 import { elements } from "./elements";
 import { getMapDefinition, type MapDefinition } from "../../shared/sim/maps.js";
 import {

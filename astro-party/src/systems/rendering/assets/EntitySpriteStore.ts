@@ -1,7 +1,7 @@
 import {
   getEntityAsset,
   type EntityAssetId,
-} from "../../../shared/geometry/EntityAssets";
+} from "../../../../shared/geometry/EntityAssets";
 import { renderAssetStore } from "./RenderAssetStore";
 
 /**

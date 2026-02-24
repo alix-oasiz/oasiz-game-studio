@@ -786,3 +786,59 @@ TODO / Follow-ups:
     - countdown still renders at end of frame for `COUNTDOWN` phase only
 - Validation:
   - `astro-party`: `bun run build` passed.
+- Render effects internal split pass (step 1):
+  - Added `src/systems/rendering/RenderEffectsPilotDebrisLayer.ts` and moved pilot death burst/debris state, spawn/update/draw, and body-bump collision logic into it.
+  - Rewired `src/systems/rendering/RenderEffectsSystem.ts` into a thin coordinator delegating to:
+    - `RenderEffectsParticleLayer`
+    - `RenderEffectsBulletCasingLayer`
+    - `RenderEffectsPilotDebrisLayer`
+  - Preserved external `RenderEffectsSystem` API so existing call sites remain unchanged.
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Rendering folder structure pass (step 2):
+  - Created `src/systems/rendering/effects/` and moved internal effect-layer implementations into it:
+    - `RenderEffectsParticleLayer.ts`
+    - `RenderEffectsBulletCasingLayer.ts`
+    - `RenderEffectsPilotDebrisLayer.ts`
+  - Updated `RenderEffectsSystem` imports to reference the new subfolder.
+  - Adjusted moved-file relative imports (`types`, `EntityAssets`, `EntitySpriteStore`) after relocation.
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Rendering folder structure pass (step 3):
+  - Created `src/systems/rendering/controllers/` and moved controller modules into it:
+    - `RenderViewportController.ts`
+    - `ScreenShakeController.ts`
+  - Updated `Renderer.ts` imports to the new controller paths.
+  - Fixed moved `RenderViewportController.ts` relative imports (`types` and `cameraConstants`).
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Rendering folder structure pass (step 4):
+  - Created `src/systems/rendering/layers/` and moved internal draw-layer modules into it:
+    - `ShipTrailRenderer.ts`
+    - `MapEffectsRenderer.ts`
+    - `CombatVisualsRenderer.ts`
+    - `EntityVisualsRenderer.ts`
+    - `RenderDebugSystem.ts`
+  - Updated `Renderer.ts` imports/exports to new `layers/*` paths.
+  - Updated moved-file relative imports (`types`, shared geometry/sim utilities, and local rendering helpers/stores).
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Rendering folder structure pass (step 5):
+  - Created `src/systems/rendering/assets/` and moved rendering asset/store modules into it:
+    - `EntitySpriteStore.ts`
+    - `PowerUpSpriteStore.ts`
+    - `PowerUpSvgAssets.ts`
+    - `RenderAssetStore.ts`
+    - `MapOverlayRegistry.ts`
+    - `MapOverlayStore.ts`
+  - Updated imports in renderer systems and UI (`Renderer`, `RenderEffectsSystem`, layer/effects modules, `ui/mapPreview.ts`).
+  - Updated moved-file relative imports to `types` and shared asset/geometry paths.
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Rendering folder structure pass (step 6):
+  - Moved `RendererVisualPrimitives.ts` into `src/systems/rendering/layers/` since it is only consumed by layer modules.
+  - Updated layer imports in:
+    - `layers/CombatVisualsRenderer.ts`
+    - `layers/RenderDebugSystem.ts`
+- Validation:
+  - `astro-party`: `bun run build` passed.

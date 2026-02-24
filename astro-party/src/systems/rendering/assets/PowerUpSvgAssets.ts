@@ -1,11 +1,11 @@
-import type { PowerUpType } from "../../types";
-import homingMissileSvg from "../../../shared/assets/powerups/homing-missile.svg?raw";
-import joustSvg from "../../../shared/assets/powerups/joust.svg?raw";
-import laserSvg from "../../../shared/assets/powerups/laser.svg?raw";
-import mineSvg from "../../../shared/assets/powerups/mine.svg?raw";
-import reverseSvg from "../../../shared/assets/powerups/reverse.svg?raw";
-import scatterSvg from "../../../shared/assets/powerups/scatter.svg?raw";
-import shieldSvg from "../../../shared/assets/powerups/shield.svg?raw";
+import type { PowerUpType } from "../../../types";
+import homingMissileSvg from "../../../../shared/assets/powerups/homing-missile.svg?raw";
+import joustSvg from "../../../../shared/assets/powerups/joust.svg?raw";
+import laserSvg from "../../../../shared/assets/powerups/laser.svg?raw";
+import mineSvg from "../../../../shared/assets/powerups/mine.svg?raw";
+import reverseSvg from "../../../../shared/assets/powerups/reverse.svg?raw";
+import scatterSvg from "../../../../shared/assets/powerups/scatter.svg?raw";
+import shieldSvg from "../../../../shared/assets/powerups/shield.svg?raw";
 
 export interface PowerUpSvgAsset {
   svgTemplate: string;

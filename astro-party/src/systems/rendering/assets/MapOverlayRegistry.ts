@@ -1,5 +1,5 @@
-import { MapId } from "../../types";
-import bunkersOverlayUrl from "../../../shared/assets/maps/bunkers-overlay.svg?url";
+import { MapId } from "../../../types";
+import bunkersOverlayUrl from "../../../../shared/assets/maps/bunkers-overlay.svg?url";
 
 const MAP_OVERLAY_URLS: Partial<Record<MapId, string>> = Object.freeze({
   4: bunkersOverlayUrl,

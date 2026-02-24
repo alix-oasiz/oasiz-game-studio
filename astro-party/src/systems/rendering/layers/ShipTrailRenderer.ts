@@ -1,5 +1,5 @@
-import type { PlayerColor, ShipState } from "../../types";
-import { getShipTrailWorldPoint } from "../../../shared/geometry/ShipRenderAnchors";
+import type { PlayerColor, ShipState } from "../../../types";
+import { getShipTrailWorldPoint } from "../../../../shared/geometry/ShipRenderAnchors";
 
 interface ShipTrailPoint {
   x: number;

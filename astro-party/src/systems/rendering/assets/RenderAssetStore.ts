@@ -1,4 +1,4 @@
-import { applySvgColorSlots } from "../../../shared/geometry/EntityAssets";
+import { applySvgColorSlots } from "../../../../shared/geometry/EntityAssets";
 
 export class RenderAssetStore {
   private svgCache = new Map<string, HTMLImageElement>();

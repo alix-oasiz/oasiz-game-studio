@@ -1,4 +1,4 @@
-import { GAME_CONFIG, MapId } from "../../types";
+import { GAME_CONFIG, MapId } from "../../../types";
 import { getMapOverlayUrl } from "./MapOverlayRegistry";
 import { renderAssetStore } from "./RenderAssetStore";
 

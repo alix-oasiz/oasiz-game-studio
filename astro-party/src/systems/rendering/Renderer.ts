@@ -14,26 +14,26 @@ import {
   MapId,
 } from "../../types";
 import { SeededRNG } from "../../../shared/sim/SeededRNG";
-import { EntitySpriteStore } from "./EntitySpriteStore";
-import { MapOverlayStore } from "./MapOverlayStore";
-import { PowerUpSpriteStore } from "./PowerUpSpriteStore";
+import { EntitySpriteStore } from "./assets/EntitySpriteStore";
+import { MapOverlayStore } from "./assets/MapOverlayStore";
+import { PowerUpSpriteStore } from "./assets/PowerUpSpriteStore";
 import { RenderEffectsSystem } from "./RenderEffectsSystem";
 import {
   ShipTrailRenderer,
   type ShipTrailVisualTuning,
-} from "./ShipTrailRenderer";
-import { ScreenShakeController } from "./ScreenShakeController";
-import { MapEffectsRenderer } from "./MapEffectsRenderer";
-import { CombatVisualsRenderer } from "./CombatVisualsRenderer";
-import { RenderDebugSystem } from "./RenderDebugSystem";
-import { EntityVisualsRenderer } from "./EntityVisualsRenderer";
-import { RenderViewportController } from "./RenderViewportController";
+} from "./layers/ShipTrailRenderer";
+import { ScreenShakeController } from "./controllers/ScreenShakeController";
+import { MapEffectsRenderer } from "./layers/MapEffectsRenderer";
+import { CombatVisualsRenderer } from "./layers/CombatVisualsRenderer";
+import { RenderDebugSystem } from "./layers/RenderDebugSystem";
+import { EntityVisualsRenderer } from "./layers/EntityVisualsRenderer";
+import { RenderViewportController } from "./controllers/RenderViewportController";
 import type {
   YellowBlock,
   CenterHole,
   RepulsionZone,
 } from "../../../shared/sim/maps";
-export type { ShipTrailVisualTuning } from "./ShipTrailRenderer";
+export type { ShipTrailVisualTuning } from "./layers/ShipTrailRenderer";
 
 interface RendererInitDeps {
   onEffectsReady?: (effects: RenderEffectsSystem) => void;

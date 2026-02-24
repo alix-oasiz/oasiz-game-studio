@@ -5,13 +5,13 @@ import {
   PlayerColor,
   ProjectileState,
   ShipState,
-} from "../../types";
+} from "../../../types";
 import {
   SHIP_JOUST_LOCAL_POINTS,
   SHIP_VISUAL_REFERENCE_SIZE,
-} from "../../../shared/geometry/ShipRenderAnchors";
-import { PILOT_EFFECT_LOCAL_POINTS } from "../../../shared/geometry/PilotRenderAnchors";
-import { EntitySpriteStore } from "./EntitySpriteStore";
+} from "../../../../shared/geometry/ShipRenderAnchors";
+import { PILOT_EFFECT_LOCAL_POINTS } from "../../../../shared/geometry/PilotRenderAnchors";
+import { EntitySpriteStore } from "../assets/EntitySpriteStore";
 
 interface EntityVisualsDeps {
   bumpPilotDebrisWithBody: (

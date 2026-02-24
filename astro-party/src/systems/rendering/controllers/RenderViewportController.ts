@@ -1,10 +1,10 @@
-import { GAME_CONFIG } from "../../types";
+import { GAME_CONFIG } from "../../../types";
 import {
   CAMERA_DEFAULT_ZOOM,
   CAMERA_EDGE_SLACK_RATIO,
   CAMERA_MAX_ZOOM,
   CAMERA_MIN_ZOOM,
-} from "../camera/cameraConstants";
+} from "../../camera/cameraConstants";
 
 export class RenderViewportController {
   private scale = 1;

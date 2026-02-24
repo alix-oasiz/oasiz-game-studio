@@ -1,8 +1,8 @@
-import { GAME_CONFIG, ProjectileState, ShipState } from "../../types";
+import { GAME_CONFIG, ProjectileState, ShipState } from "../../../types";
 import {
   SHIP_COLLIDER_VERTICES,
   transformLocalVertices,
-} from "../../../shared/geometry/EntityShapes";
+} from "../../../../shared/geometry/EntityShapes";
 import { drawDebugRadius } from "./RendererVisualPrimitives";
 
 export class RenderDebugSystem {

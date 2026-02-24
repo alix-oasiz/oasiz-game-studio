@@ -1,4 +1,4 @@
-import type { PowerUpType } from "../../types";
+import type { PowerUpType } from "../../../types";
 import { POWERUP_SVG_ASSETS } from "./PowerUpSvgAssets";
 import { renderAssetStore } from "./RenderAssetStore";
 

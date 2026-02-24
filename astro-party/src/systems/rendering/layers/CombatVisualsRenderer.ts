@@ -6,10 +6,10 @@ import {
   LaserBeamState,
   MineState,
   HomingMissileState,
-} from "../../types";
-import { SHIP_SHIELD_RADII } from "../../../shared/geometry/ShipRenderAnchors";
-import { projectRayToArenaWall } from "../../../shared/sim/physics/geometryMath";
-import { PowerUpSpriteStore } from "./PowerUpSpriteStore";
+} from "../../../types";
+import { SHIP_SHIELD_RADII } from "../../../../shared/geometry/ShipRenderAnchors";
+import { projectRayToArenaWall } from "../../../../shared/sim/physics/geometryMath";
+import { PowerUpSpriteStore } from "../assets/PowerUpSpriteStore";
 import { drawMineBody, drawMineExplosionEffect } from "./RendererVisualPrimitives";
 
 export class CombatVisualsRenderer {

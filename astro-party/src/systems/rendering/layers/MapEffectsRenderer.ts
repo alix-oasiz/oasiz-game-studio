@@ -1,5 +1,5 @@
-import type { YellowBlock, CenterHole, RepulsionZone } from "../../../shared/sim/maps";
-import { GAME_CONFIG } from "../../types";
+import type { YellowBlock, CenterHole, RepulsionZone } from "../../../../shared/sim/maps";
+import { GAME_CONFIG } from "../../../types";
 
 export interface CenterHoleTheme {
   ring: string;
