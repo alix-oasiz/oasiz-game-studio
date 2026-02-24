@@ -149,6 +149,18 @@ class Game {
     life: number; maxLife: number;
     r: number; g: number; b: number;
   }[] = [];
+
+  // Floating damage text for player hits
+  private damageTexts: {
+    x: number; y: number;
+    vy: number;
+    alpha: number;
+    life: number;
+    maxLife: number;
+    text: string;
+  }[] = [];
+  private deathFreezeFrames: number = 0;
+  private deathFreezeKiller: { x: number; y: number } | null = null;
   
   // Track previous HP for bubble pop detection
   private previousHp: number = CONFIG.PLAYER_MAX_HP;
@@ -297,6 +309,7 @@ class Game {
     // Touch controls (mobile spec)
     this.canvas.addEventListener("touchstart", (e) => {
       e.preventDefault();
+      this.tryStartAmbienceFromInteraction();
       this.handleTouchStart(e);
     }, { passive: false });
     
@@ -318,6 +331,7 @@ class Game {
     // Mouse controls (for desktop testing)
     this.canvas.addEventListener("mousedown", (e) => {
       if (this.gameState !== "playing") return;
+      this.tryStartAmbienceFromInteraction();
       this.handleMouseInput(e.clientX, e.clientY);
     });
     
@@ -713,10 +727,17 @@ class Game {
   
   private loadAudio(): void {
     // Ambience uses HTMLAudioElement (long looping track)
-    this.ambienceAudio = new Audio("assets/sfx/underwater-ambience.mp3");
+    this.ambienceAudio = new Audio("assets/sfx/abyssal-echoes.mp3");
     this.ambienceAudio.loop = true;
-    this.ambienceAudio.volume = 1.0;
+    this.ambienceAudio.volume = 0.2;
     this.ambienceAudio.preload = "auto";
+    this.ambienceAudio.addEventListener("canplaythrough", () => {
+      console.log("[loadAudio]", "Background music ready");
+      this.tryStartAmbienceFromInteraction();
+    });
+    this.ambienceAudio.addEventListener("error", () => {
+      console.log("[loadAudio]", "Failed to load background music file");
+    });
     console.log("[Game] Ambience audio loaded");
     
     // SFX use Web Audio API for instant, overlapping playback
@@ -816,6 +837,47 @@ class Game {
     osc.stop(now + duration);
   }
 
+  private playDeathSound(): void {
+    if (!this.settings.fx) return;
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+    const duration = 0.22;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(170, now);
+    osc.frequency.exponentialRampToValueAtTime(52, now + duration);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.2, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+
+  private startDeathFreeze(killerX: number, killerY: number): void {
+    if (this.deathFreezeFrames > 0) return;
+    this.deathFreezeFrames = 120;
+    this.deathFreezeKiller = { x: killerX, y: killerY };
+    this.playDeathSound();
+    this.triggerHaptic("error");
+  }
+
+  private applyPlayerDamage(killerX: number, killerY: number): void {
+    if (this.playerController.isInvulnerable()) return;
+    const player = this.playerController.getPlayer();
+    this.playerController.takeDamage();
+    this.spawnDamageText(player.x, player.y - player.height * 0.6, "-1");
+    this.playHurtSound();
+    if (this.playerController.isDead()) {
+      this.startDeathFreeze(killerX, killerY);
+    }
+  }
+
   private playEnemyCrunchSound(): void {
     if (!this.settings.fx) return;
     this.playSfx(this.enemyCrunchBuffer, 0.45);
@@ -831,6 +893,14 @@ class Game {
     this.ambienceAudio.play().catch(() => {
       console.log("[Game] Ambience autoplay blocked, will retry on interaction");
     });
+  }
+
+  private tryStartAmbienceFromInteraction(): void {
+    if (this.gameState !== "playing" || !this.settings.music || !this.ambienceAudio) return;
+    if (!this.ambienceAudio.paused) return;
+
+    this.getAudioCtx();
+    this.ambienceAudio.play().catch(() => {});
   }
   
   private stopAmbience(): void {
@@ -933,10 +1003,15 @@ class Game {
     
     // Play bullet sound
     this.playBulletSound();
+
+    // Show ammo depletion feedback when the last bullet is spent.
+    const player = this.playerController.getPlayer();
+    if (player.ammo <= 0) {
+      this.spawnDamageText(player.x, player.y - player.height * 0.8, "Empty!");
+    }
     
     // If laser is active, fire a laser beam immediately
     if (this.lastShotEffects.triggerLaser) {
-      const player = this.playerController.getPlayer();
       this.powerUpManager.spawnLaserBeam(
         player.x,
         player.y + player.height / 2,
@@ -1033,6 +1108,9 @@ class Game {
     this.enemyBullets = [];
     this.droppedGems = [];
     this.brokenWeeds.clear();
+    this.damageTexts = [];
+    this.deathFreezeFrames = 0;
+    this.deathFreezeKiller = null;
     
     // Reset level spawner
     this.levelSpawner.reset();
@@ -1098,6 +1176,14 @@ class Game {
     this.frameCount++;
     
     if (this.gameState !== "playing") return;
+
+    if (this.deathFreezeFrames > 0) {
+      this.deathFreezeFrames--;
+      if (this.deathFreezeFrames <= 0) {
+        this.gameOver();
+      }
+      return;
+    }
     
     // Update powerup aura flash timer
     if (this.powerupAuraFlash > 0) {
@@ -1120,7 +1206,12 @@ class Game {
     }
     
     // Check kill plane
-    this.playerController.checkKillPlane(this.cameraY);
+    const killedByFall = this.playerController.checkKillPlane(this.cameraY);
+    if (killedByFall) {
+      const p = this.playerController.getPlayer();
+      this.startDeathFreeze(p.x, this.cameraY + CONFIG.INTERNAL_HEIGHT + 70);
+      return;
+    }
     
     // 2. Enemy System
     this.updateEnemies();
@@ -1144,6 +1235,7 @@ class Game {
     this.updateDeathExplosions();
     this.updateExplosionParticles();
     this.updateDeathBubbles();
+    this.updateDamageTexts();
 
     // 8. Platform crumble & sand effects
     this.updateCrumbleDebris();
@@ -1159,7 +1251,7 @@ class Game {
     this.updateHUD();
     
     // Check fail states
-    if (this.playerController.isDead()) {
+    if (this.playerController.isDead() && this.deathFreezeFrames <= 0) {
       this.gameOver();
     }
   }
@@ -1476,9 +1568,7 @@ class Game {
           this.enemyBullets.splice(i, 1);
           continue;
         }
-        // Damage player
-        this.playerController.takeDamage();
-        this.playHurtSound();
+        this.applyPlayerDamage(bullet.x, bullet.y);
         this.addScreenShake(5);
         this.triggerHaptic("error");
         
@@ -1718,8 +1808,7 @@ class Game {
         this.bounceOnEnemy(enemy, i);
       } else if (!this.playerController.isInvulnerable()) {
         // Player takes damage only if moving up or stationary
-        this.playerController.takeDamage();
-        this.playHurtSound();
+        this.applyPlayerDamage(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
       }
     }
 
@@ -1931,6 +2020,32 @@ class Game {
       // Remove faded or tiny bubbles
       if (b.alpha <= 0 || b.size < 1) {
         this.deathBubbles.splice(i, 1);
+      }
+    }
+  }
+
+  private spawnDamageText(x: number, y: number, text: string): void {
+    this.damageTexts.push({
+      x,
+      y,
+      vy: -0.55,
+      alpha: 1,
+      life: 0,
+      maxLife: 64,
+      text,
+    });
+  }
+
+  private updateDamageTexts(): void {
+    for (let i = this.damageTexts.length - 1; i >= 0; i--) {
+      const t = this.damageTexts[i];
+      t.life++;
+      t.y += t.vy;
+      t.vy -= 0.01;
+      const p = t.life / t.maxLife;
+      t.alpha = Math.max(0, 1 - p);
+      if (t.life >= t.maxLife || t.alpha <= 0) {
+        this.damageTexts.splice(i, 1);
       }
     }
   }
@@ -2682,9 +2797,13 @@ class Game {
       this.drawDeathExplosions();
       this.drawExplosionParticles();
       this.drawDeathBubbles();
+      this.drawDamageTexts();
       
       // Draw player
       this.drawPlayer();
+      if (this.deathFreezeFrames > 0) {
+        this.drawDeathFreezeHighlight();
+      }
       
       // Draw powerup effects (on top of player)
       this.drawSatellites();
@@ -2704,6 +2823,32 @@ class Game {
     
     // Apply dithering effect as post-process
     this.applyDithering();
+  }
+
+  private drawDeathFreezeHighlight(): void {
+    const ctx = this.ctx;
+    const p = this.playerController.getPlayer();
+    const k = this.deathFreezeKiller;
+    const pulse = 0.5 + Math.sin(this.frameCount * 0.35) * 0.5;
+
+    ctx.save();
+    ctx.fillStyle = `rgba(6, 15, 30, ${0.28 + pulse * 0.15})`;
+    ctx.fillRect(0, this.cameraY, CONFIG.INTERNAL_WIDTH, CONFIG.INTERNAL_HEIGHT);
+
+    ctx.strokeStyle = "rgba(255, 255, 210, 0.9)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 24 + pulse * 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (k) {
+      ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(k.x, k.y, 22 + pulse * 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
   
   private drawMenuBackground(): void {
@@ -3427,6 +3572,23 @@ class Game {
         ctx.fillStyle = `rgba(255, 255, 255, ${b.alpha * 0.4})`;
         ctx.fill();
       }
+    }
+  }
+
+  private drawDamageTexts(): void {
+    const ctx = this.ctx;
+    for (const t of this.damageTexts) {
+      ctx.save();
+      ctx.globalAlpha = t.alpha;
+      ctx.font = "14px 'Press Start 2P'";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#ff6e6e";
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.lineWidth = 3;
+      ctx.strokeText(t.text, t.x, t.y);
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
     }
   }
   

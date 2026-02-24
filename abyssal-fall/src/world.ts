@@ -338,116 +338,111 @@ export class LevelSpawner {
   
   private generatePlatforms(chunk: Chunk, rng: SeededRNG, wallProfile: WallProfile): void {
     const BLOCK_SIZE = CONFIG.WALL_BLOCK_SIZE;
-    
-    // Downwell-style floor generation:
-    // Each row spans the full playable width with 1-2 gaps for the player to fall through.
-    // The player must navigate horizontally to find gaps or shoot through breakable blocks.
-    
-    const numRows = CONFIG.PLATFORMS_PER_CHUNK + rng.int(-1, 1);
-    const sectionHeight = CONFIG.CHUNK_HEIGHT / (numRows + 1);
-    
-    // Track gap center from previous row to create navigable but shifting paths
-    let lastGapCol = -1;
-    
-    for (let i = 0; i < numRows; i++) {
-      // Snap Y to block grid
-      const platformY = Math.round((chunk.y + sectionHeight * (i + 1)) / BLOCK_SIZE) * BLOCK_SIZE;
-      
-      // Get wall widths at this row's Y position
-      const row = Math.min(
-        Math.floor((platformY - chunk.y) / BLOCK_SIZE),
-        wallProfile.leftWidths.length - 1
-      );
-      const leftWallWidth = this.getMaxWallWidth(wallProfile, Math.max(0, row), Math.min(row, wallProfile.leftWidths.length - 1), "left");
-      const rightWallWidth = this.getMaxWallWidth(wallProfile, Math.max(0, row), Math.min(row, wallProfile.rightWidths.length - 1), "right");
-      
-      const playableLeft = leftWallWidth;
-      const playableRight = CONFIG.INTERNAL_WIDTH - rightWallWidth;
-      const playableWidth = playableRight - playableLeft;
-      const numColumns = Math.floor(playableWidth / BLOCK_SIZE);
-      
-      // Need at least 5 columns for a meaningful floor row
-      if (numColumns < 5) continue;
-      
-      // Decide if this is a "full floor" (no pre-made gap, must shoot through)
-      const isFullFloor = rng.chance(CONFIG.FULL_FLOOR_CHANCE);
-      
-      // Build array of which columns have blocks (true = block, false = gap)
-      const columns: boolean[] = new Array(numColumns).fill(true);
-      
-      if (!isFullFloor) {
-        // Create 1-2 gaps in the floor
-        const numGaps = numColumns >= 8 ? (rng.chance(0.45) ? 2 : 1) : 1;
-        
-        for (let g = 0; g < numGaps; g++) {
-          const gapWidth = rng.int(CONFIG.GAP_MIN_BLOCKS, CONFIG.GAP_MAX_BLOCKS);
-          
-          let gapStart: number;
-          
-          if (g === 0 && lastGapCol >= 0) {
-            // Shift gap from previous row's position by 2-5 columns for variety
-            const shift = rng.int(2, Math.min(5, Math.floor(numColumns / 3)));
-            const direction = rng.chance(0.5) ? 1 : -1;
-            gapStart = lastGapCol + shift * direction;
-            // Clamp to valid range (leave at least 1 block on each side)
-            gapStart = Math.max(1, Math.min(numColumns - gapWidth - 1, gapStart));
-          } else if (g === 0) {
-            // First row or first gap: pick a position, avoid edges
-            gapStart = rng.int(1, numColumns - gapWidth - 1);
-          } else {
-            // Second gap: place on opposite side from first gap
-            const firstGapCenter = this.findFirstGap(columns, numColumns);
-            if (firstGapCenter < numColumns / 2) {
-              // First gap is on left, put second gap on right half
-              gapStart = rng.int(Math.floor(numColumns / 2) + 1, numColumns - gapWidth - 1);
-            } else {
-              // First gap is on right, put second gap on left half
-              gapStart = rng.int(1, Math.floor(numColumns / 2) - gapWidth);
-            }
-            gapStart = Math.max(1, Math.min(numColumns - gapWidth - 1, gapStart));
+    const rows = wallProfile.leftWidths.length;
+    const occupied = new Set<string>();
+    const targetChunks = Math.max(1, CONFIG.BREAKABLE_CHUNKS_PER_CHUNK + rng.int(-1, 1));
+    const minChunk = Math.max(1, CONFIG.BREAKABLE_CHUNK_MIN_BLOCKS);
+    const maxChunk = Math.max(minChunk, CONFIG.BREAKABLE_CHUNK_MAX_BLOCKS);
+
+    const getLaneCols = (row: number): { minCol: number; maxCol: number } => {
+      const clampedRow = Math.max(0, Math.min(rows - 1, row));
+      const leftCol = wallProfile.leftWidths[clampedRow];
+      const rightColExclusive = Math.floor((CONFIG.INTERNAL_WIDTH - wallProfile.rightWidths[clampedRow] * BLOCK_SIZE) / BLOCK_SIZE);
+      return { minCol: leftCol, maxCol: rightColExclusive - 1 };
+    };
+
+    const keyOf = (row: number, col: number): string => `${row}:${col}`;
+    const directions = [
+      { r: -1, c: 0 },
+      { r: 1, c: 0 },
+      { r: 0, c: -1 },
+      { r: 0, c: 1 },
+    ];
+
+    for (let chunkIdx = 0; chunkIdx < targetChunks; chunkIdx++) {
+      let placed = false;
+
+      for (let attempt = 0; attempt < 20 && !placed; attempt++) {
+        const seedRow = rng.int(1, Math.max(1, rows - 2));
+        const lane = getLaneCols(seedRow);
+        if (lane.maxCol - lane.minCol < 2) continue;
+
+        const seedCol = rng.int(lane.minCol, lane.maxCol);
+        const seedKey = keyOf(seedRow, seedCol);
+        if (occupied.has(seedKey)) continue;
+
+        const targetSize = rng.int(minChunk, maxChunk);
+        const cells: { row: number; col: number }[] = [{ row: seedRow, col: seedCol }];
+        const local = new Set<string>([seedKey]);
+        let growAttempts = targetSize * 20;
+
+        while (cells.length < targetSize && growAttempts > 0) {
+          growAttempts--;
+          const base = cells[rng.int(0, cells.length - 1)];
+          const dir = directions[rng.int(0, directions.length - 1)];
+          const nr = base.row + dir.r;
+          const nc = base.col + dir.c;
+          if (nr < 0 || nr >= rows) continue;
+
+          const rowLane = getLaneCols(nr);
+          if (nc < rowLane.minCol || nc > rowLane.maxCol) continue;
+
+          const k = keyOf(nr, nc);
+          if (local.has(k) || occupied.has(k)) continue;
+
+          // Avoid turning into a giant slab by occasionally rejecting dense growth.
+          let neighborCount = 0;
+          for (const d of directions) {
+            const nk = keyOf(nr + d.r, nc + d.c);
+            if (local.has(nk)) neighborCount++;
           }
-          
-          // Clear the gap columns
-          for (let c = gapStart; c < gapStart + gapWidth && c < numColumns; c++) {
-            columns[c] = false;
-          }
-          
-          // Track the gap position for the next row
-          if (g === 0) {
-            lastGapCol = gapStart + Math.floor(gapWidth / 2);
-          }
+          if (neighborCount >= 3 && rng.chance(0.6)) continue;
+
+          local.add(k);
+          cells.push({ row: nr, col: nc });
         }
-      }
-      
-      // Create breakable block platforms for each filled column
-      for (let col = 0; col < numColumns; col++) {
-        if (!columns[col]) continue;
-        
-        chunk.platforms.push({
-          x: playableLeft + col * BLOCK_SIZE,
-          y: platformY,
-          width: BLOCK_SIZE,
-          height: BLOCK_SIZE,
-          isWall: false,
-          breakable: true,
-          hp: 1,
-          chunkIndex: chunk.index,
-        });
+
+        if (cells.length < minChunk) continue;
+
+        // Commit chunk cells.
+        for (const cell of cells) {
+          const k = keyOf(cell.row, cell.col);
+          occupied.add(k);
+          chunk.platforms.push({
+            x: cell.col * BLOCK_SIZE,
+            y: chunk.y + cell.row * BLOCK_SIZE,
+            width: BLOCK_SIZE,
+            height: BLOCK_SIZE,
+            isWall: false,
+            breakable: true,
+            hp: 1,
+            chunkIndex: chunk.index,
+          });
+        }
+        placed = true;
       }
     }
 
     // Add side-grown, stacked wall masses that push toward the center.
     // This prevents a permanent free-fall center lane and creates natural cave pressure.
     this.generateSideCenterMasses(chunk, rng, wallProfile);
-    this.generateOneWayPlatforms(chunk, rng, wallProfile);
-    this.ensureGuaranteedClearPath(chunk, wallProfile);
-    this.generateCatchShelves(chunk, wallProfile);
+    if (!CONFIG.DOWNWELL_MODE) {
+      this.generateOneWayPlatforms(chunk, rng, wallProfile);
+    }
+    // Keep these core safety/flow passes in all modes.
+    const clearLane = this.ensureGuaranteedClearPath(chunk, wallProfile);
+    this.generateMidBreakableIslands(chunk, rng, wallProfile, clearLane);
+    this.generateCatchShelves(chunk, wallProfile, clearLane);
     this.normalizeBreakablesUnderUnbreakables(chunk);
+    this.enforceBreakableRunCap(chunk);
   }
 
   // Guarantee at least a 2-block-wide no-break route through each chunk.
   // We carve a vertical lane by cutting overlapping platforms into left/right pieces.
-  private ensureGuaranteedClearPath(chunk: Chunk, wallProfile: WallProfile): void {
+  private ensureGuaranteedClearPath(
+    chunk: Chunk,
+    wallProfile: WallProfile
+  ): { x: number; y: number; width: number; height: number } | null {
     const BLOCK = CONFIG.WALL_BLOCK_SIZE;
     const pathWidth = Math.max(BLOCK, CONFIG.GUARANTEED_CLEAR_PATH_BLOCKS * BLOCK);
 
@@ -460,7 +455,7 @@ export class LevelSpawner {
     }
 
     const usable = laneRight - laneLeft;
-    if (usable <= pathWidth + 4) return;
+    if (usable <= pathWidth + 4) return null;
 
     // Deterministic center-biased lane placement per chunk.
     const laneRng = new SeededRNG(this.seed + chunk.index * 15731 + 901);
@@ -513,12 +508,117 @@ export class LevelSpawner {
     }
 
     chunk.platforms = carved;
+    return { x: pathX, y: pathY, width: pathWidth, height: pathH };
+  }
+
+  private generateMidBreakableIslands(
+    chunk: Chunk,
+    rng: SeededRNG,
+    wallProfile: WallProfile,
+    clearLane: { x: number; y: number; width: number; height: number } | null
+  ): void {
+    const BLOCK = CONFIG.WALL_BLOCK_SIZE;
+    const rows = wallProfile.leftWidths.length;
+    const target = Math.max(0, CONFIG.MID_BREAKABLE_ISLANDS_PER_CHUNK + rng.int(-1, 1));
+    if (target <= 0) return;
+
+    const canPlaceTile = (row: number, col: number): boolean => {
+      if (row < 0 || row >= rows) return false;
+      const leftCol = wallProfile.leftWidths[row];
+      const rightColExclusive = Math.floor((CONFIG.INTERNAL_WIDTH - wallProfile.rightWidths[row] * BLOCK) / BLOCK);
+      if (col < leftCol || col >= rightColExclusive) return false;
+
+      const x = col * BLOCK;
+      const y = chunk.y + row * BLOCK;
+      if (clearLane && this.overlapsRect(x, y, BLOCK, BLOCK, clearLane.x, clearLane.y, clearLane.width, clearLane.height)) {
+        return false;
+      }
+      return !this.overlapsAnyPlatform(chunk.platforms, x, y, BLOCK, BLOCK, 0);
+    };
+
+    let placed = 0;
+    for (let i = 0; i < target; i++) {
+      let madeIsland = false;
+      for (let attempt = 0; attempt < 28 && !madeIsland; attempt++) {
+        const widthBlocks = rng.chance(0.45) ? 2 : rng.int(2, 3);
+        let heightBlocks = rng.chance(0.45) ? 4 : rng.int(2, 4);
+        while (widthBlocks * heightBlocks > 8 && heightBlocks > 2) {
+          heightBlocks--;
+        }
+
+        const minRow = 2;
+        const maxRow = Math.max(minRow, rows - heightBlocks - 2);
+        const baseRow = rng.int(minRow, maxRow);
+        const centerBias = rng.int(-2, 2);
+
+        let laneLeft = 0;
+        let laneRight = CONFIG.INTERNAL_WIDTH;
+        for (let r = baseRow; r < baseRow + heightBlocks; r++) {
+          laneLeft = Math.max(laneLeft, wallProfile.leftWidths[r] * BLOCK);
+          laneRight = Math.min(laneRight, CONFIG.INTERNAL_WIDTH - wallProfile.rightWidths[r] * BLOCK);
+        }
+        const laneWidth = laneRight - laneLeft;
+        if (laneWidth < (widthBlocks + 1) * BLOCK) continue;
+
+        const centerCol = Math.floor(((laneLeft + laneRight) * 0.5) / BLOCK) + centerBias;
+        const minCol = Math.floor(laneLeft / BLOCK);
+        const maxCol = Math.floor((laneRight - widthBlocks * BLOCK) / BLOCK);
+        let startCol = Math.max(minCol, Math.min(maxCol, centerCol - Math.floor(widthBlocks / 2)));
+
+        const sideChoice = rng.int(0, 2); // 0 center, 1 leftish, 2 rightish
+        if (sideChoice === 1) startCol = Math.max(minCol, startCol - 1);
+        if (sideChoice === 2) startCol = Math.min(maxCol, startCol + 1);
+
+        const cells: Array<{ row: number; col: number }> = [];
+        for (let dy = 0; dy < heightBlocks; dy++) {
+          for (let dx = 0; dx < widthBlocks; dx++) {
+            cells.push({ row: baseRow + dy, col: startCol + dx });
+          }
+        }
+
+        // Slightly de-rectangularize larger islands while keeping connected chunks.
+        if (cells.length >= 6 && rng.chance(0.35)) {
+          const cornerIndex = rng.int(0, 1) === 0 ? 0 : widthBlocks - 1;
+          const removeRow = rng.int(0, 1) === 0 ? baseRow : baseRow + heightBlocks - 1;
+          const idx = cells.findIndex((c) => c.row === removeRow && c.col === startCol + cornerIndex);
+          if (idx >= 0) cells.splice(idx, 1);
+        }
+
+        let valid = true;
+        for (const c of cells) {
+          if (!canPlaceTile(c.row, c.col)) {
+            valid = false;
+            break;
+          }
+        }
+        if (!valid) continue;
+
+        for (const c of cells) {
+          chunk.platforms.push({
+            x: c.col * BLOCK,
+            y: chunk.y + c.row * BLOCK,
+            width: BLOCK,
+            height: BLOCK,
+            isWall: false,
+            breakable: true,
+            hp: 1,
+            chunkIndex: chunk.index,
+          });
+        }
+        madeIsland = true;
+      }
+      if (madeIsland) placed++;
+    }
   }
 
   // Add deterministic one-way "catch shelves" so the player cannot free-fall
   // for more than the configured time window from any fixed x position.
   // Shelves leave a 2-block gap that shifts across left/center/right lanes.
-  private generateCatchShelves(chunk: Chunk, wallProfile: WallProfile): void {
+  private generateCatchShelves(
+    chunk: Chunk,
+    wallProfile: WallProfile,
+    clearLane: { x: number; y: number; width: number; height: number } | null
+  ): void {
     const BLOCK = CONFIG.WALL_BLOCK_SIZE;
     const thickness = CONFIG.ONE_WAY_PLATFORM_THICKNESS;
     const frames = Math.max(1, Math.floor(CONFIG.FALL_OBSTACLE_MAX_SECONDS * 60));
@@ -545,39 +645,56 @@ export class LevelSpawner {
       const laneWidth = laneRight - laneLeft;
       if (laneWidth <= gapWidth + BLOCK) continue;
 
-      const shelfIndex = Math.floor(shelfY / spacing);
-      const slot = (shelfIndex + phase) % 3; // 0=left,1=center,2=right
-
       const maxGapX = laneRight - gapWidth;
-      const rawGapX = laneLeft + ((laneWidth - gapWidth) * slot) / 2;
-      const gapX = Math.max(laneLeft, Math.min(maxGapX, Math.round(rawGapX / BLOCK) * BLOCK));
+      let gapX: number;
+      if (clearLane) {
+        // Keep every shelf traversable through the same carved safe lane.
+        const desired = Math.round(clearLane.x / BLOCK) * BLOCK;
+        gapX = Math.max(laneLeft, Math.min(maxGapX, desired));
+      } else {
+        const shelfIndex = Math.floor(shelfY / spacing);
+        const slot = (shelfIndex + phase) % 3; // 0=left,1=center,2=right
+        const rawGapX = laneLeft + ((laneWidth - gapWidth) * slot) / 2;
+        gapX = Math.max(laneLeft, Math.min(maxGapX, Math.round(rawGapX / BLOCK) * BLOCK));
+      }
       const gapRight = gapX + gapWidth;
       const minSeg = 10;
 
       const leftWidth = gapX - laneLeft;
       if (leftWidth >= minSeg) {
-        if (this.canPlaceOneWayWithGap(chunk.platforms, laneLeft, shelfY, leftWidth, thickness)) {
-          chunk.platforms.push({
-            x: laneLeft,
-            y: shelfY,
-            width: leftWidth,
-            height: thickness,
-            isWall: false,
-            breakable: false,
-            oneWay: true,
-            hp: 0,
-            chunkIndex: chunk.index,
-          });
-        }
+        this.placeChunkedShelfSegments(chunk, laneLeft, shelfY, leftWidth, thickness, "left");
       }
 
       const rightWidth = laneRight - gapRight;
       if (rightWidth >= minSeg) {
-        if (this.canPlaceOneWayWithGap(chunk.platforms, gapRight, shelfY, rightWidth, thickness)) {
+        this.placeChunkedShelfSegments(chunk, gapRight, shelfY, rightWidth, thickness, "right");
+      }
+    }
+  }
+
+  private placeChunkedShelfSegments(
+    chunk: Chunk,
+    startX: number,
+    y: number,
+    totalWidth: number,
+    thickness: number,
+    side: "left" | "right"
+  ): void {
+    const BLOCK = CONFIG.WALL_BLOCK_SIZE;
+    const maxSegWidth = Math.max(BLOCK, CONFIG.ONE_WAY_PLATFORM_MAX_BLOCKS * BLOCK);
+    const gapWidth = BLOCK;
+
+    if (side === "left") {
+      let x = startX;
+      const endX = startX + totalWidth;
+      while (x < endX) {
+        const remaining = endX - x;
+        const segWidth = Math.min(maxSegWidth, remaining);
+        if (segWidth >= 10 && this.canPlaceOneWayWithGap(chunk.platforms, x, y, segWidth, thickness)) {
           chunk.platforms.push({
-            x: gapRight,
-            y: shelfY,
-            width: rightWidth,
+            x,
+            y,
+            width: segWidth,
             height: thickness,
             isWall: false,
             breakable: false,
@@ -586,7 +703,30 @@ export class LevelSpawner {
             chunkIndex: chunk.index,
           });
         }
+        x += segWidth + gapWidth;
       }
+      return;
+    }
+
+    let x = startX + totalWidth;
+    while (x > startX) {
+      const remaining = x - startX;
+      const segWidth = Math.min(maxSegWidth, remaining);
+      const segX = x - segWidth;
+      if (segWidth >= 10 && this.canPlaceOneWayWithGap(chunk.platforms, segX, y, segWidth, thickness)) {
+        chunk.platforms.push({
+          x: segX,
+          y,
+          width: segWidth,
+          height: thickness,
+          isWall: false,
+          breakable: false,
+          oneWay: true,
+          hp: 0,
+          chunkIndex: chunk.index,
+        });
+      }
+      x -= segWidth + gapWidth;
     }
   }
 
@@ -655,6 +795,69 @@ export class LevelSpawner {
       if (blockedFromAbove) {
         p.breakable = false;
         p.hp = 0;
+      }
+    }
+  }
+
+  // Hard post-pass: connected breakable runs on a row can never exceed the cap.
+  // If a run is longer, overflow tiles become non-breakable.
+  private enforceBreakableRunCap(chunk: Chunk): void {
+    const capBlocks = Math.max(1, CONFIG.BREAKABLE_CHUNK_MAX_BLOCKS);
+    const maxRunWidth = capBlocks * CONFIG.WALL_BLOCK_SIZE;
+    const rowMap = new Map<number, Platform[]>();
+
+    for (const p of chunk.platforms) {
+      if (!p.breakable) continue;
+      if (!rowMap.has(p.y)) rowMap.set(p.y, []);
+      rowMap.get(p.y)!.push(p);
+    }
+
+    for (const [, rowPlatforms] of rowMap) {
+      rowPlatforms.sort((a, b) => a.x - b.x);
+      let runStart = 0;
+
+      while (runStart < rowPlatforms.length) {
+        let runEnd = runStart;
+        let runLeft = rowPlatforms[runStart].x;
+        let runRight = rowPlatforms[runStart].x + rowPlatforms[runStart].width;
+
+        // Build contiguous run by horizontal touching/overlap.
+        while (runEnd + 1 < rowPlatforms.length) {
+          const next = rowPlatforms[runEnd + 1];
+          if (next.x > runRight + 1) break;
+          runEnd++;
+          runRight = Math.max(runRight, next.x + next.width);
+        }
+
+        const runWidth = runRight - runLeft;
+        if (runWidth > maxRunWidth) {
+          const keepRight = runLeft + maxRunWidth;
+          for (let i = runStart; i <= runEnd; i++) {
+            const p = rowPlatforms[i];
+            if (p.x >= keepRight) {
+              p.breakable = false;
+              p.hp = 0;
+            } else if (p.x + p.width > keepRight) {
+              // Split edge tile: keep breakable part up to keepRight.
+              const overflow = p.x + p.width - keepRight;
+              p.width -= overflow;
+              if (overflow > 0) {
+                chunk.platforms.push({
+                  x: keepRight,
+                  y: p.y,
+                  width: overflow,
+                  height: p.height,
+                  isWall: false,
+                  breakable: false,
+                  hp: 0,
+                  chunkIndex: p.chunkIndex,
+                });
+              }
+            }
+          }
+        }
+
+        runStart = runEnd + 1;
       }
     }
   }

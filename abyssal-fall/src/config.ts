@@ -5,6 +5,8 @@
  */
 
 export const CONFIG = {
+  DOWNWELL_MODE: true,
+
   // Internal resolution (scaled to viewport)
   INTERNAL_WIDTH: 448,
   INTERNAL_HEIGHT: 640,
@@ -23,7 +25,7 @@ export const CONFIG = {
   // Downwell-style floor generation
   GAP_MIN_BLOCKS: 2,        // Minimum gap width in blocks
   GAP_MAX_BLOCKS: 3,        // Maximum gap width in blocks
-  FULL_FLOOR_CHANCE: 0.15,  // Chance of a floor with no pre-made gap (must shoot through)
+  FULL_FLOOR_CHANCE: 0.08,  // Chance of a floor with no pre-made gap (must shoot through)
   
   // Player
   PLAYER_WIDTH: 20,
@@ -54,18 +56,23 @@ export const CONFIG = {
   
   // Level generation
   CHUNK_HEIGHT: 640,
-  PLATFORMS_PER_CHUNK: 5,
-  ONE_WAY_PLATFORMS_PER_CHUNK: 1,
+  PLATFORMS_PER_CHUNK: 4,
+  BREAKABLE_CHUNKS_PER_CHUNK: 6,
+  BREAKABLE_CHUNK_MIN_BLOCKS: 2,
+  BREAKABLE_CHUNK_MAX_BLOCKS: 8,
+  ONE_WAY_PLATFORMS_PER_CHUNK: 0,
   ONE_WAY_PLATFORM_THICKNESS: 8,
-  GUARANTEED_CLEAR_PATH_BLOCKS: 4,
+  ONE_WAY_PLATFORM_MAX_BLOCKS: 3,
+  GUARANTEED_CLEAR_PATH_BLOCKS: 2,
+  MID_BREAKABLE_ISLANDS_PER_CHUNK: 2,
   FALL_OBSTACLE_MAX_SECONDS: 3,
   CATCH_SHELF_SPACING_PX: 1400,
-  ENEMIES_PER_CHUNK: 4,
+  ENEMIES_PER_CHUNK: 5,
   GEMS_PER_CHUNK: 3,
   SAFE_PATH_WIDTH: 80,
-  SIDE_MASS_INTERVAL_METERS: 20,
+  SIDE_MASS_INTERVAL_METERS: 24,
   SIDE_MASS_INTERVAL_JITTER_METERS: 4,
-  SIDE_MASS_SPAWN_CHANCE: 0.5,
+  SIDE_MASS_SPAWN_CHANCE: 0.28,
   SIDE_MASS_MAX_WIDTH_BLOCKS: 3,
   SIDE_MASS_LONG_WIDTH_CHANCE: 0.3,
   
