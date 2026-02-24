@@ -112,6 +112,7 @@
             image-rendering: pixelated;
             pointer-events: none;
             overflow: hidden;
+            animation: title-shell-float 2.6s ease-in-out infinite;
         }
 
         .title-weed img {
@@ -122,11 +123,13 @@
         .title-weed.weed-left {
             left: -28px;
             bottom: -10px;
+            animation-delay: 0s;
         }
 
         .title-weed.weed-right {
             right: -28px;
             bottom: -10px;
+            animation-delay: 0.5s;
         }
 
         .title-weed.weed-right img {
@@ -137,6 +140,20 @@
             left: 50%;
             top: -40px;
             transform: translateX(-50%);
+            animation: title-shell-top-float 3.1s ease-in-out infinite;
+            animation-delay: 0.2s;
+        }
+
+        @keyframes title-shell-float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-4px) rotate(-2deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+
+        @keyframes title-shell-top-float {
+            0% { transform: translateX(-50%) translateY(0px) rotate(0deg); }
+            50% { transform: translateX(-50%) translateY(-5px) rotate(3deg); }
+            100% { transform: translateX(-50%) translateY(0px) rotate(0deg); }
         }
 
         .subtitle {
@@ -691,7 +708,7 @@
                     Descend into the deep ocean<br>
                     Shoot creatures below you<br>
                     Bounce on heads to combo<br>
-                    Survive as deep as you can
+                    Dive as deep as you can
                 </p>
                 <button class="btn" id="start-btn">START</button>
                 <p class="controls-hint">

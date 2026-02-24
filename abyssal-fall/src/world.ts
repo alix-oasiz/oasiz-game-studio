@@ -65,6 +65,14 @@ export interface Gem extends Entity {
   collected: boolean;
   chunkIndex: number;
   bobOffset: number; // Pre-calculated for visual bob
+  // Runtime-only fields for enemy drops (optional for generated/static gems)
+  dropped?: boolean;
+  vx?: number;
+  vy?: number;
+  life?: number;
+  settled?: boolean;
+  settleFrames?: number;
+  fadeTimer?: number;
 }
 
 export interface Weed {

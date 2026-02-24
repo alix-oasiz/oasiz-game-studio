@@ -30,6 +30,7 @@ class Game {
   
   private activeEnemies: BaseEnemy[] = [];
   private activeGems: Gem[] = [];
+  private droppedGems: Gem[] = [];
   private activePlatforms: Platform[] = [];
   private activeWeeds: Weed[] = [];
   private enemyBullets: EnemyBullet[] = [];
@@ -163,6 +164,7 @@ class Game {
   private ambienceAudio: HTMLAudioElement | null = null;
   private bulletBuffer: AudioBuffer | null = null;
   private laserBuffer: AudioBuffer | null = null;
+  private gemBuffer: AudioBuffer | null = null;
   
   // Menu animation entities
   private menuEnemies: BaseEnemy[] = [];
@@ -239,36 +241,48 @@ class Game {
     // Keyboard controls (for testing, spec says touch-only)
     window.addEventListener("keydown", (e) => {
       if (this.gameState !== "playing") return;
+      const isLeftKey = e.code === "ArrowLeft" || e.code === "KeyA";
+      const isRightKey = e.code === "ArrowRight" || e.code === "KeyD";
+      const isShootKey = e.code === "Space" || e.code === "ArrowDown" || e.code === "KeyS" || e.code === "ShiftLeft" || e.code === "ShiftRight";
+      const isJumpKey = e.code === "ArrowUp" || e.code === "KeyW";
       
-      if (e.key === "ArrowLeft" || e.key === "a") {
+      if (isLeftKey) {
         this.input.left = true;
         e.preventDefault();
       }
-      if (e.key === "ArrowRight" || e.key === "d") {
+      if (isRightKey) {
         this.input.right = true;
         e.preventDefault();
       }
-      if (e.key === " " || e.key === "ArrowDown" || e.key === "s") {
+      if (isShootKey) {
         this.input.shoot = true;
+        if ((e.code === "ShiftLeft" || e.code === "ShiftRight") && !e.repeat) {
+          console.log("[Keyboard]", "Shift pressed for shoot");
+        }
         e.preventDefault();
       }
-      if (e.key === "ArrowUp" || e.key === "w") {
+      if (isJumpKey) {
         this.input.jump = true;
         e.preventDefault();
       }
     });
     
     window.addEventListener("keyup", (e) => {
-      if (e.key === "ArrowLeft" || e.key === "a") {
+      const isLeftKey = e.code === "ArrowLeft" || e.code === "KeyA";
+      const isRightKey = e.code === "ArrowRight" || e.code === "KeyD";
+      const isShootKey = e.code === "Space" || e.code === "ArrowDown" || e.code === "KeyS" || e.code === "ShiftLeft" || e.code === "ShiftRight";
+      const isJumpKey = e.code === "ArrowUp" || e.code === "KeyW";
+
+      if (isLeftKey) {
         this.input.left = false;
       }
-      if (e.key === "ArrowRight" || e.key === "d") {
+      if (isRightKey) {
         this.input.right = false;
       }
-      if (e.key === " " || e.key === "ArrowDown" || e.key === "s") {
+      if (isShootKey) {
         this.input.shoot = false;
       }
-      if (e.key === "ArrowUp" || e.key === "w") {
+      if (isJumpKey) {
         this.input.jump = false;
       }
     });
@@ -301,10 +315,17 @@ class Game {
     });
     
     this.canvas.addEventListener("mouseup", () => {
-      this.input.left = false;
-      this.input.right = false;
-      this.input.shoot = false;
-      this.input.jump = false;
+      this.clearInputState();
+    });
+
+    // Prevent sticky input if mouse button is released outside the canvas
+    window.addEventListener("mouseup", () => {
+      this.clearInputState();
+    });
+
+    // Prevent sticky input if keyboard focus leaves the game window
+    window.addEventListener("blur", () => {
+      this.clearInputState();
     });
     
     // Resize handler
@@ -329,6 +350,7 @@ class Game {
         this.ensureGameLoopRunning();
       } else {
         this.isVisible = false;
+        this.clearInputState();
       }
     });
     
@@ -425,6 +447,13 @@ class Game {
       this.input.jump = true;
       this.input.shoot = true;
     }
+  }
+
+  private clearInputState(): void {
+    this.input.left = false;
+    this.input.right = false;
+    this.input.shoot = false;
+    this.input.jump = false;
   }
   
   private resizeCanvas(): void {
@@ -693,6 +722,11 @@ class Game {
       this.laserBuffer = buf;
       console.log("[Game] Laser audio decoded");
     });
+
+    this.decodeAudioFile("assets/sfx/gem-pickup.mp3").then((buf) => {
+      this.gemBuffer = buf;
+      console.log("[Game] Gem pickup audio decoded");
+    });
   }
   
   private getAudioCtx(): AudioContext {
@@ -741,6 +775,11 @@ class Game {
   private playLaserSound(): void {
     if (!this.settings.fx) return;
     this.playSfx(this.laserBuffer, 1.0);
+  }
+
+  private playGemSound(): void {
+    if (!this.settings.fx) return;
+    this.playSfx(this.gemBuffer, 0.35);
   }
   
   private startAmbience(): void {
@@ -948,6 +987,7 @@ class Game {
     this.deathBubbles = [];
     this.hurtAnimations = [];
     this.enemyBullets = [];
+    this.droppedGems = [];
     
     // Reset level spawner
     this.levelSpawner.reset();
@@ -1038,6 +1078,7 @@ class Game {
     
     // 2. Enemy System
     this.updateEnemies();
+    this.updateDroppedGems();
     
     // 3. Weapon System
     this.updateBullets();
@@ -1099,7 +1140,100 @@ class Game {
       }
     }
   }
-  
+
+  private updateDroppedGems(): void {
+    for (let i = this.droppedGems.length - 1; i >= 0; i--) {
+      const gem = this.droppedGems[i];
+
+      if (gem.collected) {
+        this.droppedGems.splice(i, 1);
+        continue;
+      }
+
+      gem.life = (gem.life ?? 0) + 1;
+      gem.vx = gem.vx ?? 0;
+      gem.vy = gem.vy ?? 0;
+      gem.settleFrames = gem.settleFrames ?? 0;
+      gem.fadeTimer = gem.fadeTimer ?? 0;
+
+      const halfW = gem.width / 2;
+      const halfH = gem.height / 2;
+      const prevY = gem.y;
+      let onGround = false;
+
+      if (!gem.settled) {
+        gem.x += gem.vx;
+        gem.y += gem.vy;
+
+        // Underwater drag + gentle gravity for dropped gems
+        gem.vx *= 0.985;
+        gem.vy = gem.vy * 0.99 + 0.12;
+
+        // Bounce from platform tops while falling
+        if (gem.vy >= 0) {
+          const prevBottom = prevY + halfH;
+          const nextBottom = gem.y + halfH;
+          const gemLeft = gem.x - halfW;
+          const gemRight = gem.x + halfW;
+
+          for (const platform of this.activePlatforms) {
+            const platformTop = platform.y;
+            const platformLeft = platform.x;
+            const platformRight = platform.x + platform.width;
+            const crossedTop = prevBottom <= platformTop && nextBottom >= platformTop;
+            const overlapsX = gemRight > platformLeft && gemLeft < platformRight;
+
+            if (crossedTop && overlapsX) {
+              gem.y = platformTop - halfH;
+              gem.vy = -Math.abs(gem.vy) * 0.42;
+              gem.vx *= 0.8;
+              onGround = true;
+
+              if (Math.abs(gem.vy) < 0.55) {
+                gem.vy = 0;
+              }
+              break;
+            }
+          }
+        }
+
+        // Bounce lightly from side walls
+        const minX = 8 + halfW;
+        const maxX = CONFIG.INTERNAL_WIDTH - 8 - halfW;
+        if (gem.x < minX) {
+          gem.x = minX;
+          gem.vx = Math.abs(gem.vx) * 0.65;
+        } else if (gem.x > maxX) {
+          gem.x = maxX;
+          gem.vx = -Math.abs(gem.vx) * 0.65;
+        }
+
+        // Once almost still on ground, transition to flashing despawn state
+        const nearStill = Math.abs(gem.vx) < 0.08 && Math.abs(gem.vy) < 0.08;
+        if (onGround && nearStill) {
+          gem.settleFrames++;
+          if (gem.settleFrames > 10) {
+            gem.settled = true;
+            gem.vx = 0;
+            gem.vy = 0;
+            gem.fadeTimer = 0;
+          }
+        } else {
+          gem.settleFrames = 0;
+        }
+      } else {
+        gem.fadeTimer++;
+      }
+
+      const isFarAbove = gem.y < this.cameraY - CONFIG.INTERNAL_HEIGHT * 1.2;
+      const isFarBelow = gem.y > this.cameraY + CONFIG.INTERNAL_HEIGHT * 1.6;
+      const expiredAfterSettle = gem.settled && (gem.fadeTimer ?? 0) > 140;
+      if ((gem.life ?? 0) > 1200 || isFarAbove || isFarBelow || expiredAfterSettle) {
+        this.droppedGems.splice(i, 1);
+      }
+    }
+  }
+
   private updateBullets(): void {
     // Update bullet positions and remove off-screen bullets
     this.playerController.updateBullets(this.cameraY);
@@ -1341,13 +1475,41 @@ class Game {
     for (const gem of this.activeGems) {
       if (gem.collected) continue;
       
-      if (this.checkCollision(playerRect, gem)) {
+      if (this.checkGemPickup(playerRect, gem)) {
         gem.collected = true;
         const comboMultiplier = this.playerController.getComboMultiplier();
         this.score += gem.value * comboMultiplier;
         this.gems++;
+        this.playGemSound();
       }
     }
+
+    // Dropped gem collection
+    for (let i = this.droppedGems.length - 1; i >= 0; i--) {
+      const gem = this.droppedGems[i];
+      if (gem.collected) continue;
+
+      if (this.checkGemPickup(playerRect, gem)) {
+        gem.collected = true;
+        const comboMultiplier = this.playerController.getComboMultiplier();
+        this.score += gem.value * comboMultiplier;
+        this.gems++;
+        this.playGemSound();
+        this.droppedGems.splice(i, 1);
+      }
+    }
+  }
+
+  private checkGemPickup(playerRect: { x: number; y: number; width: number; height: number }, gem: Gem): boolean {
+    const gemLeft = gem.x - gem.width / 2;
+    const gemTop = gem.y - gem.height / 2;
+
+    return (
+      playerRect.x < gemLeft + gem.width &&
+      playerRect.x + playerRect.width > gemLeft &&
+      playerRect.y < gemTop + gem.height &&
+      playerRect.y + playerRect.height > gemTop
+    );
   }
   
   private bounceOnEnemy(enemy: BaseEnemy, index: number): void {
@@ -1774,6 +1936,8 @@ class Game {
     if (chunkIndex !== -1) {
       chunk.enemies.splice(chunkIndex, 1);
     }
+
+    this.spawnDroppedGems(cx, cy, enemy.chunkIndex);
     
     // Score with combo multiplier
     const comboMultiplier = this.playerController.getComboMultiplier();
@@ -1783,6 +1947,32 @@ class Game {
     this.addScreenShake(3);
     
     this.triggerHaptic("light");
+  }
+
+  private spawnDroppedGems(x: number, y: number, chunkIndex: number): void {
+    const count = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.2 + Math.random() * 2.8;
+
+      this.droppedGems.push({
+        x,
+        y,
+        width: 14,
+        height: 14,
+        value: (1 + Math.floor(Math.random() * 2)) * CONFIG.SCORE_PER_GEM,
+        collected: false,
+        chunkIndex,
+        bobOffset: Math.random() * Math.PI * 2,
+        dropped: true,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 1.2,
+        life: 0,
+        settled: false,
+        settleFrames: 0,
+        fadeTimer: 0,
+      });
+    }
   }
   
   private spawnHurtAnimation(x: number, y: number, width: number, height: number, color: string, direction: number, spriteType: "shark" | "crab" | "squid"): void {
@@ -2143,12 +2333,18 @@ class Game {
   
   private drawMenuBackground(): void {
     const ctx = this.ctx;
+    const crabScale = 0.95;
+    const crabW = 96 * crabScale;
+    const crabH = 96 * crabScale;
+    const crabX = CONFIG.INTERNAL_WIDTH / 2 - crabW / 2;
+    // Keep crab and submarine below the instruction block area
+    const crabY = CONFIG.INTERNAL_HEIGHT - crabH - 20;
     
-    // Draw bobbing submarine at the bottom of the screen
+    // Draw bobbing submarine above the crab
     if (this.submarineImg && this.submarineImg.complete) {
       const subX = CONFIG.INTERNAL_WIDTH / 2;
-      const bobY = CONFIG.INTERNAL_HEIGHT - 60 + Math.sin(this.frameCount * 0.03) * 8;
-      const subSize = 72;
+      const bobY = crabY - 18 + Math.sin(this.frameCount * 0.03) * 4;
+      const subSize = 64;
       
       ctx.save();
       
@@ -2161,7 +2357,7 @@ class Game {
       ctx.restore();
     }
     
-    // Draw animated crab below the start button
+    // Draw animated crab near the bottom of the start screen
     if (this.menuCrabImg && this.menuCrabImg.complete) {
       // Sprite sheet: 4 frames, 96x96 per frame
       const frameW = 96;
@@ -2175,19 +2371,14 @@ class Game {
       
       const sx = this.menuCrabFrame * frameW;
       const sy = 0;
-      
-      // Position: below the start button, centered
-      const scale = 1.0;
-      const crabX = CONFIG.INTERNAL_WIDTH / 2 - (frameW * scale) / 2;
-      const crabY = CONFIG.INTERNAL_HEIGHT / 2 + 100;
-      
+
       // Slight bob
       const bobY = Math.sin(this.frameCount * 0.05) * 3;
       
       ctx.drawImage(
         this.menuCrabImg,
         sx, sy, frameW, frameH,
-        crabX, crabY + bobY, frameW * scale, frameH * scale
+        crabX, crabY + bobY, crabW, crabH
       );
     }
     
@@ -2435,6 +2626,26 @@ class Game {
       ctx.lineTo(gem.x - gem.width / 2, gem.y + bobY);
       ctx.closePath();
       ctx.fill();
+    }
+
+    for (const gem of this.droppedGems) {
+      if (gem.collected) continue;
+
+      const bobY = Math.sin(this.frameCount * 0.16 + gem.bobOffset) * 1.5;
+      const fadeTimer = gem.fadeTimer ?? 0;
+      const flashing = gem.settled && fadeTimer > 30;
+      const alpha = flashing ? (Math.floor((fadeTimer - 30) / 6) % 2 === 0 ? 0.22 : 0.95) : 1;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#ffd84a";
+      ctx.beginPath();
+      ctx.moveTo(gem.x, gem.y - gem.height / 2 + bobY);
+      ctx.lineTo(gem.x + gem.width / 2, gem.y + bobY);
+      ctx.lineTo(gem.x, gem.y + gem.height / 2 + bobY);
+      ctx.lineTo(gem.x - gem.width / 2, gem.y + bobY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
   }
   
