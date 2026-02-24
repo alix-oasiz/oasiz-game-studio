@@ -1,7 +1,7 @@
 /**
  * DASH BRO
  * Fast-paced dash-based maze game with 3D rotating cube player
- * 
+ *
  * Features:
  * - Tile-based endless maze system
  * - Instant dash movement
@@ -16,8 +16,11 @@ import bgImageUrl from "../assets/Bg.webp";
 import bg2ImageUrl from "../assets/Bg2.webp";
 import bg3ImageUrl from "../assets/Bg3.webp";
 import bgMusicUrl from "../assets/Desert Glass Reverie.mp3";
-import coinSoundUrl from "../assets/coin.mp3";
-import swooshSoundUrl from "../assets/swoosh.mp3";
+// SFX
+import deathSandSfxUrl from "../assets/sfx/death_sand.mp3";
+import deathSpikeSfxUrl from "../assets/sfx/death_spike.mp3";
+import deathExplosionSfxUrl from "../assets/sfx/death_explosion.mp3";
+import deathCaughtSfxUrl from "../assets/sfx/death_caught.mp3";
 
 // Player sprites (single-frame idle and dash)
 import playerIdleSpriteUrl from "../assets/player_idle/idle.webp";
@@ -59,7 +62,18 @@ import sfxLabelSprite from "../assets/ui/sfx.webp";
 import hapticsLabelSprite from "../assets/ui/haptics.webp";
 import gameOverPanelSprite from "../assets/ui/game_over.webp";
 
-type GameState = "START" | "PLAYING" | "PAUSED" | "DYING" | "GAME_OVER" | "CAUGHT";
+// Effect sprites
+import warpSpriteUrl from "../../assets/skill-effects/Super Pixel Effects Pack 3/spritesheet/fx3_warp_large_violet/spritesheet.png";
+import lightningAuraSpriteUrl from "../../assets/skill-effects/Super Pixel Effects Pack 3/spritesheet/fx3_lightning_aura_large_yellow/spritesheet.png";
+import lightningBurstSpriteUrl from "../../assets/skill-effects/Super Pixel Effects Gigapack/spritesheet/Lightning/lightning_burst_001/lightning_burst_001_large_yellow/spritesheet.png";
+
+type GameState =
+  | "START"
+  | "PLAYING"
+  | "PAUSED"
+  | "DYING"
+  | "GAME_OVER"
+  | "CAUGHT";
 
 interface Settings {
   music: boolean;
@@ -69,7 +83,16 @@ interface Settings {
 
 type Direction = "up" | "down" | "left" | "right";
 
-type TileType = "wall" | "empty" | "dot" | "power" | "trap" | "corner_trap" | "speed_boost" | "slow_down";
+type TileType =
+  | "wall"
+  | "empty"
+  | "dot"
+  | "power"
+  | "trap"
+  | "corner_trap"
+  | "speed_boost"
+  | "portal"
+  | "visited";
 
 interface TrailPoint {
   x: number;
@@ -89,6 +112,17 @@ interface Particle {
   size: number;
   color: string;
   type: "dash" | "landing";
+}
+
+interface ActiveSpriteEffect {
+  x: number;
+  y: number;
+  sprite: HTMLImageElement;
+  totalFrames: number;
+  currentFrame: number;
+  timePerFrame: number;
+  elapsedTime: number;
+  scale: number;
 }
 
 interface DashFlash {
@@ -150,9 +184,9 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function waterWaveY(baseY: number, worldX: number, timeS: number): number {
-  const w1 = Math.sin(timeS * 1.35 + worldX * 0.020) * 7.5;
+  const w1 = Math.sin(timeS * 1.35 + worldX * 0.02) * 7.5;
   const w2 = Math.sin(timeS * 0.85 + worldX * 0.011) * 4.0;
-  const w3 = Math.sin(timeS * 2.10 + worldX * 0.006) * 2.0;
+  const w3 = Math.sin(timeS * 2.1 + worldX * 0.006) * 2.0;
   return baseY + w1 + w2 + w3;
 }
 
@@ -161,19 +195,26 @@ function sandDuneY(baseY: number, worldX: number, timeS: number): number {
   const wx = worldX + timeS * 120;
   const dune1 = Math.sin(timeS * 0.3 + wx * 0.008) * 25.0; // Large primary dunes
   const dune2 = Math.sin(timeS * 0.5 + wx * 0.015) * 12.0; // Medium secondary dunes
-  const dune3 = Math.sin(timeS * 0.8 + wx * 0.025) * 6.0;  // Small surface ripples
+  const dune3 = Math.sin(timeS * 0.8 + wx * 0.025) * 6.0; // Small surface ripples
   const dune4 = Math.sin(timeS * 0.15 + wx * 0.004) * 35.0; // Very large slow dunes
   return baseY + dune1 + dune2 + dune3 + dune4;
 }
 
 // Color-shifting functions for Egyptian pharaoh theme
-function getColorShift(time: number, offset: number = 0): { r: number; g: number; b: number } {
+function getColorShift(
+  time: number,
+  offset: number = 0,
+): { r: number; g: number; b: number } {
   // Egyptian color palette: golds, sandy oranges, deep blues, warm ambers
   const hue = (time * 0.2 + offset) % (Math.PI * 2);
   // Gold/amber tones (warm yellows and oranges)
   const r = Math.floor(220 + Math.sin(hue) * 35 + Math.cos(hue * 1.2) * 20);
-  const g = Math.floor(180 + Math.sin(hue + Math.PI * 0.5) * 50 + Math.cos(hue * 0.9) * 30);
-  const b = Math.floor(100 + Math.sin(hue + Math.PI) * 40 + Math.cos(hue * 1.1) * 25);
+  const g = Math.floor(
+    180 + Math.sin(hue + Math.PI * 0.5) * 50 + Math.cos(hue * 0.9) * 30,
+  );
+  const b = Math.floor(
+    100 + Math.sin(hue + Math.PI) * 40 + Math.cos(hue * 1.1) * 25,
+  );
   return {
     r: Math.max(0, Math.min(255, r)),
     g: Math.max(0, Math.min(255, g)),
@@ -181,7 +222,12 @@ function getColorShift(time: number, offset: number = 0): { r: number; g: number
   };
 }
 
-function getColorString(r: number, g: number, b: number, alpha: number = 1.0): string {
+function getColorString(
+  r: number,
+  g: number,
+  b: number,
+  alpha: number = 1.0,
+): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
@@ -194,7 +240,7 @@ const CONFIG = {
   MIN_WIDTH_COLS: 7, // Minimum playable width (narrow sections)
   MAX_WIDTH_COLS: 17, // Maximum playable width (wide sections)
   ZOOM: 1.5,
-  WATER_RISE_PX_PER_S: 4, // Slow rising sand dunes
+  WATER_RISE_PX_PER_S: 4.2, // Slow rising sand dunes
   WATER_RISE_BASE_MULTIPLIER: 50,
   WATER_RISE_CATCHUP_CHUNK_GAP: 2,
   WATER_RISE_CATCHUP_MULTIPLIER: 3,
@@ -240,24 +286,89 @@ class AudioFx {
   private audioContext: AudioContext | null = null;
   private musicEnabled = true;
   private bgm: HTMLAudioElement | null = null;
-  private coinSound: HTMLAudioElement | null = null;
-  private swooshSound: HTMLAudioElement | null = null;
+  private deathSandSound: HTMLAudioElement | null = null;
+  private deathSpikeSound: HTMLAudioElement | null = null;
+  private deathExplosionSound: HTMLAudioElement | null = null;
+  private deathCaughtSound: HTMLAudioElement | null = null;
+
+  // Piano note sequencer -- real song melodies, teleport switches randomly
+  private noteIndex = 0;
+  private currentSeqIdx = Math.floor(Math.random() * AudioFx.SEQUENCES.length);
+  private static readonly SEQUENCES: number[][] = [
+    // 0: Baby (Bieber) - "Oh woah" intro
+    // Eb F G F Eb D C, Eb F G F Eb F C
+    [311.1, 349.2, 392.0, 349.2, 311.1, 293.7, 261.6, 311.1, 349.2, 392.0, 349.2, 311.1, 349.2, 261.6],
+    // 1: Baby (Bieber) - chorus "Baby baby baby oh"
+    // G F G F G F Bb, G G F G F G F C5
+    [392.0, 349.2, 392.0, 349.2, 392.0, 349.2, 466.2, 392.0, 392.0, 349.2, 392.0, 349.2, 392.0, 349.2, 523.3],
+    // 2: Baby (Bieber) - verse "You know you love me"
+    // Eb Bb G F G, Eb Bb G F
+    [311.1, 466.2, 392.0, 349.2, 392.0, 311.1, 466.2, 392.0, 349.2],
+    // 3: Shake It Off (Swift) - verse "I stay out too late"
+    // D5 B A G B, D5 D5 B A G B
+    [587.3, 493.9, 440.0, 392.0, 493.9, 587.3, 587.3, 493.9, 440.0, 392.0, 493.9],
+    // 4: Shake It Off (Swift) - pre-chorus "But I keep cruising"
+    // B A G A E, A B A G A E
+    [493.9, 440.0, 392.0, 440.0, 329.6, 440.0, 493.9, 440.0, 392.0, 440.0, 329.6],
+    // 5: Shake It Off (Swift) - chorus "Players gonna play"
+    // E5 G5 A5 A5 A5 B5 G5 E5 D5 B A G
+    [659.3, 784.0, 880.0, 880.0, 880.0, 987.8, 784.0, 659.3, 587.3, 493.9, 440.0, 392.0],
+    // 6: One Dance (Drake) - main melody hook
+    // Bb Db Eb F Eb Db Bb, Ab Bb Db Eb Db Bb
+    [466.2, 554.4, 622.3, 698.5, 622.3, 554.4, 466.2, 415.3, 466.2, 554.4, 622.3, 554.4, 466.2],
+    // 7: One Dance (Drake) - vocal hook descending
+    // F Eb Db Bb, Db Eb F Eb Db Bb
+    [349.2, 311.1, 277.2, 233.1, 277.2, 311.1, 349.2, 311.1, 277.2, 233.1],
+    // 8: Moves Like Jagger (Maroon 5) - opening hook
+    // B C# D E F# E D C# B, F# E D C# B
+    [493.9, 554.4, 587.3, 659.3, 740.0, 659.3, 587.3, 554.4, 493.9, 740.0, 659.3, 587.3, 554.4, 493.9],
+    // 9: Moves Like Jagger (Maroon 5) - verse "take me away"
+    // D5 E5 F#5 E5 D5 D5 B4, B4 F#5 E5 D5 D5 B4
+    [587.3, 659.3, 740.0, 659.3, 587.3, 587.3, 493.9, 493.9, 740.0, 659.3, 587.3, 587.3, 493.9],
+    // 10: Shape of You (Ed Sheeran) - chorus "I'm in love with the shape of you"
+    // E F G F E E F F, E F G F E F C
+    [329.6, 349.2, 392.0, 349.2, 329.6, 329.6, 349.2, 349.2, 329.6, 349.2, 392.0, 349.2, 329.6, 349.2, 261.6],
+    // 11: Shape of You (Ed Sheeran) - "Oh I oh I oh I oh I"
+    // C C E E F F G G, E F G F E F C
+    [261.6, 261.6, 329.6, 329.6, 349.2, 349.2, 392.0, 392.0, 329.6, 349.2, 392.0, 349.2, 329.6, 349.2, 261.6],
+    // 12: Blinding Lights (The Weeknd) - chorus "I'm blinded by the lights"
+    // Bb F F F G F Eb Eb C5 Eb C5
+    [466.2, 349.2, 349.2, 349.2, 392.0, 349.2, 311.1, 311.1, 523.3, 311.1, 523.3],
+    // 13: Blinding Lights (The Weeknd) - pre-chorus "Sin City's cold and empty"
+    // C5 Eb F G C5 Eb F, C5 Eb F G F Bb
+    [523.3, 311.1, 349.2, 392.0, 523.3, 311.1, 349.2, 523.3, 311.1, 349.2, 392.0, 349.2, 466.2],
+    // 14: Levitating (Dua Lipa) - chorus "I got you moonlight"
+    // D D F# E E E E E E, D D F# E E E E E D B
+    [293.7, 293.7, 370.0, 329.6, 329.6, 329.6, 329.6, 329.6, 329.6, 293.7, 293.7, 370.0, 329.6, 329.6, 329.6, 329.6, 329.6, 293.7, 493.9],
+    // 15: Levitating (Dua Lipa) - pre-chorus "You want me I want you baby"
+    // F# E D F# E D B A, F# E D B A
+    [370.0, 329.6, 293.7, 370.0, 329.6, 293.7, 493.9, 440.0, 370.0, 329.6, 293.7, 493.9, 440.0],
+  ];
 
   constructor() {
     try {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.audioContext = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )();
     } catch (e) {
       console.log("[AudioFx] WebAudio not available");
     }
 
-    // Load sound effects
-    this.coinSound = new Audio(coinSoundUrl);
-    this.coinSound.preload = "auto";
-    this.coinSound.volume = 0.6;
+    this.deathSandSound = new Audio(deathSandSfxUrl);
+    this.deathSandSound.preload = "auto";
+    this.deathSandSound.volume = 0.85;
 
-    this.swooshSound = new Audio(swooshSoundUrl);
-    this.swooshSound.preload = "auto";
-    this.swooshSound.volume = 0.5;
+    this.deathSpikeSound = new Audio(deathSpikeSfxUrl);
+    this.deathSpikeSound.preload = "auto";
+    this.deathSpikeSound.volume = 0.85;
+
+    this.deathExplosionSound = new Audio(deathExplosionSfxUrl);
+    this.deathExplosionSound.preload = "auto";
+    this.deathExplosionSound.volume = 0.85;
+
+    this.deathCaughtSound = new Audio(deathCaughtSfxUrl);
+    this.deathCaughtSound.preload = "auto";
+    this.deathCaughtSound.volume = 0.85;
   }
 
   setFxEnabled(enabled: boolean): void {
@@ -269,9 +380,7 @@ class AudioFx {
     if (!enabled && this.bgm) {
       this.bgm.pause();
     } else if (enabled && this.bgm && this.bgm.paused) {
-      this.bgm.play().catch(() => {
-        // Ignore autoplay blocks
-      });
+      this.bgm.play().catch(() => {});
     }
   }
 
@@ -281,13 +390,14 @@ class AudioFx {
       this.bgm = new Audio(bgMusicUrl);
       this.bgm.loop = true;
       this.bgm.preload = "auto";
-      this.bgm.volume = 0.4;
+      this.bgm.volume = 0.1;
     }
     const p = this.bgm.play();
     if (p) {
       p.catch(() => {
-        // Ignore autoplay blocks; next user gesture will succeed
-        console.log("[AudioFx] Music autoplay blocked, will play on user interaction");
+        console.log(
+          "[AudioFx] Music autoplay blocked, will play on user interaction",
+        );
       });
     }
   }
@@ -298,60 +408,128 @@ class AudioFx {
     this.bgm.currentTime = 0;
   }
 
-  private playTone(freq: number, duration: number, type: OscillatorType = "sine"): void {
+  resetNoteSequence(): void {
+    this.noteIndex = 0;
+    this.currentSeqIdx = Math.floor(Math.random() * AudioFx.SEQUENCES.length);
+  }
+
+  private get currentScale(): number[] {
+    return AudioFx.SEQUENCES[this.currentSeqIdx];
+  }
+
+  private playPianoNote(freq: number, duration: number, volume: number): void {
+    if (!this.fxEnabled || !this.audioContext) return;
+    try {
+      const ctx = this.audioContext;
+      const now = ctx.currentTime;
+
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = "sine";
+      osc1.frequency.value = freq;
+      osc2.type = "sine";
+      osc2.frequency.value = freq * 2.01;
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(volume, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(volume * 0.4, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + duration);
+      osc2.stop(now + duration);
+    } catch (_) {}
+  }
+
+  playNextNote(): void {
+    const seq = this.currentScale;
+    const freq = seq[this.noteIndex % seq.length];
+    this.playPianoNote(freq, 0.45, 0.25);
+    this.noteIndex++;
+  }
+
+  playTeleportChord(): void {
+    const seq = this.currentScale;
+    const baseFreq = seq[this.noteIndex % seq.length];
+    this.playPianoNote(baseFreq, 0.6, 0.22);
+    this.playPianoNote(baseFreq * 1.25, 0.6, 0.18);
+    this.playPianoNote(baseFreq * 1.5, 0.6, 0.14);
+
+    let next = Math.floor(Math.random() * AudioFx.SEQUENCES.length);
+    if (next === this.currentSeqIdx) {
+      next = (next + 1) % AudioFx.SEQUENCES.length;
+    }
+    this.currentSeqIdx = next;
+    this.noteIndex = 0;
+  }
+
+  private playTone(
+    freq: number,
+    duration: number,
+    type: OscillatorType = "sine",
+  ): void {
     if (!this.fxEnabled || !this.audioContext) return;
     try {
       const osc = this.audioContext.createOscillator();
       const gain = this.audioContext.createGain();
       osc.type = type;
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.1, this.audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+      gain.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(
+        0.01,
+        this.audioContext.currentTime + duration,
+      );
       osc.connect(gain);
       gain.connect(this.audioContext.destination);
       osc.start();
       osc.stop(this.audioContext.currentTime + duration);
-    } catch (e) {
-      // Ignore audio errors
-    }
+    } catch (_) {}
   }
 
-  click(type: "dot" | "power" | "death"): void {
-    if (type === "dot") {
-      // Play coin sound effect
-      this.playCoinSound();
-    } else if (type === "power") {
+  click(
+    type:
+      | "dot"
+      | "power"
+      | "death"
+      | "death_water"
+      | "death_spike"
+      | "death_explosion"
+      | "death_caught",
+  ): void {
+    if (type === "power") {
       this.playTone(600, 0.15, "sine");
     } else if (type === "death") {
       this.playTone(200, 0.3, "sawtooth");
+    } else if (type === "death_water") {
+      this.playSfx(this.deathSandSound);
+    } else if (type === "death_spike") {
+      this.playSfx(this.deathSpikeSound);
+    } else if (type === "death_explosion") {
+      this.playSfx(this.deathExplosionSound);
+    } else if (type === "death_caught") {
+      this.playSfx(this.deathCaughtSound);
     }
   }
 
-  playCoinSound(): void {
-    if (!this.fxEnabled || !this.coinSound) return;
+  private playSfx(sound: HTMLAudioElement | null): void {
+    if (!this.fxEnabled || !sound) return;
     try {
-      // Reset to start and play
-      this.coinSound.currentTime = 0;
-      this.coinSound.play().catch(() => {
-        // Ignore autoplay blocks
-      });
-    } catch (e) {
-      // Ignore audio errors
-    }
+      sound.currentTime = 0;
+      sound.play().catch(() => {});
+    } catch (_) {}
   }
 
-  playSwooshSound(): void {
-    if (!this.fxEnabled || !this.swooshSound) return;
-    try {
-      // Reset to start and play
-      this.swooshSound.currentTime = 0;
-      this.swooshSound.play().catch(() => {
-        // Ignore autoplay blocks
-      });
-    } catch (e) {
-      // Ignore audio errors
-    }
-  }
+  playCoinSound(): void {}
+  playSwooshSound(): void { this.playNextNote(); }
+  playBoostedDash(): void { this.playNextNote(); }
+  playTeleportGate(): void { this.playTeleportChord(); }
 }
 
 /**
@@ -363,8 +541,15 @@ class AudioFx {
  * - Output: List<String> of '0'/'1' lines (top row first)
  */
 class MonotonicUpPath {
-
-  public static generate(width: number, height: number, seed: number, entryX: number, ps: number, pe: number, prevRow: TileType[] | null = null): TileType[][] {
+  public static generate(
+    width: number,
+    height: number,
+    seed: number,
+    entryX: number,
+    ps: number,
+    pe: number,
+    prevRow: TileType[] | null = null,
+  ): TileType[][] {
     // RNG setup
     let localSeed = seed;
     const random = () => {
@@ -374,7 +559,8 @@ class MonotonicUpPath {
     const nextDouble = () => random();
     const nextBoolean = () => random() < 0.5;
     const nextInt = (n: number) => Math.floor(random() * n);
-    const randInt = (a: number, b: number) => { // inclusive
+    const randInt = (a: number, b: number) => {
+      // inclusive
       if (b < a) return a;
       return a + nextInt(b - a + 1);
     };
@@ -388,7 +574,7 @@ class MonotonicUpPath {
     }
 
     // 1. Identify the path
-    const isPath: (boolean | "trap" | "speed_boost" | "slow_down")[][] = [];
+    const isPath: (boolean | "trap" | "speed_boost" | "portal")[][] = [];
     for (let y = 0; y < height; y++) {
       isPath[y] = new Array(width).fill(false);
     }
@@ -403,13 +589,16 @@ class MonotonicUpPath {
     isPath[y][x] = true;
 
     // Tuning knobs
-    const pSideRun = 0.60;    // how often we do a committed side run before going up again
-    const pWiggle = 0.20;    // small 1–2 sideways wiggle (adds variety without big detours)
+    const pSideRun = 0.6; // how often we do a committed side run before going up again
+    const pWiggle = 0.2; // small 1–2 sideways wiggle (adds variety without big detours)
     const maxUpCorridor = 6; // Never allow more than 6 consecutive upward tiles in same column.
 
-    const minUp = 1, maxUp = 3;          // small up bursts
-    const sideRunMin = 3, sideRunMax = 5; // your requested 3–5 steps
-    const wiggleMin = 1, wiggleMax = 2;
+    const minUp = 1,
+      maxUp = 3; // small up bursts
+    const sideRunMin = 3,
+      sideRunMax = 5; // your requested 3–5 steps
+    const wiggleMin = 1,
+      wiggleMax = 2;
 
     // Optional: keep track of last side direction to reduce ping-pong
     let lastSideDir = 0;
@@ -431,7 +620,13 @@ class MonotonicUpPath {
     };
 
     // Helper to carve side (updates isPath)
-    const carveSide = (rx: number, ry: number, rDir: number, rSteps: number, makeTrap: boolean) => {
+    const carveSide = (
+      rx: number,
+      ry: number,
+      rDir: number,
+      rSteps: number,
+      makeTrap: boolean,
+    ) => {
       let moved = 0;
       let cx = rx;
       for (let i = 0; i < rSteps; i++) {
@@ -444,7 +639,10 @@ class MonotonicUpPath {
       return moved;
     };
 
-    const forceHorizontalBreak = (rx: number, ry: number): { x: number; moved: boolean; dir: number } => {
+    const forceHorizontalBreak = (
+      rx: number,
+      ry: number,
+    ): { x: number; moved: boolean; dir: number } => {
       const preferredDir = pickSideDir(rx, width, lastSideDir);
       const dirOptions = [preferredDir, -preferredDir];
       for (const dir of dirOptions) {
@@ -466,7 +664,7 @@ class MonotonicUpPath {
         const steps = randInt(sideRunMin, sideRunMax);
 
         // 20% chance for trap on side runs
-        const makeTrap = nextDouble() < 0.20;
+        const makeTrap = nextDouble() < 0.2;
         const moved = carveSide(x, y, dir, steps, makeTrap);
         x += dir * moved;
         movedHorizontally += moved;
@@ -477,7 +675,7 @@ class MonotonicUpPath {
         const dir = nextBoolean() ? 1 : -1;
         const steps = randInt(wiggleMin, wiggleMax);
 
-        const makeTrap = nextDouble() < 0.20;
+        const makeTrap = nextDouble() < 0.2;
         const moved = carveSide(x, y, dir, steps, makeTrap);
         x += dir * moved;
         movedHorizontally += moved;
@@ -500,7 +698,10 @@ class MonotonicUpPath {
 
       // 3) Move UP (always; keeps monotonic y increase)
       const upAllowance = Math.max(1, maxUpCorridor - consecutiveUp);
-      const upSteps = randInt(Math.min(minUp, upAllowance), Math.min(maxUp, upAllowance));
+      const upSteps = randInt(
+        Math.min(minUp, upAllowance),
+        Math.min(maxUp, upAllowance),
+      );
       let buffSpawnedInThisRun = false; // Max 1 buff per vertical run
 
       for (let i = 0; i < upSteps && y < height - 1; i++) {
@@ -511,7 +712,7 @@ class MonotonicUpPath {
 
           // Reduced chance (1.5%) and check flag
           if (!buffSpawnedInThisRun && nextDouble() < 0.015) {
-            isPath[y][x] = nextBoolean() ? "speed_boost" : "slow_down";
+            // Just mark as path; powerups placed in post-processing at corridor ends
             buffSpawnedInThisRun = true;
           }
         }
@@ -540,8 +741,14 @@ class MonotonicUpPath {
     const g: TileType[][] = [];
     // Include diagonals to ensure corners are filled
     const dirs = [
-      [0, 1], [0, -1], [1, 0], [-1, 0], // Cardinal
-      [1, 1], [1, -1], [-1, 1], [-1, -1] // Diagonal
+      [0, 1],
+      [0, -1],
+      [1, 0],
+      [-1, 0], // Cardinal
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1], // Diagonal
     ];
 
     for (let r = 0; r < height; r++) {
@@ -550,8 +757,6 @@ class MonotonicUpPath {
         if (isPath[r][c]) {
           const p = isPath[r][c];
           if (p === "trap") g[r][c] = "trap";
-          else if (p === "speed_boost") g[r][c] = "speed_boost";
-          else if (p === "slow_down") g[r][c] = "slow_down";
           else g[r][c] = "dot";
         } else {
           // Check if any neighbor is part of the path
@@ -587,18 +792,69 @@ class MonotonicUpPath {
         if (g[r][c] === "wall" || g[r][c] === "empty") continue;
 
         // Check neighbors for corners
-        const isWallBelow = (r - 1 < 0) ? (prevRow ? prevRow[c] === "wall" : true) : g[r - 1][c] === "wall";
-        const isWallAbove = (r + 1 >= height) ? false : g[r + 1][c] === "wall";
-        const isWallLeft = (c - 1 < 0) ? true : g[r][c - 1] === "wall";
-        const isWallRight = (c + 1 >= width) ? true : g[r][c + 1] === "wall";
+        const isWallBelow =
+          r - 1 < 0
+            ? prevRow
+              ? prevRow[c] === "wall"
+              : true
+            : g[r - 1][c] === "wall";
+        const isWallAbove = r + 1 >= height ? false : g[r + 1][c] === "wall";
+        const isWallLeft = c - 1 < 0 ? true : g[r][c - 1] === "wall";
+        const isWallRight = c + 1 >= width ? true : g[r][c + 1] === "wall";
 
-        if ((isWallBelow && isWallLeft) || (isWallBelow && isWallRight) ||
-          (isWallAbove && isWallLeft) || (isWallAbove && isWallRight)) {
+        if (
+          (isWallBelow && isWallLeft) ||
+          (isWallBelow && isWallRight) ||
+          (isWallAbove && isWallLeft) ||
+          (isWallAbove && isWallRight)
+        ) {
           if (nextDouble() < 0.05) {
             g[r][c] = "corner_trap";
           }
         }
       }
+    }
+
+    // 4. Post-process: Place powerups at true corners (L-shaped turns where a dash ends)
+    // A corner has 2+ blocked cardinal sides that are ADJACENT (not opposite).
+    // Straight corridors (walls on opposite sides) are excluded.
+    const corridorEnds: { x: number; y: number }[] = [];
+    for (let r = 1; r < height - 1; r++) {
+      for (let c = 0; c < width; c++) {
+        if (g[r][c] !== "dot") continue;
+        const bL =
+          c - 1 < 0 || g[r][c - 1] === "wall" || g[r][c - 1] === "empty";
+        const bR =
+          c + 1 >= width || g[r][c + 1] === "wall" || g[r][c + 1] === "empty";
+        const bU = g[r - 1][c] === "wall" || g[r - 1][c] === "empty";
+        const bD = g[r + 1][c] === "wall" || g[r + 1][c] === "empty";
+        const wallCount = +bL + +bR + +bU + +bD;
+        if (wallCount >= 3) {
+          corridorEnds.push({ x: c, y: r });
+        } else if (wallCount === 2) {
+          // Only count L-shaped corners, not straight corridors
+          const isStraight = (bL && bR) || (bU && bD);
+          if (!isStraight) corridorEnds.push({ x: c, y: r });
+        }
+      }
+    }
+
+    // Place lightning (speed_boost) at a corridor endpoint (~25% chance per chunk)
+    let lightningIdx = -1;
+    if (corridorEnds.length > 0 && nextDouble() < 0.25) {
+      lightningIdx = Math.floor(nextDouble() * corridorEnds.length);
+      const le = corridorEnds[lightningIdx];
+      g[le.y][le.x] = "speed_boost";
+    }
+
+    // Place portal at a different corridor endpoint (~20% chance per chunk)
+    const portalEnds = corridorEnds.filter(
+      (_, i) => i !== lightningIdx && g[_.y][_.x] === "dot",
+    );
+    if (portalEnds.length > 0 && nextDouble() < 0.2) {
+      const idx = Math.floor(nextDouble() * portalEnds.length);
+      const ce = portalEnds[idx];
+      g[ce.y][ce.x] = "portal";
     }
 
     return g;
@@ -654,7 +910,7 @@ class DashBroGame {
   private hapticsLabelImage: HTMLImageElement | null = null;
   private gameOverPanelImage: HTMLImageElement | null = null;
   private restartButtonImage: HTMLImageElement | null = null;
-  private isMobile = window.matchMedia('(pointer: coarse)').matches;
+  private isMobile = window.matchMedia("(pointer: coarse)").matches;
   private lastToggleTime = 0;
 
   // Props
@@ -668,7 +924,9 @@ class DashBroGame {
   private state: GameState = "START";
   private lastT = performance.now();
   private readonly perfEnabled = false;
-  private readonly perfLogToConsole = new URLSearchParams(window.location.search).has("profile");
+  private readonly perfLogToConsole = new URLSearchParams(
+    window.location.search,
+  ).has("profile");
   private readonly perfWindowMs = 500; // Update 2x per second
   private perfLastFlushAt = performance.now();
   private perfMethodBuckets = new Map<string, PerfBucket>();
@@ -692,6 +950,12 @@ class DashBroGame {
   private activeTraps: Map<string, number> = new Map();
   private speedMultiplier = 1.0;
   private speedEffectTimer = 0;
+  private pendingTeleport: { x: number; y: number; dir: Direction } | null =
+    null;
+  private warpSprite: HTMLImageElement | null = null;
+  private lightningAuraSprite: HTMLImageElement | null = null;
+  private lightningBurstSprite: HTMLImageElement | null = null;
+  private activeSpriteEffects: ActiveSpriteEffect[] = [];
   private sandSlowPhaseStartS = performance.now() * 0.001;
   private firstPlayerMoveAtS: number | null = null;
   private frameTimeEmaMs = 16.7;
@@ -718,7 +982,6 @@ class DashBroGame {
   private readonly maxRecycledChunkTemplates = 12;
   private nextChunkId = 0;
 
-
   // Player
   private playerX = 0;
   private playerY = 0;
@@ -738,6 +1001,12 @@ class DashBroGame {
   private deathTimer = 0;
   private deathDuration = 0.6; // 0.6 seconds
   private deathParticles: Particle[] = [];
+  private pendingTrapDeath: {
+    tileX: number;
+    tileY: number;
+    progressFraction: number;
+    type: "trap" | "corner_trap";
+  } | null = null;
 
   private playerSpawnX = 9; // Column 10 (1-indexed), matches P position in pattern
   private playerSpawnY = 15; // Row 16 (1-indexed), matches player spawn row
@@ -785,31 +1054,71 @@ class DashBroGame {
   private _viewH = window.innerHeight;
 
   // Background Effects
-  private bgParticles: { x: number; y: number; speed: number; size: number; alpha: number; wobble: number; phase: number }[] = [];
+  private bgParticles: {
+    x: number;
+    y: number;
+    speed: number;
+    size: number;
+    alpha: number;
+    wobble: number;
+    phase: number;
+  }[] = [];
   private bgScrollY = 0;
 
   // Visual Effects
-  private lightRays: { x: number; width: number; speed: number; alpha: number; phase: number }[] = [];
+  private lightRays: {
+    x: number;
+    width: number;
+    speed: number;
+    alpha: number;
+    phase: number;
+  }[] = [];
   private doppelgangerAuraTimer = 0;
-  private dashSpeedLines: { x: number; y: number; length: number; alpha: number; life: number; maxLife: number }[] = [];
+  private dashSpeedLines: {
+    x: number;
+    y: number;
+    length: number;
+    alpha: number;
+    life: number;
+    maxLife: number;
+  }[] = [];
 
   // UI
   private startOverlay = document.getElementById("startOverlay") as HTMLElement;
-  private gameOverOverlay = document.getElementById("gameOverOverlay") as HTMLElement;
+  private gameOverOverlay = document.getElementById(
+    "gameOverOverlay",
+  ) as HTMLElement;
   private pauseOverlay = document.getElementById("pauseOverlay") as HTMLElement;
   private hudEl = document.getElementById("hud") as HTMLElement;
   private distanceEl: HTMLElement | null = null;
   private pauseBtn = document.getElementById("pauseBtn") as HTMLElement;
   private settingsBtn = document.getElementById("settingsBtn") as HTMLElement;
-  private settingsPanel = document.getElementById("settingsPanel") as HTMLElement;
-  private settingsBackdrop = document.getElementById("settingsBackdrop") as HTMLElement;
+  private settingsPanel = document.getElementById(
+    "settingsPanel",
+  ) as HTMLElement;
+  private settingsBackdrop = document.getElementById(
+    "settingsBackdrop",
+  ) as HTMLElement;
+  private tutorialOverlay = document.getElementById(
+    "tutorialOverlay",
+  ) as HTMLElement;
+  private teleportBtn = document.getElementById("teleportBtn") as HTMLElement;
+  private teleportBtnImg = document.getElementById("teleportBtnImg") as HTMLImageElement;
 
-  private settingsCloseBtn = document.getElementById("settingsCloseBtn") as HTMLElement;
+  private settingsCloseBtn = document.getElementById(
+    "settingsCloseBtn",
+  ) as HTMLElement;
   private toggleMusic = document.getElementById("toggleMusic") as HTMLElement;
   private toggleFx = document.getElementById("toggleFx") as HTMLElement;
-  private toggleHaptics = document.getElementById("toggleHaptics") as HTMLElement;
-  private finalDistanceEl = document.getElementById("finalDistance") as HTMLElement;
-  private bestDistanceEl = document.getElementById("bestDistance") as HTMLElement;
+  private toggleHaptics = document.getElementById(
+    "toggleHaptics",
+  ) as HTMLElement;
+  private finalDistanceEl = document.getElementById(
+    "finalDistance",
+  ) as HTMLElement;
+  private bestDistanceEl = document.getElementById(
+    "bestDistance",
+  ) as HTMLElement;
 
   constructor() {
     this.canvas = document.getElementById("canvas") as HTMLCanvasElement;
@@ -892,7 +1201,11 @@ class DashBroGame {
 
   private perfAccumulate(name: string, elapsedMs: number): void {
     if (!this.perfEnabled) return;
-    const bucket = this.perfMethodBuckets.get(name) ?? { totalMs: 0, maxMs: 0, count: 0 };
+    const bucket = this.perfMethodBuckets.get(name) ?? {
+      totalMs: 0,
+      maxMs: 0,
+      count: 0,
+    };
     bucket.totalMs += elapsedMs;
     bucket.maxMs = Math.max(bucket.maxMs, elapsedMs);
     bucket.count += 1;
@@ -948,7 +1261,8 @@ class DashBroGame {
     const elapsedWindowMs = now - this.perfLastFlushAt;
     if (elapsedWindowMs < this.perfWindowMs) return;
 
-    const avgFrameMs = this.perfFrameCount > 0 ? this.perfFrameTotalMs / this.perfFrameCount : 0;
+    const avgFrameMs =
+      this.perfFrameCount > 0 ? this.perfFrameTotalMs / this.perfFrameCount : 0;
     const fps = avgFrameMs > 0 ? 1000 / avgFrameMs : 0;
     const ops = this.perfCanvasOps;
 
@@ -967,7 +1281,9 @@ class DashBroGame {
     const perfAny = performance as any;
     if (perfAny.memory && typeof perfAny.memory.usedJSHeapSize === "number") {
       const usedMb = (perfAny.memory.usedJSHeapSize / (1024 * 1024)).toFixed(1);
-      const totalMb = (perfAny.memory.totalJSHeapSize / (1024 * 1024)).toFixed(1);
+      const totalMb = (perfAny.memory.totalJSHeapSize / (1024 * 1024)).toFixed(
+        1,
+      );
       memStr = `\nMem: ${usedMb}/${totalMb}MB`;
     }
 
@@ -997,15 +1313,17 @@ CanvasOps/frame:
     if (this.monitorOverlay) {
       this.monitorOverlay.textContent = text;
       // Coloring based on FPS
-      if (fps < 30) this.monitorOverlay.style.color = "#f44"; // Red
-      else if (fps < 50) this.monitorOverlay.style.color = "#fe0"; // Yellow
+      if (fps < 30)
+        this.monitorOverlay.style.color = "#f44"; // Red
+      else if (fps < 50)
+        this.monitorOverlay.style.color = "#fe0"; // Yellow
       else this.monitorOverlay.style.color = "#0f0"; // Green
     }
 
     if (this.perfLogToConsole) {
       console.log(
         `[Perf] state=${this.state} window=${(elapsedWindowMs / 1000).toFixed(1)}s avgFrame=${avgFrameMs.toFixed(2)}ms fps=${fps.toFixed(1)} maxFrame=${this.perfFrameMaxMs.toFixed(2)} ` +
-        `canvasOps(drawImage=${ops.drawImage} fillRect=${ops.fillRect} fill=${ops.fill} stroke=${ops.stroke} arc=${ops.arc} gradients=${ops.gradients})`
+          `canvasOps(drawImage=${ops.drawImage} fillRect=${ops.fillRect} fill=${ops.fill} stroke=${ops.stroke} arc=${ops.arc} gradients=${ops.gradients})`,
       );
 
       const topBuckets = Array.from(this.perfMethodBuckets.entries())
@@ -1013,7 +1331,8 @@ CanvasOps/frame:
         .slice(0, 8)
         .map(([name, bucket]) => {
           const avg = bucket.count > 0 ? bucket.totalMs / bucket.count : 0;
-          const share = elapsedWindowMs > 0 ? (bucket.totalMs / elapsedWindowMs) * 100 : 0;
+          const share =
+            elapsedWindowMs > 0 ? (bucket.totalMs / elapsedWindowMs) * 100 : 0;
           return `${name}(total=${bucket.totalMs.toFixed(1)}ms avg=${avg.toFixed(2)}ms max=${bucket.maxMs.toFixed(2)}ms share=${share.toFixed(1)}% count=${bucket.count})`;
         });
 
@@ -1040,7 +1359,6 @@ CanvasOps/frame:
     this.perfCounters.clear();
     this.perfLastFlushAt = now;
   }
-
 
   private onResize(): void {
     this._viewW = window.innerWidth;
@@ -1094,6 +1412,14 @@ CanvasOps/frame:
     this.playerDashSprite = new Image();
     this.playerDashSprite.src = playerDashSpriteUrl;
 
+    this.warpSprite = new Image();
+    this.warpSprite.src = warpSpriteUrl;
+
+    this.lightningAuraSprite = new Image();
+    this.lightningAuraSprite.src = lightningAuraSpriteUrl;
+    this.lightningBurstSprite = new Image();
+    this.lightningBurstSprite.src = lightningBurstSpriteUrl;
+
     // Load items
     this.coinImage = new Image();
     this.coinImage.src = coinSprite;
@@ -1101,13 +1427,16 @@ CanvasOps/frame:
     this.bounceImage = new Image();
     this.bounceImage.src = bounceSprite;
 
+    if (this.teleportBtnImg) {
+      this.teleportBtnImg.src = bounceSprite;
+    }
+
     // Load platforms
     this.platformTileImage = new Image();
     this.platformTileImage.src = platformTile;
 
     this.platformCornerImage = new Image();
     this.platformCornerImage.src = platformCorner;
-
 
     this.spikeImage = new Image();
     this.spikeImage.src = spikeSprite;
@@ -1268,7 +1597,11 @@ CanvasOps/frame:
       pauseBtn.appendChild(img);
     }
 
-    if (settingsBtn && this.settingsButtonImage && this.settingsButtonImage.complete) {
+    if (
+      settingsBtn &&
+      this.settingsButtonImage &&
+      this.settingsButtonImage.complete
+    ) {
       settingsBtn.innerHTML = "";
       const img = document.createElement("img");
       img.src = this.settingsButtonImage.src;
@@ -1301,17 +1634,19 @@ CanvasOps/frame:
         scoreText.style.top = "50%";
         scoreText.style.left = "50%";
         scoreText.style.transform = "translate(-50%, -50%)";
-        scoreText.style.color = "#ffffff"; // White text
-        scoreText.style.fontSize = "20px";
-        scoreText.style.fontWeight = "bold";
-        scoreText.style.fontFamily = "'Press Start 2P', monospace"; // Hieroglyphics-style font
-        scoreText.style.textShadow = "2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 2px 0 0 #000, -2px 0 0 #000"; // Black outline
-        scoreText.textContent = "0m";
+        scoreText.style.color = "#FFD54F";
+        scoreText.style.fontSize = "22px";
+        scoreText.style.fontWeight = "900";
+        scoreText.style.fontFamily = "'Cinzel', serif";
+        scoreText.style.letterSpacing = "0.05em";
+        scoreText.style.setProperty("-webkit-font-smoothing", "none");
+        scoreText.style.textShadow =
+          "1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 2px 4px rgba(0,0,0,0.6)";
+        scoreText.textContent = "0";
 
         badgeContainer.appendChild(badgeImg);
         badgeContainer.appendChild(scoreText);
         hud.appendChild(badgeContainer);
-
       }
     }
   }
@@ -1438,7 +1773,7 @@ CanvasOps/frame:
     pauseOverlay.appendChild(wrapper);
   }
 
-  private updateGameOverOverlay(distance: number = 0): void {
+  private updateGameOverOverlay(score: number = 0): void {
     const gameOverOverlay = document.getElementById("gameOverOverlay");
     if (!gameOverOverlay) return;
 
@@ -1501,17 +1836,20 @@ CanvasOps/frame:
     const distanceContainer = document.createElement("div");
     distanceContainer.id = "finalDistance";
     distanceContainer.style.position = "absolute";
-    distanceContainer.style.top = "75%";
+    distanceContainer.style.top = "77%";
     distanceContainer.style.left = "50%";
     distanceContainer.style.transform = "translate(-50%, -50%)";
-    distanceContainer.style.color = "#ffffff";
-    distanceContainer.style.fontSize = "32px";
-    distanceContainer.style.fontWeight = "bold";
-    distanceContainer.style.fontFamily = "'Press Start 2P', monospace";
-    distanceContainer.style.textShadow = "2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 2px 0 0 #000, -2px 0 0 #000";
+    distanceContainer.style.color = "#FFD54F";
+    distanceContainer.style.fontSize = "36px";
+    distanceContainer.style.fontWeight = "900";
+    distanceContainer.style.fontFamily = "'Cinzel', serif";
+    distanceContainer.style.letterSpacing = "0.05em";
+    distanceContainer.style.setProperty("-webkit-font-smoothing", "none");
+    distanceContainer.style.textShadow =
+      "1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 2px 6px rgba(0,0,0,0.7)";
     distanceContainer.style.zIndex = "20";
     distanceContainer.style.pointerEvents = "none"; // Don't block clicks
-    distanceContainer.textContent = `${distance}m`;
+    distanceContainer.textContent = `${score}`;
 
     // Button container
     const buttonContainer = document.createElement("div");
@@ -1690,7 +2028,10 @@ CanvasOps/frame:
     contentContainer.style.paddingTop = "40px";
 
     // Create settings toggles
-    const createToggleRow = (labelImage: HTMLImageElement | null, settingKey: keyof Settings) => {
+    const createToggleRow = (
+      labelImage: HTMLImageElement | null,
+      settingKey: keyof Settings,
+    ) => {
       const row = document.createElement("div");
       row.style.display = "flex";
       row.style.justifyContent = "space-between";
@@ -1727,7 +2068,9 @@ CanvasOps/frame:
 
       const toggleImg = document.createElement("img");
       const isActive = this.settings[settingKey];
-      toggleImg.src = isActive ? this.onToggleImage!.src : this.offToggleImage!.src;
+      toggleImg.src = isActive
+        ? this.onToggleImage!.src
+        : this.offToggleImage!.src;
       toggleImg.style.width = "auto";
       toggleImg.style.height = "50px"; // Larger toggle
       toggleImg.style.objectFit = "contain";
@@ -1742,7 +2085,9 @@ CanvasOps/frame:
 
         // Update toggle image
         const isActive = this.settings[settingKey];
-        toggleImg.src = isActive ? this.onToggleImage!.src : this.offToggleImage!.src;
+        toggleImg.src = isActive
+          ? this.onToggleImage!.src
+          : this.offToggleImage!.src;
 
         if (settingKey === "fx") {
           this.audio.setFxEnabled(this.settings.fx);
@@ -1766,9 +2111,13 @@ CanvasOps/frame:
       return row;
     };
 
-    contentContainer.appendChild(createToggleRow(this.musicLabelImage, "music"));
+    contentContainer.appendChild(
+      createToggleRow(this.musicLabelImage, "music"),
+    );
     contentContainer.appendChild(createToggleRow(this.sfxLabelImage, "fx"));
-    contentContainer.appendChild(createToggleRow(this.hapticsLabelImage, "haptics"));
+    contentContainer.appendChild(
+      createToggleRow(this.hapticsLabelImage, "haptics"),
+    );
 
     // Close button
     const closeBtn = document.createElement("button");
@@ -1811,7 +2160,9 @@ CanvasOps/frame:
     // Store references for applySettingsToUI
     this.toggleMusic = document.getElementById("toggleMusic") as HTMLElement;
     this.toggleFx = document.getElementById("toggleFx") as HTMLElement;
-    this.toggleHaptics = document.getElementById("toggleHaptics") as HTMLElement;
+    this.toggleHaptics = document.getElementById(
+      "toggleHaptics",
+    ) as HTMLElement;
     this.settingsCloseBtn = closeBtn;
     this.settingsBackdrop = backdrop;
   }
@@ -1921,7 +2272,8 @@ CanvasOps/frame:
     shine.style.left = "0";
     shine.style.width = "100%";
     shine.style.height = "100%";
-    shine.style.background = "linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.6) 50%, transparent 70%)";
+    shine.style.background =
+      "linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.6) 50%, transparent 70%)";
     shine.style.backgroundSize = "200% 100%";
     shine.style.mixBlendMode = "overlay";
     shine.style.animation = "shineSweep 4s infinite";
@@ -2007,7 +2359,10 @@ CanvasOps/frame:
     optionsImg.style.visibility = "visible";
     optionsImg.style.opacity = "1";
     optionsImg.onerror = () => {
-      console.error("[Menu] Failed to load options button image:", optionsImg.src);
+      console.error(
+        "[Menu] Failed to load options button image:",
+        optionsImg.src,
+      );
     };
     optionsBtn.appendChild(optionsImg);
 
@@ -2052,7 +2407,7 @@ CanvasOps/frame:
       startImgComplete: startImg.complete,
       optionsImgComplete: optionsImg.complete,
       buttonContainerChildren: buttonContainer.children.length,
-      contentContainerChildren: contentContainer.children.length
+      contentContainerChildren: contentContainer.children.length,
     });
   }
 
@@ -2151,17 +2506,23 @@ CanvasOps/frame:
     }
   }
 
-
   private wrapX(x: number): number {
     while (x < 0) x += CONFIG.MAZE_COLS;
     while (x >= CONFIG.MAZE_COLS) x -= CONFIG.MAZE_COLS;
     return x;
   }
 
-  private getPlayableBoundsForChunk(chunkId: number): { playableStart: number; playableEnd: number } {
+  private getPlayableBoundsForChunk(chunkId: number): {
+    playableStart: number;
+    playableEnd: number;
+  } {
     const widthFactor = this.chunkWidthFactor.get(chunkId) ?? 1.0;
     const scaledWidth = Math.round(CONFIG.MAX_WIDTH_COLS * widthFactor);
-    const effectiveWidth = clamp(scaledWidth, CONFIG.MIN_WIDTH_COLS, CONFIG.MAX_WIDTH_COLS);
+    const effectiveWidth = clamp(
+      scaledWidth,
+      CONFIG.MIN_WIDTH_COLS,
+      CONFIG.MAX_WIDTH_COLS,
+    );
     const leftMargin = Math.floor((CONFIG.MAZE_COLS - effectiveWidth) / 2);
     const rightMargin = CONFIG.MAZE_COLS - leftMargin - effectiveWidth;
     return {
@@ -2170,7 +2531,10 @@ CanvasOps/frame:
     };
   }
 
-  private buildSideWallSpawns(playableStart: number, playableEnd: number): SideWallSpawn[] {
+  private buildSideWallSpawns(
+    playableStart: number,
+    playableEnd: number,
+  ): SideWallSpawn[] {
     const spawns: SideWallSpawn[] = [];
 
     for (let i = 0; i < 2; i++) {
@@ -2224,7 +2588,11 @@ CanvasOps/frame:
     return spawns;
   }
 
-  private forceMarginWalls(row: TileType[], playableStart: number, playableEnd: number): void {
+  private forceMarginWalls(
+    row: TileType[],
+    playableStart: number,
+    playableEnd: number,
+  ): void {
     for (let col = 0; col < playableStart; col++) {
       row[col] = "wall";
     }
@@ -2238,7 +2606,8 @@ CanvasOps/frame:
     if (cached) return cached;
 
     const chunkId = this.getChunkIdForRow(rowY);
-    const { playableStart, playableEnd } = this.getPlayableBoundsForChunk(chunkId);
+    const { playableStart, playableEnd } =
+      this.getPlayableBoundsForChunk(chunkId);
     const spawns = this.buildSideWallSpawns(playableStart, playableEnd);
     this.sideWallSpawnsByRow.set(rowY, spawns);
     return spawns;
@@ -2253,18 +2622,25 @@ CanvasOps/frame:
     center: number,
     playableStart: number,
     playableEnd: number,
-    entryX: number
+    entryX: number,
   ): void {
     for (let localY = 0; localY < height; localY++) {
       const ry = startRow + (height - 1 - localY);
-      const sourceRow = sourceRows[localY] ?? new Array(CONFIG.MAZE_COLS).fill("wall");
+      const sourceRow =
+        sourceRows[localY] ?? new Array(CONFIG.MAZE_COLS).fill("wall");
       const row = sourceRow.slice() as TileType[];
 
       // Keep vertical connectivity when reusing pooled chunks.
       if (localY === 0) {
         // Connect the new entry with template's original entry on the seam row.
-        const seamStart = Math.max(playableStart, Math.min(entryX, templateEntryX));
-        const seamEnd = Math.min(playableEnd - 1, Math.max(entryX, templateEntryX));
+        const seamStart = Math.max(
+          playableStart,
+          Math.min(entryX, templateEntryX),
+        );
+        const seamEnd = Math.min(
+          playableEnd - 1,
+          Math.max(entryX, templateEntryX),
+        );
         for (let x = seamStart; x <= seamEnd; x++) {
           row[x] = "dot";
         }
@@ -2320,8 +2696,13 @@ CanvasOps/frame:
   // CHUNK GENERATION v4 — Exit Gate + Exit Reachability + Stop-Node Graph
   // =========================================================================
 
-  private generateChunk(chunkId: number, startRow: number, height: number): void {
-    const { playableStart: ps, playableEnd: pe } = this.getPlayableBoundsForChunk(chunkId);
+  private generateChunk(
+    chunkId: number,
+    startRow: number,
+    height: number,
+  ): void {
+    const { playableStart: ps, playableEnd: pe } =
+      this.getPlayableBoundsForChunk(chunkId);
     const center = ps + Math.floor((pe - ps) / 2);
 
     this.chunkWidthFactor.set(chunkId, 1.0);
@@ -2383,7 +2764,10 @@ CanvasOps/frame:
     const recycledBucket = this.recycledChunkTemplatesByEntry.get(entryX);
     const recycledTemplate = recycledBucket?.pop();
     if (recycledTemplate) {
-      this.recycledChunkTemplateCount = Math.max(0, this.recycledChunkTemplateCount - 1);
+      this.recycledChunkTemplateCount = Math.max(
+        0,
+        this.recycledChunkTemplateCount - 1,
+      );
       if (recycledBucket && recycledBucket.length === 0) {
         this.recycledChunkTemplatesByEntry.delete(entryX);
       }
@@ -2396,7 +2780,7 @@ CanvasOps/frame:
         center,
         ps,
         pe,
-        entryX
+        entryX,
       );
       this.chunkTemplateByChunkId.set(chunkId, recycledTemplate);
       return;
@@ -2409,7 +2793,7 @@ CanvasOps/frame:
       entryX,
       ps,
       pe,
-      prevRow
+      prevRow,
     );
     const sideWallSpawns = this.buildSideWallSpawns(ps, pe);
     const templateRows: TileType[][] = new Array(height);
@@ -2418,7 +2802,8 @@ CanvasOps/frame:
       const ry = startRow + (height - 1 - localY);
       const row: TileType[] = new Array(CONFIG.MAZE_COLS);
       for (let x = 0; x < CONFIG.MAZE_COLS; x++) {
-        row[x] = finalGrid[localY][x] === "power" ? "power" : finalGrid[localY][x];
+        row[x] =
+          finalGrid[localY][x] === "power" ? "power" : finalGrid[localY][x];
       }
       this.forceMarginWalls(row, ps, pe);
       this.rows.set(ry, row);
@@ -2450,11 +2835,13 @@ CanvasOps/frame:
   //  9. Reject if either test fails
   //
   private attemptChunkV4(
-    height: number, ps: number, pe: number,
-    center: number, entryX: number,
-    random: () => number
+    height: number,
+    ps: number,
+    pe: number,
+    center: number,
+    entryX: number,
+    random: () => number,
   ): ("wall" | "dot" | "power")[][] | null {
-
     type Cell = "wall" | "dot" | "power";
     const grid: Cell[][] = [];
     const protect: boolean[][] = [];
@@ -2535,14 +2922,20 @@ CanvasOps/frame:
 
       for (let i = 1; i <= hLen; i++) {
         const nx = curX + hDir * i;
-        if (nx > ps && nx < pe - 1) { prot(curY, nx); curX = nx; }
-        else break;
+        if (nx > ps && nx < pe - 1) {
+          prot(curY, nx);
+          curX = nx;
+        } else break;
       }
 
       if (curY >= gateApproachY) break;
 
       // Vertical segment: 2-4 tiles (max 6)
-      const vLen = Math.min(2 + Math.floor(random() * 3), 6, gateApproachY - curY);
+      const vLen = Math.min(
+        2 + Math.floor(random() * 3),
+        6,
+        gateApproachY - curY,
+      );
       if (vLen <= 0) break;
       for (let i = 1; i <= vLen; i++) {
         prot(curY + i, curX);
@@ -2579,7 +2972,10 @@ CanvasOps/frame:
       const anchorY = 1 + Math.floor(random() * (height - 5));
       let anchorX = -1;
       for (let x = ps; x < pe; x++) {
-        if (grid[anchorY][x] !== "wall") { anchorX = x; break; }
+        if (grid[anchorY][x] !== "wall") {
+          anchorX = x;
+          break;
+        }
       }
       if (anchorX < 0) continue;
 
@@ -2594,7 +2990,10 @@ CanvasOps/frame:
         } else break;
       }
       // Reconnect back
-      const rcEndY = Math.min(anchorY + 1 + Math.floor(random() * 2), height - 4);
+      const rcEndY = Math.min(
+        anchorY + 1 + Math.floor(random() * 2),
+        height - 4,
+      );
       for (let y = anchorY; y <= rcEndY; y++) {
         if (!protect[y][pocketX]) carve(y, pocketX);
       }
@@ -2616,8 +3015,13 @@ CanvasOps/frame:
       for (let x = 0; x < CONFIG.MAZE_COLS; x++) {
         if (grid[y][x] !== "wall") {
           run++;
-          if (run > 6 && !protect[y][x]) { grid[y][x] = "wall"; run = 0; }
-        } else { run = 0; }
+          if (run > 6 && !protect[y][x]) {
+            grid[y][x] = "wall";
+            run = 0;
+          }
+        } else {
+          run = 0;
+        }
       }
     }
 
@@ -2633,7 +3037,9 @@ CanvasOps/frame:
             if (x < pe - 1 && !protect[y][x + 1]) carve(y, x + 1);
             run = 0;
           }
-        } else { run = 0; }
+        } else {
+          run = 0;
+        }
       }
     }
 
@@ -2675,7 +3081,15 @@ CanvasOps/frame:
     // STEP 7: EXIT REACHABILITY TEST (BFS entry → exit on stop-node graph)
     //         This is NOT a soft-lock test — this is a PROGRESS test.
     // ══════════════════════════════════════════════════════════════════════
-    const exitReachable = this.exitReachabilityTest(stopNodes, grid, height, ps, pe, entryX, exitX);
+    const exitReachable = this.exitReachabilityTest(
+      stopNodes,
+      grid,
+      height,
+      ps,
+      pe,
+      entryX,
+      exitX,
+    );
     if (!exitReachable) {
       return null; // ← CHUNK REJECTED: exit not reachable
     }
@@ -2692,9 +3106,11 @@ CanvasOps/frame:
     // STEP 9: LAUNCH PAD VALIDATION
     // ══════════════════════════════════════════════════════════════════════
     // Verify gate launch pad is still functional
-    if (grid[height - 3][exitX] === "wall" ||
+    if (
+      grid[height - 3][exitX] === "wall" ||
       grid[height - 2][exitX] === "wall" ||
-      grid[height - 1][exitX] === "wall") {
+      grid[height - 1][exitX] === "wall"
+    ) {
       return null; // ← Gate broken by wall step (shouldn't happen with protect)
     }
 
@@ -2703,8 +3119,13 @@ CanvasOps/frame:
     for (let y = 0; y < height - 3; y++) {
       for (let x = ps; x < pe; x++) {
         if (x === exitX) continue; // Don't double-count gate pad
-        if (grid[y][x] !== "wall" && grid[y + 1][x] !== "wall" && grid[y + 2][x] !== "wall") {
-          const hasWall = (x > ps && grid[y][x - 1] === "wall") ||
+        if (
+          grid[y][x] !== "wall" &&
+          grid[y + 1][x] !== "wall" &&
+          grid[y + 2][x] !== "wall"
+        ) {
+          const hasWall =
+            (x > ps && grid[y][x - 1] === "wall") ||
             (x < pe - 1 && grid[y][x + 1] === "wall") ||
             (y > 0 && grid[y - 1][x] === "wall");
           if (hasWall) extraPads++;
@@ -2736,8 +3157,11 @@ CanvasOps/frame:
   private exitReachabilityTest(
     nodes: Map<string, { x: number; y: number; edges: string[] }>,
     grid: ("wall" | "dot" | "power")[][],
-    height: number, ps: number, pe: number,
-    entryX: number, exitX: number
+    height: number,
+    ps: number,
+    pe: number,
+    entryX: number,
+    exitX: number,
   ): boolean {
     // Find entry stop-nodes (all stop-nodes in row 0)
     const entryKeys: string[] = [];
@@ -2799,9 +3223,16 @@ CanvasOps/frame:
   // =========================================================================
   private buildStopNodeGraph(
     grid: ("wall" | "dot" | "power")[][],
-    height: number, ps: number, pe: number
+    height: number,
+    ps: number,
+    pe: number,
   ): Map<string, { x: number; y: number; edges: string[] }> {
-    const dirs: Array<"up" | "down" | "left" | "right"> = ["up", "down", "left", "right"];
+    const dirs: Array<"up" | "down" | "left" | "right"> = [
+      "up",
+      "down",
+      "left",
+      "right",
+    ];
     const nodes = new Map<string, { x: number; y: number; edges: string[] }>();
 
     for (let y = 0; y < height; y++) {
@@ -2832,18 +3263,24 @@ CanvasOps/frame:
   // =========================================================================
   private slideInGridV4(
     grid: ("wall" | "dot" | "power")[][],
-    height: number, ps: number, pe: number,
-    fromY: number, fromX: number,
-    dir: "up" | "down" | "left" | "right"
+    height: number,
+    ps: number,
+    pe: number,
+    fromY: number,
+    fromX: number,
+    dir: "up" | "down" | "left" | "right",
   ): { x: number; y: number } {
-    let cx = fromX, cy = fromY;
+    let cx = fromX,
+      cy = fromY;
     const dx = dir === "left" ? -1 : dir === "right" ? 1 : 0;
     const dy = dir === "up" ? -1 : dir === "down" ? 1 : 0;
     while (true) {
-      const nx = cx + dx, ny = cy + dy;
+      const nx = cx + dx,
+        ny = cy + dy;
       if (ny < 0 || ny >= height || nx < ps || nx >= pe) break;
       if (grid[ny][nx] === "wall") break;
-      cx = nx; cy = ny;
+      cx = nx;
+      cy = ny;
     }
     return { x: cx, y: cy };
   }
@@ -2853,7 +3290,7 @@ CanvasOps/frame:
   // =========================================================================
   private progressGuaranteeTest(
     nodes: Map<string, { x: number; y: number; edges: string[] }>,
-    height: number
+    height: number,
   ): boolean {
     const MAX_MOVES = 8;
     for (const [startKey, startNode] of nodes) {
@@ -2875,7 +3312,8 @@ CanvasOps/frame:
             const t = nodes.get(ek);
             if (!t) continue;
             if (t.y > startNode.y || t.y >= height - 1 || t.y === 0) {
-              canProgress = true; break;
+              canProgress = true;
+              break;
             }
             next.push(ek);
           }
@@ -2892,17 +3330,25 @@ CanvasOps/frame:
   // FALLBACK CHUNK
   // =========================================================================
   private generateFallbackChunk(
-    height: number, ps: number, pe: number,
-    center: number, entryX: number
+    height: number,
+    ps: number,
+    pe: number,
+    center: number,
+    entryX: number,
   ): ("wall" | "dot" | "power")[][] {
     const grid: ("wall" | "dot" | "power")[][] = [];
     for (let y = 0; y < height; y++) {
-      grid[y] = new Array(CONFIG.MAZE_COLS).fill("wall") as ("wall" | "dot" | "power")[];
+      grid[y] = new Array(CONFIG.MAZE_COLS).fill("wall") as (
+        | "wall"
+        | "dot"
+        | "power"
+      )[];
     }
 
     let curX = entryX;
     let curY = 0;
-    const lb = ps + 2, rb = pe - 3;
+    const lb = ps + 2,
+      rb = pe - 3;
 
     grid[0][entryX] = "dot";
     if (entryX > ps) grid[0][entryX - 1] = "dot";
@@ -2913,7 +3359,10 @@ CanvasOps/frame:
       const hDir = goRight ? 1 : -1;
       for (let i = 1; i <= 3; i++) {
         const nx = curX + hDir * i;
-        if (nx >= lb && nx <= rb) { grid[curY][nx] = "dot"; curX = nx; }
+        if (nx >= lb && nx <= rb) {
+          grid[curY][nx] = "dot";
+          curX = nx;
+        }
       }
       const vEnd = Math.min(curY + 3, height - 1);
       for (let vy = curY + 1; vy <= vEnd; vy++) grid[vy][curX] = "dot";
@@ -2938,7 +3387,10 @@ CanvasOps/frame:
   private pruneSingleChunk(chunkId: number): void {
     const CHUNK_HEIGHT = 10;
     const template = this.chunkTemplateByChunkId.get(chunkId);
-    if (template && this.recycledChunkTemplateCount < this.maxRecycledChunkTemplates) {
+    if (
+      template &&
+      this.recycledChunkTemplateCount < this.maxRecycledChunkTemplates
+    ) {
       let bucket = this.recycledChunkTemplatesByEntry.get(template.entryX);
       if (!bucket) {
         bucket = [];
@@ -2976,7 +3428,6 @@ CanvasOps/frame:
     this.currentPlayerChunkId = 0;
   }
 
-
   private ensureRow(rowY: number): TileType[] {
     if (this.rows.has(rowY)) {
       return this.rows.get(rowY)!;
@@ -2989,10 +3440,14 @@ CanvasOps/frame:
         row[x] = "wall";
       }
       const chunkId = this.getChunkIdForRow(rowY);
-      const { playableStart, playableEnd } = this.getPlayableBoundsForChunk(chunkId);
+      const { playableStart, playableEnd } =
+        this.getPlayableBoundsForChunk(chunkId);
       this.forceMarginWalls(row, playableStart, playableEnd);
       this.rows.set(rowY, row);
-      this.sideWallSpawnsByRow.set(rowY, this.buildSideWallSpawns(playableStart, playableEnd));
+      this.sideWallSpawnsByRow.set(
+        rowY,
+        this.buildSideWallSpawns(playableStart, playableEnd),
+      );
       return row;
     }
     if (rowY > 16) {
@@ -3019,10 +3474,14 @@ CanvasOps/frame:
       for (let x = 1; x < CONFIG.MAZE_COLS - 1; x++) {
         fallbackRow[x] = "dot";
       }
-      const { playableStart, playableEnd } = this.getPlayableBoundsForChunk(chunkId);
+      const { playableStart, playableEnd } =
+        this.getPlayableBoundsForChunk(chunkId);
       this.forceMarginWalls(fallbackRow, playableStart, playableEnd);
       this.rows.set(rowY, fallbackRow);
-      this.sideWallSpawnsByRow.set(rowY, this.buildSideWallSpawns(playableStart, playableEnd));
+      this.sideWallSpawnsByRow.set(
+        rowY,
+        this.buildSideWallSpawns(playableStart, playableEnd),
+      );
       return fallbackRow;
     }
 
@@ -3062,10 +3521,14 @@ CanvasOps/frame:
     else if (nextX >= CONFIG.MAZE_COLS) nextX = 0;
 
     const t = this.getTileType(nextX, nextY);
-    return t !== "wall";
+    return t !== "wall" && t !== "empty";
   }
 
-  private calculateDashEnd(tileX: number, tileY: number, dir: Direction): DashEnd {
+  private calculateDashEnd(
+    tileX: number,
+    tileY: number,
+    dir: Direction,
+  ): DashEnd {
     let currentTileX = tileX;
     let currentTileY = tileY;
     let endTileX = tileX;
@@ -3079,7 +3542,9 @@ CanvasOps/frame:
     while (this.canMove(currentTileX, currentTileY, dir)) {
       steps++;
       if (steps > MAX_DASH_STEPS) {
-        console.log("[DashBroGame] calculateDashEnd: Max dash steps reached, stopping");
+        console.log(
+          "[DashBroGame] calculateDashEnd: Max dash steps reached, stopping",
+        );
         hitWall = true;
         break;
       }
@@ -3098,8 +3563,6 @@ CanvasOps/frame:
         nextTileX++;
         if (nextTileX >= CONFIG.MAZE_COLS) nextTileX = 0;
       }
-
-
 
       const nextType = this.getTileType(nextTileX, nextTileY);
       if (nextType === "wall") {
@@ -3179,8 +3642,12 @@ CanvasOps/frame:
     const nextOccupied = new Set<number>();
     const chaserCenterY = this.doppelgangerY + CONFIG.TILE_SIZE * 0.5;
     const chaserRadius = CONFIG.PLAYER_BODY * 0.8;
-    const minRow = Math.floor((chaserCenterY - chaserRadius) / CONFIG.TILE_SIZE);
-    const maxRow = Math.floor((chaserCenterY + chaserRadius) / CONFIG.TILE_SIZE);
+    const minRow = Math.floor(
+      (chaserCenterY - chaserRadius) / CONFIG.TILE_SIZE,
+    );
+    const maxRow = Math.floor(
+      (chaserCenterY + chaserRadius) / CONFIG.TILE_SIZE,
+    );
 
     for (let row = minRow; row <= maxRow; row++) {
       nextOccupied.add(this.getChunkIdForRow(row));
@@ -3208,7 +3675,9 @@ CanvasOps/frame:
     const visualChaserRow = Math.floor(chaserCenterY / CONFIG.TILE_SIZE);
     this.currentChaserChunkId = this.getChunkIdForRow(visualChaserRow);
 
-    for (const [chunkId, timeLeft] of Array.from(this.chaserChunkReleaseTimers.entries())) {
+    for (const [chunkId, timeLeft] of Array.from(
+      this.chaserChunkReleaseTimers.entries(),
+    )) {
       const next = timeLeft - dt;
       if (next <= 0) {
         this.chaserChunkReleaseTimers.delete(chunkId);
@@ -3233,19 +3702,29 @@ CanvasOps/frame:
     const targetCameraX = this.playerX - viewW * 0.5;
     const targetCameraY = this.playerY - viewH * 0.5;
     const nowS = performance.now() * 0.001;
-    this.cameraFollowHistory.push({ t: nowS, x: targetCameraX, y: targetCameraY });
+    this.cameraFollowHistory.push({
+      t: nowS,
+      x: targetCameraX,
+      y: targetCameraY,
+    });
 
     // Keep a small rolling window of targets.
     const historyWindow = 0.8;
-    while (this.cameraFollowHistory.length > 1 && nowS - this.cameraFollowHistory[0].t > historyWindow) {
+    while (
+      this.cameraFollowHistory.length > 1 &&
+      nowS - this.cameraFollowHistory[0].t > historyWindow
+    ) {
       this.cameraFollowHistory.shift();
     }
 
     // During a dash, skip the follow delay entirely so the camera immediately
     // targets the current player position. Without this, the 50ms delay causes
     // the camera to freeze for ~3 frames at the start of every dash.
-    const followDelay = this.dashFlash ? 0
-      : (this.isMobile ? 0 : CONFIG.CAMERA_FOLLOW_DELAY_S);
+    const followDelay = this.dashFlash
+      ? 0
+      : this.isMobile
+        ? 0
+        : CONFIG.CAMERA_FOLLOW_DELAY_S;
     const delayedTime = nowS - followDelay;
     let delayedTargetX = targetCameraX;
     let delayedTargetY = targetCameraY;
@@ -3253,8 +3732,12 @@ CanvasOps/frame:
       // Only use the history buffer when there is an actual delay to look up.
       delayedTargetX = this.cameraX;
       delayedTargetY = this.cameraY;
-      if (this.cameraFollowHistory.length > 0 && this.cameraFollowHistory[0].t <= delayedTime) {
-        const last = this.cameraFollowHistory[this.cameraFollowHistory.length - 1];
+      if (
+        this.cameraFollowHistory.length > 0 &&
+        this.cameraFollowHistory[0].t <= delayedTime
+      ) {
+        const last =
+          this.cameraFollowHistory[this.cameraFollowHistory.length - 1];
         if (delayedTime >= last.t) {
           delayedTargetX = last.x;
           delayedTargetY = last.y;
@@ -3278,7 +3761,8 @@ CanvasOps/frame:
     // Abrupt 5.5→12 jumps caused a visible camera snap/fling at dash start/end.
     const targetHz = this.dashFlash ? 14 : 9;
     const hzLerpSpeed = this.dashFlash ? 30 : 12; // fast ramp-up, gentle ramp-down
-    this.cameraFollowHz += (targetHz - this.cameraFollowHz) * Math.min(1, hzLerpSpeed * dt);
+    this.cameraFollowHz +=
+      (targetHz - this.cameraFollowHz) * Math.min(1, hzLerpSpeed * dt);
 
     const cameraLerp = 1 - Math.exp(-this.cameraFollowHz * dt);
 
@@ -3310,15 +3794,18 @@ CanvasOps/frame:
     }
 
     const riseSlowdownFactor = 1.3;
-    this.waterSurfaceY -= (CONFIG.WATER_RISE_PX_PER_S * riseMultiplier * dt) / riseSlowdownFactor;
+    this.waterSurfaceY -=
+      (CONFIG.WATER_RISE_PX_PER_S * riseMultiplier * dt) / riseSlowdownFactor;
     const localSurfaceY = sandDuneY(this.waterSurfaceY, this.playerX, timeS);
 
-    const r = CONFIG.PLAYER_BODY * CONFIG.WATER_COLLISION_RADIUS_MUL + CONFIG.WATER_COLLISION_PADDING_PX;
+    const r =
+      CONFIG.PLAYER_BODY * CONFIG.WATER_COLLISION_RADIUS_MUL +
+      CONFIG.WATER_COLLISION_PADDING_PX;
     if (this.playerY + r >= localSurfaceY && this.state === "PLAYING") {
       // Start death animation
       this.state = "DYING";
       this.deathTimer = 0;
-      this.audio.click("death");
+      this.audio.click("death_water");
       this.triggerHaptic("error");
 
       // Spawn death particles
@@ -3375,18 +3862,27 @@ CanvasOps/frame:
     this.trail = this.trail.filter((p) => p.alpha > 0.01);
 
     // Update screen shake
-    this.shakeIntensity = Math.max(0, this.shakeIntensity - this.shakeDecay * dt);
+    this.shakeIntensity = Math.max(
+      0,
+      this.shakeIntensity - this.shakeDecay * dt,
+    );
     this.shakeX = (Math.random() - 0.5) * this.shakeIntensity;
     this.shakeY = (Math.random() - 0.5) * this.shakeIntensity;
 
     // Update wall hit bounce
     if (this.wallHitBounce > 0) {
-      this.wallHitBounce = Math.max(0, this.wallHitBounce - dt / CONFIG.WALL_HIT_BOUNCE_DURATION);
+      this.wallHitBounce = Math.max(
+        0,
+        this.wallHitBounce - dt / CONFIG.WALL_HIT_BOUNCE_DURATION,
+      );
     }
 
     if (this.dashFlash) {
       this.dashFlash.elapsed += dt;
-      this.dashFlash.progress = Math.min(1, this.dashFlash.elapsed / this.dashFlash.duration);
+      this.dashFlash.progress = Math.min(
+        1,
+        this.dashFlash.elapsed / this.dashFlash.duration,
+      );
 
       // Smoothly lerp player position during dash
       let targetX = this.dashFlash.endX;
@@ -3420,12 +3916,36 @@ CanvasOps/frame:
 
       // Smoothstep easing: slow start and end, fast middle.
       const t = this.dashFlash.progress;
-      const easedProgress = t * t * (3 - 2 * t);
+      const easedProgress = 1 - (1 - t) * (1 - t);
 
-      this.playerX = this.dashFlash.startX + (targetX - this.dashFlash.startX) * easedProgress;
-      this.playerY = this.dashFlash.startY + (targetY - this.dashFlash.startY) * easedProgress;
+      this.playerX =
+        this.dashFlash.startX +
+        (targetX - this.dashFlash.startX) * easedProgress;
+      this.playerY =
+        this.dashFlash.startY +
+        (targetY - this.dashFlash.startY) * easedProgress;
 
-      if (this.dashFlash.progress >= 1) {
+      if (
+        this.pendingTrapDeath &&
+        this.state === "PLAYING" &&
+        this.dashFlash.progress >= this.pendingTrapDeath.progressFraction
+      ) {
+        const trap = this.pendingTrapDeath;
+        this.pendingTrapDeath = null;
+        this.state = "DYING";
+        this.deathTimer = 0;
+        this.audio.click("death_spike");
+        this.triggerHaptic("error");
+        const trapPx = trap.tileX * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
+        const trapPy = trap.tileY * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
+        this.spawnDeathParticles(trapPx, trapPy);
+        this.dashFlash = null;
+        this.isMoving = false;
+        this.playerTileX = trap.tileX;
+        this.playerTileY = trap.tileY;
+      }
+
+      if (this.dashFlash && this.dashFlash.progress >= 1) {
         // Snap to final position when complete
         this.playerX = targetX;
         this.playerY = targetY;
@@ -3435,11 +3955,15 @@ CanvasOps/frame:
 
         this.dashFlash = null;
         this.isMoving = false;
-      } else {
+      } else if (this.dashFlash) {
         // Spawn dash particles during dash
         const dashParticleChance = this.isMobile ? 0.08 : 0.3;
         if (Math.random() < dashParticleChance) {
-          this.spawnDashParticles(this.playerX, this.playerY, this.playerDirection);
+          this.spawnDashParticles(
+            this.playerX,
+            this.playerY,
+            this.playerDirection,
+          );
         }
       }
     }
@@ -3447,12 +3971,24 @@ CanvasOps/frame:
     const spacing = CONFIG.TILE_SPACING;
     const centerX = this.playerTileX * (tileSize + spacing) + tileSize / 2;
     const centerY = this.playerTileY * (tileSize + spacing) + tileSize / 2;
-    const distToCenter = Math.sqrt((this.playerX - centerX) ** 2 + (this.playerY - centerY) ** 2);
+    const distToCenter = Math.sqrt(
+      (this.playerX - centerX) ** 2 + (this.playerY - centerY) ** 2,
+    );
     const isStopped = !this.isMoving && !this.dashFlash && distToCenter < 2;
 
-    if (isStopped && this.nextDirection && this.nextDirection !== this.playerDirection) {
-      if (this.canMove(this.playerTileX, this.playerTileY, this.nextDirection)) {
-        const dashEnd = this.calculateDashEnd(this.playerTileX, this.playerTileY, this.nextDirection);
+    if (
+      isStopped &&
+      this.nextDirection &&
+      this.nextDirection !== this.playerDirection
+    ) {
+      if (
+        this.canMove(this.playerTileX, this.playerTileY, this.nextDirection)
+      ) {
+        const dashEnd = this.calculateDashEnd(
+          this.playerTileX,
+          this.playerTileY,
+          this.nextDirection,
+        );
 
         // Calculate cloth start position (from player's back, opposite of direction)
         let clothOffsetX = 0;
@@ -3475,7 +4011,8 @@ CanvasOps/frame:
           progress: 0,
           duration: Math.max(
             0.08,
-            (dashEnd.steps * CONFIG.TILE_SIZE) / (CONFIG.DASH_SPEED_PX_PER_S * this.speedMultiplier)
+            (dashEnd.steps * CONFIG.TILE_SIZE) /
+              (CONFIG.DASH_SPEED_PX_PER_S * this.speedMultiplier),
           ),
           elapsed: 0,
           hitWall: dashEnd.hitWall,
@@ -3483,8 +4020,7 @@ CanvasOps/frame:
           clothStartY: this.playerY + clothOffsetY,
         };
 
-        // Play swoosh sound for dash
-        this.audio.playSwooshSound();
+        this.audio.playNextNote();
 
         this.playerDirection = this.nextDirection;
         this.playerTileX = dashEnd.tileX;
@@ -3492,6 +4028,7 @@ CanvasOps/frame:
         this.isMoving = true;
         if (this.firstPlayerMoveAtS === null) {
           this.firstPlayerMoveAtS = performance.now() * 0.001;
+          this.tutorialOverlay?.classList.add("uiHidden");
         }
 
         // Spawn initial dash particles
@@ -3512,50 +4049,57 @@ CanvasOps/frame:
         const endY = dashEnd.tileY;
         let collectedDots = 0;
         let collectedPowerLikeItems = 0;
+        let playedDedicatedSfx = false;
+        let pathStep = 0;
+        const totalSteps = dashEnd.steps;
+        this.pendingTrapDeath = null;
 
         while (currentX !== endX || currentY !== endY) {
           const t = this.getTileType(currentX, currentY);
-          if (t === "trap" && this.state === "PLAYING") {
+          if (t === "trap" && this.state === "PLAYING" && !this.pendingTrapDeath) {
             const cycle = (performance.now() * 0.001) % 3.75;
             const isRed = cycle > 3.0;
-            // Passing over a red trap is lethal even if this tile is not the dash end tile.
             if (isRed) {
-              this.state = "DYING";
-              this.deathTimer = 0;
-              this.audio.click("death");
-              this.triggerHaptic("error");
-              const trapX = currentX * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
-              const trapY = currentY * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
-              this.spawnDeathParticles(trapX, trapY);
-              break;
+              this.pendingTrapDeath = {
+                tileX: currentX,
+                tileY: currentY,
+                progressFraction: totalSteps > 0 ? pathStep / totalSteps : 0,
+                type: "trap",
+              };
             }
           }
           if (t === "dot") {
             this.score += 10;
-            this.setTileType(currentX, currentY, "empty");
+            this.setTileType(currentX, currentY, "visited");
             collectedDots++;
           } else if (t === "power") {
             this.score += 50;
-            this.setTileType(currentX, currentY, "empty");
+            this.setTileType(currentX, currentY, "visited");
             collectedPowerLikeItems++;
           } else if (t === "speed_boost") {
             this.score += 20;
-            this.setTileType(currentX, currentY, "empty");
-            if (this.speedEffectTimer <= 0) {
-              this.speedMultiplier = 2.0;
-              this.speedEffectTimer = 5.0;
-            }
+            this.setTileType(currentX, currentY, "visited");
+            this.speedMultiplier = 2.0;
+            this.speedEffectTimer = 5.0;
+            const burstScale =
+              (CONFIG.PLAYER_BODY * 2.5) /
+              (this.lightningBurstSprite?.naturalHeight || 64);
+            this.spawnActiveSpriteEffect(
+              this.playerX,
+              this.playerY,
+              this.lightningBurstSprite,
+              8,
+              20,
+              burstScale,
+            );
             collectedPowerLikeItems++;
-          } else if (t === "slow_down") {
+          } else if (t === "portal") {
             this.score += 20;
-            this.setTileType(currentX, currentY, "empty");
-            if (this.speedEffectTimer <= 0) {
-              this.speedMultiplier = 0.75;
-              this.speedEffectTimer = 5.0;
-            }
+            this.setTileType(currentX, currentY, "visited");
             collectedPowerLikeItems++;
           }
 
+          pathStep++;
           if (dir === "up") currentY--;
           else if (dir === "down") currentY++;
           else if (dir === "left") {
@@ -3567,13 +4111,61 @@ CanvasOps/frame:
           }
         }
 
-        // Batch pickup feedback to avoid dozens of audio/haptic calls in one frame.
-        if (this.state === "PLAYING") {
+        // Process landing tile (end of dash)
+        const landTile = this.getTileType(endX, endY);
+        if (landTile === "dot") {
+          this.score += 10;
+          this.setTileType(endX, endY, "visited");
+          collectedDots++;
+        } else if (landTile === "power") {
+          this.score += 50;
+          this.setTileType(endX, endY, "visited");
+          collectedPowerLikeItems++;
+        } else if (landTile === "portal") {
+          this.score += 20;
+          this.setTileType(endX, endY, "visited");
+          const dest = this.findTeleportDestination(
+            endX,
+            endY,
+            this.playerDirection,
+          );
+          if (dest) {
+            this.pendingTeleport = dest;
+            this.nextDirection = null;
+            this.teleportBtn?.classList.remove("hidden");
+          }
+          playedDedicatedSfx = true;
+          collectedPowerLikeItems++;
+        } else if (landTile === "speed_boost") {
+          this.score += 20;
+          this.setTileType(endX, endY, "visited");
+          this.speedMultiplier = 2.0;
+          this.speedEffectTimer = 5.0;
+          const burstScale =
+            (CONFIG.PLAYER_BODY * 2.5) /
+            (this.lightningBurstSprite?.naturalHeight || 64);
+          this.spawnActiveSpriteEffect(
+            this.playerX,
+            this.playerY,
+            this.lightningBurstSprite,
+            8,
+            20,
+            burstScale,
+          );
+          collectedPowerLikeItems++;
+        }
+
+        // Batch pickup feedback - skip if a dedicated SFX (lightning/portal) already played
+        if (this.state === "PLAYING" && !playedDedicatedSfx) {
           if (collectedPowerLikeItems > 0) {
             this.audio.click("power");
             this.triggerHaptic("medium");
           } else if (collectedDots > 0) {
             this.audio.click("dot");
+            this.triggerHaptic("light");
+          }
+        } else if (this.state === "PLAYING" && playedDedicatedSfx) {
+          if (collectedDots > 0) {
             this.triggerHaptic("light");
           }
         }
@@ -3593,7 +4185,7 @@ CanvasOps/frame:
         // Die
         this.state = "DYING";
         this.deathTimer = 0;
-        this.audio.click("death");
+        this.audio.click("death_spike");
         this.triggerHaptic("error");
         this.spawnDeathParticles(this.playerX, this.playerY);
       }
@@ -3625,10 +4217,14 @@ CanvasOps/frame:
         this.spawnDeathParticles(px, py);
         // this.audio.click("explosion"); // Assuming sound exists or use death
 
-        if (this.playerTileX === tx && this.playerTileY === ty && this.state === "PLAYING") {
+        if (
+          this.playerTileX === tx &&
+          this.playerTileY === ty &&
+          this.state === "PLAYING"
+        ) {
           this.state = "DYING";
           this.deathTimer = 0;
-          this.audio.click("death");
+          this.audio.click("death_explosion");
           this.triggerHaptic("error");
         }
       }
@@ -3638,8 +4234,12 @@ CanvasOps/frame:
 
   private update(dt: number): void {
     if (this.state === "DYING") {
-      this.perfMeasure("update.updateDeathAnimation", () => this.updateDeathAnimation(dt));
-      this.perfMeasure("update.updateParticles", () => this.updateParticles(dt));
+      this.perfMeasure("update.updateDeathAnimation", () =>
+        this.updateDeathAnimation(dt),
+      );
+      this.perfMeasure("update.updateParticles", () =>
+        this.updateParticles(dt),
+      );
       this.perfMeasure("update.updateCamera", () => this.updateCamera(dt));
       return;
     }
@@ -3667,12 +4267,20 @@ CanvasOps/frame:
       }
     }
 
-    this.perfMeasure("update.ensureRowsForView", () => this.ensureRowsForView());
+    this.perfMeasure("update.ensureRowsForView", () =>
+      this.ensureRowsForView(),
+    );
     this.perfMeasure("update.updateWater", () => this.updateWater(dt)); // Rising sand dunes
     this.perfMeasure("update.updatePlayer", () => this.updatePlayer(dt));
-    this.perfMeasure("update.updateBackgroundParticles", () => this.updateBackgroundParticles(dt));
-    this.perfMeasure("update.updateDashSpeedLines", () => this.updateDashSpeedLines(dt));
-    this.perfMeasure("update.updateTraps", () => this.updateTraps(performance.now() * 0.001));
+    this.perfMeasure("update.updateBackgroundParticles", () =>
+      this.updateBackgroundParticles(dt),
+    );
+    this.perfMeasure("update.updateDashSpeedLines", () =>
+      this.updateDashSpeedLines(dt),
+    );
+    this.perfMeasure("update.updateTraps", () =>
+      this.updateTraps(performance.now() * 0.001),
+    );
 
     this.perfMeasure("update.doppelganger", () => {
       if (!CONFIG.ENABLE_CHASER) {
@@ -3682,7 +4290,9 @@ CanvasOps/frame:
       // Doppelganger logic
       // Activate with delay after player reaches minimum distance.
       if (!this.doppelgangerActive) {
-        const distanceFromSpawn = Math.abs(this.playerTileY - this.playerSpawnY);
+        const distanceFromSpawn = Math.abs(
+          this.playerTileY - this.playerSpawnY,
+        );
         if (distanceFromSpawn >= CONFIG.CHASER_SPAWN_DISTANCE_TILES) {
           this.doppelgangerSpawnTimer += dt;
           if (this.doppelgangerSpawnTimer >= CONFIG.CHASER_SPAWN_DELAY_S) {
@@ -3704,7 +4314,9 @@ CanvasOps/frame:
         const targetX = this.doppelgangerTileX * CONFIG.TILE_SIZE;
         const targetY = this.doppelgangerTileY * CONFIG.TILE_SIZE;
         const playerChunkId = this.getChunkIdForRow(this.playerTileY);
-        const chaserVisualRow = Math.floor((this.doppelgangerY + CONFIG.TILE_SIZE * 0.5) / CONFIG.TILE_SIZE);
+        const chaserVisualRow = Math.floor(
+          (this.doppelgangerY + CONFIG.TILE_SIZE * 0.5) / CONFIG.TILE_SIZE,
+        );
         const chaserChunkId = this.getChunkIdForRow(chaserVisualRow);
         const chunksBehindPlayer = chaserChunkId - playerChunkId;
         const chunkSpeedBoost = chunksBehindPlayer > 1 ? 5 : 1;
@@ -3719,11 +4331,13 @@ CanvasOps/frame:
           y: this.doppelgangerY + CONFIG.TILE_SIZE / 2,
           z: 0,
           alpha: 0.9,
-          size: CONFIG.TILE_SIZE * (0.35 + Math.random() * 0.35)
+          size: CONFIG.TILE_SIZE * (0.35 + Math.random() * 0.35),
         });
 
         // Check if visually arrived at target (or close enough) to start next move
-        const distSq = (this.doppelgangerX - targetX) ** 2 + (this.doppelgangerY - targetY) ** 2;
+        const distSq =
+          (this.doppelgangerX - targetX) ** 2 +
+          (this.doppelgangerY - targetY) ** 2;
         const arrived = distSq < 4; // 2 pixels threshold
 
         if (arrived) {
@@ -3733,7 +4347,9 @@ CanvasOps/frame:
           this.doppelgangerMoveTimer += dt;
 
           // Wait before next dash; speed scales dash cadence.
-          const dashInterval = (0.4 * 1.5) / Math.max(0.2, this.doppelgangerMoveSpeed * chunkSpeedBoost);
+          const dashInterval =
+            (0.4 * 1.5) /
+            Math.max(0.2, this.doppelgangerMoveSpeed * chunkSpeedBoost);
           if (this.doppelgangerMoveTimer > dashInterval) {
             this.doppelgangerMoveTimer = 0;
 
@@ -3749,10 +4365,21 @@ CanvasOps/frame:
 
             for (const dir of directions) {
               // Check if can move at all in this direction
-              if (!this.canMove(this.doppelgangerTileX, this.doppelgangerTileY, dir)) continue;
+              if (
+                !this.canMove(
+                  this.doppelgangerTileX,
+                  this.doppelgangerTileY,
+                  dir,
+                )
+              )
+                continue;
 
               // Simulate dash to find end point
-              const endPos = this.calculateDashEnd(this.doppelgangerTileX, this.doppelgangerTileY, dir);
+              const endPos = this.calculateDashEnd(
+                this.doppelgangerTileX,
+                this.doppelgangerTileY,
+                dir,
+              );
 
               // Calculate distance from end point to player
               const dx = Math.abs(endPos.tileX - this.playerTileX);
@@ -3770,7 +4397,10 @@ CanvasOps/frame:
               }
 
               // Penalty for moving DOWN if we are already below player
-              if (endPos.tileY > this.doppelgangerTileY && this.doppelgangerTileY > this.playerTileY) {
+              if (
+                endPos.tileY > this.doppelgangerTileY &&
+                this.doppelgangerTileY > this.playerTileY
+              ) {
                 cost += 50; // Huge penalty
               }
 
@@ -3782,7 +4412,11 @@ CanvasOps/frame:
 
             if (bestDir) {
               this.doppelgangerDirection = bestDir;
-              const dashEnd = this.calculateDashEnd(this.doppelgangerTileX, this.doppelgangerTileY, bestDir);
+              const dashEnd = this.calculateDashEnd(
+                this.doppelgangerTileX,
+                this.doppelgangerTileY,
+                bestDir,
+              );
 
               // Add trail from start to end
               // We'll add a few trail points along the path
@@ -3790,16 +4424,27 @@ CanvasOps/frame:
               const dy = dashEnd.tileY - this.doppelgangerTileY;
               const steps = Math.max(Math.abs(dx), Math.abs(dy));
 
-              for (let i = 0; i <= steps; i += 2) { // Add trail point every 2 tiles
+              for (let i = 0; i <= steps; i += 2) {
+                // Add trail point every 2 tiles
                 this.doppelgangerTrail.push({
-                  x: (this.doppelgangerTileX + (dx * i / steps)) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2,
-                  y: (this.doppelgangerTileY + (dy * i / steps)) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2,
+                  x:
+                    (this.doppelgangerTileX + (dx * i) / steps) *
+                      CONFIG.TILE_SIZE +
+                    CONFIG.TILE_SIZE / 2,
+                  y:
+                    (this.doppelgangerTileY + (dy * i) / steps) *
+                      CONFIG.TILE_SIZE +
+                    CONFIG.TILE_SIZE / 2,
                   z: 0,
                   alpha: 1.0,
-                  size: CONFIG.TILE_SIZE * 0.8
+                  size: CONFIG.TILE_SIZE * 0.8,
                 });
               }
-              if (this.doppelgangerTrail.length > 36) this.doppelgangerTrail.splice(0, this.doppelgangerTrail.length - 36);
+              if (this.doppelgangerTrail.length > 36)
+                this.doppelgangerTrail.splice(
+                  0,
+                  this.doppelgangerTrail.length - 36,
+                );
 
               // Instantly update logic position (visuals will catch up)
               this.doppelgangerTileX = dashEnd.tileX;
@@ -3813,17 +4458,27 @@ CanvasOps/frame:
           t.alpha -= dt * 2.6;
           t.size *= 0.985;
         }
-        this.doppelgangerTrail = this.doppelgangerTrail.filter(t => t.alpha > 0);
-        if (this.doppelgangerTrail.length > 36) this.doppelgangerTrail.splice(0, this.doppelgangerTrail.length - 36);
+        this.doppelgangerTrail = this.doppelgangerTrail.filter(
+          (t) => t.alpha > 0,
+        );
+        if (this.doppelgangerTrail.length > 36)
+          this.doppelgangerTrail.splice(0, this.doppelgangerTrail.length - 36);
 
         // Check collision with player
         // Check both tile overlap and visual overlap (for mid-dash collisions)
-        const visualDist = Math.sqrt((this.playerX - this.doppelgangerX) ** 2 + (this.playerY - this.doppelgangerY) ** 2);
-        if ((this.playerTileX === this.doppelgangerTileX && this.playerTileY === this.doppelgangerTileY) || visualDist < CONFIG.PLAYER_BODY) {
+        const visualDist = Math.sqrt(
+          (this.playerX - this.doppelgangerX) ** 2 +
+            (this.playerY - this.doppelgangerY) ** 2,
+        );
+        if (
+          (this.playerTileX === this.doppelgangerTileX &&
+            this.playerTileY === this.doppelgangerTileY) ||
+          visualDist < CONFIG.PLAYER_BODY
+        ) {
           this.lives = 0; // Set lives to 0 so we die after caught
           this.state = "CAUGHT";
           this.caughtTimer = 0;
-          this.audio.click("death"); // Play death sound immediately
+          this.audio.click("death_caught");
           this.triggerHaptic("error");
         }
       }
@@ -3841,12 +4496,18 @@ CanvasOps/frame:
     this.perfMeasure("update.updateParticles", () => this.updateParticles(dt));
 
     this.perfMeasure("update.updateCamera", () => this.updateCamera(dt));
-    this.perfMeasure("update.pruneChunksBehindCamera", () => this.pruneChunksBehindCamera(dt));
+    this.perfMeasure("update.pruneChunksBehindCamera", () =>
+      this.pruneChunksBehindCamera(dt),
+    );
   }
 
   private resetGame(): void {
+    this.audio.resetNoteSequence();
     this.sandSlowPhaseStartS = performance.now() * 0.001;
     this.firstPlayerMoveAtS = null;
+    this.pendingTeleport = null;
+    this.pendingTrapDeath = null;
+    this.teleportBtn?.classList.add("hidden");
     this.rows.clear();
     this.activeTraps.clear();
     this.spineXByRow.clear();
@@ -3937,11 +4598,13 @@ CanvasOps/frame:
     this.cameraX = this.playerX - viewW * 0.5;
     this.cameraY = this.playerY - viewH * 0.5;
     this.cameraFollowHz = 5.5;
-    this.cameraFollowHistory = [{
-      t: performance.now() * 0.001,
-      x: this.cameraX,
-      y: this.cameraY,
-    }];
+    this.cameraFollowHistory = [
+      {
+        t: performance.now() * 0.001,
+        x: this.cameraX,
+        y: this.cameraY,
+      },
+    ];
     this.shakeX = 0;
     this.shakeY = 0;
     this.shakeIntensity = 0;
@@ -3964,6 +4627,7 @@ CanvasOps/frame:
     // Reset player speed effects
     this.speedMultiplier = 1.0;
     this.speedEffectTimer = 0;
+    this.activeSpriteEffects = [];
 
     // Reset visual effects
     this.dashSpeedLines = [];
@@ -3988,18 +4652,30 @@ CanvasOps/frame:
 
   private applySettingsToUI(): void {
     // Update toggle images if settings panel is already rendered
-    const toggleMusicImg = document.querySelector("#toggleMusic img") as HTMLImageElement;
-    const toggleFxImg = document.querySelector("#toggleFx img") as HTMLImageElement;
-    const toggleHapticsImg = document.querySelector("#toggleHaptics img") as HTMLImageElement;
+    const toggleMusicImg = document.querySelector(
+      "#toggleMusic img",
+    ) as HTMLImageElement;
+    const toggleFxImg = document.querySelector(
+      "#toggleFx img",
+    ) as HTMLImageElement;
+    const toggleHapticsImg = document.querySelector(
+      "#toggleHaptics img",
+    ) as HTMLImageElement;
 
     if (toggleMusicImg && this.onToggleImage && this.offToggleImage) {
-      toggleMusicImg.src = this.settings.music ? this.onToggleImage.src : this.offToggleImage.src;
+      toggleMusicImg.src = this.settings.music
+        ? this.onToggleImage.src
+        : this.offToggleImage.src;
     }
     if (toggleFxImg && this.onToggleImage && this.offToggleImage) {
-      toggleFxImg.src = this.settings.fx ? this.onToggleImage.src : this.offToggleImage.src;
+      toggleFxImg.src = this.settings.fx
+        ? this.onToggleImage.src
+        : this.offToggleImage.src;
     }
     if (toggleHapticsImg && this.onToggleImage && this.offToggleImage) {
-      toggleHapticsImg.src = this.settings.haptics ? this.onToggleImage.src : this.offToggleImage.src;
+      toggleHapticsImg.src = this.settings.haptics
+        ? this.onToggleImage.src
+        : this.offToggleImage.src;
     }
 
     // Update classList if elements exist (for backwards compatibility)
@@ -4047,11 +4723,15 @@ CanvasOps/frame:
       pointerActive = false;
     });
 
-    target.addEventListener("touchend", (e) => {
-      if (e.cancelable) e.preventDefault();
-      e.stopPropagation();
-      fire();
-    }, { passive: false });
+    target.addEventListener(
+      "touchend",
+      (e) => {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        fire();
+      },
+      { passive: false },
+    );
 
     target.addEventListener("click", (e) => {
       if (e.cancelable) e.preventDefault();
@@ -4060,7 +4740,9 @@ CanvasOps/frame:
     });
   }
 
-  private triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error"): void {
+  private triggerHaptic(
+    type: "light" | "medium" | "heavy" | "success" | "error",
+  ): void {
     if (!this.settings.haptics) return;
     if (typeof (window as any).triggerHaptic === "function") {
       (window as any).triggerHaptic(type);
@@ -4100,8 +4782,19 @@ CanvasOps/frame:
       this.toggleSettings();
     });
 
+    this.bindPress(this.teleportBtn, () => {
+      this.executeTeleport();
+    });
+
     // Settings panel event listeners are now set up in updateSettingsPanel()
     // after the panel is dynamically created
+  }
+
+  private dismissTeleport(): void {
+    if (this.pendingTeleport) {
+      this.pendingTeleport = null;
+      this.teleportBtn?.classList.add("hidden");
+    }
   }
 
   private setupInput(): void {
@@ -4112,15 +4805,19 @@ CanvasOps/frame:
       if (e.code === "ArrowUp" || e.code === "KeyW") {
         e.preventDefault();
         this.nextDirection = "up";
+        this.dismissTeleport();
       } else if (e.code === "ArrowDown" || e.code === "KeyS") {
         e.preventDefault();
         this.nextDirection = "down";
+        this.dismissTeleport();
       } else if (e.code === "ArrowLeft" || e.code === "KeyA") {
         e.preventDefault();
         this.nextDirection = "left";
+        this.dismissTeleport();
       } else if (e.code === "ArrowRight" || e.code === "KeyD") {
         e.preventDefault();
         this.nextDirection = "right";
+        this.dismissTeleport();
       } else if (e.code === "Escape") {
         e.preventDefault();
         if (this.settingsPanel.classList.contains("open")) {
@@ -4136,28 +4833,37 @@ CanvasOps/frame:
     let touchStartY = 0;
     let touchFired = false;
 
-    this.canvas.addEventListener("touchstart", (e) => {
-      if (this.state !== "PLAYING") return;
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchFired = false;
-    }, { passive: false });
+    this.canvas.addEventListener(
+      "touchstart",
+      (e) => {
+        if (this.state !== "PLAYING") return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchFired = false;
+      },
+      { passive: false },
+    );
 
-    this.canvas.addEventListener("touchmove", (e) => {
-      if (this.state !== "PLAYING") return;
-      if (e.cancelable) e.preventDefault();
-      if (touchFired) return;
-      const dx = e.touches[0].clientX - touchStartX;
-      const dy = e.touches[0].clientY - touchStartY;
-      if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
-        touchFired = true;
-        if (Math.abs(dx) > Math.abs(dy)) {
-          this.nextDirection = dx > 0 ? "right" : "left";
-        } else {
-          this.nextDirection = dy > 0 ? "down" : "up";
+    this.canvas.addEventListener(
+      "touchmove",
+      (e) => {
+        if (this.state !== "PLAYING") return;
+        if (e.cancelable) e.preventDefault();
+        if (touchFired) return;
+        const dx = e.touches[0].clientX - touchStartX;
+        const dy = e.touches[0].clientY - touchStartY;
+        if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
+          touchFired = true;
+          if (Math.abs(dx) > Math.abs(dy)) {
+            this.nextDirection = dx > 0 ? "right" : "left";
+          } else {
+            this.nextDirection = dy > 0 ? "down" : "up";
+          }
+          this.dismissTeleport();
         }
-      }
-    }, { passive: false });
+      },
+      { passive: false },
+    );
 
     this.canvas.addEventListener("touchend", (e) => {
       if (this.state !== "PLAYING") return;
@@ -4176,6 +4882,7 @@ CanvasOps/frame:
         } else {
           this.nextDirection = dy > 0 ? "down" : "up";
         }
+        this.dismissTeleport();
       }
     });
   }
@@ -4188,6 +4895,7 @@ CanvasOps/frame:
       this.startOverlay.classList.add("hidden");
     }
     this.hudEl?.classList.remove("uiHidden");
+    this.tutorialOverlay?.classList.remove("uiHidden");
     this.pauseBtn?.classList.remove("uiHidden");
     this.settingsBtn?.classList.remove("uiHidden");
   }
@@ -4196,6 +4904,7 @@ CanvasOps/frame:
     if (this.state !== "PLAYING") return;
     this.state = "PAUSED";
     this.audio.stopMusic();
+    this.teleportBtn?.classList.add("hidden");
     this.pauseOverlay?.classList.remove("hidden");
     // Ensure pause overlay UI is updated
     this.updatePauseOverlay();
@@ -4215,6 +4924,7 @@ CanvasOps/frame:
     this.gameOverOverlay?.classList.add("hidden");
     this.pauseOverlay?.classList.add("hidden");
     this.hudEl?.classList.remove("uiHidden");
+    this.tutorialOverlay?.classList.remove("uiHidden");
     this.pauseBtn?.classList.remove("uiHidden");
     this.settingsBtn?.classList.remove("uiHidden");
   }
@@ -4226,21 +4936,24 @@ CanvasOps/frame:
     this.pauseOverlay?.classList.add("hidden");
     this.startOverlay?.classList.remove("hidden");
     this.hudEl?.classList.add("uiHidden");
+    this.tutorialOverlay?.classList.add("uiHidden");
     this.pauseBtn?.classList.add("uiHidden");
     this.settingsBtn?.classList.add("uiHidden");
+    this.teleportBtn?.classList.add("hidden");
     // Ensure menu is updated when showing
     this.updateStartMenu();
   }
 
   private gameOver(): void {
     this.state = "GAME_OVER";
-    const distance = Math.max(0, Math.floor((this.playerSpawnY * CONFIG.TILE_SIZE - this.playerY) / CONFIG.TILE_SIZE));
 
-    // Update game over overlay with distance
-    this.updateGameOverOverlay(distance);
+    // Update game over overlay with score (matches leaderboard)
+    this.updateGameOverOverlay(this.score);
 
     this.gameOverOverlay?.classList.remove("hidden");
     this.hudEl?.classList.add("uiHidden");
+    this.tutorialOverlay?.classList.add("uiHidden");
+    this.teleportBtn?.classList.add("hidden");
     this.pauseBtn?.classList.add("uiHidden");
     this.settingsBtn?.classList.add("uiHidden");
 
@@ -4277,7 +4990,10 @@ CanvasOps/frame:
       }
     } else {
       this.settingsPanel.classList.remove("open");
-      if (this.state === "PAUSED" && !this.settingsPanel.classList.contains("open")) {
+      if (
+        this.state === "PAUSED" &&
+        !this.settingsPanel.classList.contains("open")
+      ) {
         this.resume();
       }
     }
@@ -4366,7 +5082,7 @@ CanvasOps/frame:
 
     // Draw transitioning background if applicable
     if (bg2 && blend > 0) {
-      // Fade to black briefly in middle of transition? 
+      // Fade to black briefly in middle of transition?
       // Request said: "smoothly change, first smooth blacken then new one comes"
       // Let's implement that:
       // 0.0 - 0.5: Fade bg1 to black
@@ -4390,7 +5106,7 @@ CanvasOps/frame:
       // bg2 alpha = blend
       // But with the "blacken" step:
 
-      // We draw bg2 on top. 
+      // We draw bg2 on top.
       // If we want a dip to black:
       // Draw bg1.
       // Draw black overlay (alpha goes 0 -> 1 -> 0).
@@ -4406,7 +5122,7 @@ CanvasOps/frame:
 
         if (blend < 0.5) {
           // Showing mostly BG1
-          const opacity = 1.0 - (blend * 2); // 1.0 -> 0.0
+          const opacity = 1.0 - blend * 2; // 1.0 -> 0.0
           if (bg1) drawBgImage(bg1, opacity);
         } else {
           // Showing mostly BG2
@@ -4437,18 +5153,49 @@ CanvasOps/frame:
     ctx.globalCompositeOperation = "screen";
     // Egyptian orbs: golden suns and warm glows
     const orbs = [
-      { x: w * 0.2, y: h * 0.3, phase: t * 0.8, size: Math.min(w, h) * 0.4, offset: 0 },
-      { x: w * 0.8, y: h * 0.5, phase: t * 1.2, size: Math.min(w, h) * 0.35, offset: Math.PI * 0.66 },
-      { x: w * 0.5, y: h * 0.7, phase: t * 0.6, size: Math.min(w, h) * 0.3, offset: Math.PI * 1.33 },
+      {
+        x: w * 0.2,
+        y: h * 0.3,
+        phase: t * 0.8,
+        size: Math.min(w, h) * 0.4,
+        offset: 0,
+      },
+      {
+        x: w * 0.8,
+        y: h * 0.5,
+        phase: t * 1.2,
+        size: Math.min(w, h) * 0.35,
+        offset: Math.PI * 0.66,
+      },
+      {
+        x: w * 0.5,
+        y: h * 0.7,
+        phase: t * 0.6,
+        size: Math.min(w, h) * 0.3,
+        offset: Math.PI * 1.33,
+      },
     ];
     for (const orb of orbs) {
       const pulse = 0.7 + 0.3 * Math.sin(orb.phase);
-      const alpha = 0.10 * pulse; // Slightly brighter for Egyptian theme
+      const alpha = 0.1 * pulse; // Slightly brighter for Egyptian theme
       const orbColor1 = getColorShift(t, orb.offset);
       const orbColor2 = getColorShift(t, orb.offset + Math.PI);
-      const rg = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.size * pulse);
-      rg.addColorStop(0, getColorString(orbColor1.r, orbColor1.g, orbColor1.b, alpha));
-      rg.addColorStop(0.5, getColorString(orbColor2.r, orbColor2.g, orbColor2.b, alpha * 0.6));
+      const rg = ctx.createRadialGradient(
+        orb.x,
+        orb.y,
+        0,
+        orb.x,
+        orb.y,
+        orb.size * pulse,
+      );
+      rg.addColorStop(
+        0,
+        getColorString(orbColor1.r, orbColor1.g, orbColor1.b, alpha),
+      );
+      rg.addColorStop(
+        0.5,
+        getColorString(orbColor2.r, orbColor2.g, orbColor2.b, alpha * 0.6),
+      );
       rg.addColorStop(1, "rgba(0,0,0,0)");
       ctx.globalAlpha = alpha;
       ctx.fillStyle = rg;
@@ -4460,7 +5207,12 @@ CanvasOps/frame:
     ctx.globalAlpha = 0.15;
     const gridColor = getColorShift(t, Math.PI * 0.5);
     // Golden grid lines for Egyptian theme
-    ctx.strokeStyle = getColorString(gridColor.r, gridColor.g, gridColor.b, 0.35);
+    ctx.strokeStyle = getColorString(
+      gridColor.r,
+      gridColor.g,
+      gridColor.b,
+      0.35,
+    );
     ctx.lineWidth = 1;
     const gridSize = 60;
     // Center the grid - ensure a grid line passes through the exact center
@@ -4473,25 +5225,41 @@ CanvasOps/frame:
     const offsetX = centerX % gridSize;
     const offsetY = centerY % gridSize;
     // Start drawing from center outward
-    for (let x = centerX - (centerX % gridSize); x >= -gridSize; x -= gridSize) {
+    for (
+      let x = centerX - (centerX % gridSize);
+      x >= -gridSize;
+      x -= gridSize
+    ) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, h);
       ctx.stroke();
     }
-    for (let x = centerX - (centerX % gridSize) + gridSize; x < w + gridSize; x += gridSize) {
+    for (
+      let x = centerX - (centerX % gridSize) + gridSize;
+      x < w + gridSize;
+      x += gridSize
+    ) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, h);
       ctx.stroke();
     }
-    for (let y = centerY - (centerY % gridSize); y >= -gridSize; y -= gridSize) {
+    for (
+      let y = centerY - (centerY % gridSize);
+      y >= -gridSize;
+      y -= gridSize
+    ) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(w, y);
       ctx.stroke();
     }
-    for (let y = centerY - (centerY % gridSize) + gridSize; y < h + gridSize; y += gridSize) {
+    for (
+      let y = centerY - (centerY % gridSize) + gridSize;
+      y < h + gridSize;
+      y += gridSize
+    ) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(w, y);
@@ -4520,7 +5288,14 @@ CanvasOps/frame:
     }
 
     // Darken the center of the gameplay area
-    const vg = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.min(w, h) * 0.10, w * 0.5, h * 0.5, Math.min(w, h) * 0.85);
+    const vg = ctx.createRadialGradient(
+      w * 0.5,
+      h * 0.5,
+      Math.min(w, h) * 0.1,
+      w * 0.5,
+      h * 0.5,
+      Math.min(w, h) * 0.85,
+    );
     vg.addColorStop(0, "rgba(0,0,0,0.4)"); // Darker in center
     vg.addColorStop(0.5, "rgba(0,0,0,0.25)"); // Medium darkness
     vg.addColorStop(1, "rgba(0,0,0,0)"); // Transparent at edges
@@ -4528,7 +5303,12 @@ CanvasOps/frame:
     ctx.fillRect(0, 0, w, h);
   }
 
-  private drawRedBrickWall(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  private drawRedBrickWall(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    size: number,
+  ): void {
     // Base color - darker reddish brick color
     const baseR = 120;
     const baseG = 50;
@@ -4552,7 +5332,12 @@ CanvasOps/frame:
 
     // Horizontal mortar lines
     for (let i = 1; i < brickRows; i++) {
-      ctx.fillRect(x, Math.round(y + i * brickHeight - mortarWidth / 2), size, mortarWidth);
+      ctx.fillRect(
+        x,
+        Math.round(y + i * brickHeight - mortarWidth / 2),
+        size,
+        mortarWidth,
+      );
     }
 
     // Vertical mortar lines with offset pattern (classic brick pattern)
@@ -4569,7 +5354,12 @@ CanvasOps/frame:
     }
   }
 
-  private drawBrickTile(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  private drawBrickTile(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    size: number,
+  ): void {
     // Base color - sandy/stone color (lighter, more golden)
     const baseR = 220;
     const baseG = 200;
@@ -4577,8 +5367,14 @@ CanvasOps/frame:
 
     // Fill base with gradient for depth
     const gradient = ctx.createLinearGradient(x, y, x, y + size);
-    gradient.addColorStop(0, `rgb(${baseR + 10}, ${baseG + 10}, ${baseB + 10})`);
-    gradient.addColorStop(1, `rgb(${baseR - 10}, ${baseG - 10}, ${baseB - 10})`);
+    gradient.addColorStop(
+      0,
+      `rgb(${baseR + 10}, ${baseG + 10}, ${baseB + 10})`,
+    );
+    gradient.addColorStop(
+      1,
+      `rgb(${baseR - 10}, ${baseG - 10}, ${baseB - 10})`,
+    );
     ctx.fillStyle = gradient;
     ctx.fillRect(x, y, size, size);
 
@@ -4593,7 +5389,12 @@ CanvasOps/frame:
 
     // Horizontal mortar lines
     for (let i = 1; i < brickRows; i++) {
-      ctx.fillRect(x, Math.round(y + i * brickHeight - mortarWidth / 2), size, mortarWidth);
+      ctx.fillRect(
+        x,
+        Math.round(y + i * brickHeight - mortarWidth / 2),
+        size,
+        mortarWidth,
+      );
     }
 
     // Vertical mortar lines with offset pattern (brick pattern)
@@ -4637,13 +5438,25 @@ CanvasOps/frame:
         if (colX >= x && colX < x + size - 2) {
           // Bottom shadow on each brick
           const shadowHeight = Math.max(2, brickHeight * 0.15);
-          ctx.fillRect(colX + 1, rowY + brickHeight - shadowHeight - 1, brickWidth - 2, shadowHeight);
+          ctx.fillRect(
+            colX + 1,
+            rowY + brickHeight - shadowHeight - 1,
+            brickWidth - 2,
+            shadowHeight,
+          );
         }
       }
     }
   }
 
-  private drawBorder(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, orientation: "horizontal" | "vertical"): void {
+  private drawBorder(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    orientation: "horizontal" | "vertical",
+  ): void {
     // Border color - darker than brick tile for depth
     const borderR = 180;
     const borderG = 160;
@@ -4654,12 +5467,19 @@ CanvasOps/frame:
       ctx.fillStyle = `rgb(${borderR}, ${borderG}, ${borderB})`;
     } else {
       // Add subtle gradient for 3D effect on desktop
-      const gradient = orientation === "horizontal"
-        ? ctx.createLinearGradient(x, y, x, y + height)
-        : ctx.createLinearGradient(x, y, x + width, y);
+      const gradient =
+        orientation === "horizontal"
+          ? ctx.createLinearGradient(x, y, x, y + height)
+          : ctx.createLinearGradient(x, y, x + width, y);
 
-      gradient.addColorStop(0, `rgba(${borderR + 15}, ${borderG + 15}, ${borderB + 15}, 0.6)`);
-      gradient.addColorStop(1, `rgba(${borderR - 15}, ${borderG - 15}, ${borderB - 15}, 0.6)`);
+      gradient.addColorStop(
+        0,
+        `rgba(${borderR + 15}, ${borderG + 15}, ${borderB + 15}, 0.6)`,
+      );
+      gradient.addColorStop(
+        1,
+        `rgba(${borderR - 15}, ${borderG - 15}, ${borderB - 15}, 0.6)`,
+      );
       ctx.fillStyle = gradient;
     }
 
@@ -4676,9 +5496,19 @@ CanvasOps/frame:
     // Add shadow on bottom edge
     ctx.fillStyle = `rgba(${borderR - 25}, ${borderG - 25}, ${borderB - 25}, 0.5)`;
     if (orientation === "horizontal") {
-      ctx.fillRect(x, y + height - Math.max(1, height * 0.2), width, Math.max(1, height * 0.2));
+      ctx.fillRect(
+        x,
+        y + height - Math.max(1, height * 0.2),
+        width,
+        Math.max(1, height * 0.2),
+      );
     } else {
-      ctx.fillRect(x + width - Math.max(1, width * 0.2), y, Math.max(1, width * 0.2), height);
+      ctx.fillRect(
+        x + width - Math.max(1, width * 0.2),
+        y,
+        Math.max(1, width * 0.2),
+        height,
+      );
     }
   }
 
@@ -4694,13 +5524,26 @@ CanvasOps/frame:
     const viewY0 = this.cameraY;
     const viewX1 = viewX0 + this.viewW() / zoom;
     const viewY1 = viewY0 + this.viewH() / zoom;
-    const isVisibleWorldRect = (x: number, y: number, w: number, h: number): boolean => {
+    const isVisibleWorldRect = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+    ): boolean => {
       return !(x + w < viewX0 || x > viewX1 || y + h < viewY0 || y > viewY1);
     };
 
     const tileSize = CONFIG.TILE_SIZE;
-    const col0 = clamp(Math.floor(viewX0 / tileSize) - 2, 0, CONFIG.MAZE_COLS - 1);
-    const col1 = clamp(Math.floor(viewX1 / tileSize) + 2, 0, CONFIG.MAZE_COLS - 1);
+    const col0 = clamp(
+      Math.floor(viewX0 / tileSize) - 2,
+      0,
+      CONFIG.MAZE_COLS - 1,
+    );
+    const col1 = clamp(
+      Math.floor(viewX1 / tileSize) + 2,
+      0,
+      CONFIG.MAZE_COLS - 1,
+    );
     const row0 = Math.floor(viewY0 / tileSize) - 3;
     const row1 = Math.floor(viewY1 / tileSize) + 3;
     let mainWallTilesDrawn = 0;
@@ -4750,7 +5593,14 @@ CanvasOps/frame:
             // Visual tile size includes overlap for seamless walls
             const visualTileSize = tileSize + CONFIG.TILE_OVERLAP;
             const overlapOffset = CONFIG.TILE_OVERLAP / 2;
-            if (!isVisibleWorldRect(x - overlapOffset, y - overlapOffset, visualTileSize, visualTileSize)) {
+            if (
+              !isVisibleWorldRect(
+                x - overlapOffset,
+                y - overlapOffset,
+                visualTileSize,
+                visualTileSize,
+              )
+            ) {
               continue;
             }
             mainWallTilesDrawn++;
@@ -4759,23 +5609,57 @@ CanvasOps/frame:
 
             // Draw tile asset
             if (this.tileImage && this.tileImage.complete) {
-              ctx.drawImage(this.tileImage, drawX - overlapOffset, drawY - overlapOffset, visualTileSize, visualTileSize);
+              ctx.drawImage(
+                this.tileImage,
+                drawX - overlapOffset,
+                drawY - overlapOffset,
+                visualTileSize,
+                visualTileSize,
+              );
             }
 
             // Draw borders on exposed edges (skip on mobile for performance).
             if (!this.isMobile) {
               const borderThickness = Math.max(3, visualTileSize * 0.08);
               if (!up) {
-                this.drawBorder(ctx, drawX - overlapOffset, drawY - overlapOffset, visualTileSize, borderThickness, "horizontal");
+                this.drawBorder(
+                  ctx,
+                  drawX - overlapOffset,
+                  drawY - overlapOffset,
+                  visualTileSize,
+                  borderThickness,
+                  "horizontal",
+                );
               }
               if (!down) {
-                this.drawBorder(ctx, drawX - overlapOffset, drawY + tileSize - overlapOffset, visualTileSize, borderThickness, "horizontal");
+                this.drawBorder(
+                  ctx,
+                  drawX - overlapOffset,
+                  drawY + tileSize - overlapOffset,
+                  visualTileSize,
+                  borderThickness,
+                  "horizontal",
+                );
               }
               if (!left || isAtPlayableLeftEdge) {
-                this.drawBorder(ctx, drawX - overlapOffset, drawY - overlapOffset, borderThickness, visualTileSize, "vertical");
+                this.drawBorder(
+                  ctx,
+                  drawX - overlapOffset,
+                  drawY - overlapOffset,
+                  borderThickness,
+                  visualTileSize,
+                  "vertical",
+                );
               }
               if (!right || isAtPlayableRightEdge) {
-                this.drawBorder(ctx, drawX + tileSize - overlapOffset, drawY - overlapOffset, borderThickness, visualTileSize, "vertical");
+                this.drawBorder(
+                  ctx,
+                  drawX + tileSize - overlapOffset,
+                  drawY - overlapOffset,
+                  borderThickness,
+                  visualTileSize,
+                  "vertical",
+                );
               }
             }
           }
@@ -4808,21 +5692,49 @@ CanvasOps/frame:
         for (const spawn of spawns) {
           const wallX = spawn.col * (tileSize + CONFIG.TILE_SPACING);
           const drawX = Math.floor(wallX);
-          const sprite = spawn.sprite === "tile" ? this.tileImage : this.wall8Image;
+          const sprite =
+            spawn.sprite === "tile" ? this.tileImage : this.wall8Image;
 
           if (sprite && sprite.complete) {
-            if (!isVisibleWorldRect(wallX - overlapOffset, y - overlapOffset, visualTileSize, visualTileSize)) {
+            if (
+              !isVisibleWorldRect(
+                wallX - overlapOffset,
+                y - overlapOffset,
+                visualTileSize,
+                visualTileSize,
+              )
+            ) {
               continue;
             }
             sideWallTilesDrawn++;
-            ctx.drawImage(sprite, drawX - overlapOffset, drawY - overlapOffset, visualTileSize, visualTileSize);
+            ctx.drawImage(
+              sprite,
+              drawX - overlapOffset,
+              drawY - overlapOffset,
+              visualTileSize,
+              visualTileSize,
+            );
           }
 
           if (drawSideWallBorders) {
             if (spawn.border === "left") {
-              this.drawBorder(ctx, drawX - overlapOffset, drawY - overlapOffset, borderThickness, visualTileSize, "vertical");
+              this.drawBorder(
+                ctx,
+                drawX - overlapOffset,
+                drawY - overlapOffset,
+                borderThickness,
+                visualTileSize,
+                "vertical",
+              );
             } else if (spawn.border === "right") {
-              this.drawBorder(ctx, drawX + tileSize - overlapOffset, drawY - overlapOffset, borderThickness, visualTileSize, "vertical");
+              this.drawBorder(
+                ctx,
+                drawX + tileSize - overlapOffset,
+                drawY - overlapOffset,
+                borderThickness,
+                visualTileSize,
+                "vertical",
+              );
             }
           }
         }
@@ -4830,7 +5742,6 @@ CanvasOps/frame:
 
       ctx.restore();
     });
-
 
     // Walls are now drawn using platform tile sprites above
     // Removed procedurally drawn squares - using sprites only
@@ -4843,7 +5754,15 @@ CanvasOps/frame:
         const row = this.ensureRow(ry);
         for (let cx = col0; cx <= col1; cx++) {
           const t = row[cx];
-          if (t !== "dot" && t !== "power" && t !== "trap" && t !== "corner_trap" && t !== "speed_boost" && t !== "slow_down") continue;
+          if (
+            t !== "dot" &&
+            t !== "power" &&
+            t !== "trap" &&
+            t !== "corner_trap" &&
+            t !== "speed_boost" &&
+            t !== "portal"
+          )
+            continue;
           const x = cx * (tileSize + CONFIG.TILE_SPACING);
           const y = ry * (tileSize + CONFIG.TILE_SPACING);
           if (!isVisibleWorldRect(x, y, tileSize, tileSize)) continue;
@@ -4853,19 +5772,37 @@ CanvasOps/frame:
 
           if (t === "dot") {
             // Draw coin sprite - scale to original dot size (5px radius = 10px diameter)
-            if (this.coinImage && this.coinImage.complete && this.coinImage.naturalWidth > 0) {
+            if (
+              this.coinImage &&
+              this.coinImage.complete &&
+              this.coinImage.naturalWidth > 0
+            ) {
               ctx.globalAlpha = 0.95;
               const coinSize = 10; // Original dot size
-              const coinScale = coinSize / Math.max(this.coinImage.naturalWidth, this.coinImage.naturalHeight);
+              const coinScale =
+                coinSize /
+                Math.max(
+                  this.coinImage.naturalWidth,
+                  this.coinImage.naturalHeight,
+                );
               const coinW = this.coinImage.naturalWidth * coinScale;
               const coinH = this.coinImage.naturalHeight * coinScale;
-              ctx.drawImage(this.coinImage, px - coinW / 2, py - coinH / 2, coinW, coinH);
+              ctx.drawImage(
+                this.coinImage,
+                px - coinW / 2,
+                py - coinH / 2,
+                coinW,
+                coinH,
+              );
             } else {
               // Fallback: draw simple circle
               const dotColor = getColorShift(time, (ry * 13 + cx) * 0.1);
               const rg = ctx.createRadialGradient(px, py, 0.5, px, py, 6);
               rg.addColorStop(0, "rgba(255,255,200,0.95)");
-              rg.addColorStop(0.25, getColorString(dotColor.r, dotColor.g, dotColor.b, 0.95));
+              rg.addColorStop(
+                0.25,
+                getColorString(dotColor.r, dotColor.g, dotColor.b, 0.95),
+              );
               rg.addColorStop(1, "rgba(0,0,0,0)");
               ctx.fillStyle = rg;
               ctx.globalAlpha = 0.95;
@@ -4875,12 +5812,16 @@ CanvasOps/frame:
             }
           } else if (t === "power") {
             // Power pellets - bright golden orbs
-            const pulse = 0.65 + 0.35 * Math.sin(time * 3.2 + (ry * 13 + cx) * 0.13);
+            const pulse =
+              0.65 + 0.35 * Math.sin(time * 3.2 + (ry * 13 + cx) * 0.13);
             const rr = 14 * pulse;
             const powerColor = getColorShift(time * 1.5, (ry * 13 + cx) * 0.15);
             const rg = ctx.createRadialGradient(px, py, rr * 0.1, px, py, rr);
             rg.addColorStop(0, "rgba(255,255,180,0.95)"); // Bright gold
-            rg.addColorStop(0.35, getColorString(powerColor.r, powerColor.g, powerColor.b, 0.70));
+            rg.addColorStop(
+              0.35,
+              getColorString(powerColor.r, powerColor.g, powerColor.b, 0.7),
+            );
             rg.addColorStop(1, "rgba(0,0,0,0)");
             ctx.fillStyle = rg;
             ctx.globalAlpha = 0.95;
@@ -4905,34 +5846,40 @@ CanvasOps/frame:
             if (!this.isMobile) ctx.shadowBlur = 15;
             ctx.fill();
             if (!this.isMobile) ctx.shadowBlur = 0;
-
-          } else if (t === "slow_down") {
-            // Blue Ice Crystal
-            ctx.fillStyle = "rgba(100, 200, 255, 0.9)";
-            ctx.beginPath();
-            ctx.moveTo(px, py - 8);
-            ctx.lineTo(px + 6, py - 3);
-            ctx.lineTo(px + 6, py + 3);
-            ctx.lineTo(px, py + 8);
-            ctx.lineTo(px - 6, py + 3);
-            ctx.lineTo(px - 6, py - 3);
-            ctx.closePath();
-            ctx.fill();
-
-            // Inner details
-            ctx.strokeStyle = "white";
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(px, py - 8); ctx.lineTo(px, py + 8);
-            ctx.moveTo(px - 6, py - 3); ctx.lineTo(px + 6, py + 3);
-            ctx.moveTo(px + 6, py - 3); ctx.lineTo(px - 6, py + 3);
-            ctx.stroke();
-
-            // Glow
-            ctx.shadowColor = "cyan";
-            if (!this.isMobile) ctx.shadowBlur = 15;
-            ctx.stroke();
-            if (!this.isMobile) ctx.shadowBlur = 0;
+          } else if (t === "portal") {
+            // Animated warp sprite
+            if (
+              this.warpSprite &&
+              this.warpSprite.complete &&
+              this.warpSprite.naturalWidth > 0
+            ) {
+              const spriteH = this.warpSprite.naturalHeight;
+              const frameW = spriteH;
+              const totalFrames = Math.floor(
+                this.warpSprite.naturalWidth / frameW,
+              );
+              const fps = 12;
+              const frame = Math.floor(time * fps) % totalFrames;
+              const portalSize = tileSize * 0.9;
+              const scale = portalSize / frameW;
+              ctx.globalAlpha = 0.9;
+              ctx.drawImage(
+                this.warpSprite,
+                frame * frameW,
+                0,
+                frameW,
+                spriteH,
+                px - (frameW * scale) / 2,
+                py - (spriteH * scale) / 2,
+                frameW * scale,
+                spriteH * scale,
+              );
+            } else {
+              ctx.fillStyle = "rgba(180, 100, 255, 0.9)";
+              ctx.beginPath();
+              ctx.arc(px, py, 6, 0, Math.PI * 2);
+              ctx.fill();
+            }
           } else if (t === "trap") {
             // Trap logic: 3s Green, 0.75s Red. Cycle = 3.75s
             const cycle = time % 3.75;
@@ -4947,9 +5894,24 @@ CanvasOps/frame:
             ctx.fillStyle = "#444";
             const cornerSize = 6;
             ctx.fillRect(x + 1, y + 1, cornerSize, cornerSize);
-            ctx.fillRect(x + tileSize - 1 - cornerSize, y + 1, cornerSize, cornerSize);
-            ctx.fillRect(x + 1, y + tileSize - 1 - cornerSize, cornerSize, cornerSize);
-            ctx.fillRect(x + tileSize - 1 - cornerSize, y + tileSize - 1 - cornerSize, cornerSize, cornerSize);
+            ctx.fillRect(
+              x + tileSize - 1 - cornerSize,
+              y + 1,
+              cornerSize,
+              cornerSize,
+            );
+            ctx.fillRect(
+              x + 1,
+              y + tileSize - 1 - cornerSize,
+              cornerSize,
+              cornerSize,
+            );
+            ctx.fillRect(
+              x + tileSize - 1 - cornerSize,
+              y + tileSize - 1 - cornerSize,
+              cornerSize,
+              cornerSize,
+            );
 
             // Inner active area
             const innerPadding = 4;
@@ -4960,11 +5922,23 @@ CanvasOps/frame:
 
               // Deep red background
               ctx.fillStyle = "rgba(100, 0, 0, 0.8)";
-              ctx.fillRect(x + innerPadding, y + innerPadding, innerSize, innerSize);
+              ctx.fillRect(
+                x + innerPadding,
+                y + innerPadding,
+                innerSize,
+                innerSize,
+              );
 
               // Intense center glow
               const pulse = 0.8 + 0.2 * Math.sin(time * 20);
-              const rg = ctx.createRadialGradient(px, py, 2, px, py, innerSize * 0.8);
+              const rg = ctx.createRadialGradient(
+                px,
+                py,
+                2,
+                px,
+                py,
+                innerSize * 0.8,
+              );
               rg.addColorStop(0, "rgba(255, 200, 200, 1)"); // White-hot center
               rg.addColorStop(0.4, "rgba(255, 50, 0, 0.9)"); // Bright red
               rg.addColorStop(1, "rgba(100, 0, 0, 0)"); // Fade out
@@ -4984,8 +5958,14 @@ CanvasOps/frame:
                 const angle = (time * 10 + i * (Math.PI / 2)) % (Math.PI * 2);
                 const r1 = innerSize * 0.2;
                 const r2 = innerSize * 0.5;
-                ctx.moveTo(px + Math.cos(angle) * r1, py + Math.sin(angle) * r1);
-                ctx.lineTo(px + Math.cos(angle + 0.5) * r2, py + Math.sin(angle + 0.5) * r2);
+                ctx.moveTo(
+                  px + Math.cos(angle) * r1,
+                  py + Math.sin(angle) * r1,
+                );
+                ctx.lineTo(
+                  px + Math.cos(angle + 0.5) * r2,
+                  py + Math.sin(angle + 0.5) * r2,
+                );
               }
               ctx.stroke();
 
@@ -4994,9 +5974,13 @@ CanvasOps/frame:
               ctx.shadowBlur = 20;
               ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
               ctx.lineWidth = 2;
-              ctx.strokeRect(x + innerPadding, y + innerPadding, innerSize, innerSize);
+              ctx.strokeRect(
+                x + innerPadding,
+                y + innerPadding,
+                innerSize,
+                innerSize,
+              );
               ctx.shadowBlur = 0;
-
             } else {
               // GREEN STATE (Safe) - "Ancient Rune"
 
@@ -5004,12 +5988,19 @@ CanvasOps/frame:
               ctx.fillStyle = isTransition
                 ? `rgba(50, ${100 + Math.sin(time * 30) * 50}, 0, 0.5)` // Flicker if warning
                 : "rgba(0, 60, 20, 0.5)";
-              ctx.fillRect(x + innerPadding, y + innerPadding, innerSize, innerSize);
+              ctx.fillRect(
+                x + innerPadding,
+                y + innerPadding,
+                innerSize,
+                innerSize,
+              );
 
               // Breathing rune effect
               const pulse = 0.5 + 0.3 * Math.sin(time * 3); // Slow breath
 
-              ctx.strokeStyle = isTransition ? "rgba(255, 255, 0, 0.8)" : `rgba(100, 255, 150, ${pulse})`;
+              ctx.strokeStyle = isTransition
+                ? "rgba(255, 255, 0, 0.8)"
+                : `rgba(100, 255, 150, ${pulse})`;
               ctx.lineWidth = 2;
 
               // Diamond shape rune
@@ -5022,7 +6013,9 @@ CanvasOps/frame:
               ctx.stroke();
 
               // Inner dot
-              ctx.fillStyle = isTransition ? "yellow" : "rgba(150, 255, 200, 0.8)";
+              ctx.fillStyle = isTransition
+                ? "yellow"
+                : "rgba(150, 255, 200, 0.8)";
               ctx.beginPath();
               ctx.arc(px, py, 2, 0, Math.PI * 2);
               ctx.fill();
@@ -5095,37 +6088,39 @@ CanvasOps/frame:
     });
 
     // Draw shadow overlay on distant tiles (Fog of War)
-    if (!this.isMobile) this.perfMeasure("render.drawMaze.fog", () => {
-      ctx.save();
-      const shadowStartDist = 4; // Tiles within this radius are fully bright
-      const shadowEndDist = 9;   // Tiles beyond this radius are maximally darkened
-      const maxShadowOpacity = 0.4;
+    if (!this.isMobile)
+      this.perfMeasure("render.drawMaze.fog", () => {
+        ctx.save();
+        const shadowStartDist = 4; // Tiles within this radius are fully bright
+        const shadowEndDist = 9; // Tiles beyond this radius are maximally darkened
+        const maxShadowOpacity = 0.4;
 
-      for (let ry = row0; ry <= row1; ry++) {
-        for (let cx = col0; cx <= col1; cx++) {
-          // Calculate grid distance from player
-          const dx = cx - this.playerTileX;
-          const dy = ry - this.playerTileY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+        for (let ry = row0; ry <= row1; ry++) {
+          for (let cx = col0; cx <= col1; cx++) {
+            // Calculate grid distance from player
+            const dx = cx - this.playerTileX;
+            const dy = ry - this.playerTileY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist > shadowStartDist) {
-            let alpha = (dist - shadowStartDist) / (shadowEndDist - shadowStartDist);
-            alpha = Math.min(Math.max(alpha, 0), maxShadowOpacity);
+            if (dist > shadowStartDist) {
+              let alpha =
+                (dist - shadowStartDist) / (shadowEndDist - shadowStartDist);
+              alpha = Math.min(Math.max(alpha, 0), maxShadowOpacity);
 
-            if (alpha > 0) {
-              fogTilesDrawn++;
-              const x = cx * (tileSize + CONFIG.TILE_SPACING);
-              const y = ry * (tileSize + CONFIG.TILE_SPACING);
-              const overlaySize = tileSize + CONFIG.TILE_SPACING; // Exact size to avoid overlap artifacts
+              if (alpha > 0) {
+                fogTilesDrawn++;
+                const x = cx * (tileSize + CONFIG.TILE_SPACING);
+                const y = ry * (tileSize + CONFIG.TILE_SPACING);
+                const overlaySize = tileSize + CONFIG.TILE_SPACING; // Exact size to avoid overlap artifacts
 
-              ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
-              ctx.fillRect(x, y, overlaySize, overlaySize);
+                ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+                ctx.fillRect(x, y, overlaySize, overlaySize);
+              }
             }
           }
         }
-      }
-      ctx.restore();
-    });
+        ctx.restore();
+      });
 
     // Draw rising sand dunes
     const surfaceY = this.waterSurfaceY;
@@ -5135,7 +6130,6 @@ CanvasOps/frame:
     this.perfMeasure("render.drawMaze.sand", () => {
       const DUNE_MAX_AMP = 80; // max dune oscillation amplitude in px
       if (surfaceY < bottomY + DUNE_MAX_AMP) {
-
         // Always draw sand from bottom, even if surface is above
         const x0 = viewX0 - 200;
         const x1 = viewX1 + 200;
@@ -5214,7 +6208,7 @@ CanvasOps/frame:
     rotX: number,
     rotY: number,
     rotZ: number,
-    alpha: number = 1.0
+    alpha: number = 1.0,
   ): void {
     const t = performance.now() * 0.001;
 
@@ -5223,7 +6217,7 @@ CanvasOps/frame:
     const wiggleZ = Math.sin(t * 5.2) * 0.06;
     const squashX = 1.0 + Math.sin(t * 3.2) * 0.12;
     const squashY = 1.0 + Math.cos(t * 2.9) * 0.12;
-    const squashZ = 1.0 + Math.sin(t * 4.1) * 0.10;
+    const squashZ = 1.0 + Math.sin(t * 4.1) * 0.1;
 
     const halfSize = size * 0.5;
 
@@ -5273,18 +6267,51 @@ CanvasOps/frame:
     const colorShift3 = getColorShift(t, Math.PI * 0.5);
 
     const faces = [
-      { indices: [0, 1, 2, 3], color: getColorString(255, 255, 255, 0.95), name: "front" },
-      { indices: [5, 4, 7, 6], color: getColorString(colorShift2.r, colorShift2.g, colorShift2.b, 0.55), name: "back" },
-      { indices: [4, 0, 3, 7], color: getColorString(colorShift.r, colorShift.g, colorShift.b, 0.75), name: "left" },
-      { indices: [1, 5, 6, 2], color: getColorString(colorShift.r, colorShift.g, colorShift.b, 0.75), name: "right" },
-      { indices: [4, 5, 1, 0], color: getColorString(colorShift3.r, colorShift3.g, colorShift3.b, 0.70), name: "top" },
-      { indices: [3, 2, 6, 7], color: getColorString(colorShift2.r, colorShift2.g, colorShift2.b, 0.50), name: "bottom" },
+      {
+        indices: [0, 1, 2, 3],
+        color: getColorString(255, 255, 255, 0.95),
+        name: "front",
+      },
+      {
+        indices: [5, 4, 7, 6],
+        color: getColorString(
+          colorShift2.r,
+          colorShift2.g,
+          colorShift2.b,
+          0.55,
+        ),
+        name: "back",
+      },
+      {
+        indices: [4, 0, 3, 7],
+        color: getColorString(colorShift.r, colorShift.g, colorShift.b, 0.75),
+        name: "left",
+      },
+      {
+        indices: [1, 5, 6, 2],
+        color: getColorString(colorShift.r, colorShift.g, colorShift.b, 0.75),
+        name: "right",
+      },
+      {
+        indices: [4, 5, 1, 0],
+        color: getColorString(colorShift3.r, colorShift3.g, colorShift3.b, 0.7),
+        name: "top",
+      },
+      {
+        indices: [3, 2, 6, 7],
+        color: getColorString(colorShift2.r, colorShift2.g, colorShift2.b, 0.5),
+        name: "bottom",
+      },
     ];
 
-    const sortedFaces = faces.map(face => {
-      const avgZ = face.indices.reduce((sum, idx) => sum + rotatedVertices[idx].z, 0) / face.indices.length;
-      return { ...face, avgZ };
-    }).sort((a, b) => a.avgZ - b.avgZ);
+    const sortedFaces = faces
+      .map((face) => {
+        const avgZ =
+          face.indices.reduce((sum, idx) => sum + rotatedVertices[idx].z, 0) /
+          face.indices.length;
+        return { ...face, avgZ };
+      })
+      .sort((a, b) => a.avgZ - b.avgZ);
 
     const perspective = 300;
 
@@ -5296,7 +6323,7 @@ CanvasOps/frame:
     ctx.globalAlpha = alpha;
 
     for (const face of sortedFaces) {
-      const projected = face.indices.map(idx => {
+      const projected = face.indices.map((idx) => {
         const v = rotatedVertices[idx];
         const scale = perspective / (perspective + v.z + z);
         return {
@@ -5306,9 +6333,18 @@ CanvasOps/frame:
         };
       });
 
-      const v0 = { ...rotatedVertices[face.indices[0]], z: rotatedVertices[face.indices[0]].z + z };
-      const v1 = { ...rotatedVertices[face.indices[1]], z: rotatedVertices[face.indices[1]].z + z };
-      const v2 = { ...rotatedVertices[face.indices[2]], z: rotatedVertices[face.indices[2]].z + z };
+      const v0 = {
+        ...rotatedVertices[face.indices[0]],
+        z: rotatedVertices[face.indices[0]].z + z,
+      };
+      const v1 = {
+        ...rotatedVertices[face.indices[1]],
+        z: rotatedVertices[face.indices[1]].z + z,
+      };
+      const v2 = {
+        ...rotatedVertices[face.indices[2]],
+        z: rotatedVertices[face.indices[2]].z + z,
+      };
       const dx1 = v1.x - v0.x;
       const dy1 = v1.y - v0.y;
       const dz1 = v1.z - v0.z;
@@ -5329,15 +6365,23 @@ CanvasOps/frame:
       ctx.globalCompositeOperation = "source-over";
 
       const grad = ctx.createLinearGradient(
-        projected[0].x, projected[0].y,
-        projected[2].x, projected[2].y
+        projected[0].x,
+        projected[0].y,
+        projected[2].x,
+        projected[2].y,
       );
       const baseColor = face.color;
       const baseAlpha = parseFloat(baseColor.match(/0\.\d+/)?.[0] || "0.8");
       const brightAlpha = Math.min(1, baseAlpha * light * alpha);
       const darkAlpha = Math.max(0.2, baseAlpha * light * 0.7 * alpha);
-      const brightColor = baseColor.replace(/rgba\([^)]+\)/, `rgba(255,255,200,${brightAlpha})`); // Warm gold highlight
-      const darkColor = baseColor.replace(/rgba\([^)]+\)/, `rgba(180,140,80,${darkAlpha})`); // Amber shadow
+      const brightColor = baseColor.replace(
+        /rgba\([^)]+\)/,
+        `rgba(255,255,200,${brightAlpha})`,
+      ); // Warm gold highlight
+      const darkColor = baseColor.replace(
+        /rgba\([^)]+\)/,
+        `rgba(180,140,80,${darkAlpha})`,
+      ); // Amber shadow
       grad.addColorStop(0, brightColor);
       grad.addColorStop(1, darkColor);
 
@@ -5351,7 +6395,12 @@ CanvasOps/frame:
       ctx.fill();
 
       const edgeColor = getColorShift(t, Math.PI * 0.25);
-      ctx.strokeStyle = getColorString(edgeColor.r, edgeColor.g, edgeColor.b, 0.4 * light * alpha); // Brighter edges
+      ctx.strokeStyle = getColorString(
+        edgeColor.r,
+        edgeColor.g,
+        edgeColor.b,
+        0.4 * light * alpha,
+      ); // Brighter edges
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -5360,9 +6409,14 @@ CanvasOps/frame:
 
     ctx.save();
     ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = 0.30 * alpha; // Brighter glow for Egyptian theme
+    ctx.globalAlpha = 0.3 * alpha; // Brighter glow for Egyptian theme
     const glowColor = getColorShift(t, 0);
-    ctx.shadowColor = getColorString(glowColor.r, glowColor.g, glowColor.b, 0.70); // Golden glow
+    ctx.shadowColor = getColorString(
+      glowColor.r,
+      glowColor.g,
+      glowColor.b,
+      0.7,
+    ); // Golden glow
     ctx.shadowBlur = 28;
 
     const glowSize = size * 1.15;
@@ -5392,7 +6446,7 @@ CanvasOps/frame:
     });
 
     const glowPerspective = 300;
-    const glowProjected = [0, 1, 2, 3].map(idx => {
+    const glowProjected = [0, 1, 2, 3].map((idx) => {
       const v = glowRotated[idx];
       const scale = glowPerspective / (glowPerspective + v.z + z);
       return {
@@ -5411,8 +6465,14 @@ CanvasOps/frame:
     ctx.fill();
 
     const radialGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, glowHalf * 1.2);
-    radialGlow.addColorStop(0, getColorString(glowColor.r, glowColor.g, glowColor.b, 0.3));
-    radialGlow.addColorStop(0.5, getColorString(glowColor.r, glowColor.g, glowColor.b, 0.15));
+    radialGlow.addColorStop(
+      0,
+      getColorString(glowColor.r, glowColor.g, glowColor.b, 0.3),
+    );
+    radialGlow.addColorStop(
+      0.5,
+      getColorString(glowColor.r, glowColor.g, glowColor.b, 0.15),
+    );
     radialGlow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = radialGlow;
     ctx.fillRect(-glowHalf * 1.5, -glowHalf * 1.5, glowHalf * 3, glowHalf * 3);
@@ -5455,9 +6515,9 @@ CanvasOps/frame:
     // Core band definitions: highlight, mid, shadow (reduced widths for less intensity)
     // Each band starts at a different point in the trail to create stepped ends
     const bands = [
-      { tone: "highlight" as const, width: 3, startRatio: 0.0, offset: 0 },   // Longest: starts from beginning
-      { tone: "mid" as const, width: 2.5, startRatio: 0.15, offset: 6 },        // Medium: starts 15% in
-      { tone: "shadow" as const, width: 2, startRatio: 0.35, offset: 11 },   // Shortest: starts 35% in
+      { tone: "highlight" as const, width: 3, startRatio: 0.0, offset: 0 }, // Longest: starts from beginning
+      { tone: "mid" as const, width: 2.5, startRatio: 0.15, offset: 6 }, // Medium: starts 15% in
+      { tone: "shadow" as const, width: 2, startRatio: 0.35, offset: 11 }, // Shortest: starts 35% in
     ];
 
     for (const band of bands) {
@@ -5465,9 +6525,13 @@ CanvasOps/frame:
       let g = 234;
       let b = 214;
       if (band.tone === "mid") {
-        r = 216; g = 203; b = 176;
+        r = 216;
+        g = 203;
+        b = 176;
       } else if (band.tone === "shadow") {
-        r = 179; g = 162; b = 127;
+        r = 179;
+        g = 162;
+        b = 127;
       }
 
       // Calculate starting index for this band
@@ -5515,6 +6579,27 @@ CanvasOps/frame:
     ctx.restore();
   }
 
+  private spawnActiveSpriteEffect(
+    x: number,
+    y: number,
+    sprite: HTMLImageElement | null,
+    totalFrames: number,
+    fps: number,
+    scale: number,
+  ): void {
+    if (!sprite || !sprite.complete || sprite.naturalWidth === 0) return;
+    this.activeSpriteEffects.push({
+      x,
+      y,
+      sprite,
+      totalFrames,
+      currentFrame: 0,
+      timePerFrame: 1 / fps,
+      elapsedTime: 0,
+      scale,
+    });
+  }
+
   private spawnDashParticles(x: number, y: number, direction: Direction): void {
     const count = this.isMobile
       ? 1 + Math.floor(Math.random() * 2) // 1-2 particles on mobile
@@ -5543,7 +6628,7 @@ CanvasOps/frame:
         maxLife: 0.3 + Math.random() * 0.2,
         size: 2 + Math.random() * 3,
         color: `rgba(255, 240, 200, 1)`, // Light golden/sandy color
-        type: "dash"
+        type: "dash",
       });
     }
   }
@@ -5566,9 +6651,100 @@ CanvasOps/frame:
         maxLife: 0.4 + Math.random() * 0.3,
         size: 3 + Math.random() * 4,
         color: `rgba(194, 178, 128, 1)`, // Sandy/dust color
-        type: "landing"
+        type: "landing",
       });
     }
+  }
+
+  private executeTeleport(): void {
+    if (!this.pendingTeleport) return;
+    const dest = this.pendingTeleport;
+    this.playerTileX = dest.x;
+    this.playerTileY = dest.y;
+    this.playerX = dest.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
+    this.playerY = dest.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
+    this.playerDirection = dest.dir;
+    this.pendingTeleport = null;
+
+    this.triggerHaptic("success");
+    this.audio.playTeleportChord();
+
+    const warpScale = (CONFIG.TILE_SIZE * 2) / 100;
+    this.spawnWarpVfx(this.playerX, this.playerY, warpScale);
+
+    this.teleportBtn?.classList.add("hidden");
+  }
+
+  private findTeleportDestination(
+    fromX: number,
+    fromY: number,
+    currentDir: Direction,
+  ): { x: number; y: number; dir: Direction } | null {
+    const opposite: Record<Direction, Direction> = {
+      up: "down",
+      down: "up",
+      left: "right",
+      right: "left",
+    };
+    const checks: [Direction, number, number][] = [
+      ["up", 0, -1],
+      ["down", 0, 1],
+      ["left", -1, 0],
+      ["right", 1, 0],
+    ];
+
+    const simulateMoves = (
+      numMoves: number,
+    ): { x: number; y: number; dir: Direction } | null => {
+      let simX = fromX;
+      let simY = fromY;
+      let simDir = currentDir;
+
+      for (let move = 0; move < numMoves; move++) {
+        const possibleDirs: Direction[] = [];
+        for (const [d, dx, dy] of checks) {
+          if (d === opposite[simDir]) continue;
+          let nx = simX + dx;
+          let ny = simY + dy;
+          if (nx < 0) nx = CONFIG.MAZE_COLS - 1;
+          if (nx >= CONFIG.MAZE_COLS) nx = 0;
+          const t = this.getTileType(nx, ny);
+          if (t !== "wall" && t !== "empty") {
+            possibleDirs.push(d);
+          }
+        }
+
+        if (possibleDirs.length === 0) {
+          for (const [d, dx, dy] of checks) {
+            let nx = simX + dx;
+            let ny = simY + dy;
+            if (nx < 0) nx = CONFIG.MAZE_COLS - 1;
+            if (nx >= CONFIG.MAZE_COLS) nx = 0;
+            const t = this.getTileType(nx, ny);
+            if (t !== "wall" && t !== "empty") {
+              possibleDirs.push(d);
+            }
+          }
+        }
+        if (possibleDirs.length === 0) return null;
+
+        simDir = possibleDirs.includes(simDir) ? simDir : possibleDirs[0];
+        const dashEnd = this.calculateDashEnd(simX, simY, simDir);
+        simX = dashEnd.tileX;
+        simY = dashEnd.tileY;
+      }
+
+      const t = this.getTileType(simX, simY);
+      if (t === "trap" || t === "wall" || t === "empty") return null;
+      return { x: simX, y: simY, dir: simDir };
+    };
+
+    // Try 2 moves first, fall back to 1 move
+    return simulateMoves(2) ?? simulateMoves(1);
+  }
+
+  private spawnWarpVfx(_x: number, _y: number, _scale: number): void {
+    // Warp VFX placeholder - visual effect at teleport destination
   }
 
   private spawnDeathParticles(x: number, y: number): void {
@@ -5589,7 +6765,7 @@ CanvasOps/frame:
         maxLife: 0.8 + Math.random() * 0.4,
         size: 4 + Math.random() * 5,
         color: `rgba(150, 100, 80, 1)`, // Darker sandy/brown color for death
-        type: "landing" // Reuse landing type
+        type: "landing", // Reuse landing type
       });
     }
   }
@@ -5647,7 +6823,7 @@ CanvasOps/frame:
         size: 1 + Math.random() * 2.5,
         alpha: 0.15 + Math.random() * 0.25, // Visible golden motes
         wobble: Math.random() * Math.PI * 2,
-        phase: 0.5 + Math.random() * 1.5
+        phase: 0.5 + Math.random() * 1.5,
       });
     }
 
@@ -5686,6 +6862,18 @@ CanvasOps/frame:
       // Remove dead particles
       if (p.life <= 0) {
         this.particles.splice(i, 1);
+      }
+    }
+
+    for (let i = this.activeSpriteEffects.length - 1; i >= 0; i--) {
+      const effect = this.activeSpriteEffects[i];
+      effect.elapsedTime += dt;
+      if (effect.elapsedTime >= effect.timePerFrame) {
+        effect.currentFrame++;
+        effect.elapsedTime -= effect.timePerFrame;
+      }
+      if (effect.currentFrame >= effect.totalFrames) {
+        this.activeSpriteEffects.splice(i, 1);
       }
     }
   }
@@ -5748,6 +6936,33 @@ CanvasOps/frame:
       }
     }
 
+    for (const effect of this.activeSpriteEffects) {
+      if (
+        !effect.sprite ||
+        !effect.sprite.complete ||
+        effect.sprite.naturalWidth === 0
+      )
+        continue;
+      const frameWidth = effect.sprite.naturalWidth / effect.totalFrames;
+      const frameHeight = effect.sprite.naturalHeight;
+      ctx.save();
+      ctx.translate(effect.x, effect.y);
+      ctx.scale(effect.scale, effect.scale);
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(
+        effect.sprite,
+        effect.currentFrame * frameWidth,
+        0,
+        frameWidth,
+        frameHeight,
+        -frameWidth / 2,
+        -frameHeight / 2,
+        frameWidth,
+        frameHeight,
+      );
+      ctx.restore();
+    }
+
     ctx.globalAlpha = 1;
     ctx.restore();
   }
@@ -5774,7 +6989,14 @@ CanvasOps/frame:
         ctx.fill();
         continue;
       }
-      const trailGlow = ctx.createRadialGradient(p.x, p.y, r * 0.2, p.x, p.y, r);
+      const trailGlow = ctx.createRadialGradient(
+        p.x,
+        p.y,
+        r * 0.2,
+        p.x,
+        p.y,
+        r,
+      );
       trailGlow.addColorStop(0, `rgba(255, 255, 180, ${p.alpha * 0.95})`);
       trailGlow.addColorStop(0.35, `rgba(255, 190, 40, ${p.alpha * 0.8})`);
       trailGlow.addColorStop(0.7, `rgba(255, 90, 0, ${p.alpha * 0.55})`);
@@ -5789,7 +7011,7 @@ CanvasOps/frame:
     const cx = this.doppelgangerX + CONFIG.TILE_SIZE / 2;
     const cy = this.doppelgangerY + CONFIG.TILE_SIZE / 2;
     const coreR = CONFIG.PLAYER_BODY * 0.36;
-    const glowR = CONFIG.PLAYER_BODY * (0.78 + 0.10 * Math.sin(t * 18));
+    const glowR = CONFIG.PLAYER_BODY * (0.78 + 0.1 * Math.sin(t * 18));
 
     const outer = ctx.createRadialGradient(cx, cy, coreR * 0.4, cx, cy, glowR);
     outer.addColorStop(0, "rgba(255, 250, 210, 0.95)");
@@ -5845,11 +7067,17 @@ CanvasOps/frame:
       ];
 
       for (const band of bands) {
-        let r = 243, g = 234, b = 214;
+        let r = 243,
+          g = 234,
+          b = 214;
         if (band.tone === "mid") {
-          r = 216; g = 203; b = 176;
+          r = 216;
+          g = 203;
+          b = 176;
         } else if (band.tone === "shadow") {
-          r = 179; g = 162; b = 127;
+          r = 179;
+          g = 162;
+          b = 127;
         }
 
         // Offset perpendicular to cloth direction
@@ -5894,11 +7122,12 @@ CanvasOps/frame:
 
     ctx.translate(
       this.playerX - this.cameraX + waveOffsetX,
-      this.playerY - this.cameraY
+      this.playerY - this.cameraY,
     );
 
     if (this.dashFlash) {
-      const flashAlpha = 0.4 + 0.6 * (1 - Math.abs(this.dashFlash.progress - 0.5) * 2);
+      const flashAlpha =
+        0.4 + 0.6 * (1 - Math.abs(this.dashFlash.progress - 0.5) * 2);
       ctx.globalAlpha = flashAlpha;
     }
 
@@ -5932,64 +7161,84 @@ CanvasOps/frame:
 
     // Choose sprite: dash sprite while dashing, otherwise idle sprite
     let sprite: HTMLImageElement | null = null;
-    const isDashing = this.dashFlash && this.playerDashSprite && this.playerDashSprite.complete && this.playerDashSprite.naturalWidth > 0;
+    const isDashing =
+      this.dashFlash &&
+      this.playerDashSprite &&
+      this.playerDashSprite.complete &&
+      this.playerDashSprite.naturalWidth > 0;
 
     if (isDashing) {
       sprite = this.playerDashSprite;
-    } else if (this.playerIdleSprite && this.playerIdleSprite.complete && this.playerIdleSprite.naturalWidth > 0) {
+    } else if (
+      this.playerIdleSprite &&
+      this.playerIdleSprite.complete &&
+      this.playerIdleSprite.naturalWidth > 0
+    ) {
       sprite = this.playerIdleSprite;
     }
 
-    // Rotate player so feet point toward the wall they're moving toward
-    // Dash sprite has different default orientation (appears to face up by default)
     let rotation = 0;
+    let flipX = false;
+
     if (isDashing) {
-      // Dash sprite rotation (sprite appears to be facing up by default based on user feedback)
-      if (this.playerDirection === "up") {
-        rotation = 0; // Default orientation (facing up)
-      } else if (this.playerDirection === "right") {
-        rotation = Math.PI / 2; // Rotate 90 degrees clockwise (up -> right)
+      // Dash rotation: sprite naturally faces RIGHT
+      if (this.playerDirection === "right") {
+        rotation = 0;
       } else if (this.playerDirection === "left") {
-        rotation = -Math.PI / 2; // Rotate 90 degrees counter-clockwise (up -> left)
+        rotation = Math.PI;
+      } else if (this.playerDirection === "up") {
+        rotation = -Math.PI / 2;
       } else if (this.playerDirection === "down") {
-        rotation = Math.PI; // Rotate 180 degrees (up -> down)
+        rotation = Math.PI / 2;
       }
     } else {
-      // Idle sprite rotation
-      if (this.playerDirection === "up") {
-        rotation = Math.PI; // upside-down
-      } else if (this.playerDirection === "right") {
+      // Idle: feet plant on the wall, face toward open path
+      const openLeft = this.canMove(this.playerTileX, this.playerTileY, "left");
+      const openRight = this.canMove(
+        this.playerTileX,
+        this.playerTileY,
+        "right",
+      );
+      const openUp = this.canMove(this.playerTileX, this.playerTileY, "up");
+      const openDown = this.canMove(this.playerTileX, this.playerTileY, "down");
+
+      if (this.playerDirection === "right") {
         rotation = -Math.PI / 2;
+        if (openDown && !openUp) flipX = true;
       } else if (this.playerDirection === "left") {
         rotation = Math.PI / 2;
-      } // "down" stays at 0
+        if (openUp && !openDown) flipX = true;
+      } else if (this.playerDirection === "up") {
+        rotation = Math.PI;
+        if (openRight && !openLeft) flipX = true;
+      } else if (this.playerDirection === "down") {
+        rotation = 0;
+        if (openLeft && !openRight) flipX = true;
+      }
     }
+
     ctx.rotate(rotation);
 
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-      // Scale sprite to match original player size
       const targetSize = CONFIG.PLAYER_BODY * 0.85;
-      const scaleX = targetSize / sprite.naturalWidth;
+      let scaleX = targetSize / sprite.naturalWidth;
       const scaleY = targetSize / sprite.naturalHeight;
+
+      if (flipX) scaleX *= -1;
 
       // Apply Status Effect Filters
       if (this.speedMultiplier > 1.0) {
-        // Speed Boost: Electric Yellow
         ctx.filter = "brightness(1.4) sepia(1) hue-rotate(10deg) saturate(4)";
       } else if (this.speedMultiplier < 1.0) {
-        // Slow Down: Icy Blue
         ctx.filter = "brightness(1.2) sepia(1) hue-rotate(170deg) saturate(2)";
       }
 
-      // For dash sprite, we don't need horizontal flip since rotation handles it
-      // For idle sprite, flip horizontally for left direction
-      if (!isDashing && this.playerDirection === "left") {
-        ctx.scale(-scaleX, scaleY);
-        ctx.drawImage(sprite, -sprite.naturalWidth / 2, -sprite.naturalHeight / 2);
-      } else {
-        ctx.scale(scaleX, scaleY);
-        ctx.drawImage(sprite, -sprite.naturalWidth / 2, -sprite.naturalHeight / 2);
-      }
+      ctx.scale(scaleX, scaleY);
+      ctx.drawImage(
+        sprite,
+        -sprite.naturalWidth / 2,
+        -sprite.naturalHeight / 2,
+      );
 
       ctx.filter = "none"; // Reset filter
 
@@ -5997,39 +7246,51 @@ CanvasOps/frame:
       const time = performance.now() * 0.001;
 
       if (this.speedMultiplier > 1.0) {
-        // Electric Sparks - ENHANCED
-        ctx.save();
-        ctx.strokeStyle = "rgba(255, 255, 0, 1.0)"; // Brighter yellow
-        ctx.lineWidth = 8 / Math.abs(scaleX); // Thicker lines
-        ctx.lineCap = "round";
-        ctx.shadowColor = "orange"; // Orange glow for contrast
-        if (!this.isMobile) ctx.shadowBlur = 20; // Stronger glow
+        if (
+          this.lightningAuraSprite &&
+          this.lightningAuraSprite.complete &&
+          this.lightningAuraSprite.naturalWidth > 0
+        ) {
+          ctx.save();
+          const totalFrames = 10;
+          const frameWidth =
+            this.lightningAuraSprite.naturalWidth / totalFrames;
+          const frameHeight = this.lightningAuraSprite.naturalHeight;
+          const fps = 15;
+          const currentFrame = Math.floor(time * fps) % totalFrames;
 
-        for (let i = 0; i < 6; i++) { // More sparks
-          ctx.beginPath();
-          // Deterministic jittery sparks
-          const angle = (time * 25 + i * 2) % (Math.PI * 2); // Faster rotation
-          const dist = sprite.naturalWidth * 0.7; // Wider radius
-          const sx = Math.cos(angle) * dist;
-          const sy = Math.sin(angle) * dist;
-          // Larger jitter
-          const ex = sx + Math.sin(time * 60 + i * 13) * 40;
-          const ey = sy + Math.cos(time * 50 + i * 7) * 40;
+          ctx.scale(1 / scaleX, 1 / scaleY);
 
-          ctx.moveTo(sx, sy);
-          ctx.lineTo(ex, ey);
-          ctx.stroke();
+          const auraTargetSize = CONFIG.PLAYER_BODY * 2.0;
+          const auraScaleX = auraTargetSize / frameWidth;
+          const auraScaleY = auraTargetSize / frameHeight;
+
+          ctx.scale(auraScaleX, auraScaleY);
+          ctx.shadowColor = "rgba(255, 255, 0, 0.8)";
+          if (!this.isMobile) ctx.shadowBlur = 15;
+
+          ctx.drawImage(
+            this.lightningAuraSprite,
+            currentFrame * frameWidth,
+            0,
+            frameWidth,
+            frameHeight,
+            -frameWidth / 2,
+            -frameHeight / 2,
+            frameWidth,
+            frameHeight,
+          );
+          ctx.restore();
         }
-        ctx.restore();
-
       } else if (this.speedMultiplier < 1.0) {
         // Ice Crystals / Snowflakes - ENHANCED
         ctx.fillStyle = "rgba(150, 240, 255, 1.0)"; // Brighter cyan
         ctx.shadowColor = "white";
         if (!this.isMobile) ctx.shadowBlur = 15;
 
-        for (let i = 0; i < 8; i++) { // More crystals
-          const angle = time * 2.0 + i * (Math.PI * 2 / 8);
+        for (let i = 0; i < 8; i++) {
+          // More crystals
+          const angle = time * 2.0 + i * ((Math.PI * 2) / 8);
           const dist = sprite.naturalWidth * 0.8 + Math.sin(time * 5 + i) * 15;
           const sx = Math.cos(angle) * dist;
           const sy = Math.sin(angle) * dist;
@@ -6044,11 +7305,15 @@ CanvasOps/frame:
           ctx.fill();
         }
       }
-
     } else {
       // Fallback: draw a simple rectangle if sprites not loaded
       ctx.fillStyle = CONFIG.PLAYER_COLOR;
-      ctx.fillRect(-CONFIG.PLAYER_BODY / 2, -CONFIG.PLAYER_BODY / 2, CONFIG.PLAYER_BODY, CONFIG.PLAYER_BODY);
+      ctx.fillRect(
+        -CONFIG.PLAYER_BODY / 2,
+        -CONFIG.PLAYER_BODY / 2,
+        CONFIG.PLAYER_BODY,
+        CONFIG.PLAYER_BODY,
+      );
     }
 
     ctx.restore();
@@ -6084,7 +7349,8 @@ CanvasOps/frame:
 
     for (const ray of this.lightRays) {
       const currentX = ray.x + Math.sin(t * 0.3 + ray.phase) * 40;
-      const pulseAlpha = ray.alpha * (0.7 + 0.3 * Math.sin(t * 0.5 + ray.phase));
+      const pulseAlpha =
+        ray.alpha * (0.7 + 0.3 * Math.sin(t * 0.5 + ray.phase));
 
       const grad = ctx.createLinearGradient(currentX, 0, currentX, h);
       grad.addColorStop(0, `rgba(255, 210, 80, ${pulseAlpha * 1.5})`);
@@ -6111,12 +7377,18 @@ CanvasOps/frame:
     const w = this.viewW();
     const h = this.viewH();
 
-    if (!this.cachedVignetteGradient
-        || this.cachedVignetteSize.w !== w
-        || this.cachedVignetteSize.h !== h) {
+    if (
+      !this.cachedVignetteGradient ||
+      this.cachedVignetteSize.w !== w ||
+      this.cachedVignetteSize.h !== h
+    ) {
       const vg = ctx.createRadialGradient(
-        w * 0.5, h * 0.5, Math.min(w, h) * 0.3,
-        w * 0.5, h * 0.5, Math.max(w, h) * 0.75
+        w * 0.5,
+        h * 0.5,
+        Math.min(w, h) * 0.3,
+        w * 0.5,
+        h * 0.5,
+        Math.max(w, h) * 0.75,
       );
       vg.addColorStop(0, "rgba(0, 0, 0, 0)");
       vg.addColorStop(0.6, "rgba(0, 0, 0, 0)");
@@ -6182,7 +7454,8 @@ CanvasOps/frame:
       ctx.beginPath();
 
       // Lines stretch in the direction of movement
-      let dx = 0, dy = 0;
+      let dx = 0,
+        dy = 0;
       if (this.playerDirection === "up") dy = line.length;
       else if (this.playerDirection === "down") dy = -line.length;
       else if (this.playerDirection === "left") dx = line.length;
@@ -6228,7 +7501,14 @@ CanvasOps/frame:
     const pulseSize = size * (1.5 + 0.3 * Math.sin(t * 4));
     const pulseAlpha = 0.15 + 0.1 * Math.sin(t * 3);
 
-    const gradient = ctx.createRadialGradient(cx, cy, size * 0.3, cx, cy, pulseSize);
+    const gradient = ctx.createRadialGradient(
+      cx,
+      cy,
+      size * 0.3,
+      cx,
+      cy,
+      pulseSize,
+    );
     gradient.addColorStop(0, `rgba(255, 180, 60, ${pulseAlpha * 1.45})`);
     gradient.addColorStop(0.45, `rgba(255, 95, 20, ${pulseAlpha})`);
     gradient.addColorStop(0.75, `rgba(180, 35, 0, ${pulseAlpha * 0.45})`);
@@ -6239,7 +7519,7 @@ CanvasOps/frame:
 
     // Orbiting embers
     for (let i = 0; i < 6; i++) {
-      const angle = t * 2 + (i * Math.PI * 0.5);
+      const angle = t * 2 + i * Math.PI * 0.5;
       const orbitR = size * 0.8 + Math.sin(t * 3 + i) * 3;
       const ex = cx + Math.cos(angle) * orbitR;
       const ey = cy + Math.sin(angle) * orbitR;
@@ -6264,17 +7544,24 @@ CanvasOps/frame:
     const slowDurationS = 5;
     const slowFactor = 0.2; // 5x slower for the first 5 seconds
     const elapsedS = Math.max(0, t - this.sandSlowPhaseStartS);
-    const slowedElapsedS = Math.min(elapsedS, slowDurationS) * slowFactor + Math.max(0, elapsedS - slowDurationS);
+    const slowedElapsedS =
+      Math.min(elapsedS, slowDurationS) * slowFactor +
+      Math.max(0, elapsedS - slowDurationS);
     const tAnim = (this.sandSlowPhaseStartS + slowedElapsedS) * animSpeedMul;
     const w = this.viewW();
     const h = this.viewH();
-    const climbPx = Math.max(0, this.playerSpawnY * CONFIG.TILE_SIZE - this.playerY);
+    const climbPx = Math.max(
+      0,
+      this.playerSpawnY * CONFIG.TILE_SIZE - this.playerY,
+    );
     const flowPhase = tAnim * 1.2 + climbPx * 0.08;
     const flowShiftPx = (tAnim * 18 + climbPx * 0.4) % Math.max(1, w);
 
-    const playerSurfaceScreenY = (sandDuneY(this.waterSurfaceY, this.playerX, t) - this.cameraY) * zoom;
+    const playerSurfaceScreenY =
+      (sandDuneY(this.waterSurfaceY, this.playerX, t) - this.cameraY) * zoom;
     const edgeAnchorY = clamp(playerSurfaceScreenY, 14, h - 14);
-    const useEdgeAnchor = playerSurfaceScreenY < 14 || playerSurfaceScreenY > h - 14;
+    const useEdgeAnchor =
+      playerSurfaceScreenY < 14 || playerSurfaceScreenY > h - 14;
 
     ctx.save();
 
@@ -6287,9 +7574,10 @@ CanvasOps/frame:
       const duneY = sandDuneY(this.waterSurfaceY, worldX, t);
       const baseScreenY = (duneY - this.cameraY) * zoom;
       const anchorY = useEdgeAnchor ? edgeAnchorY : baseScreenY;
-      const waveY = anchorY
-        + Math.sin(tAnim * 2 + i * 0.5 - flowPhase) * 3
-        + Math.sin(tAnim * 1.3 + i * 0.3 - flowPhase * 0.7) * 2;
+      const waveY =
+        anchorY +
+        Math.sin(tAnim * 2 + i * 0.5 - flowPhase) * 3 +
+        Math.sin(tAnim * 1.3 + i * 0.3 - flowPhase * 0.7) * 2;
       if (i === 0) ctx.moveTo(sx, waveY);
       else ctx.lineTo(sx, waveY);
     }
@@ -6299,14 +7587,23 @@ CanvasOps/frame:
 
     // Sand dust rising from the surface
     for (let i = 0; i < 15; i++) {
-      const pxRaw = (Math.sin(tAnim * 0.7 + i * 3.7 - flowPhase * 0.6) * 0.5 + 0.5) * w + flowShiftPx;
+      const pxRaw =
+        (Math.sin(tAnim * 0.7 + i * 3.7 - flowPhase * 0.6) * 0.5 + 0.5) * w +
+        flowShiftPx;
       const px = ((pxRaw % w) + w) % w;
       const worldX = px / zoom + this.cameraX;
       const duneY = sandDuneY(this.waterSurfaceY, worldX, t);
-      const baseScreenY = useEdgeAnchor ? edgeAnchorY : (duneY - this.cameraY) * zoom;
-      const pyRaw = baseScreenY - Math.abs(Math.sin(tAnim * 1.5 + i * 2.3)) * 25;
+      const baseScreenY = useEdgeAnchor
+        ? edgeAnchorY
+        : (duneY - this.cameraY) * zoom;
+      const pyRaw =
+        baseScreenY - Math.abs(Math.sin(tAnim * 1.5 + i * 2.3)) * 25;
       const py = clamp(pyRaw, 4, h - 4);
-      const alpha = clamp(0.1 + 0.15 * Math.sin(tAnim * 2 + i * 1.5), 0.08, 0.28);
+      const alpha = clamp(
+        0.1 + 0.15 * Math.sin(tAnim * 2 + i * 1.5),
+        0.08,
+        0.28,
+      );
       const size = 1.5 + Math.sin(tAnim + i) * 0.5;
 
       ctx.beginPath();
@@ -6315,11 +7612,19 @@ CanvasOps/frame:
       ctx.fill();
     }
 
-    // Shimmer highlight on surface  
+    // Shimmer highlight on surface
     const shimmerY = useEdgeAnchor ? edgeAnchorY : playerSurfaceScreenY;
-    const shimmerGrad = ctx.createLinearGradient(0, shimmerY - 5, 0, shimmerY + 5);
+    const shimmerGrad = ctx.createLinearGradient(
+      0,
+      shimmerY - 5,
+      0,
+      shimmerY + 5,
+    );
     shimmerGrad.addColorStop(0, "rgba(255, 240, 180, 0)");
-    shimmerGrad.addColorStop(0.5, `rgba(255, 240, 180, ${0.1 + 0.05 * Math.sin(tAnim * 3)})`);
+    shimmerGrad.addColorStop(
+      0.5,
+      `rgba(255, 240, 180, ${0.1 + 0.05 * Math.sin(tAnim * 3)})`,
+    );
     shimmerGrad.addColorStop(1, "rgba(255, 240, 180, 0)");
     ctx.fillStyle = shimmerGrad;
     ctx.fillRect(0, shimmerY - 5, w, 10);
@@ -6370,20 +7675,37 @@ CanvasOps/frame:
 
     this.perfMeasure("render.drawBackground", () => this.drawBackground());
     this.perfMeasure("render.drawLightRays", () => this.drawLightRays()); // God rays on top of background
-    if (this.state === "PLAYING" || this.state === "DYING" || this.state === "CAUGHT") {
+    if (
+      this.state === "PLAYING" ||
+      this.state === "DYING" ||
+      this.state === "CAUGHT"
+    ) {
       this.perfMeasure("render.drawMaze", () => this.drawMaze());
       this.perfMeasure("render.drawTrail", () => this.drawTrail());
       this.perfMeasure("render.drawParticles", () => this.drawParticles());
       if (this.state === "PLAYING" || this.state === "CAUGHT") {
         if (CONFIG.ENABLE_CHASER) {
-          if (!this.isMobile) this.perfMeasure("render.drawDoppelgangerAura", () => this.drawDoppelgangerAura()); // Aura BEFORE body
-          this.perfMeasure("render.drawDoppelganger", () => this.drawDoppelganger());
+          if (!this.isMobile)
+            this.perfMeasure("render.drawDoppelgangerAura", () =>
+              this.drawDoppelgangerAura(),
+            ); // Aura BEFORE body
+          this.perfMeasure("render.drawDoppelganger", () =>
+            this.drawDoppelganger(),
+          );
         }
         this.perfMeasure("render.drawPlayer", () => this.drawPlayer());
-        this.perfMeasure("render.drawDashSpeedLines", () => this.drawDashSpeedLines()); // Speed lines on top of player
+        this.perfMeasure("render.drawDashSpeedLines", () =>
+          this.drawDashSpeedLines(),
+        ); // Speed lines on top of player
       }
-      if (!this.isMobile && !this.lowPerfMode) this.perfMeasure("render.drawAmbientDust", () => this.drawAmbientDust()); // Golden dust motes
-      if (!this.isMobile && !this.lowPerfMode) this.perfMeasure("render.drawSandSurfaceEffects", () => this.drawSandSurfaceEffects()); // Sand surface wave/foam
+      if (!this.isMobile && !this.lowPerfMode)
+        this.perfMeasure("render.drawAmbientDust", () =>
+          this.drawAmbientDust(),
+        ); // Golden dust motes
+      if (!this.isMobile && !this.lowPerfMode)
+        this.perfMeasure("render.drawSandSurfaceEffects", () =>
+          this.drawSandSurfaceEffects(),
+        ); // Sand surface wave/foam
 
       // Draw dramatic red flash overlay when caught
       if (CONFIG.ENABLE_CHASER && this.state === "CAUGHT") {
@@ -6395,7 +7717,14 @@ CanvasOps/frame:
         const pulseAlpha = 0.3 + 0.2 * Math.sin(this.caughtTimer * 12);
         ctx.save();
         ctx.globalAlpha = pulseAlpha;
-        const vg = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.min(w, h) * 0.15, w * 0.5, h * 0.5, Math.min(w, h) * 0.7);
+        const vg = ctx.createRadialGradient(
+          w * 0.5,
+          h * 0.5,
+          Math.min(w, h) * 0.15,
+          w * 0.5,
+          h * 0.5,
+          Math.min(w, h) * 0.7,
+        );
         vg.addColorStop(0, "rgba(0, 0, 0, 0)");
         vg.addColorStop(0.6, "rgba(200, 0, 0, 0.4)");
         vg.addColorStop(1, "rgba(150, 0, 0, 0.8)");
@@ -6416,7 +7745,8 @@ CanvasOps/frame:
     }
 
     // Vignette overlay (always visible, cinematic dark edges)
-    if (!this.isMobile && !this.lowPerfMode) this.perfMeasure("render.drawVignette", () => this.drawVignette());
+    if (!this.isMobile && !this.lowPerfMode)
+      this.perfMeasure("render.drawVignette", () => this.drawVignette());
     if (this.renderCanvas) {
       this.perfMeasure("render.compositeToDisplay", () => {
         const dctx = this.displayCtx;
@@ -6424,14 +7754,26 @@ CanvasOps/frame:
         dctx.setTransform(1, 0, 0, 1, 0, 0);
         dctx.imageSmoothingEnabled = true;
         dctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        dctx.drawImage(this.renderCanvas!, 0, 0, this.canvas.width, this.canvas.height);
+        dctx.drawImage(
+          this.renderCanvas!,
+          0,
+          0,
+          this.canvas.width,
+          this.canvas.height,
+        );
 
         if (CONFIG.BLOOM_ENABLED && !this.lowPerfMode) {
           this.perfMeasure("render.bloom", () => {
             dctx.globalCompositeOperation = "screen";
             dctx.globalAlpha = CONFIG.BLOOM_STRENGTH;
             dctx.filter = `blur(${CONFIG.BLOOM_BLUR_PX}px)`;
-            dctx.drawImage(this.renderCanvas!, 0, 0, this.canvas.width, this.canvas.height);
+            dctx.drawImage(
+              this.renderCanvas!,
+              0,
+              0,
+              this.canvas.width,
+              this.canvas.height,
+            );
             dctx.filter = "none";
             dctx.globalAlpha = 1.0;
             dctx.globalCompositeOperation = "source-over";
@@ -6441,13 +7783,11 @@ CanvasOps/frame:
       });
     }
 
-    // Update HUD
+    // Update HUD with score (matches leaderboard submission)
     const distanceEl = document.getElementById("distance");
     if (distanceEl) {
-      const distance = Math.max(0, Math.floor((this.playerSpawnY * CONFIG.TILE_SIZE - this.playerY) / CONFIG.TILE_SIZE));
-      distanceEl.textContent = `${distance}m`;
+      distanceEl.textContent = `${this.score}`;
     }
-
   }
 
   private loop(): void {

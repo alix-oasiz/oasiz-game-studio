@@ -266,7 +266,7 @@ async function collectAssets(gamePath: string): Promise<Record<string, string>> 
   const allFiles = getAllFiles(distPath);
   
   for (const filePath of allFiles) {
-    const relativePath = relative(distPath, filePath);
+    const relativePath = relative(distPath, filePath).replace(/\\/g, "/");
     
     // Skip HTML files - they're sent separately as bundleHtml
     if (relativePath.endsWith('.html')) continue;
@@ -653,8 +653,8 @@ async function readThumbnail(gamePath: string): Promise<string | undefined> {
 }
 
 async function uploadGame(payload: UploadPayload): Promise<void> {
-  const payloadSize = JSON.stringify(payload).length;
-  logInfo(`Uploading ${payload.title} to ${API_URL}... (${(payloadSize / 1024 / 1024).toFixed(1)} MB)`);
+  const requestBody = JSON.stringify(payload);
+  logInfo(`Uploading ${payload.title} to ${API_URL}... (${(requestBody.length / 1024 / 1024).toFixed(1)} MB)`);
 
   try {
     const response = await fetch(API_URL, {
@@ -663,7 +663,7 @@ async function uploadGame(payload: UploadPayload): Promise<void> {
         "Content-Type": "application/json",
         Authorization: `Bearer ${API_TOKEN}`,
       },
-      body: JSON.stringify(payload),
+      body: requestBody,
     });
 
     if (!response.ok) {

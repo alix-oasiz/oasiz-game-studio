@@ -1599,6 +1599,143 @@
                 opacity: 0;
             }
         }
+
+        /* Tutorial Overlay */
+        #tutorialOverlay {
+            position: absolute;
+            bottom: 16%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            pointer-events: none;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        #tutorialOverlay.uiHidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .tutLabel {
+            color: #FFD54F;
+            font-family: var(--ui-font);
+            font-size: 14px;
+            letter-spacing: 0.12em;
+            text-shadow:
+                2px 2px 0 #5C2E00,
+                -1px -1px 0 #5C2E00,
+                1px -1px 0 #5C2E00,
+                -1px 1px 0 #5C2E00;
+            animation: tutPulse 2s ease-in-out infinite;
+        }
+
+        .tutArrows {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tutRow {
+            display: flex;
+            gap: 28px;
+            align-items: center;
+        }
+
+        .tutArrow {
+            color: rgba(255, 213, 79, 0.85);
+            filter: drop-shadow(0 2px 0 #5C2E00) drop-shadow(0 0 6px rgba(255, 180, 0, 0.3));
+        }
+
+        .tutUp    { animation: tutBounceUp 2s ease-in-out infinite; }
+        .tutRight { animation: tutBounceRight 2s ease-in-out 0.15s infinite; }
+        .tutDown  { animation: tutBounceDown 2s ease-in-out 0.3s infinite; }
+        .tutLeft  { animation: tutBounceLeft 2s ease-in-out 0.45s infinite; }
+
+        @keyframes tutPulse {
+            0%, 100% { opacity: 0.6; }
+            50%      { opacity: 1; }
+        }
+
+        @keyframes tutBounceUp {
+            0%, 100% { transform: translateY(0); opacity: 0.55; }
+            50%      { transform: translateY(-6px); opacity: 1; }
+        }
+
+        @keyframes tutBounceRight {
+            0%, 100% { transform: translateX(0); opacity: 0.55; }
+            50%      { transform: translateX(6px); opacity: 1; }
+        }
+
+        @keyframes tutBounceDown {
+            0%, 100% { transform: translateY(0); opacity: 0.55; }
+            50%      { transform: translateY(6px); opacity: 1; }
+        }
+
+        @keyframes tutBounceLeft {
+            0%, 100% { transform: translateX(0); opacity: 0.55; }
+            50%      { transform: translateX(-6px); opacity: 1; }
+        }
+
+        @media (pointer: coarse) {
+            #tutorialOverlay { bottom: 22%; }
+            .tutLabel { font-size: 13px; }
+        }
+
+        /* Teleport Confirmation Button */
+        #teleportBtn {
+            position: fixed;
+            bottom: 18%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 900;
+            pointer-events: auto;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            background: none;
+            border: none;
+            padding: 0;
+            animation: teleportFloat 1.8s ease-in-out infinite;
+        }
+        #teleportBtn img {
+            width: 140px;
+            height: auto;
+            display: block;
+            filter: drop-shadow(0 0 12px rgba(255, 200, 50, 0.7));
+            transition: transform 0.1s;
+        }
+        #teleportBtn span {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            text-shadow: 0 0 6px rgba(0,0,0,1), 0 1px 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.6);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        #teleportBtn.hidden { display: none; }
+        #teleportBtn:active img { transform: scale(0.92); }
+        @keyframes teleportFloat {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(-6px); }
+        }
+        @media (pointer: coarse) {
+            #teleportBtn { bottom: 22%; }
+            #teleportBtn img { width: 160px; }
+            #teleportBtn span { font-size: 15px; }
+        }
     </style>
 </head>
 
@@ -1607,6 +1744,31 @@
         <canvas id="canvas"></canvas>
 
         <div id="ui">
+            <!-- Swipe Tutorial -->
+            <div id="tutorialOverlay" class="uiHidden">
+                <div class="tutArrows">
+                    <div class="tutArrow tutUp">
+                        <svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 4l-8 8h5v8h6v-8h5z" fill="currentColor"/></svg>
+                    </div>
+                    <div class="tutRow">
+                        <div class="tutArrow tutLeft">
+                            <svg viewBox="0 0 24 24" width="44" height="44"><path d="M4 12l8-8v5h8v6h-8v5z" fill="currentColor"/></svg>
+                        </div>
+                        <div class="tutArrow tutDown">
+                            <svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 20l8-8h-5V4h-6v8H4z" fill="currentColor"/></svg>
+                        </div>
+                        <div class="tutArrow tutRight">
+                            <svg viewBox="0 0 24 24" width="44" height="44"><path d="M20 12l-8-8v5H4v6h8v5z" fill="currentColor"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="tutLabel">SWIPE TO DASH</div>
+            </div>
+            <!-- Teleport Confirmation -->
+            <div id="teleportBtn" class="hidden">
+                <img src="" alt="" id="teleportBtnImg">
+                <span>TELEPORT</span>
+            </div>
             <div id="hud" class="uiHidden">
                 <div>
                     <div id="distance">0m</div>
