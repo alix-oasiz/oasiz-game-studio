@@ -172,18 +172,20 @@ function generateCacheBlocks(): YellowBlock[] {
   const blockSize = 28;
   const gap = 0;
   const step = blockSize + gap;
-  const rowStartX = 0;
-  const rowEndX = W;
-  const colStartY = 0;
-  const colEndY = H;
+  const columns = Math.max(1, Math.floor((W + gap) / step));
+  const rows = Math.max(1, Math.floor((H + gap) / step));
+  const layoutWidth = columns * blockSize + (columns - 1) * gap;
+  const layoutHeight = rows * blockSize + (rows - 1) * gap;
+  const rowStartX = Math.max(0, Math.round((W - layoutWidth) / 2));
+  const colStartY = Math.max(0, Math.round((H - layoutHeight) / 2));
 
   const xPositions: number[] = [];
-  for (let x = rowStartX; x <= rowEndX - blockSize; x += step) {
-    xPositions.push(x);
+  for (let i = 0; i < columns; i += 1) {
+    xPositions.push(rowStartX + i * step);
   }
   const yPositions: number[] = [];
-  for (let y = colStartY; y <= colEndY - blockSize; y += step) {
-    yPositions.push(y);
+  for (let i = 0; i < rows; i += 1) {
+    yPositions.push(colStartY + i * step);
   }
 
   const rowIndices = [

@@ -2,6 +2,7 @@ import type { YellowBlock, CenterHole, RepulsionZone } from "../../../../shared/
 import { GAME_CONFIG } from "../../../types";
 
 export interface CenterHoleTheme {
+  drawSnake?: boolean;
   ring: string;
   innerRing: string;
   arrow: string;
@@ -20,6 +21,12 @@ export interface RepulsionZoneTheme {
   arrow: string;
   glow: string;
 }
+
+const MAP_COMIC_COLORS = Object.freeze({
+  outline: "#11131a",
+  neutral: "#f8f1d4",
+  zoneAccent: "#f46d43",
+});
 
 export class MapEffectsRenderer {
   private centerHoleRotationState = new Map<
@@ -47,20 +54,36 @@ export class MapEffectsRenderer {
     return Math.max(0, Math.min(1, value));
   }
 
+  private withAlpha(color: string, alpha: number): string {
+    if (color.startsWith("#")) {
+      let hex = color.slice(1);
+      if (hex.length === 3) {
+        hex = hex
+          .split("")
+          .map((part) => part + part)
+          .join("");
+      }
+      if (hex.length === 6) {
+        const r = Number.parseInt(hex.slice(0, 2), 16);
+        const g = Number.parseInt(hex.slice(2, 4), 16);
+        const b = Number.parseInt(hex.slice(4, 6), 16);
+        if (
+          Number.isFinite(r) &&
+          Number.isFinite(g) &&
+          Number.isFinite(b)
+        ) {
+          return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+        }
+      }
+    }
+    return color;
+  }
+
   drawArenaBorder(borderColor: string = "#00f0ff"): void {
     const { ctx } = this;
     const w = GAME_CONFIG.ARENA_WIDTH;
     const h = GAME_CONFIG.ARENA_HEIGHT;
-    const borderWidth = 4;
-
-    // Neon border glow
     ctx.save();
-    ctx.strokeStyle = borderColor;
-    ctx.shadowColor = borderColor;
-    ctx.shadowBlur = 20;
-    ctx.lineWidth = borderWidth;
-
-    // Draw rounded rectangle border
     const radius = 20;
     ctx.beginPath();
     ctx.moveTo(radius, 0);
@@ -73,9 +96,35 @@ export class MapEffectsRenderer {
     ctx.lineTo(0, radius);
     ctx.arcTo(0, 0, radius, 0, radius);
     ctx.closePath();
+
+    ctx.strokeStyle = MAP_COMIC_COLORS.outline;
+    ctx.lineWidth = 8;
     ctx.stroke();
 
-    // Inner dim fill for area outside arena (corners if visible)
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    const cornerSize = 24;
+    const outside = -7;
+    const inside = cornerSize - 7;
+    ctx.strokeStyle = MAP_COMIC_COLORS.neutral;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(outside, inside);
+    ctx.lineTo(outside, outside);
+    ctx.lineTo(inside, outside);
+    ctx.moveTo(w - inside, outside);
+    ctx.lineTo(w - outside, outside);
+    ctx.lineTo(w - outside, inside);
+    ctx.moveTo(w - outside, h - inside);
+    ctx.lineTo(w - outside, h - outside);
+    ctx.lineTo(w - inside, h - outside);
+    ctx.moveTo(inside, h - outside);
+    ctx.lineTo(outside, h - outside);
+    ctx.lineTo(outside, h - inside);
+    ctx.stroke();
+
     ctx.restore();
   }
 
@@ -83,16 +132,34 @@ export class MapEffectsRenderer {
     const { ctx } = this;
     ctx.save();
 
-    ctx.shadowColor = "#ffee00";
-    ctx.shadowBlur = 8;
-    ctx.strokeStyle = "#ffee00";
-    ctx.lineWidth = 2;
+    ctx.fillStyle = "#f7d354";
+    ctx.fillRect(block.x, block.y, block.width, block.height);
+
+    ctx.strokeStyle = MAP_COMIC_COLORS.outline;
+    ctx.lineWidth = 3;
     ctx.strokeRect(block.x + 1, block.y + 1, block.width - 2, block.height - 2);
 
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(255, 255, 180, 0.55)";
+    ctx.strokeStyle = "#ffe79a";
     ctx.lineWidth = 1;
     ctx.strokeRect(block.x + 4, block.y + 4, block.width - 8, block.height - 8);
+
+    ctx.beginPath();
+    ctx.rect(block.x + 2, block.y + 2, block.width - 4, block.height - 4);
+    ctx.clip();
+
+    ctx.strokeStyle = this.withAlpha("#8d6118", 0.4);
+    ctx.lineWidth = 1;
+    const hatchStep = 6;
+    for (
+      let start = block.x - block.height;
+      start < block.x + block.width + block.height;
+      start += hatchStep
+    ) {
+      ctx.beginPath();
+      ctx.moveTo(start, block.y + block.height);
+      ctx.lineTo(start + block.height, block.y);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -102,6 +169,7 @@ export class MapEffectsRenderer {
     time: number,
     playerMovementDirection: number,
     theme?: {
+      drawSnake?: boolean;
       ring: string;
       innerRing: string;
       arrow: string;
@@ -121,48 +189,52 @@ export class MapEffectsRenderer {
       direction,
     );
 
-    const gradientInner = theme?.gradientInner ?? "rgba(0, 0, 0, 0.95)";
-    const gradientMid = theme?.gradientMid ?? "rgba(10, 10, 30, 0.9)";
-    const gradientOuter = theme?.gradientOuter ?? "rgba(20, 20, 50, 0.6)";
     const ringColor = theme?.ring ?? "#4444ff";
-    const ringGlow = theme?.glow ?? ringColor;
     const innerRingColor = theme?.innerRing ?? "#6666ff";
     const arrowColor = theme?.arrow ?? "#00f0ff";
+    const outerFill = this.withAlpha(ringColor, 0.25);
+    const innerFill = this.withAlpha(innerRingColor, 0.28);
 
-    const gradient = ctx.createRadialGradient(
-      hole.x,
-      hole.y,
-      0,
-      hole.x,
-      hole.y,
-      hole.radius,
-    );
-    gradient.addColorStop(0, gradientInner);
-    gradient.addColorStop(0.7, gradientMid);
-    gradient.addColorStop(1, gradientOuter);
-
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = outerFill;
     ctx.beginPath();
     ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = ringColor;
-    ctx.shadowColor = ringGlow;
-    ctx.shadowBlur = 20;
-    ctx.lineWidth = 3;
+    ctx.fillStyle = innerFill;
+    ctx.beginPath();
+    ctx.arc(hole.x, hole.y, hole.radius * 0.68, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#08090d";
+    ctx.beginPath();
+    ctx.arc(hole.x, hole.y, hole.radius * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = MAP_COMIC_COLORS.outline;
+    ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.shadowBlur = 10;
-    ctx.strokeStyle = innerRingColor;
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(hole.x, hole.y, hole.radius * 0.6, 0, Math.PI * 2);
+    ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = MAP_COMIC_COLORS.outline;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(hole.x, hole.y, hole.radius * 0.68, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = innerRingColor;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(hole.x, hole.y, hole.radius * 0.68, 0, Math.PI * 2);
     ctx.stroke();
 
     if (hole.hasRotatingArrow) {
-      ctx.shadowBlur = 0;
       const lineRadius = hole.radius + 18;
       const rotationAngle = ringAngle;
       const segments = 3;
@@ -175,10 +247,11 @@ export class MapEffectsRenderer {
 
         ctx.beginPath();
         ctx.arc(hole.x, hole.y, lineRadius, startAngle, endAngle);
+        ctx.strokeStyle = MAP_COMIC_COLORS.outline;
+        ctx.lineWidth = 6;
+        ctx.stroke();
         ctx.strokeStyle = arrowColor;
-        ctx.lineWidth = 4;
-        ctx.shadowColor = arrowColor;
-        ctx.shadowBlur = 12;
+        ctx.lineWidth = 2.4;
         ctx.stroke();
       }
 
@@ -192,18 +265,22 @@ export class MapEffectsRenderer {
       ctx.rotate(
         arrowAngle + (direction > 0 ? Math.PI / 2 : -Math.PI / 2),
       );
-      ctx.fillStyle = arrowColor;
-      ctx.shadowColor = arrowColor;
-      ctx.shadowBlur = 15;
+      ctx.fillStyle = MAP_COMIC_COLORS.outline;
       ctx.beginPath();
       ctx.moveTo(0, -arrowSize);
       ctx.lineTo(-arrowSize * 0.5, arrowSize * 0.5);
       ctx.lineTo(arrowSize * 0.5, arrowSize * 0.5);
       ctx.closePath();
       ctx.fill();
+      ctx.fillStyle = arrowColor;
+      ctx.beginPath();
+      ctx.moveTo(0, -arrowSize * 0.7);
+      ctx.lineTo(-arrowSize * 0.34, arrowSize * 0.32);
+      ctx.lineTo(arrowSize * 0.34, arrowSize * 0.32);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
 
-      ctx.shadowBlur = 0;
       for (let i = 1; i <= 5; i++) {
         const trailAngle = rotationAngle - i * 0.4 * direction;
         const trailAlpha = 0.5 - i * 0.08;
@@ -223,7 +300,7 @@ export class MapEffectsRenderer {
       ctx.globalAlpha = 1;
     }
 
-    if (theme?.ring === "#ff5a2b") {
+    if (theme?.drawSnake) {
       this.drawVortexSnake(hole, snakeAngle, snakeSizeFlipT, theme);
     }
 
@@ -320,23 +397,21 @@ export class MapEffectsRenderer {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(segmentAngle);
-      if (leadWeight > 0) {
-        ctx.shadowColor = "#ff8844";
-        ctx.shadowBlur = 20 * leadWeight;
-      }
-
       const r = 255;
       const g = Math.floor(136 - visualIndex * 12);
       const b = Math.floor(68 - visualIndex * 6);
       ctx.fillStyle = "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+      ctx.strokeStyle = MAP_COMIC_COLORS.outline;
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.ellipse(0, 0, size * 1.2, size * 0.8, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
 
       if (leadWeight > 0) {
-        ctx.fillStyle = "rgba(255, 170, 102, " + leadWeight + ")";
+        ctx.fillStyle = "rgba(255, 236, 208, " + (0.55 * leadWeight) + ")";
         ctx.beginPath();
-        ctx.ellipse(size * 0.3, 0, size * 0.5, size * 0.4, 0, 0, Math.PI * 2);
+        ctx.ellipse(size * 0.25, -size * 0.1, size * 0.42, size * 0.28, 0, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
@@ -361,47 +436,40 @@ export class MapEffectsRenderer {
     ctx.save();
 
     const gradientInner = theme?.gradientInner ?? "rgba(255, 50, 50, 0.4)";
-    const gradientMid = theme?.gradientMid ?? "rgba(255, 100, 50, 0.2)";
-    const gradientOuter = theme?.gradientOuter ?? "rgba(255, 100, 50, 0)";
-    const coreColor = theme?.core ?? "rgba(200, 30, 30, 0.6)";
     const ringColor = theme?.ring ?? "#ff4444";
     const arrowColor = theme?.arrow ?? "rgba(255, 100, 50, 0.7)";
-    const ringGlow = theme?.glow ?? ringColor;
+    const coreColor = theme?.core ?? MAP_COMIC_COLORS.zoneAccent;
 
     const pulse = 0.9 + Math.sin(time * 3) * 0.1;
     const drawRadius = zone.radius * pulse;
 
-    const gradient = ctx.createRadialGradient(
-      zone.x,
-      zone.y,
-      0,
-      zone.x,
-      zone.y,
-      drawRadius,
-    );
-    gradient.addColorStop(0, gradientInner);
-    gradient.addColorStop(0.5, gradientMid);
-    gradient.addColorStop(1, gradientOuter);
-
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = this.withAlpha(ringColor, 0.17);
     ctx.beginPath();
     ctx.arc(zone.x, zone.y, drawRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = coreColor;
+    ctx.fillStyle = this.withAlpha(coreColor, 0.34);
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, drawRadius * 0.63, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = this.withAlpha(gradientInner, 0.35);
     ctx.beginPath();
     ctx.arc(zone.x, zone.y, drawRadius * 0.3, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = ringColor;
-    ctx.shadowColor = ringGlow;
-    ctx.shadowBlur = 15;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = MAP_COMIC_COLORS.outline;
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(zone.x, zone.y, drawRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.shadowBlur = 0;
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, drawRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
     const waveCount = 4;
     const waveStart = drawRadius * 0.95;
     const waveRange = drawRadius * 0.75;
@@ -412,7 +480,7 @@ export class MapEffectsRenderer {
       const waveRadius = waveStart + waveOffset;
       const waveAlpha = 0.35 * (1 - waveOffset / waveRange);
       ctx.globalAlpha = waveAlpha;
-      ctx.strokeStyle = ringColor;
+      ctx.strokeStyle = MAP_COMIC_COLORS.neutral;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(zone.x, zone.y, waveRadius, 0, Math.PI * 2);
@@ -430,11 +498,18 @@ export class MapEffectsRenderer {
       ctx.save();
       ctx.translate(ax, ay);
       ctx.rotate(angle);
-      ctx.fillStyle = arrowColor;
+      ctx.fillStyle = MAP_COMIC_COLORS.outline;
       ctx.beginPath();
       ctx.moveTo(6, 0);
       ctx.lineTo(-3, -4);
       ctx.lineTo(-3, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = arrowColor;
+      ctx.beginPath();
+      ctx.moveTo(3.5, 0);
+      ctx.lineTo(-1.8, -2.2);
+      ctx.lineTo(-1.8, 2.2);
       ctx.closePath();
       ctx.fill();
       ctx.restore();

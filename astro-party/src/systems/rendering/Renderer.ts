@@ -320,6 +320,7 @@ export class Renderer {
     time: number,
     playerMovementDirection: number,
     theme?: {
+      drawSnake?: boolean;
       ring: string;
       innerRing: string;
       arrow: string;

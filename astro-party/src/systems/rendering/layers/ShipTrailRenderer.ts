@@ -23,12 +23,12 @@ export interface ShipTrailVisualTuning {
 
 const DEFAULT_SHIP_TRAIL_VISUAL_TUNING: Readonly<ShipTrailVisualTuning> =
   Object.freeze({
-    outerWidth: 12,
-    midWidth: 7,
-    coreWidth: 3.3,
-    outerAlpha: 0.048,
-    midAlpha: 0.096,
-    coreAlpha: 0.16,
+    outerWidth: 10.5,
+    midWidth: 5.8,
+    coreWidth: 2.6,
+    outerAlpha: 0.08,
+    midAlpha: 0.15,
+    coreAlpha: 0.24,
   });
 
 const SHIP_TRAIL_MAX_AGE_MS = 1400;
@@ -182,7 +182,7 @@ export class ShipTrailRenderer {
 
   draw(ctx: CanvasRenderingContext2D, nowMs: number): void {
     ctx.save();
-    ctx.globalCompositeOperation = "lighter";
+    ctx.globalCompositeOperation = "source-over";
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
@@ -226,6 +226,13 @@ export class ShipTrailRenderer {
         if (segmentAlpha <= 0.004) continue;
 
         ctx.globalAlpha = segmentAlpha;
+        ctx.strokeStyle = "rgba(14, 16, 22, " + Math.min(0.65, segmentAlpha * 2.5) + ")";
+        ctx.lineWidth = layer.width * (0.5 + fade * 0.6) + 1.1;
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(curr.x, curr.y);
+        ctx.stroke();
+
         ctx.strokeStyle = layer.color;
         ctx.lineWidth = layer.width * (0.4 + fade * 0.6);
         ctx.beginPath();

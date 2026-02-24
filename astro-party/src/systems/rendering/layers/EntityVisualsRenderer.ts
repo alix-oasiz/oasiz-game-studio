@@ -40,6 +40,25 @@ export class EntityVisualsRenderer {
     private deps: EntityVisualsDeps,
   ) {}
 
+  private withAlpha(color: string, alpha: number): string {
+    if (!color.startsWith("#")) return color;
+    let hex = color.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split("")
+        .map((part) => part + part)
+        .join("");
+    }
+    if (hex.length !== 6) return color;
+    const r = Number.parseInt(hex.slice(0, 2), 16);
+    const g = Number.parseInt(hex.slice(2, 4), 16);
+    const b = Number.parseInt(hex.slice(4, 6), 16);
+    if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
+      return color;
+    }
+    return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+  }
+
   drawShip(
     state: ShipState,
     color: PlayerColor,
@@ -314,23 +333,19 @@ export class EntityVisualsRenderer {
     const { ctx } = this;
     const { x, y, angle, vertices } = state;
     const isGrey = state.variant === "GREY";
-    const glowColor = isGrey
-      ? GAME_CONFIG.GREY_ASTEROID_GLOW
-      : GAME_CONFIG.ASTEROID_GLOW;
     const bodyColor = isGrey
       ? GAME_CONFIG.GREY_ASTEROID_COLOR
       : GAME_CONFIG.ASTEROID_COLOR;
-    const strokeColor = isGrey ? "#b9c0d4" : "#ffaa00";
+    const strokeColor = isGrey ? "#d6dce8" : "#ffd084";
+    const facetColor = isGrey ? "#eff3fa" : "#ffe8b5";
 
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 15;
     ctx.fillStyle = bodyColor;
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 4;
 
     ctx.beginPath();
     if (vertices.length > 0) {
@@ -345,18 +360,42 @@ export class EntityVisualsRenderer {
     ctx.fill();
     ctx.stroke();
 
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-    const craterSource = vertices[0] ?? { x: state.size * 0.7, y: 0 };
-    ctx.beginPath();
-    ctx.arc(
-      craterSource.x * 0.3,
-      craterSource.y * 0.3,
-      Math.max(3, Math.abs(craterSource.x) * 0.25),
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    if (vertices.length >= 4) {
+      ctx.fillStyle = this.withAlpha(facetColor, 0.35);
+      ctx.beginPath();
+      const facetA = vertices[0];
+      const facetB = vertices[Math.floor(vertices.length * 0.33)];
+      const facetC = vertices[Math.floor(vertices.length * 0.66)];
+      ctx.moveTo(facetA.x * 0.45, facetA.y * 0.45);
+      ctx.lineTo(facetB.x * 0.32, facetB.y * 0.32);
+      ctx.lineTo(facetC.x * 0.28, facetC.y * 0.28);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const craterCount = Math.min(3, Math.max(1, vertices.length));
+    for (let i = 0; i < craterCount; i++) {
+      const source = vertices[i % Math.max(1, vertices.length)] ?? {
+        x: state.size * 0.65,
+        y: 0,
+      };
+      const craterX = source.x * 0.3 - 2 + i * 1.8;
+      const craterY = source.y * 0.26 + (i - 1) * 1.4;
+      const craterR = Math.max(2.4, Math.abs(source.x) * (0.14 + i * 0.04));
+      ctx.fillStyle = this.withAlpha("#17191f", 0.32);
+      ctx.beginPath();
+      ctx.arc(craterX, craterY, craterR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = this.withAlpha("#f3f5f9", isGrey ? 0.25 : 0.18);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(craterX - craterR * 0.22, craterY - craterR * 0.18, craterR * 0.62, 0, Math.PI * 1.5);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -372,36 +411,38 @@ export class EntityVisualsRenderer {
     const coreRadius = Math.max(0.1, state.radius ?? GAME_CONFIG.PROJECTILE_RADIUS);
     const tailRadiusX = coreRadius * 1.9;
     const tailRadiusY = coreRadius * 0.62;
-    const tailCenterX = coreRadius - tailRadiusX;
-    const tailBackX = tailCenterX - tailRadiusX;
+    const tailBackX = coreRadius - tailRadiusX * 2;
 
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, glowRadius);
-    gradient.addColorStop(0, "#ffffff");
-    gradient.addColorStop(1, "transparent");
-    ctx.fillStyle = gradient;
-    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "rgba(255, 236, 196, 0.35)";
     ctx.beginPath();
     ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    const tailGradient = ctx.createLinearGradient(tailBackX, 0, coreRadius, 0);
-    tailGradient.addColorStop(0, "rgba(255,255,255,0)");
-    tailGradient.addColorStop(0.65, "rgba(255,255,255,0.45)");
-    tailGradient.addColorStop(1, "rgba(255,255,255,0.9)");
-    ctx.fillStyle = tailGradient;
+    ctx.fillStyle = "rgba(255, 228, 160, 0.75)";
     ctx.globalAlpha = 1;
     ctx.beginPath();
-    ctx.ellipse(tailCenterX, 0, tailRadiusX, tailRadiusY, 0, 0, Math.PI * 2);
+    ctx.moveTo(coreRadius, 0);
+    ctx.lineTo(tailBackX, -tailRadiusY * 1.3);
+    ctx.lineTo(tailBackX, tailRadiusY * 1.3);
+    ctx.closePath();
     ctx.fill();
 
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#17191f";
+    ctx.lineWidth = 1.3;
     ctx.beginPath();
     ctx.arc(0, 0, coreRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffe9b3";
+    ctx.beginPath();
+    ctx.arc(coreRadius * 0.22, -coreRadius * 0.16, coreRadius * 0.34, 0, Math.PI * 2);
     ctx.fill();
 
     if (devModeEnabled) {

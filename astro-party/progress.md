@@ -842,3 +842,50 @@ TODO / Follow-ups:
     - `layers/RenderDebugSystem.ts`
 - Validation:
   - `astro-party`: `bun run build` passed.
+## 2026-02-24 (In-game Comic/Cel Pass)
+- Implemented first major in-game visual update focused on gameplay rendering layers (not main/lobby).
+- Refactored visual style to a comic/cel direction with stronger outlines and flatter color bands across:
+  - `src/systems/rendering/layers/MapEffectsRenderer.ts`
+    - Arena border now uses bold dual-stroke comic framing.
+    - Yellow blocks now use filled comic blocks with hatch detailing.
+    - Center holes now render with layered flat rings/core and outlined directional cues.
+    - Repulsion zones now use flat concentric bands/rings with outlined arrows.
+  - `src/systems/rendering/layers/EntityVisualsRenderer.ts`
+    - Asteroids now use bold outlines, facet highlights, and deterministic crater detailing.
+    - Projectiles now use flatter comic core+tail shapes instead of soft gradient glow style.
+  - `src/systems/rendering/layers/CombatVisualsRenderer.ts`
+    - Turret/turret bullets updated to flat comic silhouettes and outlined impacts.
+    - Power-ups now render with stronger framing and less glow dependence.
+    - Laser beam visuals updated to hard-edged layered strips + line accents.
+    - Shield rendering updated to outlined/dashed comic ring treatment.
+    - Homing missile art updated to flatter outlined style.
+  - `src/systems/rendering/layers/RendererVisualPrimitives.ts`
+    - Mine body/explosion primitives updated to match comic style language.
+- Updated map theme color values in `src/systems/rendering/GameRenderer.ts` to better match the new in-game comic palette.
+
+Validation
+- Ran `bun run build` in `astro-party` (passed).
+
+Automation note
+- Attempted Playwright validation via `web_game_playwright_client.js` against local preview.
+- Browser launch failed in this environment with `browserType.launch: spawn EPERM`, so no screenshot artifact was produced from that run.
+
+TODO / Next suggestions
+- Apply the same comic style language to map overlay SVG (`shared/assets/maps/bunkers-overlay.svg`) for map 4 visual consistency.
+- Optionally add a client-side visual-style toggle scaffold (`NEON` vs `COMIC`) now that renderer is modular.
+- Continue with requested non-gameplay screens (start/lobby/main) as a separate pass.
+## 2026-02-24 (Follow-up fixes + remaining FX pass)
+- Fixed vortex direction visual regression by decoupling snake rendering from hard-coded ring color:
+  - Added `drawSnake?: boolean` in center-hole theme flow and enabled it for map 2.
+  - Files: `src/systems/rendering/GameRenderer.ts`, `src/systems/rendering/Renderer.ts`, `src/systems/rendering/layers/MapEffectsRenderer.ts`.
+- Updated comic border corner accents to sit outside arena bounds instead of inside.
+- Fixed map-1 cache block centering issue in shared map generation:
+  - Grid now computes centered start offsets for both axes to remove top/left overlap and opposite-side gaps.
+  - File: `shared/sim/maps.ts`.
+- Completed additional in-game FX visual pass (comic style language) across remaining effect layers:
+  - `RenderEffectsBulletCasingLayer` (outlined cartridge style)
+  - `RenderEffectsParticleLayer` (banded alpha + outlined particle puffs)
+  - `RenderEffectsPilotDebrisLayer` (outlined burst ring/rays)
+  - `ShipTrailRenderer` (non-additive, outlined comic trails)
+- Validation:
+  - `astro-party`: `bun run build` passed.

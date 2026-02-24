@@ -85,21 +85,35 @@ export class RenderEffectsBulletCasingLayer {
       ctx.save();
       ctx.translate(casing.x, casing.y);
       ctx.rotate(casing.angle);
-      ctx.globalAlpha = 0.8;
-      ctx.fillStyle = "rgba(200, 160, 80, 1)";
+      ctx.globalAlpha = 0.9;
+      const left = -casing.width * 0.5;
+      const top = -casing.height * 0.5;
+      const bodyW = casing.width;
+      const bodyH = casing.height;
+
+      ctx.fillStyle = "#c08a3e";
+      ctx.strokeStyle = "#12141a";
+      ctx.lineWidth = 1.2;
+      ctx.fillRect(left, top, bodyW, bodyH);
+      ctx.strokeRect(left, top, bodyW, bodyH);
+
+      ctx.fillStyle = "rgba(255, 226, 166, " + shimmer + ")";
       ctx.fillRect(
-        -casing.width * 0.5,
-        -casing.height * 0.5,
-        casing.width,
-        casing.height,
+        left + bodyW * 0.2,
+        top + bodyH * 0.18,
+        bodyW * 0.52,
+        bodyH * 0.38,
       );
-      ctx.fillStyle = "rgba(255, 225, 165, " + shimmer + ")";
-      ctx.fillRect(
-        -casing.width * 0.34,
-        -casing.height * 0.34,
-        casing.width * 0.52,
-        casing.height * 0.5,
-      );
+
+      ctx.strokeStyle = "rgba(90, 56, 18, 0.55)";
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(left + bodyW * 0.13, top + bodyH * 0.08);
+      ctx.lineTo(left + bodyW * 0.13, top + bodyH * 0.92);
+      ctx.moveTo(left + bodyW * 0.88, top + bodyH * 0.08);
+      ctx.lineTo(left + bodyW * 0.88, top + bodyH * 0.92);
+      ctx.stroke();
+
       ctx.restore();
     }
     ctx.globalAlpha = 1;

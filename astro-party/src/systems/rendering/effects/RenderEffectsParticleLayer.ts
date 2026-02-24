@@ -420,12 +420,30 @@ export class RenderEffectsParticleLayer {
 
   draw(ctx: CanvasRenderingContext2D): void {
     for (const p of this.particles) {
-      const alpha = p.life / p.maxLife;
+      const lifeT = p.life / p.maxLife;
+      const alpha = lifeT > 0.66 ? 0.95 : lifeT > 0.33 ? 0.72 : 0.48;
+      const radius = p.size * Math.max(0.35, lifeT);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
+      ctx.strokeStyle = "rgba(18, 20, 26, 0.8)";
+      ctx.lineWidth = Math.max(0.8, radius * 0.2);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
+
+      if (radius > 2.2) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+        ctx.beginPath();
+        ctx.arc(
+          p.x - radius * 0.24,
+          p.y - radius * 0.22,
+          radius * 0.32,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
   }

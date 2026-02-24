@@ -170,16 +170,26 @@ export class RenderEffectsPilotDebrisLayer {
       ctx.beginPath();
       ctx.arc(0, 0, 2.8 + implodeT * 4.8, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "#12141a";
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
 
-      ctx.globalAlpha = Math.max(0, 0.54 * (1 - phase));
-      ctx.strokeStyle = "#dff8ff";
-      ctx.lineWidth = 1.1;
+      ctx.globalAlpha = Math.max(0, 0.62 * (1 - phase));
+      ctx.strokeStyle = "#12141a";
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.globalAlpha = Math.max(0, 0.58 * (1 - phase));
+      ctx.strokeStyle = "#ffe7ba";
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.globalAlpha = Math.max(0, 0.45 * (1 - phase));
-      ctx.strokeStyle = burst.color;
+      ctx.strokeStyle = "#12141a";
       for (let i = 0; i < 6; i++) {
         const rayAngle = (i / 6) * Math.PI * 2;
         const rayInner = ringRadius * 0.35;
@@ -187,7 +197,12 @@ export class RenderEffectsPilotDebrisLayer {
         ctx.beginPath();
         ctx.moveTo(Math.cos(rayAngle) * rayInner, Math.sin(rayAngle) * rayInner);
         ctx.lineTo(Math.cos(rayAngle) * rayOuter, Math.sin(rayAngle) * rayOuter);
+        ctx.lineWidth = 2.4;
         ctx.stroke();
+        ctx.strokeStyle = burst.color;
+        ctx.lineWidth = 1.1;
+        ctx.stroke();
+        ctx.strokeStyle = "#12141a";
       }
       ctx.restore();
     }

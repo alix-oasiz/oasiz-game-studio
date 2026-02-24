@@ -366,6 +366,7 @@ export class GameRenderer {
   private getMapTheme(mapId: MapId): {
     border: string;
     centerHole?: {
+      drawSnake?: boolean;
       ring: string;
       innerRing: string;
       arrow: string;
@@ -386,40 +387,41 @@ export class GameRenderer {
   } {
     switch (mapId) {
       case 1:
-        return { border: "#ffee00" };
+        return { border: "#f4d64f" };
       case 2:
         return {
-          border: "#ff5a2b",
+          border: "#f26a3b",
           centerHole: {
-            ring: "#ff5a2b",
-            innerRing: "#ffb36b",
-            arrow: "#ff8844",
-            glow: "#ff5a2b",
-            gradientInner: "rgba(0, 0, 0, 0.95)",
-            gradientMid: "rgba(40, 12, 0, 0.9)",
-            gradientOuter: "rgba(90, 35, 10, 0.65)",
+            drawSnake: true,
+            ring: "#f26a3b",
+            innerRing: "#ffd39a",
+            arrow: "#fff0cc",
+            glow: "#f26a3b",
+            gradientInner: "#2b1510",
+            gradientMid: "#56251a",
+            gradientOuter: "#85422c",
           },
         };
       case 3:
         return {
-          border: "#ff5a2b",
+          border: "#f26a3b",
           repulsion: {
-            gradientInner: "rgba(255, 90, 40, 0.45)",
-            gradientMid: "rgba(255, 140, 60, 0.2)",
-            gradientOuter: "rgba(255, 120, 50, 0)",
-            core: "rgba(230, 50, 30, 0.65)",
-            ring: "#ff5a2b",
-            arrow: "rgba(255, 140, 80, 0.75)",
-            glow: "#ff5a2b",
+            gradientInner: "#ffb58f",
+            gradientMid: "#ffcfa7",
+            gradientOuter: "#ffe6c8",
+            core: "#f35a3f",
+            ring: "#f26a3b",
+            arrow: "#fff1d7",
+            glow: "#f26a3b",
           },
         };
       case 4:
         return {
-          border: "#00ff88",
+          border: "#4ed17f",
         };
       case 0:
       default:
-        return { border: "#00f0ff" };
+        return { border: "#5ac8ff" };
     }
   }
 }

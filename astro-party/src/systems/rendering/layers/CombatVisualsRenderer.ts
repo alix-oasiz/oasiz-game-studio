@@ -28,6 +28,25 @@ export class CombatVisualsRenderer {
     return Math.max(0, Math.min(1, value));
   }
 
+  private withAlpha(color: string, alpha: number): string {
+    if (!color.startsWith("#")) return color;
+    let hex = color.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split("")
+        .map((part) => part + part)
+        .join("");
+    }
+    if (hex.length !== 6) return color;
+    const r = Number.parseInt(hex.slice(0, 2), 16);
+    const g = Number.parseInt(hex.slice(2, 4), 16);
+    const b = Number.parseInt(hex.slice(4, 6), 16);
+    if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
+      return color;
+    }
+    return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+  }
+
   drawTurret(state: TurretState): void {
     const { ctx } = this;
     const { x, y, angle, isTracking, orbitRadius } = state;
@@ -35,65 +54,54 @@ export class CombatVisualsRenderer {
     ctx.save();
     ctx.translate(x, y);
 
-    // Draw orbit ring (visual base)
-    ctx.strokeStyle = "rgba(100, 100, 120, 0.6)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(0, 0, orbitRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Orbit ring glow
-    ctx.shadowColor = "#6666ff";
-    ctx.shadowBlur = 10;
-    ctx.strokeStyle = "rgba(100, 100, 255, 0.4)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, orbitRadius - 5, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Draw turret base
-    ctx.fillStyle = "#444455";
-    ctx.strokeStyle = "#666677";
+    ctx.strokeStyle = isTracking ? "#f7756f" : "#96a2be";
     ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, orbitRadius - 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#3a3f4e";
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(0, 0, 20, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Draw turret barrel (rotates toward target)
+    ctx.fillStyle = "#8089a1";
+    ctx.beginPath();
+    ctx.arc(-3, -4, 6, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.rotate(angle);
 
-    // Barrel glow when tracking
-    if (isTracking) {
-      ctx.shadowColor = "#ff4444";
-      ctx.shadowBlur = 15;
-    }
-
-    // Barrel
-    ctx.fillStyle = isTracking ? "#ff6666" : "#888899";
+    ctx.fillStyle = isTracking ? "#f05c56" : "#7a8398";
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 2.5;
     ctx.fillRect(15, -6, 25, 12);
+    ctx.strokeRect(15, -6, 25, 12);
 
-    // Barrel detail
-    ctx.fillStyle = "#555566";
-    ctx.fillRect(18, -4, 20, 8);
+    ctx.fillStyle = isTracking ? "#ffd6bd" : "#d0d7e8";
+    ctx.fillRect(20, -3, 15, 6);
+    ctx.strokeRect(20, -3, 15, 6);
 
-    ctx.shadowBlur = 0;
-
-    // Center hub
-    ctx.fillStyle = "#333344";
+    ctx.fillStyle = "#272c3a";
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, 0, 10, 0, Math.PI * 2);
     ctx.fill();
-
-    // Center glow
-    ctx.fillStyle = isTracking ? "#ff4444" : "#6666ff";
-    ctx.shadowColor = ctx.fillStyle;
-    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.fillStyle = isTracking ? "#ff6b65" : "#8da0ff";
     ctx.beginPath();
     ctx.arc(0, 0, 5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
 
     ctx.restore();
   }
@@ -107,7 +115,6 @@ export class CombatVisualsRenderer {
     const nowMs = this.getNowMs();
 
     if (exploded && explosionTime > 0) {
-      // Draw explosion effect
       const elapsed = nowMs - explosionTime;
       const progress = this.clamp01(elapsed / 500);
       const blastRadius = Number.isFinite(explosionRadius) ? explosionRadius : 100;
@@ -117,53 +124,58 @@ export class CombatVisualsRenderer {
       ctx.save();
       ctx.translate(x, y);
 
-      // Outer white flash
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+      ctx.strokeStyle = this.withAlpha("#12141a", alpha);
+      ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(0, 0, radius * 0.92, 0, Math.PI * 2);
+      ctx.stroke();
 
-      // Middle bright ring
-      ctx.fillStyle = `rgba(255, 200, 150, ${alpha * 0.8})`;
+      ctx.strokeStyle = this.withAlpha("#ffd089", alpha * 0.95);
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.7, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(0, 0, radius * 0.92, 0, Math.PI * 2);
+      ctx.stroke();
 
-      // Inner bright core
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      const rayCount = 10;
+      ctx.strokeStyle = this.withAlpha("#ffe3b5", alpha * 0.85);
+      ctx.lineWidth = 2;
+      for (let i = 0; i < rayCount; i++) {
+        const rayAngle = (i / rayCount) * Math.PI * 2;
+        const inner = radius * 0.3;
+        const outer = radius * (0.82 + (i % 2) * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(rayAngle) * inner, Math.sin(rayAngle) * inner);
+        ctx.lineTo(Math.cos(rayAngle) * outer, Math.sin(rayAngle) * outer);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = this.withAlpha("#ffffff", alpha);
       ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.4, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius * 0.28, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
     } else {
-      // Normal bullet
       const angle = Math.atan2(vy, vx);
 
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
 
-      // Glow
-      ctx.shadowColor = "#ff8800";
-      ctx.shadowBlur = 15;
-
-      // Bullet body
-      ctx.fillStyle = "#ff6600";
+      ctx.fillStyle = "#f57f30";
+      ctx.strokeStyle = "#12141a";
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.ellipse(0, 0, 8, 4, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
 
-      // Core
-      ctx.fillStyle = "#ffaa00";
+      ctx.fillStyle = "#ffd989";
       ctx.beginPath();
       ctx.ellipse(0, 0, 4, 2, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.shadowBlur = 0;
-
-      // Trail
-      ctx.fillStyle = "rgba(255, 100, 0, 0.5)";
+      ctx.fillStyle = "rgba(255, 168, 92, 0.55)";
       ctx.beginPath();
       ctx.moveTo(-5, 0);
       ctx.lineTo(-15, -3);
@@ -185,9 +197,8 @@ export class CombatVisualsRenderer {
     ctx.save();
     ctx.translate(x, y);
 
-    // Draw despawn ring
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.arc(
       0,
@@ -198,20 +209,36 @@ export class CombatVisualsRenderer {
     );
     ctx.stroke();
 
-    const glowColor = this.powerUpSprites.getGlowColor(type);
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = this.getEffectBlurPx(15, 7, 22);
+    ctx.strokeStyle = "#fff8de";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(
+      0,
+      0,
+      size * 0.84,
+      -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * progress,
+    );
+    ctx.stroke();
 
+    const glowColor = this.powerUpSprites.getGlowColor(type);
+    ctx.fillStyle = this.withAlpha(glowColor, 0.24);
+    ctx.beginPath();
+    ctx.roundRect(-size * 0.58, -size * 0.58, size * 1.16, size * 1.16, 7);
+    ctx.fill();
     const drewSprite = this.powerUpSprites.drawPowerUp(ctx, type, size);
-    ctx.shadowBlur = 0;
 
     if (!drewSprite) {
       ctx.fillStyle = glowColor;
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = "#12141a";
       ctx.lineWidth = 2;
       ctx.fillRect(-size / 2, -size / 2, size, size);
       ctx.strokeRect(-size / 2, -size / 2, size, size);
     }
+
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-size / 2, -size / 2, size, size);
 
     ctx.restore();
   }
@@ -239,28 +266,23 @@ export class CombatVisualsRenderer {
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    // Main beam gradient
-    const gradient = ctx.createLinearGradient(
-      0,
-      -beamWidth / 2,
-      0,
-      beamWidth / 2,
-    );
-    gradient.addColorStop(0, "rgba(255, 0, 100, 0.3)");
-    gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.9)");
-    gradient.addColorStop(1, "rgba(255, 0, 100, 0.3)");
-
-    // Draw main beam
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = "rgba(255, 74, 132, 0.55)";
     ctx.fillRect(0, -beamWidth / 2, beamLength, beamWidth);
 
-    // Core beam (bright white center)
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    ctx.fillStyle = "rgba(255, 231, 239, 0.88)";
     ctx.fillRect(0, -beamWidth / 4, beamLength, beamWidth / 2);
 
-    // Wire-like effect (sharp lines) - deterministic based on id
-    ctx.strokeStyle = "rgba(255, 150, 200, 0.6)";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(20, 20, 26, 0.35)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, -beamWidth / 2);
+    ctx.lineTo(beamLength, -beamWidth / 2);
+    ctx.moveTo(0, beamWidth / 2);
+    ctx.lineTo(beamLength, beamWidth / 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255, 194, 220, 0.7)";
+    ctx.lineWidth = 1.1;
     for (let i = 0; i < 5; i++) {
       const offset = (((baseOffset + i * 0.2) % 1) - 0.5) * beamWidth * 0.8;
       ctx.beginPath();
@@ -272,15 +294,16 @@ export class CombatVisualsRenderer {
       ctx.stroke();
     }
 
-    // Glow effect at beam origin
-    const glowGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 30);
-    glowGradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-    glowGradient.addColorStop(0.5, "rgba(255, 0, 100, 0.5)");
-    glowGradient.addColorStop(1, "transparent");
-    ctx.fillStyle = glowGradient;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
     ctx.beginPath();
-    ctx.arc(0, 0, 30, 0, Math.PI * 2);
+    ctx.arc(0, 0, 16, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -291,30 +314,27 @@ export class CombatVisualsRenderer {
   drawShield(x: number, y: number, hits: number): void {
     const { ctx } = this;
 
-    // Color based on hits: 0 = blue, 1 = red
     const isDamaged = hits >= 1;
-    const alpha = 0.4;
-    const color = isDamaged
-      ? `rgba(255, 50, 50, ${alpha})`
-      : `rgba(50, 150, 255, ${alpha})`;
-    const glowColor = isDamaged ? "#ff3333" : "#3399ff";
+    const color = isDamaged ? "#ff6b6b" : "#67a8ff";
 
     ctx.save();
     ctx.translate(x, y);
-
-    // Glow effect
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = this.getEffectBlurPx(20, 8, 28);
-
-    // Draw oval shield
-    ctx.fillStyle = color;
-    ctx.strokeStyle = glowColor;
-    ctx.lineWidth = 3;
+    ctx.fillStyle = this.withAlpha(color, 0.24);
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 4;
 
     ctx.beginPath();
     ctx.ellipse(0, 0, SHIP_SHIELD_RADII.x, SHIP_SHIELD_RADII.y, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+
+    ctx.setLineDash([7, 4]);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, SHIP_SHIELD_RADII.x, SHIP_SHIELD_RADII.y, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
     ctx.restore();
   }
@@ -349,17 +369,14 @@ export class CombatVisualsRenderer {
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    // Glow effect
-    ctx.shadowColor = "#ff4400";
-    ctx.shadowBlur = 15;
-
-    // Rocket body (metallic gray)
     ctx.fillStyle = "#888888";
+    ctx.strokeStyle = "#12141a";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
 
-    // Rocket nose (pointed)
     ctx.fillStyle = "#aaaaaa";
     ctx.beginPath();
     ctx.moveTo(10, 0);
@@ -367,8 +384,8 @@ export class CombatVisualsRenderer {
     ctx.lineTo(4, 4);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
 
-    // Fins
     ctx.fillStyle = "#666666";
     ctx.beginPath();
     ctx.moveTo(-4, -4);
@@ -376,20 +393,18 @@ export class CombatVisualsRenderer {
     ctx.lineTo(-6, -2);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(-4, 4);
     ctx.lineTo(-10, 8);
     ctx.lineTo(-6, 2);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
 
-    ctx.shadowBlur = 0;
-
-    // Fire and smoke particles at the tail
     const tailX = -10;
     const time = this.getNowMs() * 0.02;
 
-    // Fire (orange/yellow)
     ctx.fillStyle = "#ff8800";
     ctx.globalAlpha = 0.7 + Math.sin(time) * 0.2;
     ctx.beginPath();
@@ -400,7 +415,6 @@ export class CombatVisualsRenderer {
     ctx.closePath();
     ctx.fill();
 
-    // Inner fire (yellow)
     ctx.fillStyle = "#ffee00";
     ctx.globalAlpha = 0.8 + Math.sin(time * 1.2) * 0.15;
     ctx.beginPath();
@@ -413,8 +427,7 @@ export class CombatVisualsRenderer {
 
     ctx.globalAlpha = 1;
 
-    // Smoke trail (gray)
-    ctx.fillStyle = "#555555";
+    ctx.fillStyle = "rgba(46, 50, 64, 0.45)";
     ctx.globalAlpha = 0.4;
     for (let i = 0; i < 3; i++) {
       const offset = (time * 0.5 + i * 2) % 8;
