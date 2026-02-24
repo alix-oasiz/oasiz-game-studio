@@ -2397,7 +2397,8 @@ class Game {
     const SAND_DEEP  = { r: 175, g: 140, b: 70 };      // Deep shadow sand
     
     for (const platform of this.activePlatforms) {
-      if (platform.isWall) {
+      // Render cave walls and any impenetrable (non-breakable) masses
+      if (platform.isWall || !platform.breakable) {
         // Organic wall made up of sand-colored pixelated blocks
         const blocksX = Math.ceil(platform.width / BLOCK_SIZE);
         const blocksY = Math.ceil(platform.height / BLOCK_SIZE);
@@ -3047,8 +3048,10 @@ class Game {
     if (this.submarineImg && this.submarineImg.complete) {
       const spriteWidth = 72;  // Display size (1.5x bigger: 48 * 1.5 = 72)
       const spriteHeight = 72;
+      const hullBottomInset = 6; // Transparent pixels at sprite bottom.
       const x = p.x - spriteWidth / 2;
-      const y = p.y - spriteHeight / 2;
+      // Anchor hull bottom near collider bottom so it sits on tiles correctly.
+      const y = p.y + p.height / 2 - spriteHeight + hullBottomInset;
       
       ctx.save();
       

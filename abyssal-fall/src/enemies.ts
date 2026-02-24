@@ -262,14 +262,16 @@ export class StaticEnemy extends BaseEnemy {
   private readonly ATTACK_FRAME_COUNT: number = 6;
   private readonly ATTACK_ANIM_SPEED: number = 0.25;
   private readonly spriteScale: number = 0.7;
+  private readonly FOOT_ANCHOR_OFFSET: number = 2;
 
   constructor(x: number, y: number, rng: SeededRNG) {
     super(x, y, rng);
     this.speed = CONFIG.ENEMY_SPEED_STATIC;
     
-    // Crab-like creature - slightly wider than tall
-    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.6;
-    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.2;
+    // Crab-like creature - slightly wider than tall.
+    // Bump hitbox to better match visible sprite body.
+    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.8;
+    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.35;
     
     // 30% chance this crab can shoot
     this.canShoot = rng.chance(0.3);
@@ -285,7 +287,8 @@ export class StaticEnemy extends BaseEnemy {
       frameCount: 4,
       animationSpeed: 0.1,
       offsetX: (this.width - 96 * this.spriteScale) / 2,
-      offsetY: (this.height - 96 * this.spriteScale) / 2 - 8,
+      // Anchor sprite near its feet so visuals match platform collisions.
+      offsetY: this.height - 96 * this.spriteScale + this.FOOT_ANCHOR_OFFSET,
       row: 0,
       scale: this.spriteScale,
     });
@@ -395,9 +398,9 @@ export class StaticEnemy extends BaseEnemy {
     const drawWidth = frameWidth * scale;
     const drawHeight = frameHeight * scale;
     
-    // Apply offset (same as idle sprite)
+    // Apply same grounding anchor as idle sprite.
     const drawX = this.x + (this.width - drawWidth) / 2;
-    const drawY = this.y + (this.height - drawHeight) / 2 - 8;
+    const drawY = this.y + this.height - drawHeight + this.FOOT_ANCHOR_OFFSET;
     
     // Handle horizontal flipping based on direction
     if (this.direction < 0) {
@@ -434,9 +437,9 @@ export class HorizontalEnemy extends BaseEnemy {
     super(x, y, rng);
     this.speed = CONFIG.ENEMY_SPEED_HORIZONTAL;
     
-    // Make enemy slightly bigger for the shark sprite
-    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.8;
-    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.5;
+    // Shark has a wide visible body; enlarge hitbox so collisions match visuals.
+    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 2.2;
+    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.75;
     
     // Shark walk sprite sheet: 6 frames, 96×96 per frame
     // Scale to fit hitbox nicely
@@ -448,7 +451,7 @@ export class HorizontalEnemy extends BaseEnemy {
       frameCount: 6,
       animationSpeed: 0.18,
       offsetX: (this.width - 96 * scale) / 2,  // Center sprite on hitbox
-      offsetY: (this.height - 96 * scale) / 2 - 10, // Slight upward offset
+      offsetY: (this.height - 96 * scale) / 2 - 4,
       row: 0,
       scale: scale,
     });
@@ -492,9 +495,9 @@ export class ExploderEnemy extends BaseEnemy {
     super(x, y, rng);
     this.speed = CONFIG.ENEMY_SPEED_EXPLODER;
     
-    // Squid enemy - slightly larger
-    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.6;
-    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.6;
+    // Squid enemy - expand hitbox to better cover visible sprite body.
+    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.9;
+    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.9;
     
     // Squid walk sprite sheet: 6 frames, 96×96 per frame (576x96 total)
     const scale = 0.75;
@@ -505,7 +508,7 @@ export class ExploderEnemy extends BaseEnemy {
       frameCount: 6,
       animationSpeed: 0.15,
       offsetX: (this.width - 96 * scale) / 2,  // Center sprite on hitbox
-      offsetY: (this.height - 96 * scale) / 2 - 5, // Slight upward offset
+      offsetY: (this.height - 96 * scale) / 2 - 2,
       row: 0,
       scale: scale,
     });
