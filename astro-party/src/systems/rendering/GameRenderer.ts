@@ -44,6 +44,19 @@ export interface RenderContext {
   networkLaserBeamWidth: number;
 }
 
+interface GameplayRenderData {
+  renderShips: ShipState[];
+  renderPilots: PilotState[];
+  renderProjectiles: ProjectileState[];
+  renderAsteroids: AsteroidState[];
+  renderPowerUps: PowerUpState[];
+  renderLaserBeams: LaserBeamState[];
+  renderMines: MineState[];
+  renderHomingMissiles: HomingMissileState[];
+  renderTurret: TurretState | null;
+  renderTurretBullets: TurretBulletState[];
+}
+
 export class GameRenderer {
   private mapVisualTimeSec = 0;
 
@@ -55,218 +68,229 @@ export class GameRenderer {
   render(ctx: RenderContext): void {
     this.renderer.clear();
     this.renderer.beginFrame();
-    const useSimTime =
-      ctx.phase === "PLAYING" ||
-      ctx.phase === "GAME_END" ||
-      ctx.phase === "ROUND_END";
-    this.renderer.setGameTimeMs(useSimTime ? ctx.nowMs : null);
+    this.renderer.setGameTimeMs(this.usesSimTime(ctx.phase) ? ctx.nowMs : null);
 
-    // Stars are now rendered via CSS starfield, not canvas
     const map = getMapDefinition(ctx.mapId);
     const mapTheme = this.getMapTheme(ctx.mapId);
-    // Keep map FX phase on a monotonic local clock to avoid
-    // snapshot-time jitter causing apparent random jumps on direction swaps.
-    this.mapVisualTimeSec += Math.max(0, Math.min(ctx.dt, 0.1));
-    const mapTimeSec = this.mapVisualTimeSec;
-    if (ctx.showMapElements) {
-      this.renderer.drawArenaBorder(mapTheme.border);
-      for (const block of this.getYellowBlocksForRender(
-        map.yellowBlocks,
-        ctx.yellowBlockHp,
-      )) {
-        this.renderer.drawYellowBlock(block);
-      }
-      for (const hole of map.centerHoles) {
-        this.renderer.drawCenterHole(
-          hole,
-          mapTimeSec,
-          ctx.rotationDirection === -1 ? -1 : 1,
-          mapTheme.centerHole,
-        );
-      }
-      for (const zone of map.repulsionZones) {
-        this.renderer.drawRepulsionZone(zone, mapTimeSec, mapTheme.repulsion);
-      }
+    const mapTimeSec = this.advanceMapVisualTime(ctx.dt);
+    this.renderMapPass(ctx, map, mapTheme, mapTimeSec);
+
+    if (this.isGameplayRenderPhase(ctx.phase)) {
+      this.renderGameplayPass(ctx);
     }
 
-    if (ctx.phase === "PLAYING" || ctx.phase === "GAME_END") {
-      const renderShips = ctx.networkShips;
-      const renderPilots = ctx.networkPilots;
-      const renderProjectiles = ctx.networkProjectiles;
-      const renderAsteroids = ctx.networkAsteroids;
-      const renderPowerUps = ctx.networkPowerUps;
-      const renderLaserBeams = ctx.networkLaserBeams;
-      const renderMines = ctx.networkMines;
-      const renderHomingMissiles = ctx.networkHomingMissiles;
-      const renderTurret = ctx.networkTurret;
-      const renderTurretBullets = ctx.networkTurretBullets;
-
-      renderShips.forEach((state) => {
-        if (!state.alive) return;
-        const player = ctx.players.get(state.playerId);
-        if (!player) return;
-        this.renderer.sampleShipTrail(state, player.color);
-      });
-      this.renderer.drawShipTrails();
-
-      // Draw beams first so ship art can sit on top of the beam origin.
-      renderLaserBeams.forEach((state) => {
-        if (state.alive) {
-          this.renderer.drawLaserBeam(state, ctx.networkLaserBeamWidth);
-        }
-      });
-
-      renderShips.forEach((state) => {
-        if (state.alive) {
-          const player = ctx.players.get(state.playerId);
-          if (player) {
-            const powerUp = ctx.playerPowerUps.get(state.playerId);
-            const renderData = this.getShipPowerUpRenderData(
-              powerUp,
-              ctx.nowMs,
-            );
-            this.renderer.drawShip(
-              state,
-              player.color,
-              renderData.shieldHits,
-              renderData.laserCharges,
-              renderData.laserMaxCharges,
-              renderData.laserCooldownProgress,
-              renderData.scatterCharges,
-              renderData.scatterCooldownProgress,
-              renderData.joustLeftActive,
-              renderData.joustRightActive,
-              renderData.homingMissileCharges,
-            );
-          }
-        }
-      });
-
-      renderPilots.forEach((state) => {
-        if (state.alive) {
-          const player = ctx.players.get(state.playerId);
-          if (player) {
-            this.renderer.drawPilot(state, player.color);
-          }
-        }
-      });
-
-      this.effects.drawPilotDeathDebris();
-      this.effects.drawBulletCasings();
-
-      renderProjectiles.forEach((state) => {
-        this.renderer.drawProjectile(state);
-      });
-
-      renderAsteroids.forEach((state) => {
-        if (state.alive) {
-          this.renderer.drawAsteroid(state);
-        }
-      });
-
-      renderPowerUps.forEach((state) => {
-        if (state.alive) {
-          this.renderer.drawPowerUp(state);
-        }
-      });
-
-      renderMines.forEach((state) => {
-        if (state.alive) {
-          this.renderer.drawMineState(state);
-        }
-      });
-
-      renderHomingMissiles.forEach((state) => {
-        if (state.alive) {
-          this.renderer.drawHomingMissile(state);
-        }
-      });
-
-      if (renderTurret) {
-        this.renderer.drawTurret(renderTurret);
-      }
-
-      renderTurretBullets.forEach((state) => {
-        if (state.alive) {
-          this.renderer.drawTurretBullet(state);
-        }
-      });
-
-      if (ctx.isDevModeEnabled) {
-        renderShips.forEach((state) => {
-          if (state.alive) {
-            this.renderer.drawShipColliderDebug(state);
-          }
-        });
-        this.renderer.drawProjectileSweepDebug(renderProjectiles);
-
-        renderHomingMissiles.forEach((state) => {
-          if (state.alive) {
-            this.renderer.drawHomingMissileDetectionRadius(
-              state.x,
-              state.y,
-              GAME_CONFIG.POWERUP_HOMING_MISSILE_DETECTION_RADIUS,
-            );
-          }
-        });
-
-        const mineDetectionRadius = GAME_CONFIG.POWERUP_MINE_SIZE + 33;
-        renderMines.forEach((state) => {
-          if (state.alive && !state.exploded) {
-            this.renderer.drawMineDetectionRadius(
-              state.x,
-              state.y,
-              mineDetectionRadius,
-            );
-          }
-        });
-
-        if (renderTurret) {
-          this.renderer.drawTurretDetectionRadius(
-            renderTurret.x,
-            renderTurret.y,
-            renderTurret.detectionRadius,
-          );
-        }
-
-        renderTurretBullets.forEach((state) => {
-          if (state.alive && !state.exploded) {
-            this.renderer.drawTurretBulletRadius(
-              state.x,
-              state.y,
-              Number.isFinite(state.explosionRadius)
-                ? state.explosionRadius
-                : 100,
-            );
-          }
-        });
-
-        renderPowerUps.forEach((state) => {
-          if (state.alive) {
-            this.renderer.drawPowerUpMagneticRadius(
-              state.x,
-              state.y,
-              state.magneticRadius || 150,
-              state.isMagneticActive || false,
-            );
-          }
-        });
-      }
-
-      if (this.renderer.hasMapOverlay(ctx.mapId)) {
-        this.renderer.drawMapOverlay(ctx.mapId);
-      }
-
-      this.effects.drawParticles();
-    }
-
-    if (ctx.phase === "COUNTDOWN" && ctx.countdown > 0) {
-      this.renderer.drawCountdown(ctx.countdown);
-    } else if (ctx.phase === "COUNTDOWN" && ctx.countdown === 0) {
-      this.renderer.drawCountdown(0);
-    }
+    this.renderCountdownPass(ctx);
 
     this.renderer.endFrame();
+  }
+
+  private usesSimTime(phase: GamePhase): boolean {
+    return phase === "PLAYING" || phase === "GAME_END" || phase === "ROUND_END";
+  }
+
+  private isGameplayRenderPhase(phase: GamePhase): boolean {
+    return phase === "PLAYING" || phase === "GAME_END";
+  }
+
+  private advanceMapVisualTime(dt: number): number {
+    // Keep map FX phase on a monotonic local clock to avoid
+    // snapshot-time jitter causing apparent random jumps on direction swaps.
+    this.mapVisualTimeSec += Math.max(0, Math.min(dt, 0.1));
+    return this.mapVisualTimeSec;
+  }
+
+  private renderMapPass(
+    ctx: RenderContext,
+    map: ReturnType<typeof getMapDefinition>,
+    mapTheme: ReturnType<GameRenderer["getMapTheme"]>,
+    mapTimeSec: number,
+  ): void {
+    if (!ctx.showMapElements) return;
+
+    this.renderer.drawArenaBorder(mapTheme.border);
+    for (const block of this.getYellowBlocksForRender(
+      map.yellowBlocks,
+      ctx.yellowBlockHp,
+    )) {
+      this.renderer.drawYellowBlock(block);
+    }
+    for (const hole of map.centerHoles) {
+      this.renderer.drawCenterHole(
+        hole,
+        mapTimeSec,
+        ctx.rotationDirection === -1 ? -1 : 1,
+        mapTheme.centerHole,
+      );
+    }
+    for (const zone of map.repulsionZones) {
+      this.renderer.drawRepulsionZone(zone, mapTimeSec, mapTheme.repulsion);
+    }
+  }
+
+  private renderGameplayPass(ctx: RenderContext): void {
+    const data = this.getGameplayRenderData(ctx);
+
+    data.renderShips.forEach((state) => {
+      if (!state.alive) return;
+      const player = ctx.players.get(state.playerId);
+      if (!player) return;
+      this.renderer.sampleShipTrail(state, player.color);
+    });
+    this.renderer.drawShipTrails();
+
+    // Draw beams first so ship art can sit on top of the beam origin.
+    data.renderLaserBeams.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawLaserBeam(state, ctx.networkLaserBeamWidth);
+    });
+
+    data.renderShips.forEach((state) => {
+      if (!state.alive) return;
+      const player = ctx.players.get(state.playerId);
+      if (!player) return;
+      const powerUp = ctx.playerPowerUps.get(state.playerId);
+      const renderData = this.getShipPowerUpRenderData(powerUp, ctx.nowMs);
+      this.renderer.drawShip(
+        state,
+        player.color,
+        renderData.shieldHits,
+        renderData.laserCharges,
+        renderData.laserMaxCharges,
+        renderData.laserCooldownProgress,
+        renderData.scatterCharges,
+        renderData.scatterCooldownProgress,
+        renderData.joustLeftActive,
+        renderData.joustRightActive,
+        renderData.homingMissileCharges,
+      );
+    });
+
+    data.renderPilots.forEach((state) => {
+      if (!state.alive) return;
+      const player = ctx.players.get(state.playerId);
+      if (!player) return;
+      this.renderer.drawPilot(state, player.color);
+    });
+
+    this.effects.drawPilotDeathDebris();
+    this.effects.drawBulletCasings();
+
+    data.renderProjectiles.forEach((state) => {
+      this.renderer.drawProjectile(state);
+    });
+
+    data.renderAsteroids.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawAsteroid(state);
+    });
+
+    data.renderPowerUps.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawPowerUp(state);
+    });
+
+    data.renderMines.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawMineState(state);
+    });
+
+    data.renderHomingMissiles.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawHomingMissile(state);
+    });
+
+    if (data.renderTurret) {
+      this.renderer.drawTurret(data.renderTurret);
+    }
+
+    data.renderTurretBullets.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawTurretBullet(state);
+    });
+
+    if (ctx.isDevModeEnabled) {
+      this.renderDebugOverlaysPass(data);
+    }
+
+    if (this.renderer.hasMapOverlay(ctx.mapId)) {
+      this.renderer.drawMapOverlay(ctx.mapId);
+    }
+
+    this.effects.drawParticles();
+  }
+
+  private renderDebugOverlaysPass(data: GameplayRenderData): void {
+    data.renderShips.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawShipColliderDebug(state);
+    });
+    this.renderer.drawProjectileSweepDebug(data.renderProjectiles);
+
+    data.renderHomingMissiles.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawHomingMissileDetectionRadius(
+        state.x,
+        state.y,
+        GAME_CONFIG.POWERUP_HOMING_MISSILE_DETECTION_RADIUS,
+      );
+    });
+
+    const mineDetectionRadius = GAME_CONFIG.POWERUP_MINE_SIZE + 33;
+    data.renderMines.forEach((state) => {
+      if (!state.alive || state.exploded) return;
+      this.renderer.drawMineDetectionRadius(
+        state.x,
+        state.y,
+        mineDetectionRadius,
+      );
+    });
+
+    if (data.renderTurret) {
+      this.renderer.drawTurretDetectionRadius(
+        data.renderTurret.x,
+        data.renderTurret.y,
+        data.renderTurret.detectionRadius,
+      );
+    }
+
+    data.renderTurretBullets.forEach((state) => {
+      if (!state.alive || state.exploded) return;
+      this.renderer.drawTurretBulletRadius(
+        state.x,
+        state.y,
+        Number.isFinite(state.explosionRadius) ? state.explosionRadius : 100,
+      );
+    });
+
+    data.renderPowerUps.forEach((state) => {
+      if (!state.alive) return;
+      this.renderer.drawPowerUpMagneticRadius(
+        state.x,
+        state.y,
+        state.magneticRadius || 150,
+        state.isMagneticActive || false,
+      );
+    });
+  }
+
+  private renderCountdownPass(ctx: RenderContext): void {
+    if (ctx.phase !== "COUNTDOWN") return;
+    this.renderer.drawCountdown(ctx.countdown > 0 ? ctx.countdown : 0);
+  }
+
+  private getGameplayRenderData(ctx: RenderContext): GameplayRenderData {
+    return {
+      renderShips: ctx.networkShips,
+      renderPilots: ctx.networkPilots,
+      renderProjectiles: ctx.networkProjectiles,
+      renderAsteroids: ctx.networkAsteroids,
+      renderPowerUps: ctx.networkPowerUps,
+      renderLaserBeams: ctx.networkLaserBeams,
+      renderMines: ctx.networkMines,
+      renderHomingMissiles: ctx.networkHomingMissiles,
+      renderTurret: ctx.networkTurret,
+      renderTurretBullets: ctx.networkTurretBullets,
+    };
   }
 
   private getShipPowerUpRenderData(

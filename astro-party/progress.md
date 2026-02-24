@@ -768,3 +768,21 @@ TODO / Follow-ups:
   - `astro-party`: `bun run build` passed.
 - Notes:
   - Confirmed zero remaining `getEffectsSystem()` references in `astro-party/src`.
+- GameRenderer pass-structure refactor (orchestration split):
+  - Refactored `src/systems/rendering/GameRenderer.ts` `render(...)` into explicit passes with unchanged draw order:
+    - `renderMapPass(...)`
+    - `renderGameplayPass(...)`
+    - `renderDebugOverlaysPass(...)`
+    - `renderCountdownPass(...)`
+  - Added small phase/time helpers to keep top-level flow readable:
+    - `usesSimTime(...)`
+    - `isGameplayRenderPhase(...)`
+    - `advanceMapVisualTime(...)`
+  - Added `getGameplayRenderData(...)` to isolate context-to-pass data shaping and reduce local clutter inside `render(...)`.
+  - Kept behavior parity:
+    - map effects still render before gameplay entities
+    - gameplay entity/layer ordering unchanged
+    - debug overlays still only render in gameplay + dev mode
+    - countdown still renders at end of frame for `COUNTDOWN` phase only
+- Validation:
+  - `astro-party`: `bun run build` passed.
