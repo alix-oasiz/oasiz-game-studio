@@ -31,6 +31,7 @@ class Game {
   private activeEnemies: BaseEnemy[] = [];
   private activeGems: Gem[] = [];
   private droppedGems: Gem[] = [];
+  private droppedGemPool: Gem[] = [];
   private activePlatforms: Platform[] = [];
   private activeWeeds: Weed[] = [];
   private brokenWeeds: Set<string> = new Set();
@@ -882,6 +883,28 @@ class Game {
     if (!this.settings.fx) return;
     this.playSfx(this.enemyCrunchBuffer, 0.45);
   }
+
+  private playBlockBreakSound(): void {
+    if (!this.settings.fx) return;
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+    const duration = 0.07;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + duration);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.32, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  }
   
   private startAmbience(): void {
     if (!this.settings.music || !this.ambienceAudio) return;
@@ -1106,7 +1129,7 @@ class Game {
     this.deathBubbles = [];
     this.hurtAnimations = [];
     this.enemyBullets = [];
-    this.droppedGems = [];
+    this.releaseAllDroppedGems();
     this.brokenWeeds.clear();
     this.damageTexts = [];
     this.deathFreezeFrames = 0;
@@ -1319,6 +1342,53 @@ class Game {
     return `${Math.round(weed.x)}:${Math.round(weed.y)}:${weed.spriteIndex}:${weed.isLeft ? 1 : 0}`;
   }
 
+  private acquireDroppedGem(): Gem {
+    const gem = this.droppedGemPool.pop();
+    if (gem) return gem;
+    return {
+      x: 0,
+      y: 0,
+      width: 14,
+      height: 14,
+      value: CONFIG.SCORE_PER_GEM,
+      collected: false,
+      chunkIndex: 0,
+      bobOffset: 0,
+      dropped: true,
+      vx: 0,
+      vy: 0,
+      life: 0,
+      settled: false,
+      settleFrames: 0,
+      fadeTimer: 0,
+      collectDelay: 0,
+      isLarge: false,
+    };
+  }
+
+  private releaseDroppedGem(index: number): void {
+    const gem = this.droppedGems[index];
+    if (!gem) return;
+    gem.collected = false;
+    gem.dropped = true;
+    gem.vx = 0;
+    gem.vy = 0;
+    gem.life = 0;
+    gem.settled = false;
+    gem.settleFrames = 0;
+    gem.fadeTimer = 0;
+    gem.collectDelay = 0;
+    gem.isLarge = false;
+    this.droppedGemPool.push(gem);
+    this.droppedGems.splice(index, 1);
+  }
+
+  private releaseAllDroppedGems(): void {
+    for (let i = this.droppedGems.length - 1; i >= 0; i--) {
+      this.releaseDroppedGem(i);
+    }
+  }
+
   private updateDroppedGems(): void {
     const overlapsRect = (
       ax: number,
@@ -1337,7 +1407,7 @@ class Game {
       const gem = this.droppedGems[i];
 
       if (gem.collected) {
-        this.droppedGems.splice(i, 1);
+        this.releaseDroppedGem(i);
         continue;
       }
 
@@ -1456,11 +1526,11 @@ class Game {
         gem.fadeTimer++;
       }
 
-      const isFarAbove = gem.y < this.cameraY - CONFIG.INTERNAL_HEIGHT * 1.2;
+      const offTopOfScreen = gem.y + gem.height * 0.5 < this.cameraY - 24;
       const isFarBelow = gem.y > this.cameraY + CONFIG.INTERNAL_HEIGHT * 1.6;
       const expiredAfterSettle = gem.settled && (gem.fadeTimer ?? 0) > 140;
-      if ((gem.life ?? 0) > 1200 || isFarAbove || isFarBelow || expiredAfterSettle) {
-        this.droppedGems.splice(i, 1);
+      if ((gem.life ?? 0) > 1200 || offTopOfScreen || isFarBelow || expiredAfterSettle) {
+        this.releaseDroppedGem(i);
       }
     }
   }
@@ -1625,6 +1695,7 @@ class Game {
   private destroyPlatform(platform: Platform): void {
     const cx = platform.x + platform.width / 2;
     const cy = platform.y + platform.height / 2;
+    this.playBlockBreakSound();
 
     // Spawn crumble debris (chunky sand blocks flying outward)
     this.spawnCrumbleDebris(platform.x, platform.y, platform.width, platform.height);
@@ -1666,12 +1737,14 @@ class Game {
       const platformLeft = platform.x;
       const platformRight = platform.x + platform.width;
       const overlapsX = playerRight > platformLeft && playerLeft < platformRight;
+      const overlapWidth = Math.min(playerRight, platformRight) - Math.max(playerLeft, platformLeft);
       const crossedTop = prevBottom <= platformTop + 1 && playerBottom >= platformTop;
       
       // Check if player is standing on top of this platform
       const isOnTop = playerBottom >= platformTop - 2 && 
                       playerBottom <= platformTop + 8 &&
-                      overlapsX;
+                      overlapsX &&
+                      overlapWidth >= player.width * 0.35;
       
       if (player.vy >= 0 && overlapsX) {
         if (platform.oneWay) {
@@ -1771,8 +1844,15 @@ class Game {
         const overlapBottom = platBottom - rectTop;
         const minOverlapX = Math.min(overlapLeft, overlapRight);
         const minOverlapY = Math.min(overlapTop, overlapBottom);
+        const prevRectTop = prevY - player.height / 2;
+        const prevRectBottom = prevY + player.height / 2;
+        const playerBottomNow = player.y + player.height / 2;
+        const playerTopNow = player.y - player.height / 2;
+        const crossedTop = prevRectBottom <= platTop + 2 && playerBottomNow >= platTop;
+        const crossedBottom = prevRectTop >= platBottom - 2 && playerTopNow <= platBottom;
+        const canResolveVertically = crossedTop || crossedBottom;
 
-        if (minOverlapX < minOverlapY) {
+        if (minOverlapX < minOverlapY || !canResolveVertically) {
           const pushRight = overlapLeft < overlapRight;
           const nextX = pushRight
             ? platLeft - player.width / 2
@@ -1870,7 +1950,7 @@ class Game {
         this.scoreGems += points;
         this.gems++;
         this.playGemSound();
-        this.droppedGems.splice(i, 1);
+        this.releaseDroppedGem(i);
       }
     }
   }
@@ -2829,23 +2909,22 @@ class Game {
     const ctx = this.ctx;
     const p = this.playerController.getPlayer();
     const k = this.deathFreezeKiller;
-    const pulse = 0.5 + Math.sin(this.frameCount * 0.35) * 0.5;
 
     ctx.save();
-    ctx.fillStyle = `rgba(6, 15, 30, ${0.28 + pulse * 0.15})`;
+    ctx.fillStyle = "rgba(6, 15, 30, 0.35)";
     ctx.fillRect(0, this.cameraY, CONFIG.INTERNAL_WIDTH, CONFIG.INTERNAL_HEIGHT);
 
     ctx.strokeStyle = "rgba(255, 255, 210, 0.9)";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 24 + pulse * 4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 26, 0, Math.PI * 2);
     ctx.stroke();
 
     if (k) {
       ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(k.x, k.y, 22 + pulse * 5, 0, Math.PI * 2);
+      ctx.arc(k.x, k.y, 24, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -3597,7 +3676,7 @@ class Game {
     const p = this.playerController.getPlayer();
     
     // Invulnerability flash
-    if (p.invulnerable > 0 && Math.floor(p.invulnerable / 4) % 2 === 0) {
+    if (this.deathFreezeFrames <= 0 && p.invulnerable > 0 && Math.floor(p.invulnerable / 4) % 2 === 0) {
       return;
     }
     

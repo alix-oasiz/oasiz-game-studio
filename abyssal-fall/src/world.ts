@@ -75,6 +75,7 @@ export interface Gem extends Entity {
   settleFrames?: number;
   fadeTimer?: number;
   collectDelay?: number;
+  isLarge?: boolean;
 }
 
 export interface Weed {
@@ -434,6 +435,7 @@ export class LevelSpawner {
     this.generateMidBreakableIslands(chunk, rng, wallProfile, clearLane);
     this.generateCatchShelves(chunk, wallProfile, clearLane);
     this.normalizeBreakablesUnderUnbreakables(chunk);
+    this.enforceBreakableStructureCap(chunk);
     this.enforceBreakableRunCap(chunk);
   }
 
@@ -646,13 +648,29 @@ export class LevelSpawner {
       if (laneWidth <= gapWidth + BLOCK) continue;
 
       const maxGapX = laneRight - gapWidth;
+      const shelfIndex = Math.floor(shelfY / spacing);
       let gapX: number;
       if (clearLane) {
-        // Keep every shelf traversable through the same carved safe lane.
-        const desired = Math.round(clearLane.x / BLOCK) * BLOCK;
-        gapX = Math.max(laneLeft, Math.min(maxGapX, desired));
+        // Do not keep one fixed vertical opening forever.
+        // Cycle the gap across left/center/right so passive center fall is interrupted.
+        const slots = [
+          laneLeft,
+          Math.round((laneLeft + (laneWidth - gapWidth) * 0.5) / BLOCK) * BLOCK,
+          maxGapX,
+        ];
+        const clearClamped = Math.max(laneLeft, Math.min(maxGapX, Math.round(clearLane.x / BLOCK) * BLOCK));
+        let startSlot = 1;
+        let bestDist = Infinity;
+        for (let i = 0; i < slots.length; i++) {
+          const dist = Math.abs(slots[i] - clearClamped);
+          if (dist < bestDist) {
+            bestDist = dist;
+            startSlot = i;
+          }
+        }
+        const slot = (startSlot + shelfIndex + phase) % 3;
+        gapX = Math.max(laneLeft, Math.min(maxGapX, slots[slot]));
       } else {
-        const shelfIndex = Math.floor(shelfY / spacing);
         const slot = (shelfIndex + phase) % 3; // 0=left,1=center,2=right
         const rawGapX = laneLeft + ((laneWidth - gapWidth) * slot) / 2;
         gapX = Math.max(laneLeft, Math.min(maxGapX, Math.round(rawGapX / BLOCK) * BLOCK));
@@ -858,6 +876,72 @@ export class LevelSpawner {
         }
 
         runStart = runEnd + 1;
+      }
+    }
+  }
+
+  // Hard post-pass: any connected breakable structure (4-neighbor adjacency)
+  // can never exceed BREAKABLE_CHUNK_MAX_BLOCKS tiles.
+  private enforceBreakableStructureCap(chunk: Chunk): void {
+    const BLOCK = CONFIG.WALL_BLOCK_SIZE;
+    const cap = Math.max(1, CONFIG.BREAKABLE_CHUNK_MAX_BLOCKS);
+
+    // Map each breakable block cell to its platform object.
+    const cellToPlatforms = new Map<string, Platform[]>();
+    for (const p of chunk.platforms) {
+      if (!p.breakable) continue;
+      const cols = Math.max(1, Math.round(p.width / BLOCK));
+      const rows = Math.max(1, Math.round(p.height / BLOCK));
+      for (let ry = 0; ry < rows; ry++) {
+        for (let cx = 0; cx < cols; cx++) {
+          const cellX = Math.round((p.x + cx * BLOCK) / BLOCK);
+          const cellY = Math.round((p.y + ry * BLOCK) / BLOCK);
+          const key = `${cellX}:${cellY}`;
+          if (!cellToPlatforms.has(key)) cellToPlatforms.set(key, []);
+          cellToPlatforms.get(key)!.push(p);
+        }
+      }
+    }
+
+    const visited = new Set<string>();
+    const neighbors = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ];
+
+    for (const startKey of cellToPlatforms.keys()) {
+      if (visited.has(startKey)) continue;
+
+      const queue: string[] = [startKey];
+      const component: string[] = [];
+      visited.add(startKey);
+
+      while (queue.length > 0) {
+        const cur = queue.shift()!;
+        component.push(cur);
+        const [sx, sy] = cur.split(":").map(Number);
+
+        for (const [dx, dy] of neighbors) {
+          const nk = `${sx + dx}:${sy + dy}`;
+          if (!cellToPlatforms.has(nk) || visited.has(nk)) continue;
+          visited.add(nk);
+          queue.push(nk);
+        }
+      }
+
+      if (component.length <= cap) continue;
+
+      // Keep the first cap tiles in BFS order; convert overflow to unbreakable.
+      for (let i = cap; i < component.length; i++) {
+        const key = component[i];
+        const platforms = cellToPlatforms.get(key);
+        if (!platforms) continue;
+        for (const p of platforms) {
+          p.breakable = false;
+          p.hp = 0;
+        }
       }
     }
   }
