@@ -47,11 +47,11 @@ class AudioManagerClass {
       loop: asset.loop,
       volume: asset.volume,
       preload: this.isPreloadEnabled(asset.preload),
-      onloaderror: (_soundId, error) => {
+      onloaderror: (_soundId: number, error: unknown) => {
         console.log("[AudioManager.getOrCreateAssetPlayer]", "Load failed for " + assetId);
         console.log("[AudioManager.getOrCreateAssetPlayer]", String(error));
       },
-      onplayerror: (_soundId, error) => {
+      onplayerror: (_soundId: number, error: unknown) => {
         console.log("[AudioManager.getOrCreateAssetPlayer]", "Playback failed for " + assetId);
         console.log("[AudioManager.getOrCreateAssetPlayer]", String(error));
       },

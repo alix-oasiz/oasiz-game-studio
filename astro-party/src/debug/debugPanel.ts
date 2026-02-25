@@ -84,7 +84,7 @@ export function mountDebugPanel(options: DebugPanelOptions): void {
   panel.setAttribute("aria-hidden", "true");
   panel.setAttribute("inert", "");
 
-  let statusIntervalId: ReturnType<typeof window.setInterval> | null = null;
+  let statusIntervalId: number | null = null;
   const stopStatusUpdates = (): void => {
     if (statusIntervalId === null) return;
     window.clearInterval(statusIntervalId);

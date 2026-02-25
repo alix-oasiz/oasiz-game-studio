@@ -428,7 +428,7 @@ export function createPhysicsLabController(
   let materialInputs: Record<MaterialKey, HTMLInputElement> | null = null;
   let globalInputs: Record<GlobalKey, HTMLInputElement> | null = null;
   let trailInputs: Record<TrailKey, HTMLInputElement> | null = null;
-  let applyTimeout: ReturnType<typeof window.setTimeout> | null = null;
+  let applyTimeout: number | null = null;
   let suppressApply = false;
 
   const setStatus = (message: string): void => {
