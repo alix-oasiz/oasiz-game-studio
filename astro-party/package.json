@@ -17,9 +17,9 @@
   },
   "dependencies": {
     "colyseus.js": "^0.16.18",
+    "howler": "^2.2.4",
     "matter-js": "^0.20.0",
-    "poly-decomp": "^0.3.0",
-    "tone": "^15.1.22"
+    "poly-decomp": "^0.3.0"
   },
   "devDependencies": {
     "@types/matter-js": "^0.19.7",
