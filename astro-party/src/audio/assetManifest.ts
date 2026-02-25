@@ -19,6 +19,9 @@ export type AudioAssetId =
   | "sfxPilotEject"
   | "sfxPilotDeath";
 
+const AUDIO_ASSET_HREF_ELEMENT_ID_PREFIX = "audioAssetHref_";
+const AUDIO_ASSET_ROOT_PATH = "./assets/audio";
+
 export interface AudioAssetDefinition {
   id: AudioAssetId;
   channel: AudioAssetChannel;
@@ -27,8 +30,6 @@ export interface AudioAssetDefinition {
   volume: number;
   preload: "none" | "metadata" | "auto";
 }
-
-const AUDIO_ASSET_ROOT_PATH = "./assets/audio";
 
 export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
   splashScreenSting: {
@@ -191,7 +192,42 @@ export const AUDIO_CUE_ASSETS: Record<AudioCueId, AudioAssetId> = {
   LOGO_STING: "logoRevealSting",
 };
 
+export function getAudioAssetHrefElementId(assetId: AudioAssetId): string {
+  return AUDIO_ASSET_HREF_ELEMENT_ID_PREFIX + assetId;
+}
+
+function resolveAudioAssetHrefFromDom(assetId: AudioAssetId): string | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const elementId = getAudioAssetHrefElementId(assetId);
+  const element = document.getElementById(elementId);
+  if (!element) {
+    return null;
+  }
+
+  const hrefAttribute = element.getAttribute("href");
+  if (typeof hrefAttribute === "string" && hrefAttribute.length > 0) {
+    return hrefAttribute;
+  }
+
+  if ("href" in element) {
+    const resolvedHref = (element as HTMLAnchorElement).href;
+    if (typeof resolvedHref === "string" && resolvedHref.length > 0) {
+      return resolvedHref;
+    }
+  }
+
+  return null;
+}
+
 export function resolveAudioAssetUrl(assetId: AudioAssetId): string {
+  const domHref = resolveAudioAssetHrefFromDom(assetId);
+  if (domHref !== null) {
+    return domHref;
+  }
+
   const asset = AUDIO_ASSETS[assetId];
   return AUDIO_ASSET_ROOT_PATH + "/" + asset.relativePath;
 }

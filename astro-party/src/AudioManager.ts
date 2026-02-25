@@ -38,6 +38,7 @@ class AudioManagerClass {
   private activeMusicSoundId: number | null = null;
   private autoplayBlocked: boolean = false;
   private pendingBackgroundMusicAssetId: AudioAssetId | null = null;
+  private gestureUnlockHandler: (() => void) | null = null;
 
   constructor() {
     this.setupUserGestureUnlock();
@@ -45,6 +46,9 @@ class AudioManagerClass {
 
   private setupUserGestureUnlock(): void {
     if (typeof window === "undefined") {
+      return;
+    }
+    if (this.gestureUnlockHandler !== null) {
       return;
     }
 
@@ -57,26 +61,51 @@ class AudioManagerClass {
       console.log("[AudioManager.setupUserGestureUnlock]", "User gesture received, retrying BGM");
       this.resumePendingBackgroundMusic();
     };
+    this.gestureUnlockHandler = handleUnlockGesture;
 
     window.addEventListener("pointerdown", handleUnlockGesture, {
-      once: true,
       capture: true,
       passive: true,
     });
     window.addEventListener("keydown", handleUnlockGesture, {
-      once: true,
       capture: true,
     });
     window.addEventListener("touchstart", handleUnlockGesture, {
-      once: true,
       capture: true,
       passive: true,
     });
     window.addEventListener("mousedown", handleUnlockGesture, {
-      once: true,
       capture: true,
       passive: true,
     });
+    window.addEventListener("click", handleUnlockGesture, {
+      capture: true,
+      passive: true,
+    });
+  }
+
+  private teardownUserGestureUnlock(): void {
+    if (typeof window === "undefined" || this.gestureUnlockHandler === null) {
+      return;
+    }
+    const handleUnlockGesture = this.gestureUnlockHandler;
+
+    window.removeEventListener("pointerdown", handleUnlockGesture, {
+      capture: true,
+    });
+    window.removeEventListener("keydown", handleUnlockGesture, {
+      capture: true,
+    });
+    window.removeEventListener("touchstart", handleUnlockGesture, {
+      capture: true,
+    });
+    window.removeEventListener("mousedown", handleUnlockGesture, {
+      capture: true,
+    });
+    window.removeEventListener("click", handleUnlockGesture, {
+      capture: true,
+    });
+    this.gestureUnlockHandler = null;
   }
 
   private isAutoplayBlockError(error: unknown): boolean {
@@ -522,6 +551,7 @@ class AudioManagerClass {
 
   destroy(): void {
     this.stopMusic();
+    this.teardownUserGestureUnlock();
 
     for (const player of this.assetPlayers.values()) {
       player.stop();
