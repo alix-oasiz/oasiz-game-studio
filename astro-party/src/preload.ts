@@ -1,12 +1,12 @@
 import { AudioManager } from "./AudioManager";
-import type { AudioAssetId } from "./audio/assetManifest";
 
-const STARTUP_AUDIO_ASSETS: AudioAssetId[] = [
-  "splashScreenSting",
-  "logoRevealSting",
-];
-const AUDIO_PRELOAD_TIMEOUT_MS = 7000;
+const AUDIO_PRELOAD_TIMEOUT_MS = 12000;
 const IMAGE_PRELOAD_TIMEOUT_MS = 5000;
+const STARTUP_IMAGE_IDS = Object.freeze([
+  "splashLogoImage",
+  "titleSpaceImage",
+  "titleForceImage",
+]);
 
 let startupPreloadPromise: Promise<void> | null = null;
 
@@ -44,15 +44,15 @@ function decodeImage(image: HTMLImageElement): Promise<void> {
   });
 }
 
-function preloadSplashLogoImage(): Promise<void> {
-  const splashLogo = document.getElementById("splashLogoImage");
-  if (!(splashLogo instanceof HTMLImageElement)) {
-    console.log("[Preload.preloadSplashLogoImage]", "Splash logo image not found");
+function preloadImageById(imageId: string): Promise<void> {
+  const imageElement = document.getElementById(imageId);
+  if (!(imageElement instanceof HTMLImageElement)) {
+    console.log("[Preload.preloadImageById]", "Image not found: " + imageId);
     return Promise.resolve();
   }
 
-  if (splashLogo.complete && splashLogo.naturalWidth > 0) {
-    return decodeImage(splashLogo);
+  if (imageElement.complete && imageElement.naturalWidth > 0) {
+    return decodeImage(imageElement);
   }
 
   return new Promise((resolve) => {
@@ -68,9 +68,9 @@ function preloadSplashLogoImage(): Promise<void> {
         clearTimeout(timeoutHandle);
         timeoutHandle = null;
       }
-      splashLogo.removeEventListener("load", handleLoad);
-      splashLogo.removeEventListener("error", handleError);
-      void decodeImage(splashLogo).finally(() => {
+      imageElement.removeEventListener("load", handleLoad);
+      imageElement.removeEventListener("error", handleError);
+      void decodeImage(imageElement).finally(() => {
         resolve();
       });
     };
@@ -80,18 +80,23 @@ function preloadSplashLogoImage(): Promise<void> {
     };
 
     const handleError = (): void => {
-      console.log("[Preload.preloadSplashLogoImage]", "Splash logo failed to load");
+      console.log("[Preload.preloadImageById]", "Image failed to load: " + imageId);
       finalize();
     };
 
     timeoutHandle = setTimeout(() => {
-      console.log("[Preload.preloadSplashLogoImage]", "Splash logo preload timeout");
+      console.log("[Preload.preloadImageById]", "Image preload timeout: " + imageId);
       finalize();
     }, IMAGE_PRELOAD_TIMEOUT_MS);
 
-    splashLogo.addEventListener("load", handleLoad);
-    splashLogo.addEventListener("error", handleError);
+    imageElement.addEventListener("load", handleLoad);
+    imageElement.addEventListener("error", handleError);
   });
+}
+
+function preloadStartupImages(): Promise<void> {
+  const imagePreloads = STARTUP_IMAGE_IDS.map((imageId) => preloadImageById(imageId));
+  return Promise.all(imagePreloads).then(() => undefined);
 }
 
 export function preloadStartupAssets(): Promise<void> {
@@ -102,9 +107,10 @@ export function preloadStartupAssets(): Promise<void> {
   startupPreloadPromise = (async () => {
     setStartupLoaderState(true, "Loading startup assets...");
     console.log("[Preload.preloadStartupAssets]", "Starting startup preload");
+    const allAudioAssetIds = AudioManager.getConfiguredAssetIds();
     await Promise.all([
-      preloadSplashLogoImage(),
-      AudioManager.preloadAssets(STARTUP_AUDIO_ASSETS, AUDIO_PRELOAD_TIMEOUT_MS),
+      preloadStartupImages(),
+      AudioManager.preloadAssets(allAudioAssetIds, AUDIO_PRELOAD_TIMEOUT_MS),
     ]);
     setStartupLoaderState(true, "Starting...");
     console.log("[Preload.preloadStartupAssets]", "Startup preload complete");

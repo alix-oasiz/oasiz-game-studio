@@ -889,3 +889,31 @@ TODO / Next suggestions
   - `ShipTrailRenderer` (non-additive, outlined comic trails)
 - Validation:
   - `astro-party`: `bun run build` passed.
+## 2026-02-25 (Start title audio sync + preload pass)
+- Preload changes (`src/preload.ts`):
+  - Startup now preloads all configured audio assets via `AudioManager.getConfiguredAssetIds()` before splash.
+  - Startup image preload now includes `splashLogoImage`, `titleSpaceImage`, and `titleForceImage`.
+- Start title/audio sync:
+  - `src/ui/startScreen.ts`: title intro now triggers `playSplashScreenCue()` with SPACE layer start.
+  - FORCE layer animation is now triggered when splash-cue playback reaches the prior FORCE offset (0.465s fallback to wall-clock), then `playLogoRevealCue()` is fired.
+  - Added RAF cancellation/token guard for repeated intro replays.
+  - `index.html`: FORCE title animation is now bound to `.game-title-wrap.force-active` (no fixed CSS delay), so runtime cue timing controls FORCE start.
+- Start BGM timing:
+  - `src/main.ts`: START scene music no longer starts immediately on START phase transitions.
+  - START BGM is scheduled to begin when start buttons reveal timing begins (1280ms), matching intro staging.
+  - Pending START music timer is cleared when leaving START or when music is toggled off.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - Playwright smoke run attempted via `develop-web-game` script and produced `output/web-game/shot-0.png`.
+## 2026-02-25 (Audio/animation wiring correction)
+- Corrected mistaken dual-wiring between splash and title cues.
+- Splash flow (`src/main.ts`):
+  - Uses only `playSplashScreenCue()` and `SPLASH_STING` seek for splash stage timing.
+  - Removed splash-triggered `playLogoRevealCue()`.
+  - Removed splash post-roll `Loading audio...` extension branch tied to `LOGO_STING` load checks.
+- Start title flow (`src/ui/startScreen.ts`):
+  - Uses only `playLogoRevealCue()` for title sequence.
+  - SPACE starts with first logo cue.
+  - FORCE starts when first logo cue seek reaches FORCE offset, and triggers a second `playLogoRevealCue()` for FORCE beat.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.

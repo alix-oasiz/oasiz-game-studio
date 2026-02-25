@@ -1,6 +1,7 @@
 import { Game } from "../Game";
 import { elements } from "./elements";
 import { createUIFeedback } from "../feedback/uiFeedback";
+import { AudioManager } from "../AudioManager";
 
 export interface StartScreenUI {
   resetStartButtons: (replayTitleIntro?: boolean) => void;
@@ -11,14 +12,29 @@ export function createStartScreenUI(game: Game): StartScreenUI {
   const feedback = createUIFeedback("startScreen");
   const titleWrap = document.getElementById("gameTitleWrap");
   const startShell = document.querySelector<HTMLElement>("#startScreen .start-shell");
+  const FORCE_TITLE_ANIMATION_DELAY_SEC = 0.465;
+  let forceTitleTriggerRafId = 0;
+  let titleIntroRunToken = 0;
+
+  function cancelTitleAudioSync(): void {
+    if (forceTitleTriggerRafId !== 0) {
+      cancelAnimationFrame(forceTitleTriggerRafId);
+      forceTitleTriggerRafId = 0;
+    }
+  }
 
   function playTitleIntro(): void {
     if (!titleWrap && !startShell) {
       return;
     }
 
+    titleIntroRunToken += 1;
+    const introRunToken = titleIntroRunToken;
+    cancelTitleAudioSync();
+
     if (titleWrap) {
       titleWrap.classList.remove("intro-active");
+      titleWrap.classList.remove("force-active");
     }
     if (startShell) {
       startShell.classList.remove("ui-intro-active");
@@ -32,6 +48,35 @@ export function createStartScreenUI(game: Game): StartScreenUI {
     if (startShell) {
       startShell.classList.add("ui-intro-active");
     }
+
+    void AudioManager.playLogoRevealCue();
+    const introStartMs = performance.now();
+    let forceCueTriggered = false;
+    const tickForceTitleTrigger = (): void => {
+      if (introRunToken !== titleIntroRunToken || forceCueTriggered) {
+        forceTitleTriggerRafId = 0;
+        return;
+      }
+
+      const logoCueElapsedSec = AudioManager.getCuePlaybackTime("LOGO_STING");
+      const elapsedSec =
+        logoCueElapsedSec !== null
+          ? logoCueElapsedSec
+          : (performance.now() - introStartMs) / 1000;
+      if (elapsedSec >= FORCE_TITLE_ANIMATION_DELAY_SEC) {
+        forceCueTriggered = true;
+        if (titleWrap) {
+          titleWrap.classList.add("force-active");
+        }
+        void AudioManager.playLogoRevealCue();
+        forceTitleTriggerRafId = 0;
+        return;
+      }
+
+      forceTitleTriggerRafId = requestAnimationFrame(tickForceTitleTrigger);
+    };
+
+    forceTitleTriggerRafId = requestAnimationFrame(tickForceTitleTrigger);
   }
 
   function showJoinSection(): void {

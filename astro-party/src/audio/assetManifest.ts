@@ -33,7 +33,7 @@ const AUDIO_ASSET_ROOT_PATH = "./assets/audio";
 export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
   splashScreenSting: {
     id: "splashScreenSting",
-    channel: "music",
+    channel: "fx",
     relativePath: "music-cue-splash.ogg",
     loop: false,
     volume: 0.72,
@@ -41,7 +41,7 @@ export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
   },
   logoRevealSting: {
     id: "logoRevealSting",
-    channel: "music",
+    channel: "fx",
     relativePath: "music-cue-logo.ogg",
     loop: false,
     volume: 0.72,

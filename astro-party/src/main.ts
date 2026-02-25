@@ -45,6 +45,7 @@ const SPLASH_TIMELINE_SEC = {
   absoluteSafetyDone: 4.2,
   safetyExtension: 3.0,
 } as const;
+const START_SCREEN_BUTTONS_REVEAL_DELAY_MS = 1280;
 
 window.addEventListener("beforeunload", () => {
   game.destroy();
@@ -103,11 +104,8 @@ function runSplashScreen(): Promise<void> {
       return;
     }
 
-    let logoCueStarted = false;
-    let fallbackLogoCueStartSec = 0;
     const fallbackStartMs = performance.now();
     let rafId = 0;
-    let safetyExtensionApplied = false;
     let safetyDeadlineSec = SPLASH_TIMELINE_SEC.absoluteSafetyDone;
     const stage = {
       showLogo: false,
@@ -164,68 +162,30 @@ function runSplashScreen(): Promise<void> {
     const tick = (): void => {
       const fallbackElapsedSec = (performance.now() - fallbackStartMs) / 1000;
       const splashCueElapsedSec = AudioManager.getCuePlaybackTime("SPLASH_STING");
-
-      if (!logoCueStarted) {
-        const shouldStartLogoCue =
-          splashCueElapsedSec !== null
-            ? splashCueElapsedSec >= SPLASH_TIMELINE_SEC.startLogoCue
-            : fallbackElapsedSec >= SPLASH_TIMELINE_SEC.startLogoCue;
-        if (shouldStartLogoCue) {
-          logoCueStarted = true;
-          fallbackLogoCueStartSec = fallbackElapsedSec;
-          applyStage("showLogo");
-          void AudioManager.playLogoRevealCue();
-        }
-      }
-
-      const logoCueElapsedSec = AudioManager.getCuePlaybackTime("LOGO_STING");
       const timelineElapsedSec =
-        logoCueElapsedSec !== null
-          ? logoCueElapsedSec
-          : logoCueStarted
-            ? fallbackElapsedSec - fallbackLogoCueStartSec
-            : 0;
+        splashCueElapsedSec !== null ? splashCueElapsedSec : fallbackElapsedSec;
 
-      if (logoCueStarted && timelineElapsedSec >= SPLASH_TIMELINE_SEC.showTagline) {
+      if (timelineElapsedSec >= SPLASH_TIMELINE_SEC.startLogoCue) {
+        applyStage("showLogo");
+      }
+      if (timelineElapsedSec >= SPLASH_TIMELINE_SEC.showTagline) {
         applyStage("showTagline");
       }
-      if (logoCueStarted && timelineElapsedSec >= SPLASH_TIMELINE_SEC.fadeTagline) {
+      if (timelineElapsedSec >= SPLASH_TIMELINE_SEC.fadeTagline) {
         applyStage("fadeTagline");
       }
-      if (logoCueStarted && timelineElapsedSec >= SPLASH_TIMELINE_SEC.fadeLogo) {
+      if (timelineElapsedSec >= SPLASH_TIMELINE_SEC.fadeLogo) {
         applyStage("fadeLogo");
       }
-      if (logoCueStarted && timelineElapsedSec >= SPLASH_TIMELINE_SEC.fadeOut) {
+      if (timelineElapsedSec >= SPLASH_TIMELINE_SEC.fadeOut) {
         applyStage("fadeOut");
       }
-      if (logoCueStarted && timelineElapsedSec >= SPLASH_TIMELINE_SEC.done) {
-        const waitingOnLogoCue =
-          logoCueElapsedSec === null && !AudioManager.isCueLoaded("LOGO_STING");
-        if (waitingOnLogoCue) {
-          if (!safetyExtensionApplied) {
-            safetyExtensionApplied = true;
-            safetyDeadlineSec =
-              SPLASH_TIMELINE_SEC.absoluteSafetyDone +
-              SPLASH_TIMELINE_SEC.safetyExtension;
-            setStartupLoaderState(true, "Loading audio...");
-            console.log(
-              "[Main.runSplashScreen]",
-              "Extending splash safety window while logo cue loads",
-            );
-          }
-        } else {
-          finish();
-          return;
-        }
+      if (timelineElapsedSec >= SPLASH_TIMELINE_SEC.done) {
+        finish();
+        return;
       }
 
       if (fallbackElapsedSec >= safetyDeadlineSec) {
-        if (safetyExtensionApplied) {
-          console.log(
-            "[Main.runSplashScreen]",
-            "Extended safety window reached, finishing splash",
-          );
-        }
         console.log("[Main.runSplashScreen]", "Falling back to safety timeout");
         finish();
         return;
@@ -257,11 +217,44 @@ async function init(): Promise<void> {
   const lobbyUI = createLobbyUI(game, viewport.isMobile);
   bindEndScreenUI(game);
   let currentPhase: GamePhase = "START";
+  let startMenuMusicTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearStartMenuMusicTimer = (): void => {
+    if (startMenuMusicTimer === null) {
+      return;
+    }
+    clearTimeout(startMenuMusicTimer);
+    startMenuMusicTimer = null;
+  };
+
+  const scheduleStartMenuMusic = (): void => {
+    clearStartMenuMusicTimer();
+    startMenuMusicTimer = setTimeout(() => {
+      startMenuMusicTimer = null;
+      if (currentPhase !== "START") {
+        return;
+      }
+      void AudioManager.playSceneMusic("START", { restart: false });
+    }, START_SCREEN_BUTTONS_REVEAL_DELAY_MS);
+  };
 
   const syncAudioToPhase = (
     phase: GamePhase,
     previousPhase: GamePhase | null,
   ): void => {
+    if (phase === "START") {
+      const shouldWaitForIntro =
+        previousPhase === null || previousPhase !== "START";
+      if (shouldWaitForIntro) {
+        scheduleStartMenuMusic();
+      } else {
+        clearStartMenuMusicTimer();
+        void AudioManager.playSceneMusic("START", { restart: false });
+      }
+      return;
+    }
+
+    clearStartMenuMusicTimer();
     const nextScene = resolveSceneForPhase(phase);
     const previousScene =
       previousPhase !== null ? resolveSceneForPhase(previousPhase) : null;
@@ -374,6 +367,7 @@ async function init(): Promise<void> {
       syncAudioToPhase(currentPhase, currentPhase);
       return;
     }
+    clearStartMenuMusicTimer();
     AudioManager.stopMusic();
   });
 

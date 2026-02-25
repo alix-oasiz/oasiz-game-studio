@@ -18,11 +18,136 @@ interface PlayMusicOptions {
   restart?: boolean;
 }
 
+function collectBackgroundMusicAssetIds(): ReadonlySet<AudioAssetId> {
+  const ids = new Set<AudioAssetId>();
+  const sceneAssets = Object.values(AUDIO_SCENE_MUSIC);
+  for (const sceneAssetId of sceneAssets) {
+    if (sceneAssetId !== null) {
+      ids.add(sceneAssetId);
+    }
+  }
+  return ids;
+}
+
+const BACKGROUND_MUSIC_ASSET_IDS = collectBackgroundMusicAssetIds();
+
 class AudioManagerClass {
   private assetPlayers: Map<AudioAssetId, Howl> = new Map();
   private activeSoundIdByAsset: Map<AudioAssetId, number> = new Map();
   private activeMusicAssetId: AudioAssetId | null = null;
   private activeMusicSoundId: number | null = null;
+  private autoplayBlocked: boolean = false;
+  private pendingBackgroundMusicAssetId: AudioAssetId | null = null;
+
+  constructor() {
+    this.setupUserGestureUnlock();
+  }
+
+  private setupUserGestureUnlock(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleUnlockGesture = (): void => {
+      if (!this.autoplayBlocked) {
+        return;
+      }
+
+      this.autoplayBlocked = false;
+      console.log("[AudioManager.setupUserGestureUnlock]", "User gesture received, retrying BGM");
+      this.resumePendingBackgroundMusic();
+    };
+
+    window.addEventListener("pointerdown", handleUnlockGesture, {
+      once: true,
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("keydown", handleUnlockGesture, {
+      once: true,
+      capture: true,
+    });
+    window.addEventListener("touchstart", handleUnlockGesture, {
+      once: true,
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("mousedown", handleUnlockGesture, {
+      once: true,
+      capture: true,
+      passive: true,
+    });
+  }
+
+  private isAutoplayBlockError(error: unknown): boolean {
+    const message = String(error).toLowerCase();
+    if (message.includes("notallowederror")) {
+      return true;
+    }
+    if (message.includes("not allowed")) {
+      return true;
+    }
+    if (message.includes("user gesture")) {
+      return true;
+    }
+    if (message.includes("audiocontext") && message.includes("start")) {
+      return true;
+    }
+    return false;
+  }
+
+  private isBackgroundMusicAsset(assetId: AudioAssetId): boolean {
+    return BACKGROUND_MUSIC_ASSET_IDS.has(assetId);
+  }
+
+  private rememberPendingBackgroundMusic(assetId: AudioAssetId): void {
+    if (!this.isBackgroundMusicAsset(assetId)) {
+      return;
+    }
+    this.pendingBackgroundMusicAssetId = assetId;
+  }
+
+  private resumePendingBackgroundMusic(): void {
+    if (!SettingsManager.shouldPlayMusic()) {
+      this.pendingBackgroundMusicAssetId = null;
+      return;
+    }
+
+    const pendingAssetId = this.pendingBackgroundMusicAssetId;
+    this.pendingBackgroundMusicAssetId = null;
+    if (pendingAssetId !== null) {
+      void this.playMusicAsset(pendingAssetId, { restart: false });
+    }
+  }
+
+  private handlePlayError(
+    assetId: AudioAssetId,
+    soundId: number,
+    error: unknown,
+  ): void {
+    if (!this.isAutoplayBlockError(error)) {
+      return;
+    }
+
+    this.autoplayBlocked = true;
+    if (this.isBackgroundMusicAsset(assetId) && SettingsManager.shouldPlayMusic()) {
+      this.rememberPendingBackgroundMusic(assetId);
+    }
+
+    const player = this.assetPlayers.get(assetId);
+    if (player) {
+      player.stop(soundId);
+    }
+
+    this.activeSoundIdByAsset.delete(assetId);
+    if (this.activeMusicAssetId === assetId) {
+      this.activeMusicSoundId = null;
+    }
+    console.log(
+      "[AudioManager.handlePlayError]",
+      "Autoplay blocked for " + assetId + ", waiting for user gesture",
+    );
+  }
 
   private isPreloadEnabled(preload: "none" | "metadata" | "auto"): boolean {
     return preload !== "none";
@@ -55,6 +180,7 @@ class AudioManagerClass {
       onplayerror: (_soundId: number, error: unknown) => {
         console.log("[AudioManager.getOrCreateAssetPlayer]", "Playback failed for " + assetId);
         console.log("[AudioManager.getOrCreateAssetPlayer]", String(error));
+        this.handlePlayError(assetId, _soundId, error);
       },
     });
     this.assetPlayers.set(assetId, player);
@@ -64,6 +190,14 @@ class AudioManagerClass {
   private playAsset(assetId: AudioAssetId, restart: boolean): number | null {
     const definition = AUDIO_ASSETS[assetId];
     if (!this.canPlayChannel(definition.channel)) {
+      this.activeSoundIdByAsset.delete(assetId);
+      return null;
+    }
+
+    if (this.autoplayBlocked) {
+      if (this.isBackgroundMusicAsset(assetId) && SettingsManager.shouldPlayMusic()) {
+        this.rememberPendingBackgroundMusic(assetId);
+      }
       this.activeSoundIdByAsset.delete(assetId);
       return null;
     }
@@ -373,6 +507,7 @@ class AudioManagerClass {
 
   stopMusic(): void {
     this.stopActiveMusicPlayer();
+    this.pendingBackgroundMusicAssetId = null;
   }
 
   updateMusicState(isPlaying: boolean): void {
@@ -397,6 +532,7 @@ class AudioManagerClass {
     this.activeSoundIdByAsset.clear();
     this.activeMusicAssetId = null;
     this.activeMusicSoundId = null;
+    this.pendingBackgroundMusicAssetId = null;
     console.log("[AudioManager.destroy]", "Destroyed");
   }
 }
