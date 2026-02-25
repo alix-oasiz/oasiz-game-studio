@@ -48,6 +48,7 @@ export class PlayerController {
   private isShooting: boolean = false; // Track if currently shooting (for hover effect)
   private recoilHoverFrames: number = 0; // Frames of hover damping remaining after last shot
   private wasActionPressed: boolean = false;
+  private autoFireActive: boolean = false;
   
   // Callback for haptic feedback
   private onHaptic: ((type: "light" | "medium" | "heavy" | "success" | "error") => void) | null = null;
@@ -88,6 +89,7 @@ export class PlayerController {
     this.shootCooldown = 0;
     this.recoilHoverFrames = 0;
     this.wasActionPressed = false;
+    this.autoFireActive = false;
     console.log("[PlayerController] Reset player state");
   }
   
@@ -143,7 +145,17 @@ export class PlayerController {
       } else {
         // Shoot when airborne
         firedShotThisFrame = this.shoot();
+        if (firedShotThisFrame) {
+          this.autoFireActive = true;
+        }
       }
+    } else if (actionPressed && !this.player.grounded && this.autoFireActive) {
+      // Hold-to-fire after the player has started shooting in-air.
+      firedShotThisFrame = this.shoot();
+    }
+
+    if (!actionPressed || this.player.grounded) {
+      this.autoFireActive = false;
     }
     
     // Track shooting state for hover effect

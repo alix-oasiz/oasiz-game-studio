@@ -108,6 +108,10 @@ class Game {
   private breakableGroundImg: HTMLImageElement | null = null;
   private breakableGroundPattern: CanvasPattern | null = null;
   private diverImg: HTMLImageElement | null = null;
+  private gemSimpleImg: HTMLImageElement | null = null;
+  private gemOutlinedImg: HTMLImageElement | null = null;
+  private gemSimpleLoaded: boolean = false;
+  private gemOutlinedLoaded: boolean = false;
   private weedsImg: HTMLImageElement | null = null;
   private menuCrabImg: HTMLImageElement | null = null;
   private menuCrabFrame: number = 0;
@@ -823,6 +827,20 @@ class Game {
       console.log("[Game] Diver sprite loaded");
     };
     this.diverImg.src = "assets/diver.png";
+
+    this.gemSimpleImg = new Image();
+    this.gemSimpleImg.onload = () => {
+      this.gemSimpleLoaded = true;
+      console.log("[Game] Pink gem sprite loaded");
+    };
+    this.gemSimpleImg.src = "assets/gem_pink.png";
+
+    this.gemOutlinedImg = new Image();
+    this.gemOutlinedImg.onload = () => {
+      this.gemOutlinedLoaded = true;
+      console.log("[Game] Pink outlined gem sprite loaded");
+    };
+    this.gemOutlinedImg.src = "assets/gem_pink_outlined.png";
 
     // Load weeds sprite sheet (4 cols x 2 rows, 7 sprites)
     this.weedsImg = new Image();
@@ -2337,7 +2355,7 @@ class Game {
       }
     }
 
-    // Weed stomp bounce (no score, no gems, no combo).
+    // Weed stomp bounce (no score, no combo). Drops one gem.
     // Weeds act like springy coral: contact from above bounces the player.
     const weedHitWidth = 20;
     const weedHitHeight = 20;
@@ -2362,6 +2380,8 @@ class Game {
         this.playerController.bounce(false);
         this.playEnemyCrunchSound();
         this.triggerHaptic("light");
+        const weedChunkIndex = Math.max(0, Math.floor(weed.y / CONFIG.CHUNK_HEIGHT));
+        this.spawnSingleDroppedGem(weed.x, weed.y - 10, weedChunkIndex);
         this.stompedWeeds.set(weedKey, { weed, timer: 10 });
         break;
       }
@@ -3083,6 +3103,57 @@ class Game {
         isLarge: isLargeGem,
       });
     }
+  }
+
+  private spawnSingleDroppedGem(x: number, y: number, chunkIndex: number): void {
+    const gemSize = 14;
+    const gemValue = CONFIG.SCORE_PER_GEM;
+    let angle = Math.random() * Math.PI * 2;
+    let speed = 1.0 + Math.random() * 2.0;
+    let spawnX = x;
+    let spawnY = y;
+    let foundSafeSpawn = false;
+
+    for (let attempt = 0; attempt < 14; attempt++) {
+      angle = Math.random() * Math.PI * 2;
+      speed = 1.0 + Math.random() * 2.0;
+      const spawnRadius = 8 + Math.random() * 10 + attempt * 2;
+      spawnX = x + Math.cos(angle) * spawnRadius;
+      spawnY = y + Math.sin(angle) * (spawnRadius * 0.6);
+      const rectX = spawnX - gemSize / 2;
+      const rectY = spawnY - gemSize / 2;
+      const overlapsPlatform = this.getPlatformsNearRect(rectX, rectY, gemSize, gemSize, 2).some((platform) => {
+        return this.overlapsRect(rectX, rectY, gemSize, gemSize, platform.x, platform.y, platform.width, platform.height);
+      });
+      if (overlapsPlatform) continue;
+      if (this.isInsideBreakablePocket(spawnX, spawnY, gemSize, gemSize)) continue;
+      foundSafeSpawn = true;
+      break;
+    }
+
+    if (!foundSafeSpawn) {
+      return;
+    }
+
+    this.droppedGems.push({
+      x: spawnX,
+      y: spawnY,
+      width: gemSize,
+      height: gemSize,
+      value: gemValue,
+      collected: false,
+      chunkIndex,
+      bobOffset: Math.random() * Math.PI * 2,
+      dropped: true,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1.0,
+      life: 0,
+      settled: false,
+      settleFrames: 0,
+      fadeTimer: 0,
+      collectDelay: 8,
+      isLarge: false,
+    });
   }
   
   private spawnHurtAnimation(x: number, y: number, width: number, height: number, color: string, direction: number, spriteType: "shark" | "crab" | "squid" | "puffer"): void {
@@ -3854,40 +3925,65 @@ class Game {
       const bobY = Math.sin(this.frameCount * 0.1 + gem.bobOffset) * 3;
       const spin = this.frameCount * 0.015 + gem.bobOffset * 0.35;
       
-      // Diamond shape (no glow for clean dithering)
-      ctx.save();
-      ctx.translate(gem.x, gem.y + bobY);
-      ctx.rotate(spin);
-      ctx.fillStyle = "#0ff";
-      ctx.beginPath();
-      ctx.moveTo(0, -gem.height / 2);
-      ctx.lineTo(gem.width / 2, 0);
-      ctx.lineTo(0, gem.height / 2);
-      ctx.lineTo(-gem.width / 2, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
+      if (this.gemSimpleImg && this.gemSimpleLoaded) {
+        ctx.save();
+        ctx.translate(gem.x, gem.y + bobY);
+        ctx.rotate(spin * 0.25);
+        ctx.drawImage(
+          this.gemSimpleImg,
+          -gem.width / 2,
+          -gem.height / 2,
+          gem.width,
+          gem.height
+        );
+        ctx.restore();
+      } else {
+        // Fallback diamond if sprite is unavailable
+        ctx.save();
+        ctx.translate(gem.x, gem.y + bobY);
+        ctx.rotate(spin);
+        ctx.fillStyle = "#0ff";
+        ctx.beginPath();
+        ctx.moveTo(0, -gem.height / 2);
+        ctx.lineTo(gem.width / 2, 0);
+        ctx.lineTo(0, gem.height / 2);
+        ctx.lineTo(-gem.width / 2, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     for (const gem of this.droppedGems) {
       if (gem.collected) continue;
 
-      const bobY = 0;
-      ctx.save();
-      ctx.fillStyle = gem.isLarge ? "#ffea7a" : "#ffd84a";
-      ctx.beginPath();
-      ctx.moveTo(gem.x, gem.y - gem.height / 2 + bobY);
-      ctx.lineTo(gem.x + gem.width / 2, gem.y + bobY);
-      ctx.lineTo(gem.x, gem.y + gem.height / 2 + bobY);
-      ctx.lineTo(gem.x - gem.width / 2, gem.y + bobY);
-      ctx.closePath();
-      ctx.fill();
-      if (gem.isLarge) {
-        ctx.strokeStyle = "rgba(255, 255, 220, 0.9)";
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+      const sprite = gem.isLarge ? this.gemOutlinedImg : this.gemSimpleImg;
+      const spriteLoaded = gem.isLarge ? this.gemOutlinedLoaded : this.gemSimpleLoaded;
+      if (sprite && spriteLoaded) {
+        ctx.drawImage(
+          sprite,
+          gem.x - gem.width / 2,
+          gem.y - gem.height / 2,
+          gem.width,
+          gem.height
+        );
+      } else {
+        ctx.save();
+        ctx.fillStyle = gem.isLarge ? "#ffea7a" : "#ffd84a";
+        ctx.beginPath();
+        ctx.moveTo(gem.x, gem.y - gem.height / 2);
+        ctx.lineTo(gem.x + gem.width / 2, gem.y);
+        ctx.lineTo(gem.x, gem.y + gem.height / 2);
+        ctx.lineTo(gem.x - gem.width / 2, gem.y);
+        ctx.closePath();
+        ctx.fill();
+        if (gem.isLarge) {
+          ctx.strokeStyle = "rgba(255, 255, 220, 0.9)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+        ctx.restore();
       }
-      ctx.restore();
     }
   }
   

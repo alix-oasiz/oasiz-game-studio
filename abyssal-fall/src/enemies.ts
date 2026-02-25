@@ -257,7 +257,7 @@ export class StaticEnemy extends BaseEnemy {
   private readonly SHOOT_INTERVAL: number = 120; // 2 seconds at 60fps
   private readonly BULLET_SPEED: number = 3;
   private pendingBullet: EnemyBullet | null = null;
-  private canShoot: boolean = false; // Only 30% of static enemies can shoot
+  private canShoot: boolean = true;
   
   // Attack animation properties
   private attackSprite: HTMLImageElement | null = null;
@@ -288,8 +288,7 @@ export class StaticEnemy extends BaseEnemy {
     this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.8;
     this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.35;
     
-    // 30% chance this crab can shoot
-    this.canShoot = rng.chance(0.3);
+    this.canShoot = true;
     
     // Randomize initial shoot timer so all crabs don't fire at once
     this.shootTimer = Math.floor(rng.range(0, this.SHOOT_INTERVAL));
