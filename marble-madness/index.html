@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Marble Madness</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        touch-action: none;
+        background: radial-gradient(circle at 20% 10%, #243a77 0%, #0c1635 45%, #070d1f 100%);
+        color: #edf2ff;
+        font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+      }
+
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .center-overlay {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(5, 9, 22, 0.55);
+        backdrop-filter: blur(6px);
+      }
+
+      .panel {
+        width: min(92vw, 560px);
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        background: linear-gradient(180deg, rgba(28, 47, 102, 0.95), rgba(11, 21, 48, 0.96));
+        box-shadow:
+          0 24px 50px rgba(0, 0, 0, 0.42),
+          inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        padding: 26px;
+      }
+
+      .title {
+        margin: 0 0 10px;
+        color: #ffffff;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: clamp(2rem, 8.5vw, 3.5rem);
+      }
+
+      .subtitle {
+        margin: 0 0 18px;
+        line-height: 1.45;
+        color: #dbe6ff;
+        font-size: clamp(1rem, 3.7vw, 1.2rem);
+      }
+
+      .button {
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 20px;
+        background: linear-gradient(180deg, #74bcff, #3a79df);
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 1rem;
+        letter-spacing: 0.04em;
+        box-shadow:
+          0 10px 22px rgba(23, 76, 178, 0.46),
+          inset 0 1px 0 rgba(255, 255, 255, 0.32);
+        cursor: pointer;
+      }
+
+      .button:active {
+        transform: translateY(2px);
+      }
+
+      #hud {
+        pointer-events: none;
+      }
+
+      .hud-chip {
+        position: fixed;
+        top: 46px;
+        left: 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(9, 18, 40, 0.62);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+        padding: 9px 14px;
+        font-size: 0.93rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      #speed-label {
+        top: 92px;
+      }
+
+      .control-btn {
+        position: fixed;
+        z-index: 6;
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: linear-gradient(180deg, rgba(34, 58, 123, 0.95), rgba(15, 27, 62, 0.96));
+        color: #f3f7ff;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+      }
+
+      .control-btn svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      #restart-btn {
+        top: 45px;
+        left: calc(100% - 126px);
+      }
+
+      #settings-btn {
+        top: 45px;
+        right: 18px;
+      }
+
+      #mobile-controls {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 0 20px 120px;
+      }
+
+      .steer-btn {
+        width: 88px;
+        height: 88px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: linear-gradient(180deg, rgba(40, 67, 136, 0.95), rgba(20, 32, 68, 0.96));
+        color: #ffffff;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+      }
+
+      .settings-modal {
+        display: grid;
+        place-items: center;
+        z-index: 20;
+        background: rgba(4, 8, 19, 0.72);
+      }
+
+      .settings-card {
+        width: min(88vw, 430px);
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        background: linear-gradient(180deg, rgba(22, 38, 82, 0.96), rgba(10, 18, 40, 0.96));
+        box-shadow: 0 24px 44px rgba(0, 0, 0, 0.45);
+        padding: 18px;
+      }
+
+      .settings-title {
+        margin: 0 0 12px;
+        font-size: 1.05rem;
+        letter-spacing: 0.06em;
+      }
+
+      .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      }
+
+      .setting-row:last-of-type {
+        border-bottom: 0;
+      }
+
+      .setting-label {
+        font-weight: 700;
+      }
+
+      .toggle-btn {
+        min-width: 84px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(13, 25, 54, 0.78);
+        color: #edf4ff;
+        padding: 8px 12px;
+        font-weight: 700;
+      }
+
+      .toggle-btn[data-enabled="true"] {
+        background: linear-gradient(180deg, #74bcff, #3a79df);
+      }
+
+      .modal-actions {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      @media (pointer: coarse) {
+        #restart-btn,
+        #settings-btn {
+          top: 120px;
+        }
+
+        .hud-chip {
+          top: 122px;
+          left: 16px;
+        }
+
+        #speed-label {
+          top: 168px;
+        }
+      }
+
+      @media (pointer: fine) {
+        .mobile-only {
+          display: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas" aria-label="Marble Madness"></canvas>
+
+      <div id="start-screen" class="overlay center-overlay">
+        <div class="panel">
+          <h1 class="title">Marble Madness</h1>
+          <p class="subtitle">
+            Roll downhill and steer left or right. Desktop uses arrow keys or A and D. Mobile uses thumb buttons.
+          </p>
+          <button id="start-btn" class="button">Start Run</button>
+        </div>
+      </div>
+
+      <div id="hud" class="overlay hidden">
+        <div id="time-label" class="hud-chip">Time: 0.00s</div>
+        <div id="speed-label" class="hud-chip">Speed: 0.0</div>
+      </div>
+
+      <button id="restart-btn" class="control-btn hidden" aria-label="Restart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-3-6.7" />
+          <path d="M21 3v6h-6" />
+        </svg>
+      </button>
+
+      <button id="settings-btn" class="control-btn hidden" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 0 1 0 2.8 2 2 0 0 1-2.8 0l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 0 1-2.8 0 2 2 0 0 1 0-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 0 1 0-2.8 2 2 0 0 1 2.8 0l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 .9-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5h.1a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5.9H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
+        </svg>
+      </button>
+
+      <div id="settings-modal" class="overlay settings-modal hidden">
+        <div class="settings-card">
+          <h2 class="settings-title">Settings</h2>
+          <div class="setting-row">
+            <div class="setting-label">Music</div>
+            <button id="toggle-music" class="toggle-btn" data-enabled="true">ON</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">FX</div>
+            <button id="toggle-fx" class="toggle-btn" data-enabled="true">ON</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">Haptics</div>
+            <button id="toggle-haptics" class="toggle-btn" data-enabled="true">ON</button>
+          </div>
+          <div class="modal-actions">
+            <button id="settings-close" class="button">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="game-over-screen" class="overlay center-overlay hidden">
+        <div class="panel">
+          <h2 class="title" style="font-size: clamp(1.9rem, 7vw, 2.8rem)">Finish</h2>
+          <p id="result-label" class="subtitle">Time: 0.00s</p>
+          <button id="play-again-btn" class="button">Run Again</button>
+        </div>
+      </div>
+
+      <div id="mobile-controls" class="mobile-only hidden">
+        <button id="left-btn" class="steer-btn">LEFT</button>
+        <button id="right-btn" class="steer-btn">RIGHT</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
