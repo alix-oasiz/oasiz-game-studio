@@ -65,8 +65,10 @@ Audio:
 ## Server Topology
 
 - `server/src/rooms/*`: authoritative Colyseus room/session behavior.
-- `server/src/index.ts`: server bootstrap, transport config, HTTP routes, and Colyseus monitor mounting/auth gate.
-- `server/src/*` HTTP endpoints: matchmaking and health checks.
+- `server/src/index.ts`: server bootstrap, transport config, HTTP routes, Colyseus monitor mounting/auth gate, and ops stats endpoint wiring.
+- `server/src/monitoring/*`: in-process operational counters/rate tracking and RTT summaries for `/ops/stats`.
+- `server/src/*` HTTP endpoints: matchmaking, health checks, and ops stats.
+- `server/loadtest/*`: synthetic client harnesses (`roomcode`, `lobbyfill`, capacity sweep orchestrator) used from external load-generator machines.
 
 ## Key Ownership Boundaries
 

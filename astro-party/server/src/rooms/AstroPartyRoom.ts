@@ -13,6 +13,7 @@ import type {
 } from "../../../shared/sim/types.js";
 import { ASTEROID_COLLIDER_VERTEX_SCALE } from "../../../shared/sim/constants.js";
 import { unregisterRoomCodeByRoomId } from "../http/roomCodeRegistry.js";
+import { opsStats } from "../monitoring/OpsStats.js";
 import {
   AstroPartyRoomState,
   RoomPlayerMetaState,
@@ -112,6 +113,7 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
     this.setState(new AstroPartyRoomState());
     this.state.roomCode = roomCode;
     this.state.debugToolsEnabled = debugToolsEnabled;
+    opsStats.recordRoomCreated(this.roomId);
 
     this.simulation = new AstroPartySimulation(
       roomCode,
@@ -182,6 +184,7 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
           this.state.devModeEnabled = enabled;
         },
         onError: (sessionId: string, code: string, message: string) => {
+          opsStats.recordRoomError(code);
           const target = this.clients.find((client) => client.sessionId === sessionId);
           if (target) {
             target.send("evt:error", { code, message });
@@ -226,51 +229,65 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
     }, tickDurationMs);
 
     this.onMessage("cmd:set_name", (client, payload: { name?: string }) => {
+      opsStats.recordCommand("cmd:set_name");
       this.simulation.setName(client.sessionId, payload.name ?? "");
     });
 
     this.onMessage("cmd:input", (client, payload: PlayerInputMessage) => {
+      opsStats.recordCommand("cmd:input");
+      opsStats.recordInput(
+        typeof payload?.rttMs === "number" ? payload.rttMs : null,
+      );
       this.simulation.sendInput(client.sessionId, payload);
     });
 
     this.onMessage("cmd:dash", (client, payload: DashMessage = {}) => {
+      opsStats.recordCommand("cmd:dash");
       this.simulation.queueDash(client.sessionId, payload);
     });
 
     this.onMessage("cmd:start_match", (client) => {
+      opsStats.recordCommand("cmd:start_match");
       this.simulation.startMatch(client.sessionId);
     });
 
     this.onMessage("cmd:continue_sequence", (client) => {
+      opsStats.recordCommand("cmd:continue_sequence");
       this.simulation.continueMatchSequence(client.sessionId);
     });
 
     this.onMessage("cmd:restart_match", (client) => {
+      opsStats.recordCommand("cmd:restart_match");
       this.simulation.restartToLobby(client.sessionId);
     });
 
     this.onMessage("cmd:set_mode", (client, payload: SetModeMessage) => {
+      opsStats.recordCommand("cmd:set_mode");
       this.simulation.setMode(client.sessionId, payload.mode);
     });
 
     this.onMessage("cmd:set_map", (client, payload: SetMapMessage) => {
+      opsStats.recordCommand("cmd:set_map");
       this.simulation.setMap(client.sessionId, payload.mapId);
     });
 
     this.onMessage(
       "cmd:set_advanced_settings",
       (client, payload: SetAdvancedSettingsMessage) => {
+        opsStats.recordCommand("cmd:set_advanced_settings");
         this.simulation.setAdvancedSettings(client.sessionId, payload);
       },
     );
 
     this.onMessage("cmd:dev_mode", (client, payload: SetDevModeMessage) => {
+      opsStats.recordCommand("cmd:dev_mode");
       this.simulation.setDevMode(client.sessionId, Boolean(payload?.enabled));
     });
 
     this.onMessage(
       "cmd:dev_grant_powerup",
       (client, payload: DevGrantPowerUpMessage) => {
+        opsStats.recordCommand("cmd:dev_grant_powerup");
         if (!payload || !isDevGrantPowerUpType(payload.type)) return;
         this.simulation.devGrantPowerUp(client.sessionId, payload.type);
       },
@@ -279,30 +296,37 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
     this.onMessage(
       "cmd:dev_eject_pilot",
       (client, _payload: DevEjectPilotMessage) => {
+        opsStats.recordCommand("cmd:dev_eject_pilot");
         this.simulation.devEjectPilot(client.sessionId);
       },
     );
 
     this.onMessage("cmd:add_ai_bot", (client) => {
+      opsStats.recordCommand("cmd:add_ai_bot");
       this.simulation.addAIBot(client.sessionId);
     });
 
     this.onMessage(
       "cmd:add_local_player",
       (client, payload: { keySlot?: number } = {}) => {
+        opsStats.recordCommand("cmd:add_local_player");
         this.simulation.addLocalPlayer(client.sessionId, payload.keySlot);
       },
     );
 
     this.onMessage("cmd:remove_bot", (client, payload: { playerId: string }) => {
+      opsStats.recordCommand("cmd:remove_bot");
       this.simulation.removeBot(client.sessionId, payload.playerId);
     });
 
     this.onMessage("cmd:kick_player", (client, payload: { playerId: string }) => {
+      opsStats.recordCommand("cmd:kick_player");
       this.simulation.kickPlayer(client.sessionId, payload.playerId);
     });
 
     this.onMessage("cmd:ping", (client, payload: { sentAt?: number } = {}) => {
+      opsStats.recordCommand("cmd:ping");
+      opsStats.recordPing();
       client.send("evt:pong", {
         sentAt: payload.sentAt ?? Date.now(),
         serverAt: Date.now(),
@@ -311,6 +335,7 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
   }
 
   onJoin(client: Client, options?: { playerName?: string }): void {
+    opsStats.recordClientJoined(client.sessionId);
     this.simulation.addHuman(client.sessionId, options?.playerName);
     this.asteroidColliderSentBySession.set(client.sessionId, new Set());
     if (this.latestSnapshot) {
@@ -319,11 +344,13 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
   }
 
   onLeave(client: Client): void {
+    opsStats.recordClientLeft(client.sessionId);
     this.simulation.removeSession(client.sessionId);
     this.asteroidColliderSentBySession.delete(client.sessionId);
   }
 
   onDispose(): void {
+    opsStats.recordRoomDisposed(this.roomId);
     this.asteroidColliderById.clear();
     this.asteroidColliderSentBySession.clear();
     unregisterRoomCodeByRoomId(this.roomId);
@@ -410,6 +437,7 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
   }
 
   private broadcastSnapshotToClients(snapshot: SnapshotPayload): void {
+    opsStats.recordSnapshotFanout(this.clients.length);
     for (const client of this.clients) {
       this.sendSnapshotToClient(client, snapshot);
     }

@@ -17,6 +17,8 @@
     "preview": "vite preview",
     "loadtest": "npm --prefix server run loadtest --",
     "loadtest:roomcode": "npm --prefix server run loadtest:roomcode --",
+    "loadtest:lobbyfill": "npm --prefix server run loadtest:lobbyfill --",
+    "loadtest:capacity": "npm --prefix server run loadtest:capacity --",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write 'src/**/*.{ts,tsx,css,html}'"
   },

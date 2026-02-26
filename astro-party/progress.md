@@ -1119,6 +1119,26 @@ TODO / Next suggestions
   - make server-side failure cause visible without manual log commands
 - Validation:
   - script-template update only; not executed in this workspace
+## 2026-02-26 (Ops stats + capacity sweep wiring)
+- Added lightweight server-side ops stats tracking and endpoint:
+  - new `server/src/monitoring/OpsStats.ts`
+  - instrumented `AstroPartyRoom` join/leave, command traffic, snapshot fanout, room errors, and client-reported RTT samples
+  - mounted `/ops/stats` endpoint in `server/src/index.ts`
+  - optional token gate via `OPS_STATS_TOKEN` (`x-ops-token` header)
+- Added staged capacity sweep runner:
+  - new `server/loadtest/run-capacity-sweep.ts`
+  - executes incremental `loadtest:roomcode` stages
+  - writes per-stage logs + summary JSON/CSV
+  - optional DigitalOcean monitoring metric capture per stage window (`DO_API_TOKEN` + `DO_DROPLET_ID`)
+- Script wiring:
+  - `server/package.json`: `loadtest:capacity`
+  - root `package.json`: `loadtest:capacity`
+- Docs/architecture updates:
+  - `server/README.md`: capacity sweep usage + `/ops/stats` details + new env vars
+  - `ARCHITECTURE.md`: server monitoring ownership map updated
+- Validation:
+  - `astro-party/server`: `npm run typecheck` passed
+  - `astro-party/server`: `npm run build` passed
 ## 2026-02-26 (Deploy branch-switch + lockfile drift fix)
 - Hardened `server/server-deploy-script.txt` to prevent checkout failures from local deploy drift:
   - added pre-switch `git reset --hard` + `git clean -fd`
@@ -1130,3 +1150,34 @@ TODO / Next suggestions
   - keep deploy repo clean between runs even when `npm ci` fallback path is used
 - Validation:
   - script update only; not executed in this workspace
+## 2026-02-26 (Lobby-fill loadtest runner + capacity runner mode switch)
+- Added runnable lobby-fill loadtest launcher:
+  - new `server/loadtest/run-lobbyfill-loadtest.ts`
+  - wires CLI args/env to `lobbyfill.loadtest.ts`
+  - auto-resolves endpoint from `VITE_COLYSEUS_WS_URL` and writes default logs to `loadtest-logs/loadtest-lobbyfill-*.log`
+- Improved lobby-fill room code generation stability:
+  - `server/loadtest/lobbyfill.loadtest.ts` now salts generated room codes per run to avoid cross-run collisions
+  - room-code prefix input is sanitized against allowed room-code alphabet
+- Updated capacity sweep orchestration:
+  - `server/loadtest/run-capacity-sweep.ts` now supports `--runner roomcode|lobbyfill` (default `lobbyfill`)
+  - room-code is only required when using `roomcode` runner
+  - passes lobby-fill specific controls (`usersPerRoom`, `roomMaxPlayers`, `waitForGroupMs`, `startDelayMs`, `startFallbackMs`, `roomCodePrefix`) per stage
+- Script wiring:
+  - `server/package.json`: added `loadtest:lobbyfill`
+  - `astro-party/package.json`: added `loadtest:lobbyfill`
+- Docs:
+  - `server/README.md` updated with lobby-fill usage, new capacity flags/env vars, and implementation file list
+- Validation:
+  - pending local command validation in this workspace (next step: run server loadtest scripts once against target endpoint)
+## 2026-02-26 (Lobby-fill create/join parity fix with game matchmaking)
+- Fixed lobby-fill room creation flow to mirror game client transport behavior:
+  - leaders now create rooms through `POST /match/create` and consume returned seat reservations
+  - followers continue joining through `POST /match/join` by returned room code
+- Root cause addressed:
+  - previous leader `client.create(...)` path bypassed server room-code registry population, causing follower `NOT_FOUND` on `/match/join`
+- Simplified loadtest knobs/docs to match actual server API behavior:
+  - removed `roomMaxPlayers` / `roomCodePrefix` passthrough from lobbyfill launcher and capacity-sweep lobbyfill runner
+  - updated `server/README.md` flags/env var list accordingly
+- Validation:
+  - `astro-party/server`: `npm run typecheck` passed
+  - `astro-party/server`: `npm run build` passed

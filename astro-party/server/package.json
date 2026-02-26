@@ -9,7 +9,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/server/src/index.js",
     "loadtest": "npm run loadtest:roomcode --",
-    "loadtest:roomcode": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-roomcode-loadtest.ts"
+    "loadtest:roomcode": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-roomcode-loadtest.ts",
+    "loadtest:lobbyfill": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-lobbyfill-loadtest.ts",
+    "loadtest:capacity": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-capacity-sweep.ts"
   },
   "dependencies": {
     "@colyseus/monitor": "^0.16.7",

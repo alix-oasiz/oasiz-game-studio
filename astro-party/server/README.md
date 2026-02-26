@@ -45,21 +45,34 @@ Run from `astro-party/server`:
 npm run loadtest -- --roomCode BJ9H --numClients 24 --delay 20 --durationSec 90
 ```
 
-Or from game root (`astro-party/`):
+Room-code runner (join pre-existing room):
 
 ```bash
 npm run loadtest:roomcode -- --roomCode BJ9H --numClients 24 --delay 20 --durationSec 90
 ```
 
+Lobby-fill runner (auto-create/fill rooms, auto-start each full lobby):
+
+```bash
+npm run loadtest:lobbyfill -- --numClients 40 --usersPerRoom 4 --delay 20 --durationSec 120
+```
+
+Staged single-droplet capacity sweep (run from your load-generator machine, not the server):
+
+```bash
+npm run loadtest:capacity -- --runner lobbyfill --stages 20,40,60,80 --usersPerRoom 4 --durationSec 300 --cooldownSec 20
+```
+
 Behavior:
 
-- each client joins the exact room code via `/match/join` + seat reservation consume
+- roomcode mode joins an exact room code via `/match/join` + seat reservation consume
+- lobbyfill mode groups clients (`usersPerRoom`), leader creates room with room code, followers join that room code, and leader sends `cmd:start_match` when group is full
 - input spam starts only in `PLAYING`, pauses in other phases, and resumes when `PLAYING` returns
 - reads `evt:snapshot` payloads and discards them (with metrics)
 - sends `cmd:input` (`buttonA` + `buttonB`) at default client debounce (`1000/60`), aligned to server `tickDurationMs` when available
 - on room errors, attempts a graceful leave (`leave(false)`) and relies on `onLeave` for terminal cleanup
 
-Useful flags:
+Room-code flags (`loadtest:roomcode`):
 
 - `--roomCode <ABCD>` (required)
 - `--numClients <n>`
@@ -69,6 +82,38 @@ Useful flags:
 - `--summaryIntervalMs <n>` (default `5000`)
 - `--inputDebounceMs <n>` (default `16.666...`)
 - `--autoExitOnComplete true|false` (default `true` when duration is set)
+
+Lobby-fill flags (`loadtest:lobbyfill`):
+
+- `--numClients <n>`
+- `--usersPerRoom <n>` (default `4`)
+- `--waitForGroupMs <n>` (default `30000`)
+- `--startDelayMs <n>` (default `500`)
+- `--startFallbackMs <n>` (default `12000`)
+- `--delay <ms>`
+- `--durationSec <n>` / `--durationMs <n>`
+- `--requestTimeoutMs <n>` (default `15000`)
+- `--summaryIntervalMs <n>` (default `5000`)
+- `--inputDebounceMs <n>` (default `16.666...`)
+- `--autoExitOnComplete true|false` (default `true` when duration is set)
+
+Capacity sweep flags (`loadtest:capacity`):
+
+- `--runner roomcode|lobbyfill` (default `lobbyfill`)
+- `--roomCode <ABCD>` (required only when `--runner roomcode`)
+- `--usersPerRoom <n>` (lobbyfill runner)
+- `--waitForGroupMs <n>` (lobbyfill runner)
+- `--startDelayMs <n>` (lobbyfill runner)
+- `--startFallbackMs <n>` (lobbyfill runner)
+- `--stages 20,40,60` (required capacity steps; default `20,40,60,80`)
+- `--durationSec <n>` (default `300`)
+- `--cooldownSec <n>` (default `20`)
+- `--delay <ms>` (default `20`)
+- `--outputDir <path>` (optional)
+- `--endpoint <ws://...>` (optional)
+- `--requestTimeoutMs <n>` (optional)
+- `--doToken <token>` + `--doDropletId <id>` (optional DigitalOcean metric capture)
+- `--doInterface public|private` (default `public`)
 
 Endpoint resolution:
 
@@ -81,22 +126,55 @@ Output logs:
 - If `--output <path>` is provided, that path is used.
 - If `--output` is omitted, the launcher writes to:
   - `./loadtest-logs/loadtest-roomcode-YYYYMMDD-HHmmss.log`
+  - `./loadtest-logs/loadtest-lobbyfill-YYYYMMDD-HHmmss.log`
 - The launcher prints the chosen path on startup:
   - `[LoadTest.run-roomcode] Using output log <path>`
+  - `[LoadTest.run-lobbyfill] Using output log <path>`
 
 Environment variable equivalents:
 
+- `LOADTEST_CAPACITY_RUNNER`
 - `LOADTEST_ROOM_CODE`
+- `LOADTEST_USERS_PER_ROOM`
+- `LOADTEST_WAIT_FOR_GROUP_MS`
+- `LOADTEST_START_DELAY_MS`
+- `LOADTEST_START_FALLBACK_MS`
 - `LOADTEST_REQUEST_TIMEOUT_MS`
 - `LOADTEST_DURATION_SEC` / `LOADTEST_DURATION_MS`
 - `LOADTEST_AUTO_EXIT_ON_COMPLETE`
 - `LOADTEST_SUMMARY_INTERVAL_MS`
 - `LOADTEST_INPUT_DEBOUNCE_MS`
+- `LOADTEST_CAPACITY_STAGES`
+- `LOADTEST_CAPACITY_OUTPUT_DIR`
+- `LOADTEST_COOLDOWN_SEC`
+- `DO_API_TOKEN`
+- `DO_DROPLET_ID`
+- `DO_DROPLET_INTERFACE`
 
 Implementation files:
 
 - `loadtest/minimal-roomcode.loadtest.ts`
+- `loadtest/lobbyfill.loadtest.ts`
 - `loadtest/run-roomcode-loadtest.ts`
+- `loadtest/run-lobbyfill-loadtest.ts`
+- `loadtest/run-capacity-sweep.ts`
+
+## Ops Stats Endpoint
+
+The server exposes a lightweight ops endpoint for app-level metrics:
+
+- default path: `/ops/stats`
+- payload includes:
+  - room/client counters
+  - input/ping/snapshot fanout totals and rates
+  - rolling RTT summary (`p50`, `p95`, `p99`) from client-reported `rttMs`
+  - process memory + load averages
+  - current matchMaker room/client snapshot
+
+Security:
+
+- set `OPS_STATS_TOKEN` to require `x-ops-token` header
+- if unset, endpoint is public on the server port
 
 ## Colyseus Monitor
 
@@ -159,6 +237,9 @@ Shell-provided environment variables still work and take precedence over `.env`.
 - `COLYSEUS_MONITOR_PATH` (default: `/colyseus`)
 - `COLYSEUS_MONITOR_USERNAME` (optional; requires password too)
 - `COLYSEUS_MONITOR_PASSWORD` (optional; requires username too)
+- `OPS_STATS_ENABLED` (default: `true`)
+- `OPS_STATS_PATH` (default: `/ops/stats`)
+- `OPS_STATS_TOKEN` (optional; requires `x-ops-token` header when set)
 - `DEBUG_TOOLS_ENABLED` (default: `false`)
 
 ## Debug tools

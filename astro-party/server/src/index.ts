@@ -6,6 +6,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { monitor } from "@colyseus/monitor";
 import type { RequestHandler } from "express";
 import { AstroPartyRoom } from "./rooms/AstroPartyRoom.js";
+import { opsStats } from "./monitoring/OpsStats.js";
 import {
   generateUniqueRoomCode,
   getRoomIdByCode,
@@ -30,6 +31,9 @@ let monitorEnabled = parseBooleanEnv(
 const monitorPath = normalizeMonitorPath(process.env.COLYSEUS_MONITOR_PATH);
 const monitorUsername = readOptionalEnv(process.env.COLYSEUS_MONITOR_USERNAME);
 const monitorPassword = readOptionalEnv(process.env.COLYSEUS_MONITOR_PASSWORD);
+const opsStatsEnabled = parseBooleanEnv(process.env.OPS_STATS_ENABLED, true);
+const opsStatsPath = normalizeOpsPath(process.env.OPS_STATS_PATH);
+const opsStatsToken = readOptionalEnv(process.env.OPS_STATS_TOKEN);
 
 if (
   monitorEnabled &&
@@ -61,6 +65,14 @@ function normalizeMonitorPath(rawValue: string | undefined): string {
   if (typeof rawValue !== "string") return "/colyseus";
   const trimmed = rawValue.trim();
   if (trimmed.length <= 0) return "/colyseus";
+  if (trimmed.startsWith("/")) return trimmed;
+  return "/" + trimmed;
+}
+
+function normalizeOpsPath(rawValue: string | undefined): string {
+  if (typeof rawValue !== "string") return "/ops/stats";
+  const trimmed = rawValue.trim();
+  if (trimmed.length <= 0) return "/ops/stats";
   if (trimmed.startsWith("/")) return trimmed;
   return "/" + trimmed;
 }
@@ -99,6 +111,30 @@ function createBasicAuthMiddleware(
     }
 
     next();
+  };
+}
+
+function createOpsTokenMiddleware(token: string | null): RequestHandler {
+  return (req, res, next) => {
+    if (!token) {
+      next();
+      return;
+    }
+    const provided = req.headers["x-ops-token"];
+    const providedValue =
+      typeof provided === "string"
+        ? provided
+        : Array.isArray(provided)
+          ? provided[0]
+          : null;
+    if (providedValue === token) {
+      next();
+      return;
+    }
+    res.status(401).json({
+      error: "UNAUTHORIZED",
+      message: "Missing or invalid x-ops-token",
+    });
   };
 }
 
@@ -148,6 +184,54 @@ if (monitorEnabled) {
       "Colyseus monitor enabled at " + monitorPath + " without auth",
     );
   }
+}
+
+if (opsStatsEnabled) {
+  app.get(opsStatsPath, createOpsTokenMiddleware(opsStatsToken), async (_req, res) => {
+    try {
+      const listings = await matchMaker.query({ name: "astro_party" });
+      const roomCount = listings.length;
+      const lockedRoomCount = listings.reduce(
+        (acc, listing) => acc + (listing.locked ? 1 : 0),
+        0,
+      );
+      const clientsConnected = listings.reduce(
+        (acc, listing) =>
+          acc + (Number.isFinite(listing.clients) ? (listing.clients as number) : 0),
+        0,
+      );
+      const maxClientsTotal = listings.reduce(
+        (acc, listing) =>
+          acc +
+          (Number.isFinite(listing.maxClients)
+            ? (listing.maxClients as number)
+            : 0),
+        0,
+      );
+
+      res.json({
+        ...opsStats.snapshot(),
+        matchMaker: {
+          astroPartyRoomCount: roomCount,
+          astroPartyLockedRoomCount: lockedRoomCount,
+          astroPartyClientsConnected: clientsConnected,
+          astroPartyMaxClientsTotal: maxClientsTotal,
+        },
+      });
+    } catch (error) {
+      console.error("[Server] Failed to build ops stats", error);
+      res.status(500).json({
+        error: "OPS_STATS_FAILED",
+        message: "Failed to build ops stats",
+      });
+    }
+  });
+  console.log(
+    "[Server]",
+    "Ops stats endpoint enabled at " +
+      opsStatsPath +
+      (opsStatsToken ? " with token auth" : " without auth"),
+  );
 }
 
 app.get("/healthz", (_req, res) => {
