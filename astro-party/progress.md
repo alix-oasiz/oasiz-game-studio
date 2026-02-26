@@ -917,3 +917,107 @@ TODO / Next suggestions
   - FORCE starts when first logo cue seek reaches FORCE offset, and triggers a second `playLogoRevealCue()` for FORCE beat.
 - Validation:
   - `astro-party`: `bun run typecheck` passed.
+## 2026-02-26 (Agent governance expansion)
+- Expanded `astro-party/AGENTS.md` with stricter delivery/process rules:
+  - Small, iterable implementation steps by default unless explicit major rewrite request.
+  - Mandatory evaluate-first approach before implementation.
+  - Reuse-first / central-manager architecture policy to prevent logic duplication.
+  - Explicit escalation rule: present teardown/replacement options to user before major manager/module replacement.
+- Added canonical progress logging contract in `AGENTS.md`:
+  - `progress.md` is append-only, date-scoped, and must include validation status per milestone.
+  - Style aligned with existing `progress.md` convention (scope, files, validation, follow-ups).
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+## 2026-02-26 (Architecture hydration + learning loop guardrails)
+- Expanded `astro-party/AGENTS.md` with durable process guardrails:
+  - Added continuous architecture hydration rule:
+    - update architecture ownership/constraints in the same milestone as notable code changes
+    - explicitly capture user hard constraints as do/don't guardrails
+  - Added learning loop contract:
+    - document wrong-start assumptions, detection signal, corrected approach, and prevention guardrail
+    - mirror stable learnings from `progress.md` back into `AGENTS.md`
+- Intent:
+  - avoid repeating known mistakes
+  - keep guidance synchronized with real architecture evolution
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone
+## 2026-02-26 (Docs split: policy vs architecture vs learning)
+- Reorganized project guidance docs to reduce `AGENTS.md` bloat and clarify responsibilities:
+  - `AGENTS.md` now focuses on execution policy and hard guardrails.
+  - Added `ARCHITECTURE.md` as the living architecture/ownership map.
+  - Added `learning.md` as append-only implementation learning memory with anti-repeat guardrails.
+  - Updated `README.md` to surface these governance docs in one place.
+- Seeded `learning.md` with concrete recent lessons:
+  - demo tutorial input should reuse canonical input pipeline
+  - demo teardown must precede create/join transitions
+  - splash/logo/start cue sequencing needs single-owner timing control
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone
+## 2026-02-26 (Context bootstrap rule for agent workflow)
+- Updated `astro-party/AGENTS.md` with a new "Context Bootstrap" section to prevent context-free file diving.
+- New rule requires selective pre-read flow:
+  - `AGENTS.md` -> `ARCHITECTURE.md` first
+  - then task-specific docs only (audio/shared/server/general)
+  - check `learning.md` before coding
+  - append `progress.md` milestone after implementation
+- Intent:
+  - preserve implementation speed while avoiding context misses
+  - reduce repeated mistakes caused by missing architectural/task constraints
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone
+## 2026-02-26 (Governance doc drift tracker)
+- Added governance drift detection tooling so root/game guidance updates cannot be silently missed:
+  - New script: `scripts/governance-docs.ts` with:
+    - `check`: fails when tracked governance docs changed since last acknowledgment.
+    - `ack`: records reviewed snapshot with required `--note`.
+  - New package scripts:
+    - `bun run governance:check`
+    - `bun run governance:ack -- --note "<review summary>"`
+  - New state file:
+    - `governance-docs-state.json` (snapshot of tracked governance-doc hashes + acknowledgment metadata).
+- Updated process docs:
+  - `AGENTS.md` Context Bootstrap now requires `governance:check` before deep implementation exploration.
+  - `README.md` now documents governance drift commands.
+- Tracked docs monitored by the script:
+  - repo root `AGENTS.md`, `README.md`
+  - `astro-party/AGENTS.md`, `README.md`, `ARCHITECTURE.md`, `learning.md`
+- Validation:
+  - `astro-party`: `bun run governance:ack -- --note "Initial governance baseline after adding drift tracking and review workflow."` passed.
+  - `astro-party`: `bun run governance:check` passed.
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+## 2026-02-26 (Governance check rollback)
+- Removed local governance hash-check workflow (`governance:check` / `governance:ack`).
+- Reason:
+  - local repo snapshot checks are not a reliable signal for upstream/main maintenance updates
+  - this added process overhead without solving the actual source-of-truth drift problem
+- Changes:
+  - removed package scripts for governance checks from `astro-party/package.json`
+  - removed governance command references from `astro-party/AGENTS.md` bootstrap flow
+  - removed governance drift command section from `astro-party/README.md`
+  - removed local governance checker artifacts (`scripts/governance-docs.ts`, `governance-docs-state.json`)
+- Follow-up direction:
+  - if reintroduced, tracking should be upstream-aware (main/default branch or maintainer source), not local-only hash state
+- Validation:
+  - docs/tooling-only rollback; no runtime code changes
+  - `bun run typecheck` not rerun for this docs/tooling rollback
+  - `bun run build` not rerun for this docs/tooling rollback
+## 2026-02-26 (Move agent-only learning doc under `.agents/`)
+- Updated doc layout so strictly agent-specific memory lives under `astro-party/.agents/`.
+- Changes:
+  - moved `astro-party/learning.md` -> `astro-party/.agents/learning.md`
+  - updated active references in:
+    - `astro-party/AGENTS.md`
+    - `astro-party/README.md`
+- Architecture doc remains top-level (`ARCHITECTURE.md`) as a general team/system reference, not agent-only.
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone

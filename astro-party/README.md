@@ -9,6 +9,13 @@ High-level overview of the Astro Party game package.
 - `shared/`: shared simulation/types used by server and client-local simulation paths.
 - `index.html`: game shell + UI layout.
 
+Project governance/docs:
+
+- `AGENTS.md`: implementation policy + guardrails.
+- `ARCHITECTURE.md`: current architecture/ownership map.
+- `.agents/learning.md`: append-only agent learning memory and anti-repeat guardrails.
+- `progress.md`: append-only milestone timeline with validation status.
+
 ## Local development
 
 Use two terminals: one for the server, one for the client.
