@@ -579,36 +579,6 @@ export class LevelSpawner {
           }
         }
 
-        // Slightly de-rectangularize larger islands while keeping connected chunks.
-        if (cells.length >= 6 && rng.chance(0.35)) {
-          const cornerIndex = rng.int(0, 1) === 0 ? 0 : widthBlocks - 1;
-          const removeRow = rng.int(0, 1) === 0 ? baseRow : baseRow + heightBlocks - 1;
-          const idx = cells.findIndex((c) => c.row === removeRow && c.col === startCol + cornerIndex);
-          if (idx >= 0) cells.splice(idx, 1);
-        }
-
-        let valid = true;
-        for (const c of cells) {
-          if (!canPlaceTile(c.row, c.col)) {
-            valid = false;
-            break;
-          }
-        }
-        if (!valid) continue;
-
-        for (const c of cells) {
-          chunk.platforms.push({
-            x: c.col * BLOCK,
-            y: chunk.y + c.row * BLOCK,
-            width: BLOCK,
-            height: BLOCK,
-            isWall: false,
-            breakable: true,
-            hp: 1,
-            chunkIndex: chunk.index,
-          });
-        }
-        madeIsland = true;
       }
       if (madeIsland) placed++;
     }
