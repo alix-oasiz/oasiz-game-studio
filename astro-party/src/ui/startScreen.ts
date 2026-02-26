@@ -6,6 +6,7 @@ import { AudioManager } from "../AudioManager";
 export interface StartScreenUI {
   resetStartButtons: (replayTitleIntro?: boolean) => void;
   playTitleIntro: () => void;
+  cancelTitleIntroAudioSync: () => void;
   setBeforeAction: (fn: (() => Promise<void>) | null) => void;
 }
 
@@ -91,6 +92,11 @@ export function createStartScreenUI(
     };
 
     forceTitleTriggerRafId = requestAnimationFrame(tickForceTitleTrigger);
+  }
+
+  function cancelTitleIntroAudioSync(): void {
+    titleIntroRunToken += 1;
+    cancelTitleAudioSync();
   }
 
   function showJoinSection(): void {
@@ -224,5 +230,10 @@ export function createStartScreenUI(
     beforeAction = fn;
   }
 
-  return { resetStartButtons, playTitleIntro, setBeforeAction };
+  return {
+    resetStartButtons,
+    playTitleIntro,
+    cancelTitleIntroAudioSync,
+    setBeforeAction,
+  };
 }

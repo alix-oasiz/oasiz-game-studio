@@ -32,6 +32,19 @@ function collectBackgroundMusicAssetIds(): ReadonlySet<AudioAssetId> {
 const BACKGROUND_MUSIC_ASSET_IDS = collectBackgroundMusicAssetIds();
 const MUSIC_FADE_IN_MS = 220;
 const MUSIC_FADE_OUT_MS = 180;
+const GAMEPLAY_FX_ASSET_IDS: ReadonlySet<AudioAssetId> = new Set<AudioAssetId>([
+  "sfxFire",
+  "sfxExplosion",
+  "sfxHit",
+  "sfxDash",
+  "sfxCountdown",
+  "sfxFight",
+  "sfxWin",
+  "sfxKill",
+  "sfxRespawn",
+  "sfxPilotEject",
+  "sfxPilotDeath",
+]);
 
 interface PendingFadeStopEntry {
   timer: ReturnType<typeof setTimeout>;
@@ -49,6 +62,8 @@ class AudioManagerClass {
   private gestureUnlockHandler: (() => void) | null = null;
   private pendingFadeStopTimersByAsset: Map<AudioAssetId, PendingFadeStopEntry> =
     new Map();
+  private gameplayFxSuppressed: boolean = false;
+  private gameplayFxVolumeMultiplier: number = 1;
 
   constructor() {
     this.setupUserGestureUnlock();
@@ -137,6 +152,18 @@ class AudioManagerClass {
 
   private isBackgroundMusicAsset(assetId: AudioAssetId): boolean {
     return BACKGROUND_MUSIC_ASSET_IDS.has(assetId);
+  }
+
+  private isGameplayFxAsset(assetId: AudioAssetId): boolean {
+    return GAMEPLAY_FX_ASSET_IDS.has(assetId);
+  }
+
+  private resolveAssetVolume(assetId: AudioAssetId): number {
+    const definition = AUDIO_ASSETS[assetId];
+    if (!this.isGameplayFxAsset(assetId)) {
+      return definition.volume;
+    }
+    return definition.volume * this.gameplayFxVolumeMultiplier;
   }
 
   private rememberPendingBackgroundMusic(assetId: AudioAssetId): void {
@@ -228,6 +255,10 @@ class AudioManagerClass {
 
   private playAsset(assetId: AudioAssetId, restart: boolean): number | null {
     const definition = AUDIO_ASSETS[assetId];
+    if (this.gameplayFxSuppressed && this.isGameplayFxAsset(assetId)) {
+      this.activeSoundIdByAsset.delete(assetId);
+      return null;
+    }
     if (!this.canPlayChannel(definition.channel)) {
       this.activeSoundIdByAsset.delete(assetId);
       return null;
@@ -243,7 +274,7 @@ class AudioManagerClass {
 
     const player = this.getOrCreateAssetPlayer(assetId);
     player.loop(definition.loop);
-    player.volume(definition.volume);
+    player.volume(this.resolveAssetVolume(assetId));
 
     if (restart) {
       player.stop();
@@ -612,6 +643,37 @@ class AudioManagerClass {
     await this.playCue("LOGO_STING");
   }
 
+  setGameplayFxSuppressed(suppressed: boolean): void {
+    if (this.gameplayFxSuppressed === suppressed) {
+      return;
+    }
+    this.gameplayFxSuppressed = suppressed;
+    if (!suppressed) {
+      return;
+    }
+
+    for (const assetId of GAMEPLAY_FX_ASSET_IDS) {
+      this.stopAssetPlayback(assetId);
+    }
+  }
+
+  setGameplayFxVolumeMultiplier(multiplier: number): void {
+    const normalized = Math.max(0, Math.min(1, multiplier));
+    this.gameplayFxVolumeMultiplier = normalized;
+
+    for (const assetId of GAMEPLAY_FX_ASSET_IDS) {
+      const soundId = this.activeSoundIdByAsset.get(assetId);
+      if (soundId === undefined) {
+        continue;
+      }
+      const player = this.assetPlayers.get(assetId);
+      if (!player || !player.playing(soundId)) {
+        continue;
+      }
+      player.volume(this.resolveAssetVolume(assetId), soundId);
+    }
+  }
+
   async playMusicAsset(
     assetId: AudioAssetId,
     options: PlayMusicOptions = {},
@@ -770,6 +832,8 @@ class AudioManagerClass {
     this.activeMusicAssetId = null;
     this.activeMusicSoundId = null;
     this.pendingBackgroundMusicAssetId = null;
+    this.gameplayFxSuppressed = false;
+    this.gameplayFxVolumeMultiplier = 1;
     console.log("[AudioManager.destroy]", "Destroyed");
   }
 }

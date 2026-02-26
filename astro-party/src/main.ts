@@ -223,17 +223,22 @@ async function init(): Promise<void> {
   let currentPhase: GamePhase = "START";
   let waitingForStartIntroAudioCompletion = false;
   let startMenuMusicTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingDemoStartupAfterIntro: { showAttract: boolean } | null = null;
+  let suppressNextStartPhaseEffects = false;
+  // Demo state
+  let demoController: DemoController | null = null;
+  let demoOverlay: DemoOverlayUI | null = null;
+  let starfieldInitializedForDemo = false;
   const startUI = createStartScreenUI(game, {
     onIntroAudioComplete: () => {
-      if (!waitingForStartIntroAudioCompletion) {
-        return;
+      if (waitingForStartIntroAudioCompletion) {
+        waitingForStartIntroAudioCompletion = false;
+        clearStartMenuMusicTimer();
+        if (currentPhase === "START") {
+          void AudioManager.playSceneMusic("START", { restart: false });
+        }
       }
-      waitingForStartIntroAudioCompletion = false;
-      clearStartMenuMusicTimer();
-      if (currentPhase !== "START") {
-        return;
-      }
-      void AudioManager.playSceneMusic("START", { restart: false });
+      startPendingDemoStartupAfterIntro();
     },
   });
 
@@ -250,6 +255,7 @@ async function init(): Promise<void> {
     startMenuMusicTimer = setTimeout(() => {
       startMenuMusicTimer = null;
       if (!waitingForStartIntroAudioCompletion) {
+        startPendingDemoStartupAfterIntro();
         return;
       }
       waitingForStartIntroAudioCompletion = false;
@@ -257,22 +263,52 @@ async function init(): Promise<void> {
         return;
       }
       void AudioManager.playSceneMusic("START", { restart: false });
+      startPendingDemoStartupAfterIntro();
     }, START_SCREEN_BUTTONS_REVEAL_DELAY_MS);
+  };
+
+  const resolveSceneForAudioContext = (phase: GamePhase): AudioSceneId => {
+    if (!demoController?.isDemoActive()) {
+      return resolveSceneForPhase(phase);
+    }
+    const demoState = demoController.getState();
+    if (
+      demoState === "STARTING" ||
+      demoState === "ATTRACT" ||
+      demoState === "MENU"
+    ) {
+      // Keep menu BGM during background demo playback.
+      return "START";
+    }
+    return resolveSceneForPhase(phase);
   };
 
   const syncAudioToPhase = (
     phase: GamePhase,
     previousPhase: GamePhase | null,
   ): void => {
-    const nextScene = resolveSceneForPhase(phase);
+    if (phase === "START" && suppressNextStartPhaseEffects) {
+      waitingForStartIntroAudioCompletion = false;
+      clearStartMenuMusicTimer();
+      return;
+    }
+    const nextScene = resolveSceneForAudioContext(phase);
     const nextMusicAssetId = AudioManager.getSceneMusicAsset(nextScene);
     AudioManager.clearPendingBackgroundMusicForTarget(nextMusicAssetId);
     AudioManager.stopCue("SPLASH_STING");
     if (phase !== "START") {
+      pendingDemoStartupAfterIntro = null;
+      startUI.cancelTitleIntroAudioSync();
       AudioManager.stopCue("LOGO_STING");
     }
 
     if (phase === "START") {
+      if (waitingForStartIntroAudioCompletion) {
+        if (startMenuMusicTimer === null) {
+          scheduleStartMenuMusic();
+        }
+        return;
+      }
       const shouldWaitForIntro =
         previousPhase === null || previousPhase !== "START";
       if (shouldWaitForIntro) {
@@ -282,24 +318,15 @@ async function init(): Promise<void> {
         waitingForStartIntroAudioCompletion = false;
         clearStartMenuMusicTimer();
         void AudioManager.playSceneMusic("START", { restart: false });
+        startPendingDemoStartupAfterIntro();
       }
       return;
     }
 
     waitingForStartIntroAudioCompletion = false;
     clearStartMenuMusicTimer();
-    const previousMusicAssetId =
-      previousPhase !== null
-        ? AudioManager.getSceneMusicAsset(resolveSceneForPhase(previousPhase))
-        : null;
-    const shouldRestart = previousMusicAssetId !== nextMusicAssetId;
-    void AudioManager.playSceneMusic(nextScene, { restart: shouldRestart });
+    void AudioManager.playSceneMusic(nextScene);
   };
-
-  // Demo state
-  let demoController: DemoController | null = null;
-  let demoOverlay: DemoOverlayUI | null = null;
-  let starfieldInitializedForDemo = false;
 
   async function teardownDemoAndShowMenu(): Promise<void> {
     if (!demoController?.isDemoActive()) return;
@@ -312,7 +339,20 @@ async function init(): Promise<void> {
     // Remove demo-specific starfield state
     elements.starsContainer.classList.remove("demo-stars", "active");
     screenController.showScreen("start");
-    startUI.resetStartButtons(true);
+    startUI.resetStartButtons(false);
+    startUI.setBeforeAction(null);
+  }
+
+  async function teardownDemoForAction(): Promise<void> {
+    if (!demoController?.isDemoActive()) return;
+    suppressNextStartPhaseEffects = true;
+    demoOverlay?.hideAll();
+    await demoController.teardown();
+    localStorage.setItem(DEMO_SEEN_KEY, "1");
+    demoController = null;
+    demoOverlay = null;
+    starfieldInitializedForDemo = false;
+    elements.starsContainer.classList.remove("demo-stars", "active");
     startUI.setBeforeAction(null);
   }
 
@@ -336,16 +376,19 @@ async function init(): Promise<void> {
     demoOverlay.setCallbacks({
       onTapToStart: () => {
         demoController!.enterTutorial();
+        syncAudioToPhase(currentPhase, currentPhase);
         demoOverlay!.showTutorial(viewport.isMobile);
       },
       onTutorialComplete: () => {
         // Tutorial finished → player keeps free-playing with Exit Demo button
         demoController!.enterFreePlay();
+        syncAudioToPhase(currentPhase, currentPhase);
         localStorage.setItem(DEMO_SEEN_KEY, "1");
         demoOverlay!.showExitButton(() => {
           // Keep the battle running — transition to MENU state (same as skip)
           demoOverlay?.hideAll();
           demoController?.enterMenu();
+          syncAudioToPhase(currentPhase, currentPhase);
           screenController.showScreen("start");
           startUI.resetStartButtons(true);
         });
@@ -354,6 +397,7 @@ async function init(): Promise<void> {
         // Keep background battle alive — just transition to MENU state
         demoOverlay?.hideAll();
         demoController?.enterMenu();
+        syncAudioToPhase(currentPhase, currentPhase);
         screenController.showScreen("start");
         startUI.resetStartButtons(true);
         localStorage.setItem(DEMO_SEEN_KEY, "1");
@@ -370,9 +414,10 @@ async function init(): Promise<void> {
       setZoom: (boost) => game.setDemoZoomBoost(boost),
     });
 
-    startUI.setBeforeAction(teardownDemoAndShowMenu);
+    startUI.setBeforeAction(teardownDemoForAction);
 
     await demoController.startDemo();
+    syncAudioToPhase(currentPhase, currentPhase);
 
     // Activate the starfield immediately so it's visible in the attract overlay.
     // forceDemoStarfield bypasses the activeScreen guard in screens.ts.
@@ -387,9 +432,47 @@ async function init(): Promise<void> {
     } else {
       // Second visit: skip attract, go straight to background MENU state
       demoController.enterMenu();
+      syncAudioToPhase(currentPhase, currentPhase);
       screenController.showScreen("start");
       startUI.resetStartButtons(false);
     }
+  }
+
+  async function handleDemoStartupFailure(error: unknown): Promise<void> {
+    console.error("[Main] Demo failed to start, falling back to menu:", error);
+    const ctrl = demoController as DemoController | null;
+    if (ctrl?.isDemoActive()) {
+      await ctrl.teardown().catch(() => {});
+    }
+    demoController = null;
+    demoOverlay = null;
+    screenController.showScreen("start");
+    startUI.resetStartButtons(false);
+    startUI.setBeforeAction(null);
+  }
+
+  function queueDemoStartupAfterIntro(showAttract: boolean): void {
+    pendingDemoStartupAfterIntro = { showAttract };
+    if (showAttract) {
+      // First-run demo should show attract CTA instead of menu buttons.
+      elements.mainButtons.style.display = "none";
+      elements.joinSection.classList.remove("active");
+    }
+  }
+
+  function startPendingDemoStartupAfterIntro(): void {
+    if (waitingForStartIntroAudioCompletion || currentPhase !== "START") {
+      return;
+    }
+    if (pendingDemoStartupAfterIntro === null) {
+      return;
+    }
+
+    const { showAttract } = pendingDemoStartupAfterIntro;
+    pendingDemoStartupAfterIntro = null;
+    void startDemoSession(showAttract).catch((error) => {
+      void handleDemoStartupFailure(error);
+    });
   }
 
   const syncScreenToPhase = (
@@ -446,12 +529,16 @@ async function init(): Promise<void> {
 
     switch (phase) {
       case "START":
+        if (suppressNextStartPhaseEffects) {
+          suppressNextStartPhaseEffects = false;
+          break;
+        }
         screenController.showScreen("start");
         startUI.resetStartButtons(previousPhase !== "START");
         // Restart the background AI battle when returning from a real match.
         // Only when demoController is fully gone (not mid-teardown).
         if (previousPhase !== null && previousPhase !== "START" && demoController === null) {
-          void startDemoSession(false);
+          queueDemoStartupAfterIntro(false);
         }
         break;
       case "LOBBY":
@@ -604,20 +691,8 @@ async function init(): Promise<void> {
   // Show the attract overlay only on first visit; otherwise go straight
   // to the menu with ships visible behind it.
   const showAttractOverlay = !localStorage.getItem(DEMO_SEEN_KEY);
-  try {
-    await startDemoSession(showAttractOverlay);
-  } catch (e) {
-    console.error("[Main] Demo failed to start, falling back to menu:", e);
-    const ctrl = demoController as DemoController | null;
-    if (ctrl?.isDemoActive()) {
-      await ctrl.teardown().catch(() => {});
-    }
-    demoController = null;
-    demoOverlay = null;
-    screenController.showScreen("start");
-    startUI.resetStartButtons(true);
-    startUI.setBeforeAction(null);
-  }
+  queueDemoStartupAfterIntro(showAttractOverlay);
+  startPendingDemoStartupAfterIntro();
 }
 
 // Start when DOM is ready

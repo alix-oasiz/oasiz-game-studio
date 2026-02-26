@@ -32,7 +32,7 @@ export interface AudioAssetDefinition {
 export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
   splashScreenSting: {
     id: "splashScreenSting",
-    channel: "fx",
+    channel: "music",
     relativePath: "music-cue-splash.ogg",
     url: "./assets/audio/music-cue-splash.ogg",
     loop: false,
@@ -41,7 +41,7 @@ export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
   },
   logoRevealSting: {
     id: "logoRevealSting",
-    channel: "fx",
+    channel: "music",
     relativePath: "music-cue-logo.ogg",
     url: "./assets/audio/music-cue-logo.ogg",
     loop: false,

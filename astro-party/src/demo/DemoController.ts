@@ -1,6 +1,6 @@
 import type { Game } from "../Game";
 import type { GamePhase, MapId } from "../types";
-import { SettingsManager } from "../SettingsManager";
+import { AudioManager } from "../AudioManager";
 
 export type DemoState =
   | "IDLE"
@@ -13,8 +13,8 @@ export type DemoState =
   | "DONE";
 
 export class DemoController {
+  private static readonly BACKGROUND_GAMEPLAY_FX_VOLUME = 0.05;
   private state: DemoState = "IDLE";
-  private savedFxEnabled: boolean | null = null;
   private restartTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Respawn monitoring (demo-only)
@@ -26,6 +26,17 @@ export class DemoController {
   private static readonly PILOT_MAX_AGE_MS = 20_000; // 20 seconds
 
   constructor(private game: Game) {}
+
+  private applyDemoAudioMix(): void {
+    const isBackgroundOnly =
+      this.state === "STARTING" ||
+      this.state === "ATTRACT" ||
+      this.state === "MENU";
+    AudioManager.setGameplayFxSuppressed(false);
+    AudioManager.setGameplayFxVolumeMultiplier(
+      isBackgroundOnly ? DemoController.BACKGROUND_GAMEPLAY_FX_VOLUME : 1,
+    );
+  }
 
   getState(): DemoState {
     return this.state;
@@ -44,6 +55,7 @@ export class DemoController {
   async startDemo(): Promise<void> {
     if (this.state !== "IDLE") return;
     this.state = "STARTING";
+    this.applyDemoAudioMix();
 
     this.game.setDemoSession(true);
     this.game.setSessionMode("local");
@@ -64,10 +76,6 @@ export class DemoController {
     // Hide arena border (collision still active)
     this.game.setHideBorder(true);
 
-    // Mute gameplay SFX during attract
-    this.savedFxEnabled = SettingsManager.get().fx;
-    SettingsManager.set("fx", false);
-
     // Start the match
     this.game.startGame();
 
@@ -82,11 +90,13 @@ export class DemoController {
     this.startCleanupInterval();
 
     this.state = "ATTRACT";
+    this.applyDemoAudioMix();
   }
 
   enterTutorial(): void {
     if (this.state !== "ATTRACT") return;
     this.state = "TUTORIAL";
+    this.applyDemoAudioMix();
 
     // Restore the host player to human control
     this.game.setHostAI(false);
@@ -99,6 +109,7 @@ export class DemoController {
   enterFreePlay(): void {
     if (this.state !== "TUTORIAL") return;
     this.state = "FREEPLAY";
+    this.applyDemoAudioMix();
     // Sim was paused for the "You're ready!" panel — resume it
     this.game.setSimPaused(false);
   }
@@ -115,7 +126,7 @@ export class DemoController {
 
   /**
    * Transition to MENU state: return host to AI, keep game running in
-   * background behind the start screen. Restore SFX.
+   * background behind the start screen. Restore gameplay SFX.
    */
   enterMenu(): void {
     if (
@@ -125,6 +136,7 @@ export class DemoController {
     )
       return;
     this.state = "MENU";
+    this.applyDemoAudioMix();
 
     // Unpause sim (in case we were paused during a tutorial step)
     this.game.setSimPaused(false);
@@ -132,11 +144,7 @@ export class DemoController {
     // Return host to AI so the background battle continues autonomously
     this.game.setHostAI(true);
 
-    // Restore SFX now that we're back at the menu
-    if (this.savedFxEnabled !== null) {
-      SettingsManager.set("fx", this.savedFxEnabled);
-      this.savedFxEnabled = null;
-    }
+    // Keep background gameplay SFX reduced while demo sim runs behind menu.
   }
 
   async teardown(): Promise<void> {
@@ -157,11 +165,9 @@ export class DemoController {
       this.restartTimeout = null;
     }
 
-    // Restore SFX setting if not already restored
-    if (this.savedFxEnabled !== null) {
-      SettingsManager.set("fx", this.savedFxEnabled);
-      this.savedFxEnabled = null;
-    }
+    // Restore gameplay SFX settings.
+    AudioManager.setGameplayFxSuppressed(false);
+    AudioManager.setGameplayFxVolumeMultiplier(1);
 
     // Restore border and unpause sim
     this.game.setHideBorder(false);
