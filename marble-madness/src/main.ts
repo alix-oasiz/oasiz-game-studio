@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 
+const BUILD_VERSION = "0.4.4";
+
 type GameState = "start" | "playing" | "gameOver";
 type HapticType = "light" | "medium" | "heavy" | "success" | "error";
 
@@ -14,15 +16,47 @@ interface PersistedState {
   runsCompleted?: number;
 }
 
-interface TrackSegment {
+interface TrackSample {
+  z: number;
+  x: number;
+  y: number;
+  tilt: number;
+  width: number;
+  hasFloor: boolean;
+}
+
+interface TrackSlice {
   zStart: number;
   zEnd: number;
+  xStart: number;
+  xEnd: number;
+  yStart: number;
+  yEnd: number;
+  centerZ: number;
+  centerX: number;
+  centerY: number;
   length: number;
   tilt: number;
-  surfaceYStart: number;
-  surfaceYEnd: number;
-  centerZ: number;
-  centerY: number;
+  width: number;
+  hasFloor: boolean;
+}
+
+interface FireworkParticle {
+  mesh: THREE.Mesh;
+  velocity: THREE.Vector3;
+  life: number;
+}
+
+interface FireworkRow {
+  activationZ: number;
+  burstPoints: THREE.Vector3[];
+  triggered: boolean;
+}
+
+interface TrailParticle {
+  mesh: THREE.Mesh;
+  life: number;
+  maxLife: number;
 }
 
 declare global {
@@ -46,6 +80,8 @@ class MarbleMadnessStarter {
 
   private marbleBody: RAPIER.RigidBody | null = null;
   private marbleMesh: THREE.Mesh;
+  private marbleMaterial: THREE.MeshStandardMaterial;
+  private trackMaterial: THREE.MeshStandardMaterial;
 
   private gameState: GameState = "start";
   private settings: Settings;
@@ -63,26 +99,32 @@ class MarbleMadnessStarter {
 
   private readonly fixedStep = 1 / 60;
   private readonly trackWidth = 12;
-  private readonly trackLength = 240;
+  private readonly trackLength = 330;
   private readonly trackThickness = 2;
   private readonly trackCenterY = 30;
   private readonly trackCenterZ = 0;
-  private readonly startZ = 102;
-  private readonly finishZ = -102;
+  private readonly startZ = 106;
+  private readonly finishZ = -198;
   private readonly loseY = -50;
   private readonly skyscraperTopY = -80;
   private readonly maxRunSeconds = 60;
   private readonly marbleRadius = 1;
+  private readonly startFlickSpeed = 16;
   private readonly nudgeImpulse = 1.35;
-  private readonly downhillImpulse = 0.08;
-  private readonly trackSegmentDefs = [
-    { length: 70, tilt: 0.14 },
-    { length: 60, tilt: 0.24 },
-    { length: 55, tilt: 0.34 },
-    { length: 55, tilt: 0.22 },
-  ];
-
-  private readonly trackSegments: TrackSegment[] = [];
+  private readonly downhillImpulse = 0.06;
+  private readonly speedMultiplier = 6;
+  private readonly trackStep = 1.5;
+  private readonly wallHeight = 3.6;
+  private readonly wallThickness = 0.8;
+  private readonly platformUvScaleV = 0.035;
+  private readonly trackSamples: TrackSample[] = [];
+  private readonly trackSlices: TrackSlice[] = [];
+  private readonly fireworkTriggerZ = -186;
+  private particles: FireworkParticle[] = [];
+  private fireworkRows: FireworkRow[] = [];
+  private trailParticles: TrailParticle[] = [];
+  private trailSpawnSeconds = 0;
+  private readonly trailSpawnInterval = 0.015;
 
   private readonly startScreen: HTMLElement;
   private readonly gameOverScreen: HTMLElement;
@@ -94,13 +136,14 @@ class MarbleMadnessStarter {
   private readonly timeLabel: HTMLElement;
   private readonly speedLabel: HTMLElement;
   private readonly resultLabel: HTMLElement;
+  private readonly versionLabel: HTMLElement;
 
   public constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.isMobile = window.matchMedia("(pointer: coarse)").matches;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color("#071327");
+    this.scene.background = new THREE.Color("#8fd3ff");
 
     this.camera = new THREE.PerspectiveCamera(52, 1, 0.1, 1400);
 
@@ -110,6 +153,8 @@ class MarbleMadnessStarter {
       alpha: false,
       powerPreference: "high-performance",
     });
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.isMobile ? 1.75 : 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -123,20 +168,31 @@ class MarbleMadnessStarter {
     this.timeLabel = this.requireElement("time-label");
     this.speedLabel = this.requireElement("speed-label");
     this.resultLabel = this.requireElement("result-label");
+    this.versionLabel = this.requireElement("version-label");
+    this.versionLabel.textContent = "Build " + BUILD_VERSION;
 
     this.settings = this.loadSettings();
     this.persistentState = this.loadPersistentState();
 
     const marbleGeometry = new THREE.SphereGeometry(this.marbleRadius, 32, 24);
-    const marbleMaterial = new THREE.MeshStandardMaterial({
+    this.marbleMaterial = new THREE.MeshStandardMaterial({
       color: "#e8f1ff",
       roughness: 0.28,
       metalness: 0.16,
     });
-    this.marbleMesh = new THREE.Mesh(marbleGeometry, marbleMaterial);
+    this.trackMaterial = new THREE.MeshStandardMaterial({
+      color: "#dfc092",
+      roughness: 0.82,
+      metalness: 0.02,
+    });
+    this.marbleMesh = new THREE.Mesh(marbleGeometry, this.marbleMaterial);
+    this.marbleMesh.castShadow = true;
+    this.marbleMesh.receiveShadow = true;
     this.scene.add(this.marbleMesh);
+    this.loadMarbleTexture();
+    this.loadTileTexture();
 
-    this.buildTrackSegments();
+    this.buildTrackSlices();
     this.setupSceneVisuals();
     this.bindUi();
     this.bindInput();
@@ -145,7 +201,7 @@ class MarbleMadnessStarter {
     this.handleResize();
 
     window.addEventListener("resize", () => this.handleResize());
-    console.log("[Constructor]", "Marble Madness starter created");
+    console.log("[Constructor]", "Marble Madness starter created (build " + BUILD_VERSION + ")");
   }
 
   public async init(): Promise<void> {
@@ -170,91 +226,245 @@ class MarbleMadnessStarter {
     return element;
   }
 
-  private buildTrackSegments(): void {
-    this.trackSegments.length = 0;
-
-    let currentZ = this.trackCenterZ + this.trackLength * 0.5;
-    let currentSurfaceY = this.trackCenterY + this.trackThickness * 0.5;
-
-    for (const def of this.trackSegmentDefs) {
-      const nextZ = currentZ - def.length;
-      const drop = Math.tan(def.tilt) * def.length;
-      const nextSurfaceY = currentSurfaceY - drop;
-
-      this.trackSegments.push({
-        zStart: currentZ,
-        zEnd: nextZ,
-        length: def.length,
-        tilt: def.tilt,
-        surfaceYStart: currentSurfaceY,
-        surfaceYEnd: nextSurfaceY,
-        centerZ: (currentZ + nextZ) * 0.5,
-        centerY: (currentSurfaceY + nextSurfaceY) * 0.5 - this.trackThickness * 0.5,
-      });
-
-      currentZ = nextZ;
-      currentSurfaceY = nextSurfaceY;
-    }
-
-    console.log("[BuildTrackSegments]", "Built segmented ramp profile");
+  private loadMarbleTexture(): void {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      "/assets/marble-texture.jpg",
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1.2, 1.2);
+        this.marbleMaterial.map = texture;
+        this.marbleMaterial.roughness = 0.24;
+        this.marbleMaterial.metalness = 0.08;
+        this.marbleMaterial.needsUpdate = true;
+        console.log("[LoadMarbleTexture]", "Loaded marble texture from /assets/marble-texture.jpg");
+      },
+      undefined,
+      () => {
+        console.log("[LoadMarbleTexture]", "Texture file not found, using fallback marble material");
+      },
+    );
   }
 
-  private getSegmentAtZ(z: number): TrackSegment {
-    const clampedZ = THREE.MathUtils.clamp(
-      z,
-      this.trackCenterZ - this.trackLength * 0.5,
-      this.trackCenterZ + this.trackLength * 0.5,
+  private loadTileTexture(): void {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      "/assets/tile-texture.jpg",
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1, 1);
+        this.trackMaterial.map = texture;
+        this.trackMaterial.roughness = 0.74;
+        this.trackMaterial.metalness = 0.03;
+        this.trackMaterial.needsUpdate = true;
+        console.log("[LoadTileTexture]", "Loaded tile texture from /assets/tile-texture.jpg");
+      },
+      undefined,
+      () => {
+        console.log("[LoadTileTexture]", "Tile texture not found, using fallback track material");
+      },
     );
-    const segment = this.trackSegments.find((entry) => clampedZ <= entry.zStart && clampedZ >= entry.zEnd);
-    if (segment) {
-      return segment;
+  }
+
+  private spawnTrailParticle(position: THREE.Vector3): void {
+    const speed = this.marbleBody ? this.marbleBody.linvel() : { x: 0, y: 0, z: 0 };
+    const speedMag = Math.sqrt(speed.x * speed.x + speed.y * speed.y + speed.z * speed.z);
+    const radius = THREE.MathUtils.clamp(0.26 + speedMag * 0.004, 0.26, 0.62);
+
+    const trailMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 12, 10),
+      new THREE.MeshStandardMaterial({
+        color: "#a8d8ff",
+        transparent: true,
+        opacity: 0.36,
+        roughness: 0.75,
+        metalness: 0.0,
+        depthWrite: false,
+      }),
+    );
+    trailMesh.position.copy(position);
+    trailMesh.position.y += 0.2;
+    this.scene.add(trailMesh);
+    this.trailParticles.push({
+      mesh: trailMesh,
+      life: 0.45,
+      maxLife: 0.45,
+    });
+  }
+
+  private updateTrail(delta: number): void {
+    if (this.gameState === "playing") {
+      this.trailSpawnSeconds += delta;
+      if (this.trailSpawnSeconds >= this.trailSpawnInterval) {
+        this.trailSpawnSeconds = 0;
+        this.spawnTrailParticle(this.marbleMesh.position.clone());
+      }
     }
-    return this.trackSegments[this.trackSegments.length - 1];
+
+    const alive: TrailParticle[] = [];
+    for (const trail of this.trailParticles) {
+      trail.life -= delta;
+      const progress = THREE.MathUtils.clamp(trail.life / trail.maxLife, 0, 1);
+      const scale = 0.65 + progress * 0.55;
+      trail.mesh.scale.setScalar(scale);
+      const mat = trail.mesh.material;
+      if (mat instanceof THREE.MeshStandardMaterial) {
+        mat.opacity = progress * 0.36;
+      }
+      if (trail.life > 0) {
+        alive.push(trail);
+      } else {
+        this.scene.remove(trail.mesh);
+      }
+    }
+    this.trailParticles = alive;
+  }
+
+  private smooth01(t: number): number {
+    return t * t * (3 - 2 * t);
+  }
+
+  private sampleTrackX(z: number): number {
+    if (z >= 40) {
+      return 0;
+    }
+    if (z > -20) {
+      const t = (40 - z) / 60;
+      return -4.6 * this.smooth01(THREE.MathUtils.clamp(t, 0, 1));
+    }
+    if (z > -82) {
+      return -4.6;
+    }
+    if (z > -128) {
+      const t = (-82 - z) / 46;
+      return THREE.MathUtils.lerp(-4.6, 0, this.smooth01(THREE.MathUtils.clamp(t, 0, 1)));
+    }
+    return 0;
+  }
+
+  private sampleTrackSlope(z: number): number {
+    if (z >= 70) {
+      return 0.0;
+    }
+    if (z >= 30) {
+      return 0.30;
+    }
+    if (z >= -12) {
+      return 0.24;
+    }
+    if (z >= -64) {
+      return 0.22;
+    }
+    if (z >= -82) {
+      return -0.12;
+    }
+    if (z >= -102) {
+      return 0.14;
+    }
+    if (z >= -128) {
+      return 0.08;
+    }
+    return 0.01;
+  }
+
+  private sampleTrackWidth(z: number): number {
+    if (z >= -20) {
+      return this.trackWidth;
+    }
+    if (z >= -76) {
+      return 7;
+    }
+    if (z >= -132) {
+      return 10;
+    }
+    return this.trackWidth;
+  }
+
+  private hasFloorAtZ(z: number): boolean {
+    const isFirstGap = z < -12 && z > -26;
+    return !isFirstGap;
+  }
+
+  private buildTrackSlices(): void {
+    this.trackSamples.length = 0;
+    this.trackSlices.length = 0;
+
+    let currentZ = this.startZ;
+    let currentY = this.trackCenterY + this.trackThickness * 0.5;
+    while (currentZ >= this.finishZ) {
+      const tilt = this.sampleTrackSlope(currentZ);
+      const x = this.sampleTrackX(currentZ);
+      const width = this.sampleTrackWidth(currentZ);
+      const hasFloor = this.hasFloorAtZ(currentZ);
+      this.trackSamples.push({ z: currentZ, x, y: currentY, tilt, width, hasFloor });
+
+      const nextZ = currentZ - this.trackStep;
+      const dz = currentZ - nextZ;
+      currentY -= Math.tan(tilt) * dz;
+      currentZ = nextZ;
+    }
+
+    for (let i = 0; i < this.trackSamples.length - 1; i += 1) {
+      const a = this.trackSamples[i];
+      const b = this.trackSamples[i + 1];
+      const length = Math.max(1, Math.abs(a.z - b.z));
+      const tilt = Math.atan2(a.y - b.y, length);
+      this.trackSlices.push({
+        zStart: a.z,
+        zEnd: b.z,
+        xStart: a.x,
+        xEnd: b.x,
+        yStart: a.y,
+        yEnd: b.y,
+        centerZ: (a.z + b.z) * 0.5,
+        centerX: (a.x + b.x) * 0.5,
+        centerY: (a.y + b.y) * 0.5 - this.trackThickness * 0.5,
+        length,
+        tilt,
+        width: (a.width + b.width) * 0.5,
+        hasFloor: a.hasFloor && b.hasFloor,
+      });
+    }
+
+    console.log("[BuildTrackSlices]", "Generated tile course slices");
+  }
+
+  private getSliceAtZ(z: number): TrackSlice {
+    const clampedZ = THREE.MathUtils.clamp(z, this.finishZ, this.startZ);
+    const slice = this.trackSlices.find((entry) => clampedZ <= entry.zStart && clampedZ >= entry.zEnd);
+    if (slice) {
+      return slice;
+    }
+    return this.trackSlices[this.trackSlices.length - 1];
   }
 
   private getTrackTiltAtZ(z: number): number {
-    return this.getSegmentAtZ(z).tilt;
+    return this.getSliceAtZ(z).tilt;
   }
 
   private setupSceneVisuals(): void {
     const hemi = new THREE.HemisphereLight("#d8ebff", "#6a89ad", 1.05);
     this.scene.add(hemi);
 
-    const dir = new THREE.DirectionalLight("#ffffff", 0.75);
-    dir.position.set(10, 24, 18);
-    this.scene.add(dir);
+    const sunLight = new THREE.DirectionalLight("#fff9df", 3.15);
+    sunLight.position.set(140, 180, 90);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(2048, 2048);
+    sunLight.shadow.bias = -0.00015;
+    sunLight.shadow.normalBias = 0.02;
+    sunLight.shadow.camera.near = 1;
+    sunLight.shadow.camera.far = 600;
+    sunLight.shadow.camera.left = -220;
+    sunLight.shadow.camera.right = 220;
+    sunLight.shadow.camera.top = 220;
+    sunLight.shadow.camera.bottom = -220;
+    this.scene.add(sunLight);
 
-    const wallMaterial = new THREE.MeshStandardMaterial({
-      color: "#d4bea1",
-      roughness: 0.73,
-      metalness: 0.04,
-    });
-
-    for (const segment of this.trackSegments) {
-      const segmentGroup = new THREE.Group();
-      segmentGroup.rotation.x = -segment.tilt;
-      segmentGroup.position.set(0, segment.centerY, segment.centerZ);
-
-      const road = new THREE.Mesh(
-        new THREE.BoxGeometry(this.trackWidth, this.trackThickness, segment.length),
-        new THREE.MeshStandardMaterial({
-          color: "#dfc092",
-          roughness: 0.82,
-          metalness: 0.02,
-        }),
-      );
-      segmentGroup.add(road);
-
-      const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(1, 2.4, segment.length), wallMaterial);
-      wallLeft.position.set(-this.trackWidth * 0.5 - 0.5, 1.2, 0);
-      segmentGroup.add(wallLeft);
-
-      const wallRight = new THREE.Mesh(new THREE.BoxGeometry(1, 2.4, segment.length), wallMaterial);
-      wallRight.position.set(this.trackWidth * 0.5 + 0.5, 1.2, 0);
-      segmentGroup.add(wallRight);
-
-      this.scene.add(segmentGroup);
-    }
+    this.addPlatformRunMeshes();
 
     const finishStrip = new THREE.Group();
     const stripeCount = 12;
@@ -300,23 +510,215 @@ class MarbleMadnessStarter {
     this.scene.add(finishTopBeam);
 
     this.addSkyscrapers();
-    this.addBlockerVisuals();
+    this.addFinishTriggerCubes();
+  }
+
+  private getFloorRuns(): TrackSample[][] {
+    const runs: TrackSample[][] = [];
+    let current: TrackSample[] = [];
+    for (const sample of this.trackSamples) {
+      if (sample.hasFloor) {
+        current.push(sample);
+      } else if (current.length > 1) {
+        runs.push(current);
+        current = [];
+      } else {
+        current = [];
+      }
+    }
+    if (current.length > 1) {
+      runs.push(current);
+    }
+    return runs;
+  }
+
+  private addQuad(
+    positions: number[],
+    uvs: number[],
+    a: THREE.Vector3,
+    b: THREE.Vector3,
+    c: THREE.Vector3,
+    d: THREE.Vector3,
+    uvA: THREE.Vector2,
+    uvB: THREE.Vector2,
+    uvC: THREE.Vector2,
+    uvD: THREE.Vector2,
+  ): void {
+    positions.push(
+      a.x, a.y, a.z,
+      b.x, b.y, b.z,
+      c.x, c.y, c.z,
+      b.x, b.y, b.z,
+      d.x, d.y, d.z,
+      c.x, c.y, c.z,
+    );
+    uvs.push(
+      uvA.x, uvA.y,
+      uvB.x, uvB.y,
+      uvC.x, uvC.y,
+      uvB.x, uvB.y,
+      uvD.x, uvD.y,
+      uvC.x, uvC.y,
+    );
+  }
+
+  private buildRunGeometry(run: TrackSample[]): {
+    floor: THREE.BufferGeometry;
+    leftWall: THREE.BufferGeometry;
+    rightWall: THREE.BufferGeometry;
+  } {
+    const floorPos: number[] = [];
+    const floorUv: number[] = [];
+    const leftPos: number[] = [];
+    const leftUv: number[] = [];
+    const rightPos: number[] = [];
+    const rightUv: number[] = [];
+
+    let distanceV = 0;
+    for (let i = 0; i < run.length - 1; i += 1) {
+      const a = run[i];
+      const b = run[i + 1];
+      const segDistance = Math.sqrt(
+        (a.x - b.x) * (a.x - b.x)
+        + (a.y - b.y) * (a.y - b.y)
+        + (a.z - b.z) * (a.z - b.z),
+      );
+      const nextDistanceV = distanceV + segDistance * this.platformUvScaleV;
+
+      const leftAx = a.x - a.width * 0.5;
+      const rightAx = a.x + a.width * 0.5;
+      const leftBx = b.x - b.width * 0.5;
+      const rightBx = b.x + b.width * 0.5;
+
+      const floorLeftA = new THREE.Vector3(leftAx, a.y, a.z);
+      const floorRightA = new THREE.Vector3(rightAx, a.y, a.z);
+      const floorLeftB = new THREE.Vector3(leftBx, b.y, b.z);
+      const floorRightB = new THREE.Vector3(rightBx, b.y, b.z);
+      this.addQuad(
+        floorPos,
+        floorUv,
+        floorLeftA,
+        floorRightA,
+        floorLeftB,
+        floorRightB,
+        new THREE.Vector2(0, distanceV),
+        new THREE.Vector2(1, distanceV),
+        new THREE.Vector2(0, nextDistanceV),
+        new THREE.Vector2(1, nextDistanceV),
+      );
+
+      const leftInnerA = new THREE.Vector3(leftAx, a.y, a.z);
+      const leftOuterA = new THREE.Vector3(leftAx - this.wallThickness, a.y, a.z);
+      const leftInnerB = new THREE.Vector3(leftBx, b.y, b.z);
+      const leftOuterB = new THREE.Vector3(leftBx - this.wallThickness, b.y, b.z);
+      const leftInnerATop = leftInnerA.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+      const leftOuterATop = leftOuterA.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+      const leftInnerBTop = leftInnerB.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+      const leftOuterBTop = leftOuterB.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+
+      this.addQuad(
+        leftPos, leftUv,
+        leftInnerA, leftInnerB, leftInnerATop, leftInnerBTop,
+        new THREE.Vector2(0, distanceV), new THREE.Vector2(0, nextDistanceV),
+        new THREE.Vector2(1, distanceV), new THREE.Vector2(1, nextDistanceV),
+      );
+      this.addQuad(
+        leftPos, leftUv,
+        leftOuterB, leftOuterA, leftOuterBTop, leftOuterATop,
+        new THREE.Vector2(0, nextDistanceV), new THREE.Vector2(0, distanceV),
+        new THREE.Vector2(1, nextDistanceV), new THREE.Vector2(1, distanceV),
+      );
+      this.addQuad(
+        leftPos, leftUv,
+        leftInnerATop, leftInnerBTop, leftOuterATop, leftOuterBTop,
+        new THREE.Vector2(0, distanceV), new THREE.Vector2(0, nextDistanceV),
+        new THREE.Vector2(1, distanceV), new THREE.Vector2(1, nextDistanceV),
+      );
+
+      const rightInnerA = new THREE.Vector3(rightAx, a.y, a.z);
+      const rightOuterA = new THREE.Vector3(rightAx + this.wallThickness, a.y, a.z);
+      const rightInnerB = new THREE.Vector3(rightBx, b.y, b.z);
+      const rightOuterB = new THREE.Vector3(rightBx + this.wallThickness, b.y, b.z);
+      const rightInnerATop = rightInnerA.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+      const rightOuterATop = rightOuterA.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+      const rightInnerBTop = rightInnerB.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+      const rightOuterBTop = rightOuterB.clone().add(new THREE.Vector3(0, this.wallHeight, 0));
+
+      this.addQuad(
+        rightPos, rightUv,
+        rightInnerB, rightInnerA, rightInnerBTop, rightInnerATop,
+        new THREE.Vector2(0, nextDistanceV), new THREE.Vector2(0, distanceV),
+        new THREE.Vector2(1, nextDistanceV), new THREE.Vector2(1, distanceV),
+      );
+      this.addQuad(
+        rightPos, rightUv,
+        rightOuterA, rightOuterB, rightOuterATop, rightOuterBTop,
+        new THREE.Vector2(0, distanceV), new THREE.Vector2(0, nextDistanceV),
+        new THREE.Vector2(1, distanceV), new THREE.Vector2(1, nextDistanceV),
+      );
+      this.addQuad(
+        rightPos, rightUv,
+        rightOuterATop, rightOuterBTop, rightInnerATop, rightInnerBTop,
+        new THREE.Vector2(0, distanceV), new THREE.Vector2(0, nextDistanceV),
+        new THREE.Vector2(1, distanceV), new THREE.Vector2(1, nextDistanceV),
+      );
+
+      distanceV = nextDistanceV;
+    }
+
+    const floor = new THREE.BufferGeometry();
+    floor.setAttribute("position", new THREE.Float32BufferAttribute(floorPos, 3));
+    floor.setAttribute("uv", new THREE.Float32BufferAttribute(floorUv, 2));
+    floor.computeVertexNormals();
+
+    const leftWall = new THREE.BufferGeometry();
+    leftWall.setAttribute("position", new THREE.Float32BufferAttribute(leftPos, 3));
+    leftWall.setAttribute("uv", new THREE.Float32BufferAttribute(leftUv, 2));
+    leftWall.computeVertexNormals();
+
+    const rightWall = new THREE.BufferGeometry();
+    rightWall.setAttribute("position", new THREE.Float32BufferAttribute(rightPos, 3));
+    rightWall.setAttribute("uv", new THREE.Float32BufferAttribute(rightUv, 2));
+    rightWall.computeVertexNormals();
+
+    return { floor, leftWall, rightWall };
+  }
+
+  private addPlatformRunMeshes(): void {
+    const runs = this.getFloorRuns();
+    for (const run of runs) {
+      const geo = this.buildRunGeometry(run);
+      const floorMesh = new THREE.Mesh(geo.floor, this.trackMaterial);
+      floorMesh.receiveShadow = true;
+      this.scene.add(floorMesh);
+
+      const leftWallMesh = new THREE.Mesh(geo.leftWall, this.trackMaterial);
+      leftWallMesh.castShadow = true;
+      leftWallMesh.receiveShadow = true;
+      this.scene.add(leftWallMesh);
+
+      const rightWallMesh = new THREE.Mesh(geo.rightWall, this.trackMaterial);
+      rightWallMesh.castShadow = true;
+      rightWallMesh.receiveShadow = true;
+      this.scene.add(rightWallMesh);
+    }
+    console.log("[AddPlatformRunMeshes]", "Built continuous platform and wall meshes");
   }
 
   private addSkyscrapers(): void {
     const skyscraperGroup = new THREE.Group();
 
     const skyscraperLayout = [
-      { x: -88, z: -118, w: 18, d: 13, h: 134 },
-      { x: 94, z: -96, w: 14, d: 16, h: 162 },
-      { x: -104, z: -42, w: 20, d: 14, h: 116 },
-      { x: 98, z: -8, w: 16, d: 12, h: 178 },
-      { x: -92, z: 34, w: 13, d: 17, h: 154 },
-      { x: 88, z: 62, w: 19, d: 13, h: 128 },
-      { x: -98, z: 108, w: 16, d: 16, h: 186 },
-      { x: 96, z: 122, w: 15, d: 14, h: 146 },
-      { x: -122, z: 16, w: 18, d: 18, h: 102 },
-      { x: 124, z: 26, w: 17, d: 17, h: 98 },
+      { x: -86, z: -34, w: 18, d: 13, h: 134 },
+      { x: 92, z: -48, w: 14, d: 16, h: 162 },
+      { x: -112, z: -82, w: 20, d: 14, h: 116 },
+      { x: 108, z: -96, w: 16, d: 12, h: 178 },
+      { x: -96, z: -128, w: 13, d: 17, h: 154 },
+      { x: 86, z: -144, w: 19, d: 13, h: 128 },
+      { x: -102, z: -176, w: 16, d: 16, h: 186 },
+      { x: 98, z: -194, w: 15, d: 14, h: 146 },
+      { x: -124, z: -226, w: 18, d: 18, h: 102 },
+      { x: 126, z: -244, w: 17, d: 17, h: 98 },
     ];
 
     for (const tower of skyscraperLayout) {
@@ -336,33 +738,91 @@ class MarbleMadnessStarter {
     console.log("[AddSkyscrapers]", "Placed 10 skyscrapers under floating ramp");
   }
 
-  private getBlockerLayout(): Array<{ z: number; side: -1 | 1 }> {
-    return [
-      { z: 68, side: -1 },
-      { z: 36, side: 1 },
-      { z: 2, side: -1 },
-      { z: -30, side: 1 },
-      { z: -62, side: -1 },
-    ];
-  }
+  private addFinishTriggerCubes(): void {
+    const cubeMaterial = this.trackMaterial.clone();
+    cubeMaterial.emissive = new THREE.Color("#29456a");
+    cubeMaterial.emissiveIntensity = 0.22;
+    cubeMaterial.roughness = 0.62;
+    cubeMaterial.metalness = 0.04;
+    const platformWidth = this.getSliceAtZ(this.fireworkTriggerZ).width;
+    const cubeOffsetX = platformWidth * 0.5 + this.wallThickness + 1.4;
+    const columnHeight = 4.0;
+    const rowOffsets = [10, 0, -10];
+    this.fireworkRows = [];
 
-  private addBlockerVisuals(): void {
-    const blockerWidth = this.trackWidth * (1 / 3);
-    const blockerX = this.trackWidth * 0.5 - blockerWidth * 0.5 - 1.0;
-    const blockerMaterial = new THREE.MeshStandardMaterial({
-      color: "#8a3d2f",
-      roughness: 0.68,
-      metalness: 0.08,
-    });
+    for (const rowOffset of rowOffsets) {
+      const z = this.fireworkTriggerZ + rowOffset;
+      const y = this.getTrackSurfaceY(z) + columnHeight * 0.5;
+      const rowBurstPoints: THREE.Vector3[] = [];
+      const leftColumn = new THREE.Mesh(new THREE.BoxGeometry(1.6, columnHeight, 1.6), cubeMaterial);
+      leftColumn.position.set(-cubeOffsetX, y, z);
+      this.scene.add(leftColumn);
+      rowBurstPoints.push(new THREE.Vector3(-cubeOffsetX, y + columnHeight * 0.52, z));
 
-    for (const blocker of this.getBlockerLayout()) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(blockerWidth, 1.1, 1.2), blockerMaterial);
-      wall.rotation.x = -this.getTrackTiltAtZ(blocker.z);
-      wall.position.set(blocker.side * blockerX, this.getTrackSurfaceY(blocker.z) + 0.55, blocker.z);
-      this.scene.add(wall);
+      const rightColumn = new THREE.Mesh(new THREE.BoxGeometry(1.6, columnHeight, 1.6), cubeMaterial);
+      rightColumn.position.set(cubeOffsetX, y, z);
+      this.scene.add(rightColumn);
+      rowBurstPoints.push(new THREE.Vector3(cubeOffsetX, y + columnHeight * 0.52, z));
+
+      this.fireworkRows.push({
+        activationZ: z,
+        burstPoints: rowBurstPoints,
+        triggered: false,
+      });
     }
 
-    console.log("[AddBlockerVisuals]", "Added horizontal blocker walls");
+    console.log("[AddFinishTriggerCubes]", "Added 3-row edge columns for confetti triggers");
+  }
+
+  private spawnFireworks(burstPoints: THREE.Vector3[]): void {
+    const points = burstPoints.length > 0
+      ? burstPoints
+      : [new THREE.Vector3(-4.4, this.getTrackSurfaceY(this.fireworkTriggerZ) + 2.2, this.fireworkTriggerZ)];
+    const colors = ["#72d7ff", "#ffe17a", "#ff7ad1", "#8dff99"];
+
+    for (const burst of points) {
+      for (let i = 0; i < 44; i += 1) {
+        const particle = new THREE.Mesh(
+          new THREE.BoxGeometry(0.25, 0.25, 0.25),
+          new THREE.MeshStandardMaterial({
+            color: colors[i % colors.length],
+            roughness: 0.45,
+            metalness: 0.08,
+          }),
+        );
+        particle.position.copy(burst);
+        this.scene.add(particle);
+
+        const angle = (i / 44) * Math.PI * 2;
+        const velocity = new THREE.Vector3(
+          Math.cos(angle) * (3 + (i % 6) * 0.45),
+          4 + (i % 5) * 0.55,
+          Math.sin(angle) * (3 + (i % 7) * 0.42),
+        );
+        this.particles.push({ mesh: particle, velocity, life: 1.6 });
+      }
+    }
+
+    this.triggerHaptic("success");
+    console.log("[SpawnFireworks]", "Fireworks burst triggered");
+  }
+
+  private updateParticles(delta: number): void {
+    const gravity = 12.5;
+    const alive: FireworkParticle[] = [];
+    for (const item of this.particles) {
+      item.life -= delta;
+      item.velocity.y -= gravity * delta;
+      item.mesh.position.addScaledVector(item.velocity, delta);
+      item.mesh.rotation.x += delta * 5;
+      item.mesh.rotation.y += delta * 4;
+      if (item.life > 0) {
+        alive.push(item);
+      } else {
+        this.scene.remove(item.mesh);
+      }
+    }
+    this.particles = alive;
   }
 
   private createTrackPhysics(): void {
@@ -370,10 +830,12 @@ class MarbleMadnessStarter {
       return;
     }
 
-    for (const segment of this.trackSegments) {
-      const segmentRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-segment.tilt, 0, 0));
+    const physicsSlices = this.buildPhysicsSlices();
+    for (const slice of physicsSlices) {
+
+      const segmentRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-slice.tilt, 0, 0));
       const floorBodyDesc = RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(0, segment.centerY, segment.centerZ)
+        .setTranslation(slice.centerX, slice.centerY, slice.centerZ)
         .setRotation({
           x: segmentRotation.x,
           y: segmentRotation.y,
@@ -382,20 +844,24 @@ class MarbleMadnessStarter {
         });
       const floorBody = this.world.createRigidBody(floorBodyDesc);
       const floorCollider = RAPIER.ColliderDesc.cuboid(
-        this.trackWidth * 0.5,
+        slice.width * 0.5,
         this.trackThickness * 0.5,
-        segment.length * 0.5,
+        slice.length * 0.5,
       )
         .setFriction(1.1)
-        .setRestitution(0.02);
+        .setRestitution(0);
       this.world.createCollider(floorCollider, floorBody);
 
-      const wallHalfX = 0.5;
-      const wallHalfY = 1.2;
-      const wallHalfZ = segment.length * 0.5;
+      const wallHalfX = this.wallThickness * 0.5;
+      const wallHalfY = this.wallHeight * 0.5;
+      const wallHalfZ = slice.length * 0.5;
 
       const leftWallBodyDesc = RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(-this.trackWidth * 0.5 - 0.5, segment.centerY + 1.2, segment.centerZ)
+        .setTranslation(
+          slice.centerX - slice.width * 0.5 - wallHalfX,
+          slice.centerY + this.trackThickness * 0.5 + wallHalfY,
+          slice.centerZ,
+        )
         .setRotation({
           x: segmentRotation.x,
           y: segmentRotation.y,
@@ -403,11 +869,15 @@ class MarbleMadnessStarter {
           w: segmentRotation.w,
         });
       const leftWallBody = this.world.createRigidBody(leftWallBodyDesc);
-      const leftWallCollider = RAPIER.ColliderDesc.cuboid(wallHalfX, wallHalfY, wallHalfZ).setFriction(0.7);
+      const leftWallCollider = RAPIER.ColliderDesc.cuboid(wallHalfX, wallHalfY, wallHalfZ).setFriction(0.7).setRestitution(0);
       this.world.createCollider(leftWallCollider, leftWallBody);
 
       const rightWallBodyDesc = RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(this.trackWidth * 0.5 + 0.5, segment.centerY + 1.2, segment.centerZ)
+        .setTranslation(
+          slice.centerX + slice.width * 0.5 + wallHalfX,
+          slice.centerY + this.trackThickness * 0.5 + wallHalfY,
+          slice.centerZ,
+        )
         .setRotation({
           x: segmentRotation.x,
           y: segmentRotation.y,
@@ -415,37 +885,56 @@ class MarbleMadnessStarter {
           w: segmentRotation.w,
         });
       const rightWallBody = this.world.createRigidBody(rightWallBodyDesc);
-      const rightWallCollider = RAPIER.ColliderDesc.cuboid(wallHalfX, wallHalfY, wallHalfZ).setFriction(0.7);
+      const rightWallCollider = RAPIER.ColliderDesc.cuboid(wallHalfX, wallHalfY, wallHalfZ).setFriction(0.7).setRestitution(0);
       this.world.createCollider(rightWallCollider, rightWallBody);
     }
-
-    this.createBlockerPhysics();
     console.log("[CreateTrackPhysics]", "Track colliders created");
   }
 
-  private createBlockerPhysics(): void {
-    if (!this.world) {
-      return;
+  private buildPhysicsSlices(): TrackSlice[] {
+    const slices = this.trackSlices.filter((slice) => slice.hasFloor);
+    const grouped: TrackSlice[] = [];
+    const chunkSize = 4;
+    let i = 0;
+    while (i < slices.length) {
+      const first = slices[i];
+      let last = first;
+      let sumWidth = 0;
+      let sumCenterX = 0;
+      let count = 0;
+      for (let j = i; j < Math.min(i + chunkSize, slices.length); j += 1) {
+        const current = slices[j];
+        if (count > 0 && Math.abs(last.zEnd - current.zStart) > this.trackStep * 1.5) {
+          break;
+        }
+        last = current;
+        sumWidth += current.width;
+        sumCenterX += current.centerX;
+        count += 1;
+      }
+      const zStart = first.zStart;
+      const zEnd = last.zEnd;
+      const length = Math.max(0.001, Math.abs(zStart - zEnd));
+      const yStart = first.yStart;
+      const yEnd = last.yEnd;
+      grouped.push({
+        zStart,
+        zEnd,
+        xStart: first.xStart,
+        xEnd: last.xEnd,
+        yStart,
+        yEnd,
+        centerZ: (zStart + zEnd) * 0.5,
+        centerX: sumCenterX / Math.max(1, count),
+        centerY: (yStart + yEnd) * 0.5 - this.trackThickness * 0.5,
+        length,
+        tilt: Math.atan2(yStart - yEnd, length),
+        width: sumWidth / Math.max(1, count),
+        hasFloor: true,
+      });
+      i += count;
     }
-
-    const blockerWidth = this.trackWidth * (1 / 3);
-    const blockerHalfWidth = blockerWidth * 0.5;
-    const blockerX = this.trackWidth * 0.5 - blockerHalfWidth - 1.0;
-
-    for (const blocker of this.getBlockerLayout()) {
-      const x = blocker.side * blockerX;
-      const y = this.getTrackSurfaceY(blocker.z) + 0.55;
-      const tilt = this.getTrackTiltAtZ(blocker.z);
-      const trackRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-tilt, 0, 0));
-      const bodyDesc = RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(x, y, blocker.z)
-        .setRotation({ x: trackRotation.x, y: trackRotation.y, z: trackRotation.z, w: trackRotation.w });
-      const body = this.world.createRigidBody(bodyDesc);
-      const collider = RAPIER.ColliderDesc.cuboid(blockerHalfWidth, 0.55, 0.6).setFriction(0.9).setRestitution(0.05);
-      this.world.createCollider(collider, body);
-    }
-
-    console.log("[CreateBlockerPhysics]", "Added blocker colliders");
+    return grouped;
   }
 
   private createMarblePhysics(): void {
@@ -463,8 +952,10 @@ class MarbleMadnessStarter {
     this.marbleBody = this.world.createRigidBody(bodyDesc);
 
     const collider = RAPIER.ColliderDesc.ball(this.marbleRadius)
-      .setFriction(1.2)
-      .setRestitution(0.04)
+      .setFriction(1.6)
+      .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Max)
+      .setRestitution(0)
+      .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min)
       .setDensity(1.3);
 
     this.world.createCollider(collider, this.marbleBody);
@@ -635,6 +1126,18 @@ class MarbleMadnessStarter {
     this.gameState = "playing";
     this.runTimeSeconds = 0;
     this.finishedTimeSeconds = 0;
+    for (const row of this.fireworkRows) {
+      row.triggered = false;
+    }
+    for (const item of this.particles) {
+      this.scene.remove(item.mesh);
+    }
+    this.particles = [];
+    for (const item of this.trailParticles) {
+      this.scene.remove(item.mesh);
+    }
+    this.trailParticles = [];
+    this.trailSpawnSeconds = 0;
     this.setSettingsVisible(false);
     this.resetMarble();
     this.updateHud();
@@ -718,13 +1221,14 @@ class MarbleMadnessStarter {
       return;
     }
 
+    const startX = this.sampleTrackX(this.startZ);
     const startY = this.getTrackSurfaceY(this.startZ) + this.marbleRadius + 0.8;
-    this.marbleBody.setTranslation({ x: 0, y: startY, z: this.startZ }, true);
-    this.marbleBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.marbleBody.setTranslation({ x: startX, y: startY, z: this.startZ }, true);
+    this.marbleBody.setLinvel({ x: 0, y: 0, z: -this.startFlickSpeed }, true);
     this.marbleBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.marbleBody.wakeUp();
 
-    this.marbleMesh.position.set(0, startY, this.startZ);
+    this.marbleMesh.position.set(startX, startY, this.startZ);
     this.marbleMesh.quaternion.identity();
 
     this.updateCamera(0.16);
@@ -732,13 +1236,16 @@ class MarbleMadnessStarter {
   }
 
   private getTrackSurfaceY(z: number): number {
-    const segment = this.getSegmentAtZ(z);
-    const segmentProgress = THREE.MathUtils.clamp(
-      (segment.zStart - z) / Math.max(0.0001, segment.zStart - segment.zEnd),
-      0,
-      1,
-    );
-    return THREE.MathUtils.lerp(segment.surfaceYStart, segment.surfaceYEnd, segmentProgress);
+    const clampedZ = THREE.MathUtils.clamp(z, this.finishZ, this.startZ);
+    for (let i = 0; i < this.trackSamples.length - 1; i += 1) {
+      const a = this.trackSamples[i];
+      const b = this.trackSamples[i + 1];
+      if (clampedZ <= a.z && clampedZ >= b.z) {
+        const t = (a.z - clampedZ) / Math.max(0.0001, a.z - b.z);
+        return THREE.MathUtils.lerp(a.y, b.y, t);
+      }
+    }
+    return this.trackSamples[this.trackSamples.length - 1]?.y ?? this.trackCenterY;
   }
 
   private handleResize(): void {
@@ -766,6 +1273,8 @@ class MarbleMadnessStarter {
     }
 
     this.updateCamera(delta);
+    this.updateTrail(delta);
+    this.updateParticles(delta);
     this.updateHud();
     this.renderer.render(this.scene, this.camera);
 
@@ -782,20 +1291,45 @@ class MarbleMadnessStarter {
 
       const inputAxis = Number(this.inputRight) - Number(this.inputLeft);
       if (inputAxis !== 0) {
-        this.marbleBody.applyImpulse({ x: inputAxis * this.nudgeImpulse, y: 0, z: 0 }, true);
+        this.marbleBody.applyImpulse({ x: inputAxis * this.nudgeImpulse * this.speedMultiplier, y: 0, z: 0 }, true);
       }
       const positionBeforeStep = this.marbleBody.translation();
+      const surfaceYBeforeStep = this.getTrackSurfaceY(positionBeforeStep.z);
+      const groundClearanceBefore = positionBeforeStep.y - (surfaceYBeforeStep + this.marbleRadius);
+      const nearGroundBeforeStep = groundClearanceBefore <= 0.85;
       const localTilt = this.getTrackTiltAtZ(positionBeforeStep.z);
       const slopeFactor = Math.max(0, Math.tan(localTilt));
-      const momentumBoost = this.downhillImpulse + slopeFactor * 0.55;
-      this.marbleBody.applyImpulse({ x: 0, y: 0, z: -momentumBoost }, true);
+      const momentumBoost = (this.downhillImpulse + slopeFactor * 0.52) * this.speedMultiplier;
+      if (nearGroundBeforeStep) {
+        this.marbleBody.applyImpulse({ x: 0, y: 0, z: -momentumBoost }, true);
+      }
 
       this.world.step();
 
       const position = this.marbleBody.translation();
+      const velocity = this.marbleBody.linvel();
+      const surfaceYAfterStep = this.getTrackSurfaceY(position.z);
+      const groundClearanceAfter = position.y - (surfaceYAfterStep + this.marbleRadius);
+      const nearGroundAfterStep = groundClearanceAfter <= 0.82;
+      if (nearGroundAfterStep) {
+        const targetForwardSpeed = this.getTrackTiltAtZ(position.z) > 0.08 ? -34 : -26;
+        if (velocity.z > targetForwardSpeed) {
+          const catchUpImpulse = (velocity.z - targetForwardSpeed) * 0.06;
+          this.marbleBody.applyImpulse({ x: 0, y: 0, z: -catchUpImpulse }, true);
+        }
+      }
+
       const rotation = this.marbleBody.rotation();
       this.marbleMesh.position.set(position.x, position.y, position.z);
       this.marbleMesh.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
+
+      for (const row of this.fireworkRows) {
+        if (!row.triggered && position.z <= row.activationZ) {
+          this.spawnFireworks(row.burstPoints);
+          row.triggered = true;
+          break;
+        }
+      }
 
       if (position.z <= this.finishZ) {
         this.endRun(true);
@@ -808,11 +1342,12 @@ class MarbleMadnessStarter {
   private updateCamera(delta: number): void {
     const targetPosition = this.marbleMesh.position;
 
-    const desired = new THREE.Vector3(targetPosition.x * 0.55, targetPosition.y + 40, targetPosition.z + 54);
+    const panX = targetPosition.x * 0.5;
+    const desired = new THREE.Vector3(panX, targetPosition.y + 40, targetPosition.z + 54);
     const lerpFactor = Math.min(1, delta * 4.5);
     this.camera.position.lerp(desired, lerpFactor);
 
-    const look = new THREE.Vector3(targetPosition.x * 0.7, targetPosition.y + 1.2, targetPosition.z - 34);
+    const look = new THREE.Vector3(panX, targetPosition.y + 1.2, targetPosition.z - 34);
     this.camera.lookAt(look);
   }
 
