@@ -462,6 +462,7 @@ class Game {
     this.cacheHudRefs();
     this.loadHitboxTuning();
     this.loadHitboxLabColliders();
+    this.loadHitboxLabCollidersFromFile(); // async, overrides localStorage if collisions.json exists
     this.applyHitboxTuning();
     
     // Start game loop
@@ -1982,6 +1983,32 @@ class Game {
     }
   }
 
+  private async loadHitboxLabCollidersFromFile(): Promise<void> {
+    try {
+      const res = await fetch("./collisions.json");
+      if (!res.ok) return;
+      const parsed = await res.json() as Record<string, Partial<LabCollider>>;
+      const next: Record<string, LabCollider> = {};
+      for (const [frameId, raw] of Object.entries(parsed)) {
+        if (!raw || typeof raw !== "object") continue;
+        if (raw.type === "rect") {
+          const x = Number(raw.x), y = Number(raw.y), width = Number(raw.width), height = Number(raw.height);
+          if ([x, y, width, height].some((n) => !Number.isFinite(n))) continue;
+          next[frameId] = { type: "rect", x: Math.round(x), y: Math.round(y), width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
+        } else if (raw.type === "circle") {
+          const cx = Number(raw.cx), cy = Number(raw.cy), radius = Number(raw.radius);
+          if ([cx, cy, radius].some((n) => !Number.isFinite(n))) continue;
+          next[frameId] = { type: "circle", cx: Math.round(cx), cy: Math.round(cy), radius: Math.max(1, Math.round(radius)) };
+        }
+      }
+      this.hitboxLabColliders = next;
+      this.hitboxLabLoadedCount = Object.keys(next).length;
+      console.log(`[HitboxLab] Loaded ${this.hitboxLabLoadedCount} frame colliders from collisions.json`);
+    } catch {
+      // collisions.json not found — localStorage version stays active
+    }
+  }
+
   private saveHitboxTuning(): void {
     localStorage.setItem(this.HITBOX_TUNING_STORAGE_KEY, JSON.stringify(this.hitboxTuning));
   }
@@ -2291,6 +2318,7 @@ class Game {
     } else if (this.gameState === "shop") {
       this.updateSpecialRoomState();
     }
+    this.updateScreenShake();
   }
 
   private updatePlayingState(): void {
@@ -5030,9 +5058,6 @@ class Game {
   private draw(): void {
     const ctx = this.ctx;
     
-    // Update screen shake
-    this.updateScreenShake();
-    
     // Clear canvas with ocean base
     ctx.fillStyle = "#0a2a50";
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -5139,6 +5164,14 @@ class Game {
       this.drawWorldDoorwayDebugOverlay();
     }
     
+    // Death freeze full-screen darkness — drawn after ALL transforms are restored
+    // so it covers the entire canvas including letterbox strips
+    if (this.deathFreezeFrames > 0) {
+      const freezeProgress = (this.DEATH_FREEZE_DURATION_FRAMES - this.deathFreezeFrames) / this.DEATH_FREEZE_DURATION_FRAMES;
+      ctx.fillStyle = `rgba(4, 12, 22, ${0.55 + freezeProgress * 0.25})`;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
     // Apply dithering effect as post-process
     this.applyDithering();
   }
