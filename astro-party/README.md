@@ -40,6 +40,13 @@ Defaults:
 - Client dev URL: `http://localhost:5173`
 - Server URL: `http://localhost:2567` / `ws://localhost:2567`
 
+## Production note
+
+For production runtime (especially when observability endpoints are not needed), disable server monitoring surfaces:
+
+- `COLYSEUS_MONITOR_ENABLED=false`
+- `OPS_STATS_ENABLED=false`
+
 ## Build and typecheck
 
 Validated on February 23, 2026:

@@ -540,17 +540,19 @@ function attachInputLoop(
     }
   };
 
-  const requestGracefulLeave = (reason: string): void => {
+  const requestGracefulLeave = (reason: string, consented: boolean): void => {
     if (closed) return;
     if (leaveRequested) return;
     leaveRequested = true;
-    void room.leave(false).catch((error: unknown) => {
+    void room.leave(consented).catch((error: unknown) => {
       console.log(
         "[LoadTest.lobbyfill.attachInputLoop]",
         "Client " +
           clientId +
           " leave after " +
           reason +
+          " consented=" +
+          consented +
           " failed: " +
           String(error),
       );
@@ -594,7 +596,8 @@ function attachInputLoop(
   let leaveTimeout: ReturnType<typeof setTimeout> | null = null;
   if (config.durationMs > 0) {
     leaveTimeout = setTimeout(() => {
-      requestGracefulLeave("duration");
+      // Planned stop for test lifecycle: mark as consented.
+      requestGracefulLeave("duration", true);
     }, config.durationMs);
   }
 
@@ -645,7 +648,8 @@ function attachInputLoop(
         " message=" +
         (message ?? ""),
     );
-    requestGracefulLeave("room_error_" + code.toString());
+    // Preserve anomaly signal for room/server error path.
+    requestGracefulLeave("room_error_" + code.toString(), false);
   });
 }
 

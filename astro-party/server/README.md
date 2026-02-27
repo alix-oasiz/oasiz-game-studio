@@ -163,6 +163,10 @@ Implementation files:
 
 The server exposes a lightweight ops endpoint for app-level metrics:
 
+Production recommendation:
+
+- set `OPS_STATS_ENABLED=false` unless you explicitly need `/ops/stats`
+
 - default path: `/ops/stats`
 - payload includes:
   - room/client counters
@@ -181,6 +185,10 @@ Security:
 ## Colyseus Monitor
 
 The server mounts Colyseus Monitor on the same HTTP server.
+
+Production recommendation:
+
+- set `COLYSEUS_MONITOR_ENABLED=false` unless you explicitly need monitor access
 
 Default behavior:
 

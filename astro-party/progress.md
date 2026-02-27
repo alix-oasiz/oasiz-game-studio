@@ -1235,10 +1235,15 @@ TODO / Next suggestions
   - latest unconsented leave event (if present)
   - when `OPS_STATS_REQUIRED=true`, failed fetch/parse fails deploy
 ## 2026-02-27 (Monitoring command reference doc)
-- Added `server/monitoring-command-reference.txt` with ready-to-run operational commands for:
+- Added `server/monitoring-command-reference.md` with ready-to-run operational commands for:
   - PM2 monitor/log views
   - unconsented leave focused server log stream
   - `/ops/stats` watch (token + non-token variants)
   - dmesg OOM/segfault watcher
   - lobbyfill loadtest run command
   - post-run correlation grep commands for `1006` / server disconnect signals
+  - host-load correlation commands (`vmstat` quick view + single combined host/pm2/ops timeline logger)
+  - fixed correlation logger awk quoting and interface detection for Linux shells
+  - clarified same-host vs split-host correlation workflows (droplet server + local loadtest)
+  - updated reference to split-host only (explicitly local loadtest + droplet server)
+  - normalized local commands to run from a single directory (`astro-party/server`) without repeated `cd` hops
