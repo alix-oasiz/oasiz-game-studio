@@ -205,7 +205,9 @@
         <button id="nextBtn">Next</button>
         <button id="copyFrameBtn">Copy Frame JSON</button>
         <button id="copyAllBtn">Copy All JSON</button>
-        <button id="saveBtn" class="good">Save</button>
+        <button id="saveBtn" class="good">Save to File</button>
+        <button id="loadFileBtn">Load File</button>
+        <input id="loadFileInput" type="file" accept=".json" style="display:none" />
         <button id="resetFrameBtn" class="warn">Reset Frame</button>
         <button id="resetAllBtn" class="warn">Reset All</button>
       </div>
@@ -325,6 +327,8 @@
       copyFrameBtn: document.getElementById("copyFrameBtn"),
       copyAllBtn: document.getElementById("copyAllBtn"),
       saveBtn: document.getElementById("saveBtn"),
+      loadFileBtn: document.getElementById("loadFileBtn"),
+      loadFileInput: document.getElementById("loadFileInput"),
       resetFrameBtn: document.getElementById("resetFrameBtn"),
       resetAllBtn: document.getElementById("resetAllBtn"),
       importBtn: document.getElementById("importBtn"),
@@ -439,7 +443,19 @@
       return state.colliders[frame.id];
     }
 
-    function loadSaved() {
+    async function loadSaved() {
+      // Try committed file first, fall back to localStorage
+      try {
+        const res = await fetch("./collisions.json");
+        if (res.ok) {
+          const parsed = await res.json();
+          if (parsed && typeof parsed === "object") {
+            state.colliders = parsed;
+            status("Loaded collisions.json from repo.");
+            return;
+          }
+        }
+      } catch (_) {}
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return;
@@ -451,8 +467,17 @@
     }
 
     function saveAll() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.colliders));
-      status("Saved to localStorage.");
+      const json = JSON.stringify(state.colliders, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "collisions.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      // Also keep localStorage as session backup
+      localStorage.setItem(STORAGE_KEY, json);
+      status("Downloaded collisions.json — commit it to public/");
     }
 
     function resetFrame() {
@@ -876,6 +901,28 @@
       };
 
       els.saveBtn.onclick = () => saveAll();
+
+      els.loadFileBtn.onclick = () => els.loadFileInput.click();
+      els.loadFileInput.addEventListener("change", () => {
+        const file = els.loadFileInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target.result);
+            if (!parsed || typeof parsed !== "object") throw new Error("JSON must be an object");
+            state.colliders = parsed;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            syncControls();
+            drawFrame();
+            status("Loaded " + file.name);
+          } catch (err) {
+            status("Load failed: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+        els.loadFileInput.value = "";
+      });
       els.resetFrameBtn.onclick = () => resetFrame();
       els.resetAllBtn.onclick = () => resetAll();
 
@@ -952,7 +999,7 @@
     async function main() {
       status("Loading assets...");
       await buildFrames();
-      loadSaved();
+      await loadSaved();
       renderFrameList();
       bindControls();
       syncControls();
