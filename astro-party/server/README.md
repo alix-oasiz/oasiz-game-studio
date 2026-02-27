@@ -66,7 +66,7 @@ npm run loadtest:capacity -- --runner lobbyfill --stages 20,40,60,80 --usersPerR
 Behavior:
 
 - roomcode mode joins an exact room code via `/match/join` + seat reservation consume
-- lobbyfill mode groups clients (`usersPerRoom`), leader creates room with room code, followers join that room code, and leader sends `cmd:start_match` when group is full
+- lobbyfill mode groups clients (`usersPerRoom`), leader creates room directly via Colyseus `create`, followers join leader room via `joinById`, and leader sends `cmd:start_match` when group is full
 - input spam starts only in `PLAYING`, pauses in other phases, and resumes when `PLAYING` returns
 - reads `evt:snapshot` payloads and discards them (with metrics)
 - sends `cmd:input` (`buttonA` + `buttonB`) at default client debounce (`1000/60`), aligned to server `tickDurationMs` when available

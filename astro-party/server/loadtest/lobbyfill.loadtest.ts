@@ -53,7 +53,7 @@ interface MetricsState {
   activeClients: Set<number>;
   disconnectedClients: Set<number>;
   failedClients: Set<number>;
-  leaveCodes: Map<number, number>;
+  disconnectCodes: Map<number, number>;
   roomErrors: Map<string, number>;
   failureReasons: Map<string, number>;
   createdRooms: number;
@@ -69,24 +69,8 @@ interface MetricsState {
   initialized: boolean;
 }
 
-interface JoinSeatSuccess {
-  ok?: true;
-  roomCode?: string;
-  roomId?: string;
-  seatReservation?: unknown;
-}
-
-interface JoinSeatError {
-  ok: false;
-  error?: string;
-  message?: string;
-}
-
-interface CreateSeatSuccess {
-  roomCode?: string;
-  roomId?: string;
-  seatReservation?: unknown;
-}
+const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const RUN_ROOM_CODE_SALT = (Date.now() ^ process.pid) >>> 0;
 
 const GROUPS = new Map<number, Promise<GroupRoomContext>>();
 
@@ -97,7 +81,7 @@ const METRICS: MetricsState = {
   activeClients: new Set<number>(),
   disconnectedClients: new Set<number>(),
   failedClients: new Set<number>(),
-  leaveCodes: new Map<number, number>(),
+  disconnectCodes: new Map<number, number>(),
   roomErrors: new Map<string, number>(),
   failureReasons: new Map<string, number>(),
   createdRooms: 0,
@@ -186,7 +170,7 @@ function summaryLine(): string {
 
 function runOutcomeLine(): string {
   const expected = Math.max(METRICS.expectedClients, METRICS.attemptedClients);
-  const topLeaveCodes = [...METRICS.leaveCodes.entries()]
+  const topDisconnectCodes = [...METRICS.disconnectCodes.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([code, count]) => code.toString() + ":" + count.toString())
@@ -201,8 +185,10 @@ function runOutcomeLine(): string {
     METRICS.failedClients.size +
     " disconnected=" +
     METRICS.disconnectedClients.size +
+    " topDisconnectCodes=" +
+    (topDisconnectCodes.length > 0 ? topDisconnectCodes : "none") +
     " topLeaveCodes=" +
-    (topLeaveCodes.length > 0 ? topLeaveCodes : "none")
+    (topDisconnectCodes.length > 0 ? topDisconnectCodes : "none")
   );
 }
 
@@ -220,11 +206,15 @@ function printFinalSummary(): void {
     console.log("[LoadTest.lobbyfill.summary]", "failureReasons=" + reasons);
   }
 
-  if (METRICS.leaveCodes.size > 0) {
-    const leaveCodes = [...METRICS.leaveCodes.entries()]
+  if (METRICS.disconnectCodes.size > 0) {
+    const disconnectCodes = [...METRICS.disconnectCodes.entries()]
       .map(([code, count]) => code.toString() + ":" + count.toString())
       .join(", ");
-    console.log("[LoadTest.lobbyfill.summary]", "leaveCodes=" + leaveCodes);
+    console.log(
+      "[LoadTest.lobbyfill.summary]",
+      "disconnectCodes=" + disconnectCodes,
+    );
+    console.log("[LoadTest.lobbyfill.summary]", "leaveCodes=" + disconnectCodes);
   }
 
   if (METRICS.roomErrors.size > 0) {
@@ -457,125 +447,15 @@ function resolvePlacement(
   };
 }
 
-function resolveHttpMatchEndpoint(wsEndpoint: string, pathname: string): string {
-  try {
-    const url = new URL(wsEndpoint);
-    if (url.protocol === "ws:") {
-      url.protocol = "http:";
-    } else if (url.protocol === "wss:") {
-      url.protocol = "https:";
-    } else if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new Error("Unsupported endpoint protocol");
-    }
-    url.pathname = pathname;
-    url.search = "";
-    return url.toString();
-  } catch (_error) {
-    throw new Error("Invalid endpoint: " + wsEndpoint);
+function buildRoomCode(groupId: number): string {
+  let seed = (((groupId + 1) * 7919) ^ RUN_ROOM_CODE_SALT) >>> 0;
+  let code = "";
+  while (code.length < 4) {
+    seed = (seed * 31 + code.length * 17) >>> 0;
+    const index = seed % ROOM_CODE_ALPHABET.length;
+    code += ROOM_CODE_ALPHABET[index];
   }
-}
-
-async function requestCreateSeatReservation(
-  wsEndpoint: string,
-  playerName: string,
-): Promise<{ roomCode: string; roomId: string; seatReservation: unknown }> {
-  const endpoint = resolveHttpMatchEndpoint(wsEndpoint, "/match/create");
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      playerName,
-    }),
-  });
-
-  const bodyText = await response.text();
-  const parsedBody =
-    bodyText.length > 0 ? (JSON.parse(bodyText) as unknown) : null;
-
-  if (!response.ok) {
-    const view = parsedBody as { error?: unknown; message?: unknown };
-    const code =
-      typeof view?.error === "string"
-        ? view.error
-        : "HTTP_" + response.status.toString();
-    const message =
-      typeof view?.message === "string"
-        ? view.message
-        : response.statusText || "create request failed";
-    throw new Error(code + ": " + message);
-  }
-
-  if (!parsedBody || typeof parsedBody !== "object") {
-    throw new Error("Create response was empty");
-  }
-
-  const view = parsedBody as CreateSeatSuccess;
-  const roomCode =
-    typeof view.roomCode === "string" ? view.roomCode.trim().toUpperCase() : "";
-  const roomId = typeof view.roomId === "string" ? view.roomId : "";
-  if (roomCode.length <= 0 || roomId.length <= 0) {
-    throw new Error("Create response did not include roomCode/roomId");
-  }
-  if (!("seatReservation" in view) || view.seatReservation === undefined) {
-    throw new Error("Create response did not include seatReservation");
-  }
-
-  return {
-    roomCode,
-    roomId,
-    seatReservation: view.seatReservation,
-  };
-}
-
-async function requestJoinSeatReservation(
-  wsEndpoint: string,
-  roomCode: string,
-  playerName: string,
-): Promise<{ seatReservation: unknown; roomId: string | null }> {
-  const endpoint = resolveHttpMatchEndpoint(wsEndpoint, "/match/join");
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      roomCode,
-      playerName,
-    }),
-  });
-
-  const bodyText = await response.text();
-  const parsedBody =
-    bodyText.length > 0 ? (JSON.parse(bodyText) as unknown) : null;
-
-  if (!response.ok) {
-    const view = parsedBody as { error?: unknown; message?: unknown };
-    const code =
-      typeof view?.error === "string"
-        ? view.error
-        : "HTTP_" + response.status.toString();
-    const message =
-      typeof view?.message === "string"
-        ? view.message
-        : response.statusText || "join request failed";
-    throw new Error(code + ": " + message);
-  }
-
-  if (!parsedBody || typeof parsedBody !== "object") {
-    throw new Error("Join response was empty");
-  }
-
-  const view = parsedBody as JoinSeatSuccess | JoinSeatError;
-  if ("ok" in view && view.ok === false) {
-    throw new Error((view.error ?? "JOIN_FAILED") + ": " + (view.message ?? ""));
-  }
-
-  if (!("seatReservation" in view) || view.seatReservation === undefined) {
-    throw new Error("Join response did not include seatReservation");
-  }
-
-  return {
-    seatReservation: view.seatReservation,
-    roomId: typeof view.roomId === "string" ? view.roomId : null,
-  };
+  return code;
 }
 
 async function waitForGroup(
@@ -726,7 +606,7 @@ function attachInputLoop(
     if (isServerDisconnectCode(code)) {
       METRICS.serverDisconnects += 1;
     }
-    incrementMapCounter(METRICS.leaveCodes, code);
+    incrementMapCounter(METRICS.disconnectCodes, code);
 
     console.log(
       "[LoadTest.lobbyfill.attachInputLoop]",
@@ -830,17 +710,15 @@ export default async function main(options: LoadtestOptions): Promise<void> {
       const existing = GROUPS.get(placement.groupId);
       if (!existing) {
         const createPromise = (async () => {
-          const created = await withTimeout(
-            requestCreateSeatReservation(options.endpoint, playerName),
+          const roomCode = buildRoomCode(placement.groupId);
+          const createdRoom = (await withTimeout(
+            client.create(options.roomName, {
+              playerName,
+              roomCode,
+              maxPlayers: placement.expectedHumans,
+            }),
             config.requestTimeoutMs,
             "creating room for client " + options.clientId,
-          );
-          const createdRoom = (await withTimeout(
-            client.consumeSeatReservation(
-              created.seatReservation as Parameters<Client["consumeSeatReservation"]>[0],
-            ),
-            config.requestTimeoutMs,
-            "consuming create seat reservation for client " + options.clientId,
           )) as LoadtestRoom;
 
           const roomId =
@@ -852,12 +730,12 @@ export default async function main(options: LoadtestOptions): Promise<void> {
           METRICS.createdRooms += 1;
           console.log(
             "[LoadTest.lobbyfill.main]",
-              "Leader client " +
+            "Leader client " +
               options.clientId +
               " created room " +
               roomId +
               " roomCode=" +
-              created.roomCode +
+              roomCode +
               " group=" +
               placement.groupId +
               " expectedHumans=" +
@@ -865,16 +743,13 @@ export default async function main(options: LoadtestOptions): Promise<void> {
           );
 
           return {
-            roomId: created.roomId,
-            roomCode: created.roomCode,
+            roomId,
+            roomCode,
             expectedHumans: placement.expectedHumans,
             leaderClientId: options.clientId,
             leaderRoom: createdRoom as LoadtestRoom,
           } satisfies GroupRoomContext;
-        })().catch((error) => {
-          GROUPS.delete(placement.groupId);
-          throw error;
-        });
+        })();
         GROUPS.set(placement.groupId, createPromise);
       }
 
@@ -882,17 +757,10 @@ export default async function main(options: LoadtestOptions): Promise<void> {
       room = context.leaderRoom;
     } else {
       const context = await waitForGroup(placement.groupId, config.waitForGroupMs);
-      const seat = await withTimeout(
-        requestJoinSeatReservation(options.endpoint, context.roomCode, playerName),
-        config.requestTimeoutMs,
-        "joining by room code for client " + options.clientId,
-      );
       room = (await withTimeout(
-        client.consumeSeatReservation(
-          seat.seatReservation as Parameters<Client["consumeSeatReservation"]>[0],
-        ),
+        client.joinById(context.roomId, { playerName }),
         config.requestTimeoutMs,
-        "consuming seat reservation for client " + options.clientId,
+        "joining roomId for client " + options.clientId,
       )) as LoadtestRoom;
 
       console.log(
@@ -900,7 +768,7 @@ export default async function main(options: LoadtestOptions): Promise<void> {
         "Client " +
           options.clientId +
           " joined room " +
-          (seat.roomId ?? room.roomId) +
+          room.roomId +
           " roomCode=" +
           context.roomCode +
           " group=" +

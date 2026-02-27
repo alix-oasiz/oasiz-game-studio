@@ -1181,3 +1181,27 @@ TODO / Next suggestions
 - Validation:
   - `astro-party/server`: `npm run typecheck` passed
   - `astro-party/server`: `npm run build` passed
+## 2026-02-26 (Lobby-fill failure propagation + disconnect code terminology)
+- Improved group failure behavior in `server/loadtest/lobbyfill.loadtest.ts`:
+  - when a leader room-create promise rejects, the rejected group promise is now kept so group members fail immediately
+  - removed timeout cascade where non-leader clients waited for `waitForGroupMs` and reported `Timed out waiting for group`
+- Updated close-code output terminology:
+  - script summary now emits `disconnectCodes=...` and `topDisconnectCodes=...`
+  - legacy aliases (`leaveCodes`, `topLeaveCodes`) are still included for parser compatibility
+- Validation:
+  - `astro-party/server`: `npm run typecheck` passed
+  - `astro-party/server`: `npm run build` passed
+## 2026-02-26 (Lobby-fill direct join path for loadtest panel visibility)
+- Switched lobby-fill connection flow from HTTP seat-reservation consume to direct Colyseus joins:
+  - leader: `client.create("astro_party", ...)`
+  - followers: `client.joinById(roomId, ...)`
+- Kept existing lobby-fill behavior intact:
+  - grouped room creation
+  - per-group auto-start when full
+  - PLAYING-only input spam + snapshot read/discard
+- Motivation:
+  - restores `@colyseus/loadtest` terminal panel counters (connected/disconnected/network/serializer) which are hooked on `create/joinById` calls
+- Validation:
+  - `astro-party/server`: `npm run typecheck` passed
+  - `astro-party/server`: `npm run build` passed
+  - smoke run: `npm run loadtest:lobbyfill -- --numClients 4 --delay 250 --durationSec 20` produced `Successful connections: 4`
