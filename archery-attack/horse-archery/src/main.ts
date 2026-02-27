@@ -9,7 +9,7 @@
 
 // ============= TYPES =============
 type GameState = "START" | "PLAYING" | "PAUSED" | "WAVE_UPGRADE" | "GAME_OVER";
-type UpgradeId = "doubleShot" | "pullSpeed" | "wobbleControl" | "magnetArrows" | "windReader" | "perfectReload" | "extraQuiver";
+type UpgradeId = "doubleShot" | "pullSpeed" | "wobbleControl" | "magnetArrows" | "perfectReload" | "extraQuiver";
 type TargetKind = "normal" | "runner" | "tiny" | "stoneColumn";
 
 interface Settings {
@@ -317,12 +317,6 @@ const upgradeDefs: UpgradeDef[] = [
     maxLevel: 1,
   },
   {
-    id: "windReader",
-    name: "Wind Reader",
-    description: "Show a ghost arc preview while pulling the bow.",
-    maxLevel: 1,
-  },
-  {
     id: "perfectReload",
     name: "Bullseye Refill",
     description: "Perfect shots instantly refill your quiver.",
@@ -341,7 +335,6 @@ const upgradeLevels: Record<UpgradeId, number> = {
   pullSpeed: 0,
   wobbleControl: 0,
   magnetArrows: 0,
-  windReader: 0,
   perfectReload: 0,
   extraQuiver: 0,
 };
@@ -434,6 +427,16 @@ function triggerHaptic(
   if (typeof (window as any).triggerHaptic === "function") {
     (window as any).triggerHaptic(type);
   }
+  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    const pattern = type === "success"
+      ? [20, 30, 20]
+      : type === "heavy"
+        ? [30]
+        : type === "medium"
+          ? [18]
+          : [12];
+    navigator.vibrate(pattern);
+  }
 }
 
 // ============= SETTINGS =============
@@ -462,16 +465,16 @@ function createAudio(path: string, volume: number, loop = false): HTMLAudioEleme
 }
 
 function loadAudio(): void {
-  musicTrack = createAudio("/Steppe_Gallop.mp3", 0.1, true);
-  bowPullTrack = createAudio("/bow_pull_loop.mp3", 0.48, true);
+  musicTrack = createAudio("./Steppe_Gallop.mp3", 0.1, true);
+  bowPullTrack = createAudio("./bow_pull_loop.mp3", 0.48, true);
 
-  sfxTracks.uiTap = createAudio("/ui_tap.mp3", 0.65);
-  sfxTracks.bowRelease = createAudio("/bow_release.mp3", 0.8);
-  sfxTracks.targetHit = createAudio("/target_hit.mp3", 0.88);
-  sfxTracks.perfectHit = createAudio("/perfect_hit.mp3", 0.7);
-  sfxTracks.reloadReady = createAudio("/reload_ready.mp3", 0.92);
-  sfxTracks.countdownTick = createAudio("/countdown_tick.mp3", 0.3);
-  sfxTracks.gameOverFail = createAudio("/game_over_fail.mp3", 0.3);
+  sfxTracks.uiTap = createAudio("./ui_tap.mp3", 0.65);
+  sfxTracks.bowRelease = createAudio("./bow_release.mp3", 0.8);
+  sfxTracks.targetHit = createAudio("./target_hit.mp3", 0.88);
+  sfxTracks.perfectHit = createAudio("./perfect_hit.mp3", 0.7);
+  sfxTracks.reloadReady = createAudio("./reload_ready.mp3", 0.92);
+  sfxTracks.countdownTick = createAudio("./countdown_tick.mp3", 0.3);
+  sfxTracks.gameOverFail = createAudio("./game_over_fail.mp3", 0.3);
 }
 
 function playSfx(
@@ -873,7 +876,6 @@ function resetUpgrades(): void {
   upgradeLevels.pullSpeed = 0;
   upgradeLevels.wobbleControl = 0;
   upgradeLevels.magnetArrows = 0;
-  upgradeLevels.windReader = 0;
   upgradeLevels.perfectReload = 0;
   upgradeLevels.extraQuiver = 0;
 }
@@ -1276,7 +1278,7 @@ function startDraw(): void {
   wobbleAmount = 0;
   drawElapsed = 0;
   playBowPullLoopIfAllowed();
-  triggerHaptic("light");
+  triggerHaptic("medium");
 }
 
 function updateDraw(dt: number): void {
@@ -1363,7 +1365,7 @@ function fireArrow(): void {
   }
 
   playSfx("bowRelease");
-  triggerHaptic("medium");
+  triggerHaptic("heavy");
 }
 
 // ============= SCORE POPUPS =============
@@ -2724,7 +2726,6 @@ function drawArrows(): void {
 }
 
 function drawWindReaderPreview(): void {
-  if (upgradeLevels.windReader <= 0) return;
   if (!isDrawing) return;
 
   const baseAngle = Math.PI / 4;
@@ -3255,7 +3256,7 @@ function update(dt: number): void {
         };
         if (t.kind === "stoneColumn") {
           playSfx("targetHit");
-          triggerHaptic("light");
+          triggerHaptic("heavy");
           break;
         }
         spawnTargetRingBurst(t);
@@ -3305,7 +3306,7 @@ function update(dt: number): void {
         }
 
         playSfx(isBullseye ? "perfectHit" : "targetHit");
-        triggerHaptic("light");
+        triggerHaptic(isBullseye ? "success" : "heavy");
         if (waveHits >= CONFIG.WAVE_HIT_GOAL) {
           waveClearedThisFrame = true;
         }

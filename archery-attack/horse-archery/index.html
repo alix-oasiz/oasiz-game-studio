@@ -58,6 +58,13 @@
     /* ============ START SCREEN ============ */
     #startScreen {
       background: linear-gradient(135deg, rgba(10, 15, 25, 0.98) 0%, rgba(20, 30, 40, 0.95) 100%);
+      padding: 10vh 20px;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #startScreen > * {
+      flex-shrink: 0;
     }
 
     #rotatePrompt {
@@ -86,7 +93,7 @@
 
     .game-title {
       font-family: 'Sora', sans-serif;
-      font-size: clamp(32px, 8vw, 56px);
+      font-size: clamp(24px, 6.2vw, 46px);
       font-weight: 900;
       color: #dd7733;
       text-shadow:
@@ -94,28 +101,28 @@
         0 0 60px rgba(221, 119, 51, 0.3),
         0 4px 8px rgba(0, 0, 0, 0.8);
       letter-spacing: 3px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       text-align: center;
     }
 
     .game-subtitle {
-      font-size: clamp(14px, 4vw, 18px);
+      font-size: clamp(12px, 3vw, 16px);
       color: #aa8866;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       text-transform: uppercase;
       letter-spacing: 3px;
     }
 
     .start-tip {
-      max-width: min(560px, 88vw);
-      margin: 0 auto 24px;
-      padding: 14px 18px;
+      max-width: min(520px, 86vw);
+      margin: 0 auto 16px;
+      padding: 10px 14px;
       border-radius: 10px;
       background: rgba(28, 18, 10, 0.58);
       border: 1px solid rgba(196, 160, 88, 0.28);
       font-family: 'Sora', sans-serif;
       color: #e5d1ac;
-      font-size: clamp(15px, 2.5vw, 19px);
+      font-size: clamp(12px, 2vw, 16px);
       font-weight: 600;
       line-height: 1.45;
       letter-spacing: 0.3px;
@@ -188,9 +195,9 @@
       background: linear-gradient(180deg, #dd7733 0%, #aa5522 100%);
       color: #fff;
       font-family: 'Sora', sans-serif;
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 700;
-      padding: 18px 60px;
+      padding: 14px 42px;
       border: none;
       border-radius: 50px;
       cursor: pointer;
@@ -201,6 +208,12 @@
       transition: all 0.15s ease;
       text-transform: uppercase;
       letter-spacing: 2px;
+    }
+
+    #startSettingsBtn {
+      margin-top: 12px !important;
+      min-width: 180px;
+      padding: 10px 26px;
     }
 
     .start-btn:hover {
@@ -441,12 +454,59 @@
     }
 
     @media (pointer: coarse) {
+      #startScreen {
+        padding-top: 8vh;
+        padding-bottom: 8vh;
+      }
+
       #upgradeScreen {
         padding-top: 122px;
       }
 
       .upgrade-option {
         min-height: 82px;
+      }
+    }
+
+    @media (max-height: 740px) {
+      .game-title {
+        font-size: clamp(22px, 5.8vw, 40px);
+        margin-bottom: 6px;
+      }
+
+      .game-subtitle {
+        margin-bottom: 8px;
+      }
+
+      .start-tip {
+        margin-bottom: 12px;
+        padding: 9px 12px;
+      }
+
+      .start-btn {
+        font-size: 18px;
+        padding: 12px 36px;
+      }
+    }
+
+    @media (max-height: 620px) {
+      #startScreen {
+        padding-top: 6vh;
+        padding-bottom: 6vh;
+      }
+
+      .game-title {
+        font-size: clamp(20px, 5.2vw, 34px);
+        letter-spacing: 2px;
+      }
+
+      .start-tip {
+        font-size: clamp(11px, 1.8vw, 14px);
+        margin-bottom: 10px;
+      }
+
+      #startSettingsBtn {
+        margin-top: 8px !important;
       }
     }
 
@@ -597,6 +657,7 @@
       align-items: center;
       justify-content: center;
       touch-action: none;
+      -webkit-tap-highlight-color: transparent;
       -webkit-user-select: none;
       user-select: none;
       transition: transform 0.15s ease;
@@ -679,6 +740,12 @@
 
     #fireBtn:active {
       transform: translateX(-50%) scale(0.95);
+    }
+
+    #fireBtn:focus,
+    #fireBtn:focus-visible {
+      outline: none;
+      box-shadow: none;
     }
 
     #fireBtn.state-drawing {
