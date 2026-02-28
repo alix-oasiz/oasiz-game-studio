@@ -63,6 +63,12 @@ Staged single-droplet capacity sweep (run from your load-generator machine, not 
 npm run loadtest:capacity -- --runner lobbyfill --stages 20,40,60,80 --usersPerRoom 4 --durationSec 300 --cooldownSec 20
 ```
 
+Observed run orchestration (single trigger with server-side artifact capture):
+
+```bash
+npm run loadtest:observed -- --Runner lobbyfill --NumClients 40 --UsersPerRoom 4 --DurationSec 300 --WarmupSec 20 --DropletHost astro-droplet
+```
+
 Behavior:
 
 - roomcode mode joins an exact room code via `/match/join` + seat reservation consume
@@ -115,6 +121,54 @@ Capacity sweep flags (`loadtest:capacity`):
 - `--doToken <token>` + `--doDropletId <id>` (optional DigitalOcean metric capture)
 - `--doInterface public|private` (default `public`)
 
+Observed orchestration flags (`loadtest:observed`, PowerShell parameter names):
+
+- `-Runner lobbyfill|roomcode` (default `lobbyfill`)
+- `-NumClients <n>`
+- `-UsersPerRoom <n>` (`lobbyfill` only, default `4`)
+- `-RoomCode <ABCD>` (`roomcode` only)
+- `-Delay <ms>` (default `300`)
+- `-DurationSec <n>`
+- `-WarmupSec <n>` (default `15`)
+- `-SummaryIntervalMs <n>` (default `5000`)
+- `-RequestTimeoutMs <n>` (default `15000`)
+- `-DropletHost <ssh-host>` (or set `OBS_DROPLET_HOST`)
+- `-RemoteObserverPath <path>` (default `/root/astro-observe.sh`)
+- `-RemoteObserveRoot <path>` (default `/tmp/astro-observe`)
+- `-OpsUrl <url>` (default `http://127.0.0.1:2567/ops/stats`)
+- `-OpsToken <token>` (or set `OPS_STATS_TOKEN`)
+- `-ObserveIntervalSec <n>` (default `2`)
+- `-Interface <name>` (optional network interface override)
+- `-Pm2App <name>` (default `astro-party-colyseus`)
+- `-SyncObserverScript true|false` (default `true`)
+
+Observed run output layout (`server/observed-runs/<runId>/`):
+
+- `run-meta.json`
+- `loadtest.log`
+- `pm2.log`
+- `kernel.log`
+- `metrics.log`
+- `parsed-events.json`
+
+Global observed index:
+
+- `server/observed-runs/index.json`
+
+Build/rebuild parser and index manually:
+
+```bash
+npm run observed:index
+```
+
+Serve and open dashboard:
+
+```bash
+cd observed-runs
+python -m http.server 8080
+# open http://localhost:8080/dashboard/
+```
+
 Endpoint resolution:
 
 - If `--endpoint` is provided, it is used.
@@ -158,6 +212,11 @@ Implementation files:
 - `loadtest/run-roomcode-loadtest.ts`
 - `loadtest/run-lobbyfill-loadtest.ts`
 - `loadtest/run-capacity-sweep.ts`
+- `loadtest/astro-observe.sh`
+- `loadtest/run-observed-loadtest.ps1`
+- `loadtest/build-observed-runs-index.ts`
+- `observed-runs/dashboard/index.html`
+- `observed-runs/dashboard/app.js`
 
 ## Ops Stats Endpoint
 

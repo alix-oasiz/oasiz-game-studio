@@ -11,7 +11,9 @@
     "loadtest": "npm run loadtest:roomcode --",
     "loadtest:roomcode": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-roomcode-loadtest.ts",
     "loadtest:lobbyfill": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-lobbyfill-loadtest.ts",
-    "loadtest:capacity": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-capacity-sweep.ts"
+    "loadtest:capacity": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-capacity-sweep.ts",
+    "loadtest:observed": "powershell -ExecutionPolicy Bypass -File ./loadtest/run-observed-loadtest.ps1",
+    "observed:index": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/build-observed-runs-index.ts"
   },
   "dependencies": {
     "@colyseus/monitor": "^0.16.7",

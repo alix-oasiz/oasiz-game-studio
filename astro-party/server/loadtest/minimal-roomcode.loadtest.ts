@@ -40,7 +40,8 @@ interface MetricsState {
   failureReasons: Map<string, number>;
   inputsSent: number;
   snapshotsReadDuringPlaying: number;
-  serverDisconnects: number;
+  abnormalDisconnects: number;
+  consentedLeaves: number;
   summaryInterval: ReturnType<typeof setInterval> | null;
   expectedClients: number;
   autoExitOnComplete: boolean;
@@ -74,7 +75,8 @@ const METRICS: MetricsState = {
   failureReasons: new Map<string, number>(),
   inputsSent: 0,
   snapshotsReadDuringPlaying: 0,
-  serverDisconnects: 0,
+  abnormalDisconnects: 0,
+  consentedLeaves: 0,
   summaryInterval: null,
   expectedClients: 0,
   autoExitOnComplete: false,
@@ -141,8 +143,10 @@ function summaryLine(): string {
     METRICS.failedClients.size +
     " disconnected=" +
     METRICS.disconnectedClients.size +
-    " serverDisconnects=" +
-    METRICS.serverDisconnects +
+    " abnormalDisconnects=" +
+    METRICS.abnormalDisconnects +
+    " consentedLeaves=" +
+    METRICS.consentedLeaves +
     " snapshotsPlaying=" +
     METRICS.snapshotsReadDuringPlaying +
     " inputsSent=" +
@@ -375,8 +379,12 @@ function readSnapshotTickDurationMs(payload: unknown): number | null {
   return view.tickDurationMs;
 }
 
-function isServerDisconnectCode(code: number): boolean {
-  return code === 1006 || (code >= 4000 && code <= 4999);
+function isAbnormalDisconnectCode(code: number): boolean {
+  return code === 1005 || code === 1006;
+}
+
+function isConsentedLeaveCode(code: number): boolean {
+  return code === 4000;
 }
 
 function resolveHttpJoinEndpoint(wsEndpoint: string): string {
@@ -574,14 +582,24 @@ function attachMinimalGameplayLoop(
 
     METRICS.activeClients.delete(clientId);
     METRICS.disconnectedClients.add(clientId);
-    if (isServerDisconnectCode(code)) {
-      METRICS.serverDisconnects += 1;
+    if (isAbnormalDisconnectCode(code)) {
+      METRICS.abnormalDisconnects += 1;
+    }
+    if (isConsentedLeaveCode(code)) {
+      METRICS.consentedLeaves += 1;
     }
     incrementMapCounter(METRICS.leaveCodes, code);
 
     console.log(
       "[LoadTest.minimal.attachLoop]",
-      "Client " + clientId + " left with code " + code,
+      "Client " +
+        clientId +
+        " left with code " +
+        code +
+        " isAbnormalDisconnect=" +
+        isAbnormalDisconnectCode(code) +
+        " isConsentedLeave=" +
+        isConsentedLeaveCode(code),
     );
     maybeExitWhenRunIsComplete();
   });

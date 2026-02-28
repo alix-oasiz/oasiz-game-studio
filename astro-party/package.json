@@ -19,6 +19,8 @@
     "loadtest:roomcode": "npm --prefix server run loadtest:roomcode --",
     "loadtest:lobbyfill": "npm --prefix server run loadtest:lobbyfill --",
     "loadtest:capacity": "npm --prefix server run loadtest:capacity --",
+    "loadtest:observed": "npm --prefix server run loadtest:observed --",
+    "observed:index": "npm --prefix server run observed:index --",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write 'src/**/*.{ts,tsx,css,html}'"
   },

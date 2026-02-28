@@ -10,6 +10,11 @@ interface ArgBridge {
   bareMeansTrue?: boolean;
 }
 
+interface EndpointResolution {
+  endpoint: string;
+  source: string;
+}
+
 function hasArg(name: string): boolean {
   const exact = "--" + name;
   const prefix = exact + "=";
@@ -178,25 +183,38 @@ function buildDotEnvCandidates(): string[] {
   return candidates;
 }
 
-function resolveEndpointFromEnvFiles(): string | null {
+function resolveEndpointFromEnvFiles(): EndpointResolution | null {
   const envKey = "VITE_COLYSEUS_WS_URL";
   for (const filePath of buildDotEnvCandidates()) {
     const value = readEnvKeyFromFile(filePath, envKey);
     if (!value) continue;
     process.env[envKey] = value;
-    return value;
+    return {
+      endpoint: value,
+      source: "dotenv file " + filePath,
+    };
   }
   return null;
 }
 
-function resolveEndpoint(): string {
+function resolveEndpoint(): EndpointResolution {
+  const fromArg = readArgValue("endpoint");
+  if (typeof fromArg === "string" && fromArg.trim().length > 0) {
+    return {
+      endpoint: fromArg.trim(),
+      source: "cli --endpoint",
+    };
+  }
   const fromEnv = process.env.VITE_COLYSEUS_WS_URL;
   if (typeof fromEnv === "string" && fromEnv.trim().length > 0) {
-    return fromEnv.trim();
+    return {
+      endpoint: fromEnv.trim(),
+      source: "process.env VITE_COLYSEUS_WS_URL",
+    };
   }
   const fromFiles = resolveEndpointFromEnvFiles();
-  if (typeof fromFiles === "string" && fromFiles.trim().length > 0) {
-    return fromFiles.trim();
+  if (fromFiles) {
+    return fromFiles;
   }
   console.error(
     "[LoadTest.run-lobbyfill]",
@@ -210,12 +228,21 @@ bridgeLoadtestArgsToEnv();
 
 const helpRequested = hasArg("help") || hasArg("h");
 if (!helpRequested) {
+  const endpointResolution = resolveEndpoint();
   if (!hasArg("endpoint")) {
-    ensureArg("endpoint", resolveEndpoint());
+    ensureArg("endpoint", endpointResolution.endpoint);
   }
   if (!hasArg("output")) {
     ensureArg("output", resolveDefaultOutputPath());
   }
+  console.log(
+    "[LoadTest.run-lobbyfill]",
+    "Using endpoint " +
+      endpointResolution.endpoint +
+      " (source " +
+      endpointResolution.source +
+      ")",
+  );
   const outputPath = readArgValue("output");
   if (outputPath) {
     ensureOutputDirectory(outputPath);

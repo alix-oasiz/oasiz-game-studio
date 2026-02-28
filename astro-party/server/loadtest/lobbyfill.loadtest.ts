@@ -60,7 +60,8 @@ interface MetricsState {
   startCommandsSent: number;
   inputsSent: number;
   snapshotsReadDuringPlaying: number;
-  serverDisconnects: number;
+  abnormalDisconnects: number;
+  consentedLeaves: number;
   summaryInterval: ReturnType<typeof setInterval> | null;
   expectedClients: number;
   autoExitOnComplete: boolean;
@@ -88,7 +89,8 @@ const METRICS: MetricsState = {
   startCommandsSent: 0,
   inputsSent: 0,
   snapshotsReadDuringPlaying: 0,
-  serverDisconnects: 0,
+  abnormalDisconnects: 0,
+  consentedLeaves: 0,
   summaryInterval: null,
   expectedClients: 0,
   autoExitOnComplete: false,
@@ -161,8 +163,10 @@ function summaryLine(): string {
     METRICS.createdRooms +
     " matchStarts=" +
     METRICS.startCommandsSent +
-    " serverDisconnects=" +
-    METRICS.serverDisconnects +
+    " abnormalDisconnects=" +
+    METRICS.abnormalDisconnects +
+    " consentedLeaves=" +
+    METRICS.consentedLeaves +
     " snapshotsPlaying=" +
     METRICS.snapshotsReadDuringPlaying +
     " inputsSent=" +
@@ -428,8 +432,12 @@ function readSnapshotTickDurationMs(payload: unknown): number | null {
   return view.tickDurationMs;
 }
 
-function isServerDisconnectCode(code: number): boolean {
-  return code === 1006 || (code >= 4000 && code <= 4999);
+function isAbnormalDisconnectCode(code: number): boolean {
+  return code === 1005 || code === 1006;
+}
+
+function isConsentedLeaveCode(code: number): boolean {
+  return code === 4000;
 }
 
 function resolvePlacement(
@@ -608,8 +616,11 @@ function attachInputLoop(
 
     METRICS.activeClients.delete(clientId);
     METRICS.disconnectedClients.add(clientId);
-    if (isServerDisconnectCode(code)) {
-      METRICS.serverDisconnects += 1;
+    if (isAbnormalDisconnectCode(code)) {
+      METRICS.abnormalDisconnects += 1;
+    }
+    if (isConsentedLeaveCode(code)) {
+      METRICS.consentedLeaves += 1;
     }
     incrementMapCounter(METRICS.disconnectCodes, code);
 
@@ -627,8 +638,10 @@ function attachInputLoop(
         phase +
         " inputSequence=" +
         inputSequence +
-        " isServerDisconnect=" +
-        isServerDisconnectCode(code),
+        " isAbnormalDisconnect=" +
+        isAbnormalDisconnectCode(code) +
+        " isConsentedLeave=" +
+        isConsentedLeaveCode(code),
     );
     maybeExitWhenRunIsComplete();
   });

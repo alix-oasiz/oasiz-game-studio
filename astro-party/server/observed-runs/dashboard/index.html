@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Astro Observed Runs Dashboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0d1016;
+        --panel: #141a24;
+        --panel-muted: #1a2230;
+        --line: #2b3950;
+        --text: #e8eefb;
+        --text-dim: #9badc9;
+        --accent: #59c4ff;
+        --warn: #f3bf4e;
+        --high: #ff6a6a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: linear-gradient(180deg, #0a0f18, var(--bg));
+        color: var(--text);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--line);
+        background: rgba(13, 18, 27, 0.96);
+        padding: 16px;
+        overflow-y: auto;
+      }
+
+      .content {
+        padding: 16px;
+        overflow-y: auto;
+      }
+
+      .title {
+        margin: 0 0 8px 0;
+        font-size: 20px;
+      }
+
+      .subtle {
+        color: var(--text-dim);
+        font-size: 13px;
+      }
+
+      .run-list {
+        margin-top: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .run-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        padding: 10px;
+      }
+
+      .run-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .run-id {
+        font-weight: 600;
+      }
+
+      .run-meta {
+        margin-top: 6px;
+        color: var(--text-dim);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .section {
+        margin-bottom: 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        padding: 12px;
+      }
+
+      .section h2 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+      }
+
+      .compare-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      .compare-table th,
+      .compare-table td {
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        padding: 8px 6px;
+      }
+
+      .legend {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+
+      .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+      }
+
+      .charts {
+        display: grid;
+        gap: 10px;
+      }
+
+      .chart-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel-muted);
+        padding: 10px;
+      }
+
+      .chart-title {
+        font-size: 13px;
+        color: var(--text-dim);
+        margin: 0 0 6px 0;
+      }
+
+      .chart-canvas {
+        width: 100%;
+        height: 160px;
+        display: block;
+      }
+
+      .incidents {
+        display: grid;
+        gap: 8px;
+      }
+
+      .incident {
+        border: 1px solid var(--line);
+        border-left-width: 4px;
+        border-radius: 8px;
+        padding: 8px;
+        background: var(--panel-muted);
+      }
+
+      .incident.warn {
+        border-left-color: var(--warn);
+      }
+
+      .incident.high {
+        border-left-color: var(--high);
+      }
+
+      .incident.info {
+        border-left-color: var(--accent);
+      }
+
+      .incident-title {
+        margin: 0 0 4px 0;
+        font-size: 13px;
+      }
+
+      .incident-meta {
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+
+      @media (max-width: 1100px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          max-height: 45vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <h1 class="title">Observed Runs</h1>
+        <div id="index-meta" class="subtle">Loading index...</div>
+        <div id="run-list" class="run-list"></div>
+      </aside>
+      <main class="content">
+        <section class="section">
+          <h2>Run Comparison Summary</h2>
+          <div class="subtle">
+            Close-code legend: abnormal means websocket 1005/1006, consented means websocket 4000.
+          </div>
+          <div id="comparison"></div>
+        </section>
+        <section class="section">
+          <h2>Correlated Timelines (Shared UTC Axis)</h2>
+          <div id="legend" class="legend"></div>
+          <div id="charts" class="charts"></div>
+        </section>
+        <section class="section">
+          <h2>Quick Incident Cards</h2>
+          <div id="incidents" class="incidents"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

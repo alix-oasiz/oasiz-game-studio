@@ -1247,3 +1247,53 @@ TODO / Next suggestions
   - clarified same-host vs split-host correlation workflows (droplet server + local loadtest)
   - updated reference to split-host only (explicitly local loadtest + droplet server)
   - normalized local commands to run from a single directory (`astro-party/server`) without repeated `cd` hops
+## 2026-02-27 (Observed loadtest phases 1-3)
+- Implemented phase 1 observed orchestration pipeline:
+  - added droplet observer script `server/loadtest/astro-observe.sh` with `start/stop/status/pack`
+  - observer captures per-run:
+    - PM2 log stream (`pm2 logs --time`)
+    - kernel OOM/segfault stream (`dmesg -wT` filtered)
+    - correlation metrics stream (`host.*`, `pm2.*`, `ops.*`, `net.*`)
+  - added local one-trigger orchestration script:
+    - `server/loadtest/run-observed-loadtest.ps1`
+    - flow: start observer -> warmup -> run loadtest -> always stop+pack -> pull archive -> extract artifacts -> write `run-meta.json`
+    - supports both `lobbyfill` and `roomcode` runners and exposes droplet/observer parameters
+- Implemented phase 2 parsing/indexing:
+  - added `server/loadtest/build-observed-runs-index.ts`
+  - parser outputs per-run `parsed-events.json` and global `server/observed-runs/index.json`
+  - extracts run summaries and incidents:
+    - mass client drops (`ops.clients`)
+    - unconsented leave jumps (`ops.leftUnconsented`)
+    - PM2 restart increases
+    - `leaveCode=1006` burst windows
+    - process boot and crash/OOM/segfault signals from PM2/kernel logs
+- Implemented phase 3 dashboard:
+  - added static dashboard files:
+    - `server/observed-runs/dashboard/index.html`
+    - `server/observed-runs/dashboard/app.js`
+  - dashboard behavior:
+    - reads `observed-runs/index.json`
+    - multi-select run IDs
+    - run comparison summary table
+    - correlated timeline overlays for:
+      - `ops.clients`, `ops.rooms`, `ops.leftUnconsented`
+      - `pm2.memMB`, `pm2.cpuPct`, `pm2.restarts`
+      - `host.memUsedPct`, `host.load1`, `net.rxBps`, `net.txBps`
+    - incident cards for extracted anomalies
+- Script and docs wiring:
+  - `server/package.json`:
+    - `loadtest:observed`
+    - `observed:index`
+  - `astro-party/package.json`:
+    - `loadtest:observed`
+    - `observed:index`
+  - updated `server/README.md` with observed-run usage, flags, artifacts, and dashboard flow
+  - updated `ARCHITECTURE.md` server topology with observed-run tooling ownership
+- Scope note:
+  - Phase 4 (persistent DB-backed store) intentionally deferred.
+- Validation:
+  - `astro-party/server`: `npm run observed:index` passed
+  - `astro-party/server`: `npm run typecheck` passed
+  - `astro-party/server`: `npm run build` passed
+  - `astro-party`: `bun run build` passed
+  - `astro-party`: `bun run typecheck` failed due pre-existing error in `src/demo/DemoOverlayUI.ts` (`Type 'number' is not assignable to type 'Timeout'`)
