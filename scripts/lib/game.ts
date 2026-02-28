@@ -40,6 +40,10 @@ export function getScriptTemplateRoot(): string {
   return resolve(getRepoRoot(), "scripts", "templates");
 }
 
+export function getMainTemplateRoot(): string {
+  return resolve(getRepoRoot(), "templates");
+}
+
 export function isGameSlug(value: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
 }
@@ -119,8 +123,76 @@ export async function writePublishConfig(gamePath: string, config: PublishConfig
 }
 
 export async function readMainTemplate(): Promise<string> {
-  const templatePath = join(getScriptTemplateRoot(), "main.ts.template");
-  return Bun.file(templatePath).text();
+  const templates = resolveMainTemplates();
+  return Bun.file(templates[0].path).text();
+}
+
+interface MainTemplateEntry {
+  name: string;
+  path: string;
+}
+
+function toTemplateName(fileName: string): string {
+  if (fileName.endsWith(".ts.template")) {
+    return fileName.slice(0, -".ts.template".length);
+  }
+  if (fileName.endsWith(".template")) {
+    return fileName.slice(0, -".template".length);
+  }
+
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex <= 0) return fileName;
+  return fileName.slice(0, dotIndex);
+}
+
+function readTemplateEntriesFrom(rootPath: string): MainTemplateEntry[] {
+  const files = readdirSync(rootPath, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .filter((entry) => !entry.name.startsWith("."))
+    .map((entry) => ({ name: toTemplateName(entry.name), path: join(rootPath, entry.name) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (files.length === 0) {
+    throw new Error("No templates found in: " + rootPath);
+  }
+
+  const seenNames = new Set<string>();
+  for (const file of files) {
+    if (seenNames.has(file.name)) {
+      throw new Error("Duplicate template name found: " + file.name + " in " + rootPath);
+    }
+    seenNames.add(file.name);
+  }
+
+  return files;
+}
+
+function resolveMainTemplates(): MainTemplateEntry[] {
+  const templateRoot = getMainTemplateRoot();
+  if (existsSync(templateRoot)) {
+    return readTemplateEntriesFrom(templateRoot);
+  }
+
+  const legacyRoot = getScriptTemplateRoot();
+  if (existsSync(legacyRoot)) {
+    return readTemplateEntriesFrom(legacyRoot);
+  }
+
+  throw new Error("Template directory not found. Create /templates with at least one template file.");
+}
+
+export function listMainTemplates(): string[] {
+  return resolveMainTemplates().map((template) => template.name);
+}
+
+export async function readMainTemplateByName(templateName: string): Promise<string> {
+  const templates = resolveMainTemplates();
+  const selected = templates.find((template) => template.name === templateName);
+  if (!selected) {
+    const options = templates.map((template) => template.name).join(", ");
+    throw new Error("Unknown template: " + templateName + ". Available templates: " + options);
+  }
+  return Bun.file(selected.path).text();
 }
 
 export function scaffoldFromTemplate(gameSlug: string): string {

@@ -34,7 +34,8 @@ import {
   getGameFolders,
   getGamePath,
   isGameSlug,
-  readMainTemplate,
+  listMainTemplates,
+  readMainTemplateByName,
   readPublishConfig,
   scaffoldFromTemplate,
   slugToTitle,
@@ -48,16 +49,14 @@ function printHelp(): void {
   console.log("oasiz - Oasiz game CLI");
   console.log("");
   console.log("Commands:");
-  console.log("  oasiz create                Scaffold a new game");
+  console.log("  oasiz create [name]         Scaffold a new game");
+  console.log("    --template <name>         Use template from templates/<name>");
   console.log("  oasiz info                  Show all commands");
-  console.log("  oasiz dev <game>            Run Vite dev server");
-  console.log("  oasiz build <game>          Build a game without uploading");
   console.log("  oasiz upload <game>         Build + upload with draft wizard");
   console.log("  oasiz versions <game>       List studio drafts for a game");
   console.log("  oasiz activate <game>       Promote draft to live version");
   console.log("  oasiz list                  List local game folders");
   console.log("  oasiz games                 List your platform games");
-  console.log("  oasiz open <game>           Open game page on the web app");
   console.log("  oasiz login                 Browser login via Oasiz app");
   console.log("  oasiz login --no-open       Print URL only (do not auto-open)");
   console.log("  oasiz logout                Clear saved CLI token");
@@ -74,6 +73,36 @@ function printHelp(): void {
 function fail(message: string): never {
   console.error("Error: " + message);
   process.exit(1);
+}
+
+function enrichConnectionError(error: unknown, message: string): string {
+  if (!message.includes("Unable to connect")) {
+    return message;
+  }
+
+  const errorPath =
+    typeof error === "object" &&
+    error !== null &&
+    "path" in error &&
+    typeof (error as { path?: unknown }).path === "string"
+      ? ((error as { path?: string }).path as string)
+      : "";
+
+  const lines = [message];
+  if (errorPath) {
+    lines.push("Target URL: " + errorPath);
+  } else {
+    lines.push("API base: " + getApiBaseUrl());
+  }
+
+  if (!process.env.OASIZ_API_URL) {
+    lines.push("Hint: OASIZ_API_URL is not set.");
+    lines.push("Set it for local backend, e.g. `export OASIZ_API_URL=http://localhost:3001`.");
+  } else {
+    lines.push("Hint: verify OASIZ_API_URL points to a reachable backend.");
+  }
+
+  return lines.join("\n");
 }
 
 function parseArgs(argv: string[]): {
@@ -227,7 +256,16 @@ async function commandList(): Promise<void> {
   console.log("✓ has publish.json, ○ uses defaults");
 }
 
-async function commandCreate(initialGameSlug?: string): Promise<void> {
+async function commandCreate(argv: string[]): Promise<void> {
+  const parsed = parseArgs(argv);
+  const initialGameSlug = parsed.positionals[0];
+  const templateFromFlag = parsed.values.get("--template");
+  const templateFromPositional = parsed.positionals[1];
+  if (templateFromFlag && templateFromPositional && templateFromFlag !== templateFromPositional) {
+    fail("Template mismatch. Use either --template <name> or a single template positional.");
+  }
+
+  const templateOverride = templateFromFlag || templateFromPositional;
   console.log("Create game wizard");
   console.log("");
 
@@ -239,21 +277,29 @@ async function commandCreate(initialGameSlug?: string): Promise<void> {
     gameSlug = await askInput("1. Game name: ");
   }
 
-  console.log("");
-  console.log("2. Framework choice:");
-  const frameworkOptions = ["Vanilla Canvas", "Phaser", "Three.js"];
-  frameworkOptions.forEach((option, index) => {
-    console.log("  " + (index + 1) + ") " + option);
-  });
-  const frameworkIndex = await askChoice(
-    "Select framework [1-" + frameworkOptions.length + "]: ",
-    1,
-    frameworkOptions.length,
-  );
-  const framework = frameworkOptions[frameworkIndex - 1];
+  const templateOptions = listMainTemplates();
+  if (templateOptions.length === 0) {
+    fail("No templates found. Add template files to /templates.");
+  }
 
-  console.log("");
-  const multiplayer = await askYesNo("3. Multiplayer? [y/N] ", false);
+  let selectedTemplate = templateOverride?.trim() ?? "";
+  if (selectedTemplate) {
+    if (!templateOptions.includes(selectedTemplate)) {
+      fail("Unknown template: " + selectedTemplate + ". Available templates: " + templateOptions.join(", "));
+    }
+  } else {
+    console.log("");
+    console.log("2. Template choice:");
+    templateOptions.forEach((option, index) => {
+      console.log("  " + (index + 1) + ") " + option);
+    });
+    const templateIndex = await askChoice(
+      "Select template [1-" + templateOptions.length + "]: ",
+      1,
+      templateOptions.length,
+    );
+    selectedTemplate = templateOptions[templateIndex - 1];
+  }
 
   const normalizedSlug = normalizeGameSlugInput(gameSlug);
   if (normalizedSlug !== gameSlug) {
@@ -262,14 +308,13 @@ async function commandCreate(initialGameSlug?: string): Promise<void> {
   }
 
   console.log("");
-  console.log("Framework selected: " + framework + " (not yet used).");
-  console.log("Multiplayer: " + (multiplayer ? "Yes" : "No") + " (not yet used).");
+  console.log("Template selected: " + selectedTemplate + ".");
   console.log("");
 
-  await scaffoldGame(normalizedSlug);
+  await scaffoldGame(normalizedSlug, selectedTemplate);
 }
 
-async function scaffoldGame(gameSlug: string): Promise<void> {
+async function scaffoldGame(gameSlug: string, templateName: string): Promise<void> {
   if (!gameSlug) {
     fail("Game name is required.");
   }
@@ -285,7 +330,7 @@ async function scaffoldGame(gameSlug: string): Promise<void> {
   packageJson.name = gameSlug;
   await Bun.write(packagePath, JSON.stringify(packageJson, null, 2) + "\n");
 
-  const mainTemplate = await readMainTemplate();
+  const mainTemplate = await readMainTemplateByName(templateName);
   const mainCode = mainTemplate.replace("__GAME_TITLE__", title);
   await Bun.write(join(gamePath, "src", "main.ts"), mainCode);
 
@@ -574,38 +619,11 @@ async function scaffoldGame(gameSlug: string): Promise<void> {
   });
 
   console.log("Scaffolded game at " + gameSlug + "/");
+  console.log("Template: " + templateName);
   console.log("");
   console.log("Next steps:");
   console.log("  cd " + gameSlug);
-  console.log("  oasiz dev " + gameSlug);
-}
-
-async function commandDev(gameSlug: string, argv: string[]): Promise<void> {
-  const gamePath = validateGameFolder(gameSlug);
-  const parsed = parseArgs(argv);
-  const port = parsed.values.get("--port");
-  const cmd = ["bun", "run", "dev"];
-  if (port) {
-    cmd.push("--port", port);
-  }
-
-  const child = Bun.spawn({
-    cmd,
-    cwd: gamePath,
-    stdout: "inherit",
-    stderr: "inherit",
-    stdin: "inherit",
-  });
-  const code = await child.exited;
-  process.exit(code);
-}
-
-async function commandBuild(gameSlug: string): Promise<void> {
-  const gamePath = validateGameFolder(gameSlug);
-  console.log("Building " + gameSlug + "...");
-  await buildGame(gamePath);
-  console.log("Build complete.");
-  printBuildSummary(gamePath);
+  console.log("  oasiz upload " + gameSlug + " --dry-run");
 }
 
 async function resolveGameTitle(gameArg: string): Promise<string> {
@@ -988,35 +1006,6 @@ async function runBrowserLoginFlow(openBrowser: boolean): Promise<BrowserLoginRe
   }
 }
 
-async function commandOpen(gameArg: string): Promise<void> {
-  const maybeLocalPath = getGamePath(gameArg);
-  let gameId: string | undefined;
-  let titleForLookup = slugToTitle(gameArg);
-
-  if (existsSync(maybeLocalPath)) {
-    const config = await readPublishConfig(maybeLocalPath);
-    titleForLookup = config.title || titleForLookup;
-    gameId = config.gameId;
-  }
-
-  if (!gameId) {
-    const token = await resolveAuthToken();
-    if (!token) {
-      fail("No gameId in publish.json and no auth token for lookup.");
-    }
-    const preflight = await getUploadPreflight(titleForLookup, token);
-    gameId = preflight.game?.id;
-  }
-
-  if (!gameId) {
-    fail("Could not resolve a game ID for " + gameArg + ".");
-  }
-
-  const url = getWebBaseUrl() + "/games/" + gameId;
-  await openInBrowser(url);
-  console.log("Opened " + url);
-}
-
 async function commandLogin(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv);
   const token = parsed.values.get("--token");
@@ -1099,19 +1088,11 @@ async function main(): Promise<void> {
         printHelp();
         return;
       case "create":
-        await commandCreate(value);
+        await commandCreate(argv.slice(1));
         return;
       case "new":
         console.log("Warning: oasiz new is deprecated. Use oasiz create.");
-        await commandCreate(value);
-        return;
-      case "dev":
-        if (!value) fail("Usage: oasiz dev <game>");
-        await commandDev(value, rest);
-        return;
-      case "build":
-        if (!value) fail("Usage: oasiz build <game>");
-        await commandBuild(value);
+        await commandCreate(argv.slice(1));
         return;
       case "upload":
         if (!value) fail("Usage: oasiz upload <game>");
@@ -1131,10 +1112,6 @@ async function main(): Promise<void> {
       case "games":
         await commandGames();
         return;
-      case "open":
-        if (!value) fail("Usage: oasiz open <game>");
-        await commandOpen(value);
-        return;
       case "login":
         await commandLogin(argv.slice(1));
         return;
@@ -1149,7 +1126,7 @@ async function main(): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    fail(message);
+    fail(enrichConnectionError(error, message));
   }
 }
 
