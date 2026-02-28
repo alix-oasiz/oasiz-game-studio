@@ -48,7 +48,8 @@ function printHelp(): void {
   console.log("oasiz - Oasiz game CLI");
   console.log("");
   console.log("Commands:");
-  console.log("  oasiz new <game-name>       Scaffold a new game");
+  console.log("  oasiz create                Scaffold a new game");
+  console.log("  oasiz info                  Show all commands");
   console.log("  oasiz dev <game>            Run Vite dev server");
   console.log("  oasiz build <game>          Build a game without uploading");
   console.log("  oasiz upload <game>         Build + upload with draft wizard");
@@ -58,7 +59,6 @@ function printHelp(): void {
   console.log("  oasiz games                 List your platform games");
   console.log("  oasiz open <game>           Open game page on the web app");
   console.log("  oasiz login                 Browser login via Oasiz app");
-  console.log("  oasiz login --token <t>     Save CLI token manually");
   console.log("  oasiz login --no-open       Print URL only (do not auto-open)");
   console.log("  oasiz logout                Clear saved CLI token");
   console.log("  oasiz whoami                Show auth state");
@@ -168,6 +168,13 @@ async function askYesNo(prompt: string, defaultYes: boolean): Promise<boolean> {
   return defaultYes;
 }
 
+async function askInput(prompt: string): Promise<string> {
+  const rl = createInterface({ input: stdin, output: stdout });
+  const answer = (await rl.question(prompt)).trim();
+  rl.close();
+  return answer;
+}
+
 async function askChoice(prompt: string, min: number, max: number): Promise<number> {
   const rl = createInterface({ input: stdin, output: stdout });
   while (true) {
@@ -183,6 +190,10 @@ async function askChoice(prompt: string, min: number, max: number): Promise<numb
 
 function pad(value: string, length: number): string {
   return value.padEnd(length, " ");
+}
+
+function normalizeGameSlugInput(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 function printBuildSummary(gamePath: string): void {
@@ -216,7 +227,53 @@ async function commandList(): Promise<void> {
   console.log("✓ has publish.json, ○ uses defaults");
 }
 
-async function commandNew(gameSlug: string): Promise<void> {
+async function commandCreate(initialGameSlug?: string): Promise<void> {
+  console.log("Create game wizard");
+  console.log("");
+
+  let gameSlug = initialGameSlug?.trim() ?? "";
+  if (gameSlug) {
+    const override = await askInput("1. Game name [" + gameSlug + "]: ");
+    if (override) gameSlug = override;
+  } else {
+    gameSlug = await askInput("1. Game name: ");
+  }
+
+  console.log("");
+  console.log("2. Framework choice:");
+  const frameworkOptions = ["Vanilla Canvas", "Phaser", "Three.js"];
+  frameworkOptions.forEach((option, index) => {
+    console.log("  " + (index + 1) + ") " + option);
+  });
+  const frameworkIndex = await askChoice(
+    "Select framework [1-" + frameworkOptions.length + "]: ",
+    1,
+    frameworkOptions.length,
+  );
+  const framework = frameworkOptions[frameworkIndex - 1];
+
+  console.log("");
+  const multiplayer = await askYesNo("3. Multiplayer? [y/N] ", false);
+
+  const normalizedSlug = normalizeGameSlugInput(gameSlug);
+  if (normalizedSlug !== gameSlug) {
+    console.log("");
+    console.log("Using game slug: " + normalizedSlug);
+  }
+
+  console.log("");
+  console.log("Framework selected: " + framework + " (not yet used).");
+  console.log("Multiplayer: " + (multiplayer ? "Yes" : "No") + " (not yet used).");
+  console.log("");
+
+  await scaffoldGame(normalizedSlug);
+}
+
+async function scaffoldGame(gameSlug: string): Promise<void> {
+  if (!gameSlug) {
+    fail("Game name is required.");
+  }
+
   if (!isGameSlug(gameSlug)) {
     fail("Invalid game name. Use lowercase letters, numbers, and hyphens only.");
   }
@@ -1038,9 +1095,15 @@ async function main(): Promise<void> {
 
   try {
     switch (command) {
+      case "info":
+        printHelp();
+        return;
+      case "create":
+        await commandCreate(value);
+        return;
       case "new":
-        if (!value) fail("Usage: oasiz new <game-name>");
-        await commandNew(value);
+        console.log("Warning: oasiz new is deprecated. Use oasiz create.");
+        await commandCreate(value);
         return;
       case "dev":
         if (!value) fail("Usage: oasiz dev <game>");

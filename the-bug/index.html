@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>The Bug</title>
+  <style>
+    :root {
+      --safe-top: 45px;
+      --safe-bottom: 120px;
+      --panel-bg: rgba(13, 24, 44, 0.92);
+      --panel-border: rgba(140, 188, 255, 0.35);
+      --text-main: #f4fbff;
+      --text-muted: #a7bddc;
+      --accent: #59ceff;
+      --accent-strong: #2b9cff;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      touch-action: none;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: #081225;
+      color: var(--text-main);
+    }
+    body {
+      position: relative;
+      user-select: none;
+    }
+    #game-canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .card {
+      pointer-events: auto;
+      width: min(540px, 94vw);
+      border: 1px solid var(--panel-border);
+      background: linear-gradient(160deg, rgba(20, 35, 61, 0.96), rgba(12, 24, 44, 0.94));
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
+      border-radius: 24px;
+      padding: 26px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    h1, h2 {
+      margin: 0;
+      line-height: 1.2;
+      letter-spacing: 0.03em;
+    }
+    h1 {
+      font-size: clamp(2rem, 7vw, 3.2rem);
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: clamp(1.4rem, 5vw, 2rem);
+      margin-bottom: 8px;
+    }
+    p {
+      margin: 0;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .ui-btn {
+      pointer-events: auto;
+      margin-top: 18px;
+      min-height: 52px;
+      border: 0;
+      border-radius: 14px;
+      padding: 0 22px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #031427;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      cursor: pointer;
+      transform: translateY(0);
+      box-shadow: 0 10px 24px rgba(35, 164, 255, 0.35);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .ui-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 4px 12px rgba(35, 164, 255, 0.22);
+    }
+    #hud {
+      position: fixed;
+      top: var(--safe-top);
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px;
+      pointer-events: none;
+      z-index: 20;
+      box-sizing: border-box;
+    }
+    .hud-badge {
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      pointer-events: auto;
+    }
+    #settings-btn {
+      position: fixed;
+      top: var(--safe-top);
+      right: 16px;
+      width: 52px;
+      height: 52px;
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      background: var(--panel-bg);
+      color: #d8efff;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      z-index: 25;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+      transform: translateY(0);
+      transition: transform 0.12s ease;
+    }
+    #settings-btn:active {
+      transform: translateY(2px);
+    }
+    #settings-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+    }
+    #settings-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+    }
+    #settings-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(420px, 92vw);
+      background: linear-gradient(165deg, rgba(15, 29, 52, 0.97), rgba(11, 21, 39, 0.95));
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px;
+      box-sizing: border-box;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+    }
+    #settings-panel h3 {
+      margin: 0 0 14px;
+      font-size: 1.2rem;
+    }
+    .settings-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .settings-toggle {
+      width: 100%;
+      min-height: 52px;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      background: rgba(23, 39, 67, 0.84);
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 15px;
+      text-align: left;
+      padding: 0 14px;
+      cursor: pointer;
+      transform: translateY(0);
+      transition: transform 0.12s ease, border-color 0.12s ease;
+    }
+    .settings-toggle[data-enabled="true"] {
+      border-color: #71d5ff;
+    }
+    .settings-toggle:active {
+      transform: translateY(2px);
+    }
+    #settings-close-btn {
+      margin-top: 14px;
+      width: 100%;
+    }
+    @media (pointer: coarse) {
+      :root {
+        --safe-top: 120px;
+      }
+      .card {
+        width: min(560px, 95vw);
+      }
+      .ui-btn {
+        min-height: 62px;
+        font-size: 17px;
+      }
+      #settings-btn {
+        width: 56px;
+        height: 56px;
+      }
+      #hud {
+        padding: 0 14px;
+      }
+      #settings-panel {
+        width: min(460px, 94vw);
+      }
+      .settings-toggle {
+        min-height: 58px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="start-screen" class="overlay">
+    <div class="card">
+      <h1 id="game-title">The Bug</h1>
+      <p>Tap the glowing core to score points before the timer runs out.</p>
+      <button id="start-btn" class="ui-btn" type="button">Start Game</button>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div class="hud-badge">Score: <span id="score-value">0</span></div>
+    <button id="end-btn" class="ui-btn" type="button">End Run</button>
+  </div>
+
+  <button id="settings-btn" class="hidden" type="button" aria-label="Settings">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M10.325 2.317a1 1 0 0 1 1.95 0l.223 1.033a8.063 8.063 0 0 1 1.61.665l.9-.56a1 1 0 0 1 1.366.366l.974 1.689a1 1 0 0 1-.366 1.366l-.9.56c.11.53.167 1.078.167 1.64s-.057 1.11-.167 1.64l.9.56a1 1 0 0 1 .366 1.366l-.974 1.689a1 1 0 0 1-1.366.366l-.9-.56a8.063 8.063 0 0 1-1.61.665l-.223 1.033a1 1 0 0 1-1.95 0l-.223-1.033a8.063 8.063 0 0 1-1.61-.665l-.9.56a1 1 0 0 1-1.366-.366l-.974-1.689a1 1 0 0 1 .366-1.366l.9-.56A8.136 8.136 0 0 1 6.42 9.013c0-.562.057-1.11.167-1.64l-.9-.56a1 1 0 0 1-.366-1.366l.974-1.689a1 1 0 0 1 1.366-.366l.9.56a8.063 8.063 0 0 1 1.61-.665l.223-1.033z" stroke="currentColor" stroke-width="1.5" />
+      <circle cx="12" cy="9.013" r="2.75" stroke="currentColor" stroke-width="1.5" />
+    </svg>
+  </button>
+
+  <div id="settings-modal" class="hidden">
+    <div id="settings-backdrop"></div>
+    <div id="settings-panel">
+      <h3>Settings</h3>
+      <div class="settings-row">
+        <button class="settings-toggle" type="button" data-setting="music">Music: On</button>
+        <button class="settings-toggle" type="button" data-setting="fx">Sound FX: On</button>
+        <button class="settings-toggle" type="button" data-setting="haptics">Haptics: On</button>
+      </div>
+      <button id="settings-close-btn" class="ui-btn" type="button">Close</button>
+    </div>
+  </div>
+
+  <div id="game-over-screen" class="overlay hidden">
+    <div class="card">
+      <h2>Run Complete</h2>
+      <p>Final score: <strong id="final-score">0</strong></p>
+      <button id="restart-btn" class="ui-btn" type="button">Play Again</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
