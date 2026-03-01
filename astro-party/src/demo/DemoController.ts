@@ -71,12 +71,6 @@ export class DemoController {
     // Start the match
     this.game.startGame();
 
-    // Skip the countdown so ships move immediately (COUNTDOWN phase skip
-    // is also handled generically in onPhaseChange, but do it here too)
-    setTimeout(() => {
-      this.game.skipDemoCountdown();
-    }, 50);
-
     this.state = "ATTRACT";
     this.applyDemoAudioMix();
   }
@@ -177,24 +171,13 @@ export class DemoController {
   onPhaseChange(phase: GamePhase): void {
     if (!this.isDemoActive()) return;
 
-    if (phase === "COUNTDOWN") {
-      // Skip the 3-2-1 countdown for every round in demo mode
-      setTimeout(() => {
-        if (this.isDemoActive()) this.game.skipDemoCountdown();
-      }, 50);
-    }
-
-    if (phase === "ROUND_END") {
-      // No-op; shared sim now owns all endless respawns.
-    }
-
     if (phase === "GAME_END") {
       // Auto-restart the demo battle after a short delay
       this.restartTimeout = setTimeout(() => {
         this.restartTimeout = null;
         if (this.isDemoActive()) {
           this.game.continueMatchSequence();
-          // Countdown will be skipped via onPhaseChange("COUNTDOWN")
+          // Next sequence starts immediately in non-live demo contexts
         }
       }, 1500);
     }

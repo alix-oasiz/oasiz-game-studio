@@ -466,11 +466,18 @@ export class AstroPartySimulation implements SimState {
       this.rotateToRandomMap();
     }
     this.currentRound = 1;
+    this.roundEndMs = 0;
+    this.resetPlayersForNewSequence(preserveScoreAndKills);
+
+    if (!this.shouldUseCountdownPhase()) {
+      this.reseed((Date.now() >>> 0) ^ this.currentRound);
+      beginPlaying(this);
+      return;
+    }
+
     this.phase = "COUNTDOWN";
     this.countdownMs = COUNTDOWN_SECONDS * 1000;
     this.countdownValue = COUNTDOWN_SECONDS;
-    this.roundEndMs = 0;
-    this.resetPlayersForNewSequence(preserveScoreAndKills);
     // Publish map/room meta before phase/countdown callbacks so clients
     // can swap visuals before entering the next phase.
     syncRoomMeta(this);
@@ -479,6 +486,10 @@ export class AstroPartySimulation implements SimState {
     this.syncPlayers();
   }
 
+
+  private shouldUseCountdownPhase(): boolean {
+    return this.experienceContext === "LIVE_MATCH";
+  }
   restartToLobby(sessionId: string): void {
     if (!ensureRoomLeader(this.createPlayerControlsContext(), sessionId)) return;
     this.phase = "LOBBY";
@@ -971,21 +982,26 @@ export class AstroPartySimulation implements SimState {
         if (this.useClassicMapRotation) {
           this.rotateToRandomMap();
         }
-        this.phase = "COUNTDOWN";
-        this.countdownMs = COUNTDOWN_SECONDS * 1000;
-        this.countdownValue = COUNTDOWN_SECONDS;
-        for (const playerId of this.playerOrder) {
-          const player = this.players.get(playerId);
-          if (!player) continue;
-          player.state = "ACTIVE";
-          player.ship.alive = false;
+        if (!this.shouldUseCountdownPhase()) {
+          this.reseed((Date.now() >>> 0) ^ this.currentRound);
+          beginPlaying(this);
+        } else {
+          this.phase = "COUNTDOWN";
+          this.countdownMs = COUNTDOWN_SECONDS * 1000;
+          this.countdownValue = COUNTDOWN_SECONDS;
+          for (const playerId of this.playerOrder) {
+            const player = this.players.get(playerId);
+            if (!player) continue;
+            player.state = "ACTIVE";
+            player.ship.alive = false;
+          }
+          // Publish rotated map first so remote clients don't briefly render
+          // countdown with the previous round's map.
+          syncRoomMeta(this);
+          this.hooks.onPhase("COUNTDOWN");
+          this.hooks.onCountdown(this.countdownValue);
+          this.syncPlayers();
         }
-        // Publish rotated map first so remote clients don't briefly render
-        // countdown with the previous round's map.
-        syncRoomMeta(this);
-        this.hooks.onPhase("COUNTDOWN");
-        this.hooks.onCountdown(this.countdownValue);
-        this.syncPlayers();
       }
     }
 
@@ -1747,5 +1763,3 @@ export type {
   RoundResultPayload,
   SnapshotPayload,
 } from "./types.js";
-
-

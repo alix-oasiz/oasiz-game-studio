@@ -709,9 +709,6 @@ export class Game {
     this.lastPredictedDashAtMs = 0;
     this.controlledInputSequenceByPlayer.clear();
     this.clearStickyRoster();
-    this.currentRuleset = "ROUND_ELIMINATION";
-    this.currentExperienceContext = "LIVE_MATCH";
-    this._onRulesetChange?.(this.currentRuleset);
 
     this.flowMgr.setPhase("LOBBY");
   }
