@@ -9,7 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "three": "file:../../../../Downloads/three.js-master"
+    "@oasiz/sdk": "^1.0.1",
+    "three": "^0.175.0"
   },
   "devDependencies": {
     "vite": "^7.3.1",
