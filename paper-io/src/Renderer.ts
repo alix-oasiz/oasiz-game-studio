@@ -155,11 +155,23 @@ export class Renderer {
     return group;
   }
 
-  updateAvatar(id: number, pos: Vec2, time: number): void {
+  updateAvatar(id: number, pos: Vec2, time: number, moveDir?: Vec2): void {
     const avatar = this.avatars.get(id);
     if (!avatar || !avatar.visible) return;
     avatar.position.x = pos.x;
     avatar.position.z = pos.z;
+
+    // Rotate to face movement direction
+    if (moveDir && (moveDir.x !== 0 || moveDir.z !== 0)) {
+      const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+      // Smooth rotation with lerp
+      let current = avatar.rotation.y;
+      let delta = targetAngle - current;
+      // Normalize delta to [-PI, PI]
+      while (delta > Math.PI) delta -= Math.PI * 2;
+      while (delta < -Math.PI) delta += Math.PI * 2;
+      avatar.rotation.y = current + delta * 0.25;
+    }
 
     const ring = avatar.children[1] as THREE.Mesh;
     if (ring?.material instanceof THREE.MeshBasicMaterial) {

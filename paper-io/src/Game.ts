@@ -219,7 +219,7 @@ export class Game {
     // Update visuals
     for (const p of this.players) {
       if (p.alive) {
-        this.renderer.updateAvatar(p.id, p.position, this.gameTime);
+        this.renderer.updateAvatar(p.id, p.position, this.gameTime, p.moveDir);
         this.renderer.updateTrail(p.id, p.trail, p.color);
       }
     }
