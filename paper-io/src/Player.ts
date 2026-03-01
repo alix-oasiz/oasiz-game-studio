@@ -1,5 +1,6 @@
-import { Direction, OPPOSITE_DIR, DIRECTION_VEC, PLAYER_SPEED, TRAIL_SAMPLE_DIST, MAP_HALF, type Vec2, dist2 } from './constants.ts';
+import { Direction, DIRECTION_VEC, PLAYER_SPEED, TRAIL_SAMPLE_DIST, MAP_HALF, type Vec2, dist2 } from './constants.ts';
 import { Territory } from './Territory.ts';
+import * as THREE from 'three';
 
 export interface PlayerState {
   id: number;
@@ -7,14 +8,14 @@ export interface PlayerState {
   colorStr: string;
   name: string;
   position: Vec2;
-  direction: Direction;
-  nextDirection: Direction | null;
+  moveDir: Vec2;       // normalized movement direction
   trail: Vec2[];
   territory: Territory;
   alive: boolean;
   isHuman: boolean;
   speed: number;
   isTrailing: boolean;
+  hasInput: boolean;    // has the player given any input yet
 }
 
 export function createPlayer(
@@ -27,36 +28,38 @@ export function createPlayer(
   return {
     id, color, colorStr, name,
     position: { x: spawnX, z: spawnZ },
-    direction: Direction.RIGHT,
-    nextDirection: null,
+    moveDir: { x: 1, z: 0 },
     trail: [],
     territory,
     alive: true,
     isHuman,
     speed: PLAYER_SPEED,
     isTrailing: false,
+    hasInput: false,
   };
 }
 
-export function setDirection(player: PlayerState, dir: Direction): void {
-  if (OPPOSITE_DIR[dir] === player.direction) return;
-  player.nextDirection = dir;
+/** Set direction from a Direction enum (used by bots) */
+export function setDirectionEnum(player: PlayerState, dir: Direction): void {
+  const vec = DIRECTION_VEC[dir];
+  player.moveDir = { x: vec.dx, z: vec.dz };
+  player.hasInput = true;
 }
 
-export function applyDirection(player: PlayerState): void {
-  if (player.nextDirection !== null) {
-    if (OPPOSITE_DIR[player.nextDirection] !== player.direction) {
-      player.direction = player.nextDirection;
-    }
-    player.nextDirection = null;
-  }
+/** Set direction toward a world target point */
+export function setDirectionToward(player: PlayerState, target: Vec2): void {
+  const dx = target.x - player.position.x;
+  const dz = target.z - player.position.z;
+  const len = Math.sqrt(dx * dx + dz * dz);
+  if (len < 0.1) return; // too close, don't change direction
+  player.moveDir = { x: dx / len, z: dz / len };
+  player.hasInput = true;
 }
 
 export function computeMovement(player: PlayerState, dt: number): Vec2 {
-  const vec = DIRECTION_VEC[player.direction];
   return {
-    x: player.position.x + vec.dx * player.speed * dt,
-    z: player.position.z + vec.dz * player.speed * dt,
+    x: player.position.x + player.moveDir.x * player.speed * dt,
+    z: player.position.z + player.moveDir.z * player.speed * dt,
   };
 }
 
@@ -71,65 +74,109 @@ export function sampleTrailPoint(player: PlayerState): void {
   }
 }
 
+/** Raycasts screen coordinates to the y=0 ground plane */
+function screenToGround(
+  screenX: number, screenY: number,
+  camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement,
+): Vec2 | null {
+  const ndcX = (screenX / canvas.clientWidth) * 2 - 1;
+  const ndcY = -(screenY / canvas.clientHeight) * 2 + 1;
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+  // Intersect with y=0 plane
+  const planeNormal = new THREE.Vector3(0, 1, 0);
+  const planePoint = new THREE.Vector3(0, 0, 0);
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
+
+  const target = new THREE.Vector3();
+  const hit = raycaster.ray.intersectPlane(plane, target);
+  if (!hit) return null;
+
+  return { x: target.x, z: target.z };
+}
+
 export class InputHandler {
   private player: PlayerState;
-  private swipeStart: { x: number; y: number } | null = null;
+  private camera: THREE.PerspectiveCamera;
+  private canvas: HTMLCanvasElement;
+  private mouseWorldPos: Vec2 | null = null;
+  private touching = false;
 
-  constructor(player: PlayerState) {
+  constructor(player: PlayerState, camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement) {
     this.player = player;
+    this.camera = camera;
+    this.canvas = canvas;
     this.setupKeyboard();
+    this.setupMouse();
     this.setupTouch();
-    this.setupDpad();
   }
 
   private setupKeyboard(): void {
     window.addEventListener('keydown', (e) => {
       switch (e.key) {
         case 'ArrowUp': case 'w': case 'W':
-          setDirection(this.player, Direction.UP); break;
+          setDirectionEnum(this.player, Direction.UP); this.mouseWorldPos = null; break;
         case 'ArrowDown': case 's': case 'S':
-          setDirection(this.player, Direction.DOWN); break;
+          setDirectionEnum(this.player, Direction.DOWN); this.mouseWorldPos = null; break;
         case 'ArrowLeft': case 'a': case 'A':
-          setDirection(this.player, Direction.LEFT); break;
+          setDirectionEnum(this.player, Direction.LEFT); this.mouseWorldPos = null; break;
         case 'ArrowRight': case 'd': case 'D':
-          setDirection(this.player, Direction.RIGHT); break;
+          setDirectionEnum(this.player, Direction.RIGHT); this.mouseWorldPos = null; break;
       }
+    });
+  }
+
+  private setupMouse(): void {
+    this.canvas.addEventListener('mousemove', (e) => {
+      const pos = screenToGround(e.clientX, e.clientY, this.camera, this.canvas);
+      if (pos) this.mouseWorldPos = pos;
+    });
+
+    this.canvas.addEventListener('mousedown', (e) => {
+      const pos = screenToGround(e.clientX, e.clientY, this.camera, this.canvas);
+      if (pos) {
+        this.mouseWorldPos = pos;
+        this.player.hasInput = true;
+      }
+    });
+
+    this.canvas.addEventListener('mouseleave', () => {
+      // Keep last direction when mouse leaves
     });
   }
 
   private setupTouch(): void {
-    const canvas = document.getElementById('game-canvas')!;
-    canvas.addEventListener('touchstart', (e) => {
+    this.canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      this.touching = true;
       const t = e.touches[0];
-      this.swipeStart = { x: t.clientX, y: t.clientY };
-    }, { passive: true });
-
-    canvas.addEventListener('touchmove', (e) => {
-      if (!this.swipeStart) return;
-      const t = e.touches[0];
-      const dx = t.clientX - this.swipeStart.x;
-      const dy = t.clientY - this.swipeStart.y;
-      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
-
-      if (Math.abs(dx) > Math.abs(dy)) {
-        setDirection(this.player, dx > 0 ? Direction.RIGHT : Direction.LEFT);
-      } else {
-        setDirection(this.player, dy > 0 ? Direction.DOWN : Direction.UP);
+      const pos = screenToGround(t.clientX, t.clientY, this.camera, this.canvas);
+      if (pos) {
+        this.mouseWorldPos = pos;
+        this.player.hasInput = true;
       }
-      this.swipeStart = { x: t.clientX, y: t.clientY };
-    }, { passive: true });
+    }, { passive: false });
 
-    canvas.addEventListener('touchend', () => { this.swipeStart = null; }, { passive: true });
+    this.canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const t = e.touches[0];
+      const pos = screenToGround(t.clientX, t.clientY, this.camera, this.canvas);
+      if (pos) this.mouseWorldPos = pos;
+    }, { passive: false });
+
+    this.canvas.addEventListener('touchend', () => {
+      this.touching = false;
+      // Keep last direction
+    });
   }
 
-  private setupDpad(): void {
-    document.querySelectorAll('.dpad-btn').forEach((btn) => {
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const dir = (btn as HTMLElement).dataset.dir as Direction;
-        setDirection(this.player, dir);
-      });
-    });
+  /** Call every frame to update player direction toward mouse/touch */
+  update(): void {
+    if (this.mouseWorldPos) {
+      setDirectionToward(this.player, this.mouseWorldPos);
+    }
   }
 
   updatePlayer(p: PlayerState): void {

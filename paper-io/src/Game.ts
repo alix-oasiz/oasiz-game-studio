@@ -1,5 +1,5 @@
 import { SPAWN_POINTS, PLAYER_COLORS, PLAYER_COLOR_STRINGS, PLAYER_NAMES, type Difficulty, type Vec2 } from './constants.ts';
-import { type PlayerState, createPlayer, applyDirection, computeMovement, isInBounds, sampleTrailPoint, InputHandler } from './Player.ts';
+import { type PlayerState, createPlayer, computeMovement, isInBounds, sampleTrailPoint, InputHandler } from './Player.ts';
 import { segmentIntersectsPolyline } from './Collision.ts';
 import { BotController } from './Bot.ts';
 import { Renderer } from './Renderer.ts';
@@ -91,16 +91,22 @@ export class Game {
       if (!p.isHuman) this.botController.initBot(p);
     }
 
-    // Input
-    this.inputHandler = new InputHandler(this.players[0]);
+    // Input — pass camera and canvas for mouse/touch raycasting
+    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    this.inputHandler = new InputHandler(this.players[0], this.renderer.camera, canvas);
 
     // HUD
     this.hud.show();
 
-    // Initial territory render
+    // Initial territory + avatar positioning
     for (const p of this.players) {
       this.renderer.updateTerritory(p.id, p.territory.polygons, p.color);
+      this.renderer.updateAvatar(p.id, p.position, 0);
     }
+
+    // Snap camera to human player immediately
+    const human = this.players[0];
+    this.renderer.setCameraTarget(human.position);
 
     this.running = true;
   }
@@ -124,6 +130,9 @@ export class Game {
   private updateGame(dt: number): void {
     if (this.paused || this.gameOver) return;
 
+    // Update human input (steer toward mouse/touch each frame)
+    this.inputHandler.update();
+
     // Update bot AI
     for (const p of this.players) {
       if (!p.isHuman && p.alive) {
@@ -137,11 +146,10 @@ export class Game {
 
       // Wait for first human input
       if (p.isHuman && !this.started) {
-        if (p.nextDirection !== null) this.started = true;
+        if (p.hasInput) this.started = true;
         else continue;
       }
 
-      applyDirection(p);
       const newPos = computeMovement(p, dt);
 
       // Boundary check

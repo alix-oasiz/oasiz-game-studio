@@ -1,13 +1,71 @@
 import * as THREE from 'three';
 import { MAP_SIZE, BOARD_COLOR, BG_COLOR, GRID_LINE_COLOR, TERRITORY_OPACITY, TRAIL_OPACITY, type Vec2 } from './constants.ts';
 
+const TERRITORY_Y = 0.03;
+const TRAIL_Y = 0.06;
+
+/** Merge multiple BufferGeometries into one */
+function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry | null {
+  if (geometries.length === 0) return null;
+
+  let totalVerts = 0;
+  let totalIndices = 0;
+  for (const g of geometries) {
+    totalVerts += g.getAttribute('position').count;
+    totalIndices += g.index ? g.index.count : g.getAttribute('position').count;
+  }
+
+  const positions = new Float32Array(totalVerts * 3);
+  const normals = new Float32Array(totalVerts * 3);
+  const indices = new Uint32Array(totalIndices);
+
+  let vertOffset = 0;
+  let idxOffset = 0;
+
+  for (const g of geometries) {
+    const pos = g.getAttribute('position');
+    const norm = g.getAttribute('normal');
+    const idx = g.index;
+
+    for (let i = 0; i < pos.count; i++) {
+      positions[(vertOffset + i) * 3] = pos.getX(i);
+      positions[(vertOffset + i) * 3 + 1] = pos.getY(i);
+      positions[(vertOffset + i) * 3 + 2] = pos.getZ(i);
+      if (norm) {
+        normals[(vertOffset + i) * 3] = norm.getX(i);
+        normals[(vertOffset + i) * 3 + 1] = norm.getY(i);
+        normals[(vertOffset + i) * 3 + 2] = norm.getZ(i);
+      }
+    }
+
+    if (idx) {
+      for (let i = 0; i < idx.count; i++) {
+        indices[idxOffset + i] = idx.getX(i) + vertOffset;
+      }
+      idxOffset += idx.count;
+    } else {
+      for (let i = 0; i < pos.count; i++) {
+        indices[idxOffset + i] = vertOffset + i;
+      }
+      idxOffset += pos.count;
+    }
+
+    vertOffset += pos.count;
+  }
+
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  merged.setIndex(new THREE.BufferAttribute(indices, 1));
+  return merged;
+}
+
 export class Renderer {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
 
-  // Per-player visual objects
-  private territoryObjects: Map<number, THREE.Object3D> = new Map();
+  private territoryObjects: Map<number, THREE.Mesh> = new Map();
   private trailMeshes: Map<number, THREE.Mesh> = new Map();
   private avatars: Map<number, THREE.Group> = new Map();
 
@@ -35,7 +93,6 @@ export class Renderer {
   }
 
   private createBoard(): void {
-    // Main board surface
     const boardGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE);
     const boardMat = new THREE.MeshLambertMaterial({ color: BOARD_COLOR });
     const board = new THREE.Mesh(boardGeo, boardMat);
@@ -43,14 +100,12 @@ export class Renderer {
     board.receiveShadow = true;
     this.scene.add(board);
 
-    // Grid lines
     const gridHelper = new THREE.GridHelper(MAP_SIZE, MAP_SIZE, GRID_LINE_COLOR, GRID_LINE_COLOR);
     gridHelper.position.y = 0.01;
     (gridHelper.material as THREE.Material).opacity = 0.4;
     (gridHelper.material as THREE.Material).transparent = true;
     this.scene.add(gridHelper);
 
-    // Border
     const borderGeo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE));
     const borderMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, opacity: 0.2, transparent: true });
     const border = new THREE.LineSegments(borderGeo, borderMat);
@@ -106,7 +161,6 @@ export class Renderer {
     avatar.position.x = pos.x;
     avatar.position.z = pos.z;
 
-    // Pulse ring
     const ring = avatar.children[1] as THREE.Mesh;
     if (ring?.material instanceof THREE.MeshBasicMaterial) {
       ring.material.opacity = 0.6 + 0.4 * Math.sin(time * 1.2 * Math.PI * 2);
@@ -118,13 +172,17 @@ export class Renderer {
     if (avatar) avatar.visible = false;
   }
 
-  /** Update territory polygon mesh for a player */
+  /**
+   * Direct polygon territory rendering using THREE.ShapeGeometry.
+   * Each polygon is converted to a Shape and triangulated by Three.js,
+   * producing smooth edges that follow the actual polygon boundary.
+   */
   updateTerritory(id: number, polygons: Vec2[][], color: number): void {
-    // Remove old mesh
     const old = this.territoryObjects.get(id);
     if (old) {
       this.scene.remove(old);
-      this.disposeObject(old);
+      old.geometry.dispose();
+      if (old.material instanceof THREE.Material) old.material.dispose();
     }
 
     if (polygons.length === 0) {
@@ -132,74 +190,65 @@ export class Renderer {
       return;
     }
 
-    // Create combined shape from all polygons
-    const shape = new THREE.Shape();
-    for (let pi = 0; pi < polygons.length; pi++) {
-      const poly = polygons[pi];
+    // Pre-blend color
+    const boardCol = new THREE.Color(BOARD_COLOR);
+    const playerCol = new THREE.Color(color);
+    const blended = boardCol.lerp(playerCol, TERRITORY_OPACITY);
+
+    // Build a merged geometry from all polygon shapes
+    const geometries: THREE.BufferGeometry[] = [];
+
+    for (const poly of polygons) {
       if (poly.length < 3) continue;
 
-      if (pi === 0) {
-        shape.moveTo(poly[0].x, poly[0].z);
-        for (let i = 1; i < poly.length; i++) {
-          shape.lineTo(poly[i].x, poly[i].z);
-        }
-        shape.closePath();
-      } else {
-        // Additional polygons as separate shapes — we'll merge by creating separate meshes
-        // For simplicity, add as holes or just create more geometry
-        const path = new THREE.Path();
-        path.moveTo(poly[0].x, poly[0].z);
-        for (let i = 1; i < poly.length; i++) {
-          path.lineTo(poly[i].x, poly[i].z);
-        }
-        path.closePath();
-        // We can't easily union shapes in Three.js, so we'll create a group approach below
+      const shape = new THREE.Shape();
+      // Shape works in 2D (x, y) — we map our (x, z) to shape's (x, y)
+      shape.moveTo(poly[0].x, poly[0].z);
+      for (let i = 1; i < poly.length; i++) {
+        shape.lineTo(poly[i].x, poly[i].z);
       }
+      shape.closePath();
+
+      const shapeGeo = new THREE.ShapeGeometry(shape);
+
+      // ShapeGeometry produces vertices in the XY plane;
+      // rotate to lie flat on XZ plane (y becomes z, set y to TERRITORY_Y)
+      const posAttr = shapeGeo.getAttribute('position');
+      for (let i = 0; i < posAttr.count; i++) {
+        const x = posAttr.getX(i);
+        const y = posAttr.getY(i); // this is our z
+        posAttr.setXYZ(i, x, TERRITORY_Y, y);
+      }
+      posAttr.needsUpdate = true;
+      shapeGeo.computeVertexNormals();
+
+      geometries.push(shapeGeo);
     }
 
-    // Create geometry for the first polygon
-    const geo = new THREE.ShapeGeometry(shape);
+    if (geometries.length === 0) {
+      this.territoryObjects.delete(id);
+      return;
+    }
+
+    // Merge all polygon geometries into one
+    const merged = mergeBufferGeometries(geometries);
+    for (const g of geometries) g.dispose();
+
+    if (!merged) {
+      this.territoryObjects.delete(id);
+      return;
+    }
+
     const mat = new THREE.MeshLambertMaterial({
-      color,
-      transparent: true,
-      opacity: TERRITORY_OPACITY,
+      color: blended,
       side: THREE.DoubleSide,
+      depthWrite: false,
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.y = 0.03;
+
+    const mesh = new THREE.Mesh(merged, mat);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
-
-    // For additional polygons, create separate meshes and group them
-    if (polygons.length > 1) {
-      const group = new THREE.Group();
-      group.add(mesh);
-      // Remove mesh from scene since we're putting it in the group
-      this.scene.remove(mesh);
-
-      // Add first mesh back to group
-      for (let pi = 1; pi < polygons.length; pi++) {
-        const poly = polygons[pi];
-        if (poly.length < 3) continue;
-        const s = new THREE.Shape();
-        s.moveTo(poly[0].x, poly[0].z);
-        for (let i = 1; i < poly.length; i++) {
-          s.lineTo(poly[i].x, poly[i].z);
-        }
-        s.closePath();
-        const g = new THREE.ShapeGeometry(s);
-        const m = new THREE.Mesh(g, mat);
-        m.rotation.x = -Math.PI / 2;
-        m.position.y = 0.03;
-        m.receiveShadow = true;
-        group.add(m);
-      }
-      this.scene.add(group);
-      this.territoryObjects.set(id, group as unknown as THREE.Mesh);
-    } else {
-      this.territoryObjects.set(id, mesh);
-    }
+    this.territoryObjects.set(id, mesh);
   }
 
   /** Update trail as a thick ribbon mesh */
@@ -214,12 +263,11 @@ export class Renderer {
     if (trail.length < 2) return;
 
     const halfWidth = 0.25;
-    const y = 0.06;
+    const y = TRAIL_Y;
     const verts: number[] = [];
     const indices: number[] = [];
 
     for (let i = 0; i < trail.length; i++) {
-      // Compute perpendicular direction
       let dx: number, dz: number;
       if (i === 0) {
         dx = trail[1].x - trail[0].x;
@@ -232,7 +280,6 @@ export class Renderer {
         dz = trail[i + 1].z - trail[i - 1].z;
       }
       const len = Math.sqrt(dx * dx + dz * dz) || 1;
-      // Perpendicular (rotate 90°)
       const px = -dz / len * halfWidth;
       const pz = dx / len * halfWidth;
 
@@ -263,7 +310,15 @@ export class Renderer {
     this.trailMeshes.set(id, mesh);
   }
 
-  /** Update camera to follow a target position */
+  setCameraTarget(pos: Vec2): void {
+    this.cameraTarget.x = pos.x;
+    this.cameraTarget.z = pos.z;
+    this.camera.position.x = pos.x;
+    this.camera.position.y = 40;
+    this.camera.position.z = pos.z + 25;
+    this.camera.lookAt(pos.x, 0, pos.z);
+  }
+
   updateCamera(targetPos: Vec2, dt: number): void {
     const lerpFactor = 1 - Math.exp(-4 * dt);
     this.cameraTarget.x += (targetPos.x - this.cameraTarget.x) * lerpFactor;
@@ -299,11 +354,14 @@ export class Renderer {
     const terr = this.territoryObjects.get(id);
     if (terr) {
       this.scene.remove(terr);
+      terr.geometry.dispose();
+      if (terr.material instanceof THREE.Material) terr.material.dispose();
       this.territoryObjects.delete(id);
     }
     const trail = this.trailMeshes.get(id);
     if (trail) {
       this.scene.remove(trail);
+      this.disposeObject(trail);
       this.trailMeshes.delete(id);
     }
     this.hideAvatar(id);
