@@ -51,7 +51,8 @@ function updateStarfieldGradient(mapId: number): void {
 }
 
 function resolveStarCount(): number {
-  return 800;
+  const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  return isCoarsePointer ? 600 : 800;
 }
 
 function initStarfield(seed: number): void {
