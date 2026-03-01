@@ -14,18 +14,23 @@ interface StarfieldGradient {
   outer: string;
 }
 
-const MAP_THEME_GRADIENTS: Record<number, StarfieldGradient> = {
-  0: { inner: "#05080d", mid: "#1a0f28", outer: "#3a1a30" },
-  1: { inner: "#050508", mid: "#10101c", outer: "#303015" },
-  2: { inner: "#050202", mid: "#1c0505", outer: "#3a101a" },
-  3: { inner: "#050202", mid: "#1c0505", outer: "#3a101a" },
-  4: { inner: "#020502", mid: "#081c0a", outer: "#103015" },
-  5: { inner: "#020505", mid: "#081c1c", outer: "#103030" },
-  6: { inner: "#050308", mid: "#180a20", outer: "#351535" },
+const DEFAULT_STARFIELD_GRADIENT: StarfieldGradient = {
+  // Classic rotation (map 0) is a selector, not a dedicated live arena theme.
+  inner: "#05080d",
+  mid: "#111a25",
+  outer: "#1f2e42",
+};
+
+const MAP_THEME_GRADIENTS: Partial<Record<number, StarfieldGradient>> = {
+  1: { inner: "#070609", mid: "#1a1308", outer: "#3a2a12" },
+  2: { inner: "#090303", mid: "#261007", outer: "#4a1b12" },
+  3: { inner: "#070102", mid: "#22040b", outer: "#4a0919" },
+  4: { inner: "#020603", mid: "#0b1f11", outer: "#153a27" },
+  5: { inner: "#030608", mid: "#0a1b2a", outer: "#15364d" },
 };
 
 function getGradientForMap(mapId: number): StarfieldGradient {
-  return MAP_THEME_GRADIENTS[mapId] ?? MAP_THEME_GRADIENTS[0];
+  return MAP_THEME_GRADIENTS[mapId] ?? DEFAULT_STARFIELD_GRADIENT;
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -148,7 +153,6 @@ export function createScreenController(
     if (previousScreen !== screen) {
       clearSystemMessage();
     }
-    game.setMapElementsVisible(screen === "lobby" || screen === "game");
     elements.startScreen.classList.toggle("hidden", screen !== "start");
     elements.lobbyScreen.classList.toggle("hidden", screen !== "lobby");
     elements.gameEndScreen.classList.toggle("hidden", screen !== "end");

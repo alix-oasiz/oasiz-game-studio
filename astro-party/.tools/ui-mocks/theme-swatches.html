@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Map Theme Swatches</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c0d12;
+      --panel: #151822;
+      --panel-border: #252b3a;
+      --text: #e8edf8;
+      --muted: #a9b4cb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1100px 520px at 16% -8%, rgba(86, 108, 163, 0.28), transparent 62%),
+        radial-gradient(980px 440px at 84% -14%, rgba(145, 69, 104, 0.22), transparent 66%),
+        radial-gradient(circle at 20% -10%, #1c2233 0%, #0c0d12 55%);
+      color: var(--text);
+      font: 14px/1.45 "Segoe UI", "Inter", system-ui, -apple-system, sans-serif;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    h2.section {
+      margin: 26px 0 8px;
+      font-size: 18px;
+      letter-spacing: 0.01em;
+    }
+
+    .sub {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background:
+        linear-gradient(160deg, rgba(28, 33, 48, 0.92), rgba(14, 18, 30, 0.9)),
+        var(--panel);
+      border: 1px solid rgba(159, 180, 226, 0.18);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 14px 34px rgba(0, 0, 0, 0.44);
+      position: relative;
+      overflow: hidden;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(105deg, rgba(255,255,255,0.08), transparent 34%),
+        radial-gradient(420px 90px at 12% 0%, rgba(150, 179, 255, 0.16), transparent 70%);
+      mix-blend-mode: screen;
+      opacity: 0.52;
+    }
+
+    .card:hover {
+      transform: translateY(-3px) scale(1.005);
+      border-color: rgba(188, 208, 255, 0.38);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 20px 44px rgba(0, 0, 0, 0.56);
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .name {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .tag {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .starfield {
+      height: 78px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: radial-gradient(220% 105% at top center, var(--sf-inner) 10%, var(--sf-mid) 40%, var(--sf-outer));
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        inset 0 0 38px rgba(0, 0, 0, 0.58),
+        0 0 28px color-mix(in srgb, var(--sf-mid) 38%, transparent);
+    }
+
+    .starfield::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle at 15% 28%, rgba(255,255,255,0.65) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 38% 55%, rgba(255,255,255,0.55) 0 1px, transparent 1.7px),
+        radial-gradient(circle at 62% 22%, rgba(255,255,255,0.7) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 78% 68%, rgba(255,255,255,0.5) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 90% 35%, rgba(255,255,255,0.58) 0 1px, transparent 1.8px);
+      opacity: 0.75;
+      animation: twinkle 4.6s ease-in-out infinite alternate;
+    }
+
+    .starfield::after {
+      content: "";
+      position: absolute;
+      inset: -18% -6%;
+      pointer-events: none;
+      background:
+        radial-gradient(45% 70% at 20% 25%, color-mix(in srgb, var(--sf-mid) 55%, transparent), transparent 72%),
+        radial-gradient(58% 66% at 76% 18%, color-mix(in srgb, var(--sf-inner) 42%, transparent), transparent 78%);
+      mix-blend-mode: screen;
+      opacity: 0.5;
+      animation: drift 8.8s ease-in-out infinite;
+    }
+
+    .arena {
+      height: 130px;
+      border-radius: 10px;
+      border: 3px solid var(--border);
+      background:
+        radial-gradient(120% 95% at 50% 10%, rgba(255, 255, 255, 0.06), transparent 52%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.24));
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        inset 0 0 42px rgba(0, 0, 0, 0.7),
+        0 0 26px color-mix(in srgb, var(--border) 22%, transparent);
+    }
+
+    .arena::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(
+          180deg,
+          rgba(255,255,255,0.03) 0,
+          rgba(255,255,255,0.03) 1px,
+          transparent 1px,
+          transparent 4px
+        );
+      opacity: 0.22;
+    }
+
+    .zone {
+      position: absolute;
+      top: 50%;
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      transform: translateY(-50%);
+      border: 2px solid var(--ring);
+      box-shadow:
+        0 0 0 6px color-mix(in srgb, var(--ring) 24%, transparent),
+        0 0 26px color-mix(in srgb, var(--ring) 35%, transparent),
+        0 0 52px color-mix(in srgb, var(--ring) 22%, transparent);
+      background:
+        radial-gradient(circle at 50% 50%, var(--core) 0 34%, transparent 36%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--grad-inner) 38%, transparent) 0 58%, transparent 62%);
+      animation: zonePulse 2.2s ease-in-out infinite;
+    }
+
+    .zone.left { left: 24%; }
+    .zone.right { right: 24%; }
+
+    .zone::before {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 6px;
+      left: 50%;
+      top: 10px;
+      transform: translateX(-50%);
+      background: var(--arrow);
+      clip-path: polygon(0 50%, 100% 0, 100% 100%);
+      opacity: 0.95;
+      filter: drop-shadow(0 0 6px color-mix(in srgb, var(--arrow) 75%, transparent));
+    }
+
+    .zone::after {
+      content: "";
+      position: absolute;
+      inset: -10px;
+      border-radius: 50%;
+      border: 1px dashed color-mix(in srgb, var(--ring) 64%, transparent);
+      opacity: 0.5;
+      animation: spin 5.2s linear infinite;
+    }
+
+    .vortex {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      border: 2px solid var(--ring);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--ring) 18%, transparent);
+      background:
+        radial-gradient(circle at 50% 50%, #05060b 0 36%, transparent 37%),
+        radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--ring) 24%, transparent) 0 56%, transparent 59%);
+    }
+
+    .vortex::before {
+      content: "";
+      position: absolute;
+      inset: -12px;
+      border-radius: 50%;
+      border: 2px dashed var(--arrow);
+      opacity: 0.9;
+      animation: spin 6s linear infinite;
+    }
+
+    .vortex::after {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      border: 1px solid color-mix(in srgb, var(--ring) 58%, transparent);
+      box-shadow: inset 0 0 18px color-mix(in srgb, var(--ring) 24%, transparent);
+      opacity: 0.72;
+      animation: pulseSlow 3.6s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes twinkle {
+      0% { opacity: 0.52; }
+      100% { opacity: 0.9; }
+    }
+
+    @keyframes drift {
+      0% { transform: translateX(-2%) translateY(0); }
+      50% { transform: translateX(1.5%) translateY(1.2%); }
+      100% { transform: translateX(-1%) translateY(-0.6%); }
+    }
+
+    @keyframes zonePulse {
+      0%, 100% {
+        transform: translateY(-50%) scale(0.97);
+        filter: saturate(1);
+      }
+      50% {
+        transform: translateY(-50%) scale(1.03);
+        filter: saturate(1.15);
+      }
+    }
+
+    @keyframes pulseSlow {
+      0%, 100% { opacity: 0.52; }
+      50% { opacity: 0.9; }
+    }
+
+    .turret {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 56px;
+      height: 56px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle at 45% 40%, #ffd2d2, #c72f2f 65%, #7d1616);
+      border: 3px solid #f5e7d5;
+      box-shadow: 0 0 0 5px rgba(199, 47, 47, 0.23);
+    }
+
+    .turret::after {
+      content: "";
+      position: absolute;
+      width: 36px;
+      height: 7px;
+      background: #f5e7d5;
+      left: 50%;
+      top: 50%;
+      transform: translate(-8%, -50%);
+      border-radius: 4px;
+    }
+
+    .bunker {
+      position: absolute;
+      width: 44px;
+      height: 20px;
+      border-radius: 4px;
+      background: rgba(220, 255, 230, 0.14);
+      border: 1px solid rgba(220, 255, 230, 0.35);
+    }
+
+    .b1 { left: 20%; top: 30%; }
+    .b2 { right: 20%; top: 30%; }
+    .b3 { left: 20%; bottom: 30%; }
+    .b4 { right: 20%; bottom: 30%; }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .chip {
+      border-radius: 6px;
+      padding: 4px 6px;
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 11px;
+      color: #e7eef9;
+      text-align: center;
+      background: var(--chip);
+    }
+
+    .legend {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Map Theme Swatches</h1>
+  <p class="sub">Side-by-side visual compare for candidate Repulse themes and current runtime themes.</p>
+
+  <h2 class="section">Repulse Candidate Themes</h2>
+  <div class="grid">
+    <article class="card" style="--sf-inner:#02010a;--sf-mid:#13062a;--sf-outer:#2a0b4e;--border:#c36bff;--ring:#c36bff;--core:#45147f;--arrow:#e8b6ff;--grad-inner:#6c2ac4;">
+      <div class="top"><h3 class="name">Current Violet</h3><span class="tag">Current</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="zone left"></div><div class="zone right"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#c36bff">Border</div>
+        <div class="chip" style="--chip:#6c2ac4">Inner</div>
+        <div class="chip" style="--chip:#45147f">Core</div>
+        <div class="chip" style="--chip:#e8b6ff">Arrow</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#070102;--sf-mid:#22040b;--sf-outer:#4a0919;--border:#ff2f56;--ring:#ff2f56;--core:#640c22;--arrow:#ff9b8f;--grad-inner:#a3173e;">
+      <div class="top"><h3 class="name">Crimson Ion</h3><span class="tag">Hot + clean</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="zone left"></div><div class="zone right"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#ff2f56">Border</div>
+        <div class="chip" style="--chip:#a3173e">Inner</div>
+        <div class="chip" style="--chip:#640c22">Core</div>
+        <div class="chip" style="--chip:#ff9b8f">Arrow</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#090200;--sf-mid:#2b0a02;--sf-outer:#5a1706;--border:#ff5a1f;--ring:#ff5a1f;--core:#6d1f04;--arrow:#ffbc63;--grad-inner:#b4370a;">
+      <div class="top"><h3 class="name">Molten Magma</h3><span class="tag">Volcanic</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="zone left"></div><div class="zone right"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#ff5a1f">Border</div>
+        <div class="chip" style="--chip:#b4370a">Inner</div>
+        <div class="chip" style="--chip:#6d1f04">Core</div>
+        <div class="chip" style="--chip:#ffbc63">Arrow</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#0d0400;--sf-mid:#301104;--sf-outer:#6e2606;--border:#ff8b1e;--ring:#ff8b1e;--core:#743007;--arrow:#ffd35e;--grad-inner:#b54b0a;">
+      <div class="top"><h3 class="name">Solar Flare</h3><span class="tag">Bright hot</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="zone left"></div><div class="zone right"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#ff8b1e">Border</div>
+        <div class="chip" style="--chip:#b54b0a">Inner</div>
+        <div class="chip" style="--chip:#743007">Core</div>
+        <div class="chip" style="--chip:#ffd35e">Arrow</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#060106;--sf-mid:#1f0520;--sf-outer:#4a0838;--border:#ff2d86;--ring:#ff2d86;--core:#5d0f43;--arrow:#ff91cf;--grad-inner:#9f1f74;">
+      <div class="top"><h3 class="name">Neon Ruby</h3><span class="tag">Arcade</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="zone left"></div><div class="zone right"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#ff2d86">Border</div>
+        <div class="chip" style="--chip:#9f1f74">Inner</div>
+        <div class="chip" style="--chip:#5d0f43">Core</div>
+        <div class="chip" style="--chip:#ff91cf">Arrow</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#090402;--sf-mid:#251006;--sf-outer:#4a1f0f;--border:#ff8a42;--ring:#ff8a42;--core:#5b2a12;--arrow:#e7a46a;--grad-inner:#8a431d;">
+      <div class="top"><h3 class="name">Inferno Copper</h3><span class="tag">Metallic heat</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="zone left"></div><div class="zone right"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#ff8a42">Border</div>
+        <div class="chip" style="--chip:#8a431d">Inner</div>
+        <div class="chip" style="--chip:#5b2a12">Core</div>
+        <div class="chip" style="--chip:#e7a46a">Arrow</div>
+      </div>
+    </article>
+  </div>
+
+  <h2 class="section">Current Runtime Map Themes (0-5)</h2>
+  <p class="sub">These match current in-code starfield gradients and border/effect accents.</p>
+  <div class="grid">
+    <article class="card" style="--sf-inner:#05080d;--sf-mid:#111a25;--sf-outer:#1f2e42;--border:#8a9eb8;">
+      <div class="top"><h3 class="name">Map 0 - Classic Rotation</h3><span class="tag">Selector fallback</span></div>
+      <div class="starfield"></div>
+      <div class="arena"></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#8a9eb8">Border</div>
+        <div class="chip" style="--chip:#111a25">Mid</div>
+        <div class="chip" style="--chip:#1f2e42">Outer</div>
+        <div class="chip" style="--chip:#05080d">Inner</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#070609;--sf-mid:#1a1308;--sf-outer:#3a2a12;--border:#e7c04d;">
+      <div class="top"><h3 class="name">Map 1 - The Cache</h3><span class="tag">Gold</span></div>
+      <div class="starfield"></div>
+      <div class="arena"></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#e7c04d">Border</div>
+        <div class="chip" style="--chip:#1a1308">Mid</div>
+        <div class="chip" style="--chip:#3a2a12">Outer</div>
+        <div class="chip" style="--chip:#070609">Inner</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#090303;--sf-mid:#261007;--sf-outer:#4a1b12;--border:#ef7b4a;--ring:#ef7b4a;--arrow:#a4552b;">
+      <div class="top"><h3 class="name">Map 2 - The Vortex</h3><span class="tag">Orange vortex</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="vortex"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#ef7b4a">Border</div>
+        <div class="chip" style="--chip:#261007">Mid</div>
+        <div class="chip" style="--chip:#4a1b12">Outer</div>
+        <div class="chip" style="--chip:#a4552b">Arrow</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#070102;--sf-mid:#22040b;--sf-outer:#4a0919;--border:#ff2f56;--ring:#ff2f56;--core:#640c22;--arrow:#ff9b8f;--grad-inner:#a3173e;">
+      <div class="top"><h3 class="name">Map 3 - Repulse</h3><span class="tag">Current crimson ion</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="zone left"></div><div class="zone right"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#ff2f56">Border</div>
+        <div class="chip" style="--chip:#a3173e">Inner</div>
+        <div class="chip" style="--chip:#640c22">Core</div>
+        <div class="chip" style="--chip:#ff9b8f">Arrow</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#020603;--sf-mid:#0b1f11;--sf-outer:#153a27;--border:#50c97f;">
+      <div class="top"><h3 class="name">Map 4 - Bunkers</h3><span class="tag">Green cover</span></div>
+      <div class="starfield"></div>
+      <div class="arena">
+        <div class="bunker b1"></div>
+        <div class="bunker b2"></div>
+        <div class="bunker b3"></div>
+        <div class="bunker b4"></div>
+      </div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#50c97f">Border</div>
+        <div class="chip" style="--chip:#0b1f11">Mid</div>
+        <div class="chip" style="--chip:#153a27">Outer</div>
+        <div class="chip" style="--chip:#020603">Inner</div>
+      </div>
+    </article>
+
+    <article class="card" style="--sf-inner:#030608;--sf-mid:#0a1b2a;--sf-outer:#15364d;--border:#58b5ff;">
+      <div class="top"><h3 class="name">Map 5 - Turret</h3><span class="tag">Blue turret</span></div>
+      <div class="starfield"></div>
+      <div class="arena"><div class="turret"></div></div>
+      <div class="swatches">
+        <div class="chip" style="--chip:#58b5ff">Border</div>
+        <div class="chip" style="--chip:#0a1b2a">Mid</div>
+        <div class="chip" style="--chip:#15364d">Outer</div>
+        <div class="chip" style="--chip:#030608">Inner</div>
+      </div>
+    </article>
+  </div>
+
+  <p class="legend">If you pick a Repulse candidate, I will wire that exact palette into map 3 runtime values.</p>
+</body>
+</html>
+
+
+

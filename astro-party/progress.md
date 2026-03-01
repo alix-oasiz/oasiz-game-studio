@@ -414,3 +414,43 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
   - `astro-party`: `bun run build` passed.
   - `astro-party/server`: `npm run typecheck` passed.
   - `astro-party/server`: `npm run build` passed.
+
+## 2026-03-01 - Demo starfield flow + map theme cleanup
+
+- Removed demo starfield duplicate initialization path and fallback guard in `main.ts`.
+  - Demo starfield is now activated once in `startDemoSession` after demo startup.
+  - Removed `starfieldInitializedForDemo` state/branching.
+- Removed remaining dead map `6` runtime trace in `src/ui/screens.ts`.
+- Updated starfield gradients to distinct per-playable-map themes (`1..5`) with map `3` aligned to the prior purple haze look.
+- Updated in-canvas map theming to distinct per-playable-map border colors:
+  - map 1 (Cache) gold
+  - map 2 (Vortex) orange
+  - map 3 (Repulse) violet, with explicit violet repulsion accents
+  - map 4 (Bunkers) green
+  - map 5 (Turret) blue
+  - map 0 (classic rotation selector) neutral fallback only
+- Removed active flow usage of map-geometry visibility toggles:
+  - deleted `setMapElementsVisible(...)` calls from `screens.ts` and demo phase intercept in `main.ts`.
+  - default map element rendering is now enabled in `Game.ts`.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+  - `astro-party/server`: `npm run typecheck` passed.
+  - `astro-party/server`: `npm run build` passed.
+
+## 2026-03-01 - Repulse theme applied: Crimson Ion (Rawr)
+
+- Applied selected Repulse palette (`Crimson Ion`) to runtime map 3 visuals:
+  - Starfield gradient updated in `src/ui/screens.ts` (map 3).
+  - In-canvas map border + repulsion zone palette updated in `src/systems/rendering/GameRenderer.ts` (map 3).
+- Updated `.tools/ui-mocks/theme-swatches.html` current-runtime map 3 card to match live values.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+  - `astro-party/server`: `npm run typecheck` passed.
+  - `astro-party/server`: `npm run build` passed.
+
+## 2026-03-01 - Root cleanup for mock/swatch artifacts
+
+- Moved root `lobby-mocks/` into `.tools/ui-mocks/`.
+- Renamed and moved root `repulse-theme-swatches.html` to `.tools/ui-mocks/theme-swatches.html`.

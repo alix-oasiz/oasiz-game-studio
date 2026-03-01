@@ -128,7 +128,7 @@ export class Game {
   private currentRuleset: Ruleset = "ROUND_ELIMINATION";
   private currentExperienceContext: ExperienceContext = "LIVE_MATCH";
   private selectedMapId: MapId = 0;
-  private showMapElements = false;
+  private showMapElements = true;
   private hideBorder = false;
   private demoZoomBoost: number | null = null;
   private cachedLocalShipWorldPos: { x: number; y: number } | null = null;

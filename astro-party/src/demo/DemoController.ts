@@ -62,7 +62,7 @@ export class DemoController {
     await this.game.addAIBot();
     await this.game.addAIBot();
 
-    // Set to demo map (hidden from picker)
+    // Use Repulse for attract/tutorial background play.
     this.game.setMap(3 as MapId);
 
     // Hide arena border (collision still active)

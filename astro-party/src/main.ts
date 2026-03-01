@@ -258,7 +258,6 @@ async function init(): Promise<void> {
   // Demo state
   let demoController: DemoController | null = null;
   let demoOverlay: DemoOverlayUI | null = null;
-  let starfieldInitializedForDemo = false;
   const startUI = createStartScreenUI(game, {
     onIntroAudioComplete: () => {
       if (waitingForStartIntroAudioCompletion) {
@@ -398,7 +397,6 @@ async function init(): Promise<void> {
     markDemoSeen();
     demoController = null;
     demoOverlay = null;
-    starfieldInitializedForDemo = false;
     // Remove demo-specific starfield state
     elements.starsContainer.classList.remove("demo-stars", "active");
     syncPlatformGameplayActivity();
@@ -417,7 +415,6 @@ async function init(): Promise<void> {
       markDemoSeen();
       demoController = null;
       demoOverlay = null;
-      starfieldInitializedForDemo = false;
       elements.starsContainer.classList.remove("demo-stars", "active");
       syncPlatformGameplayActivity();
       startUI.setBeforeAction(null);
@@ -451,8 +448,6 @@ async function init(): Promise<void> {
     demoInputActionSubscribers.clear();
     demoController = null;
     demoOverlay = null;
-    starfieldInitializedForDemo = false;
-
     // Leave any active game
     if (game.getPhase() !== "START") {
       await game.leaveGame().catch(() => {});
@@ -546,13 +541,10 @@ async function init(): Promise<void> {
     syncDemoTouchLayoutForState();
     syncPlatformGameplayActivity();
 
-    // Activate the starfield immediately so it's visible in the attract overlay.
-    // forceDemoStarfield bypasses the activeScreen guard in screens.ts.
-    if (!starfieldInitializedForDemo) {
-      elements.starsContainer.classList.add("demo-stars");
-      screenController.forceDemoStarfield(3 as MapId);
-      starfieldInitializedForDemo = true;
-    }
+    // Activate starfield once per demo session. In demo flows, this runs
+    // before any start-screen overlays are shown.
+    elements.starsContainer.classList.add("demo-stars");
+    screenController.forceDemoStarfield(game.getMapId());
 
     if (showAttract) {
       demoOverlay.showAttract();
@@ -627,12 +619,6 @@ async function init(): Promise<void> {
         case "PLAYING":
         case "ROUND_END": {
           // Show game canvas + starfield, but suppress HUD and normal game UI
-          game.setMapElementsVisible(true);
-          if (!starfieldInitializedForDemo) {
-            elements.starsContainer.classList.add("demo-stars");
-            screenController.forceDemoStarfield(3 as MapId);
-            starfieldInitializedForDemo = true;
-          }
           if (demoState === "MENU") {
             // MENU state: show start screen over the game canvas
             screenController.showScreen("start");

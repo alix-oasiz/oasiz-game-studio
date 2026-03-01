@@ -393,33 +393,47 @@ export class GameRenderer {
   } {
     switch (mapId) {
       case 1:
-        return { border: "#f4d64f" };
+        return { border: "#e7c04d" };
       case 2:
         return {
-          border: "#f26a3b",
+          border: "#ef7b4a",
           centerHole: {
             drawSnake: true,
-            ring: "#f26a3b",
-            innerRing: "#ffd39a",
-            arrow: "#fff0cc",
-            glow: "#f26a3b",
+            ring: "#ef7b4a",
+            innerRing: "#ffd19c",
+            arrow: "#fff0d8",
+            glow: "#ef7b4a",
             gradientInner: "#2b1510",
             gradientMid: "#56251a",
             gradientOuter: "#85422c",
           },
         };
       case 3:
-        // Use default repulsion palette so Repulse matches legacy attract visuals.
         return {
-          border: "#f26a3b",
+          border: "#ff2f56",
+          repulsion: {
+            gradientInner: "#a3173e",
+            gradientMid: "#5f1128",
+            gradientOuter: "#2b0712",
+            core: "#640c22",
+            ring: "#ff2f56",
+            arrow: "#ff9b8f",
+            glow: "#a3173e",
+          },
         };
       case 4:
         return {
-          border: "#4ed17f",
+          border: "#50c97f",
+        };
+      case 5:
+        return {
+          border: "#58b5ff",
         };
       case 0:
       default:
-        return { border: "#5ac8ff" };
+        // Classic rotation selector (map 0) uses a neutral border because
+        // it doesn't represent a specific arena theme.
+        return { border: "#8a9eb8" };
     }
   }
 }
