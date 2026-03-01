@@ -7,6 +7,7 @@ import { getPlayerName as getPlatformPlayerName } from "../platform/oasizBridge"
 export interface StartScreenUI {
   resetStartButtons: (replayTitleIntro?: boolean) => void;
   playTitleIntro: () => void;
+  playTitleOutro: () => Promise<void>;
   cancelTitleIntroAudioSync: () => void;
   setBeforeAction: (fn: (() => Promise<void>) | null) => void;
   setOnActionCommit: (fn: (() => void) | null) => void;
@@ -28,6 +29,8 @@ export function createStartScreenUI(
   // Matches CSS intro timings in index.html:
   // mainButtons reveal (1280ms delay + 560ms animation) + deliberate hold beat.
   const TITLE_INTRO_VISUAL_SETTLE_MS = 2160;
+  // Matches CSS title+shell outro timings in index.html.
+  const TITLE_OUTRO_SETTLE_MS = 760;
   let forceTitleTriggerRafId = 0;
   let introVisualTimer: ReturnType<typeof setTimeout> | null = null;
   let titleIntroRunToken = 0;
@@ -60,9 +63,11 @@ export function createStartScreenUI(
     if (titleWrap) {
       titleWrap.classList.remove("intro-active");
       titleWrap.classList.remove("force-active");
+      titleWrap.classList.remove("outro-active");
     }
     if (startShell) {
       startShell.classList.remove("ui-intro-active");
+      startShell.classList.remove("ui-outro-active");
     }
 
     void (titleWrap?.clientWidth ?? startShell?.clientWidth ?? 0);
@@ -122,6 +127,29 @@ export function createStartScreenUI(
     titleIntroRunToken += 1;
     cancelTitleAudioSync();
     cancelTitleVisualSync();
+  }
+
+  function playTitleOutro(): Promise<void> {
+    if (!titleWrap && !startShell) {
+      return Promise.resolve();
+    }
+
+    titleIntroRunToken += 1;
+    cancelTitleAudioSync();
+    cancelTitleVisualSync();
+
+    if (titleWrap) {
+      titleWrap.classList.remove("intro-active", "force-active");
+      titleWrap.classList.add("outro-active");
+    }
+    if (startShell) {
+      startShell.classList.remove("ui-intro-active");
+      startShell.classList.add("ui-outro-active");
+    }
+
+    return new Promise((resolve) => {
+      setTimeout(resolve, TITLE_OUTRO_SETTLE_MS);
+    });
   }
 
   function showJoinSection(): void {
@@ -276,6 +304,7 @@ export function createStartScreenUI(
   return {
     resetStartButtons,
     playTitleIntro,
+    playTitleOutro,
     cancelTitleIntroAudioSync,
     setBeforeAction,
     setOnActionCommit,

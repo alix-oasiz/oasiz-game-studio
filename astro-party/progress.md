@@ -533,3 +533,19 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
 - Validation:
   - `astro-party`: `bun run typecheck` passed.
   - `astro-party`: `bun run build` passed.
+
+## 2026-03-01 - Start-to-attract transition polish (title outro + attract easing)
+
+- Added a simple first-run title outro sequence:
+  - `force` exits center -> right first,
+  - `space` exits center -> right second,
+  - then demo startup begins.
+- Added start-shell outro animation for subtitle/helpers/buttons while title exits.
+- Added attract overlay easing so attract content fades/slides in instead of popping in.
+- Runtime wiring:
+  - `src/ui/startScreen.ts`: added `playTitleOutro()` and intro/outro class management.
+  - `src/main.ts`: first-run startup now awaits `playTitleOutro()` before `startDemoSession(true)`, with in-progress guard/cancel safety.
+  - `index.html`: added title/start-shell outro keyframes and attract content transition styles.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.

@@ -252,6 +252,7 @@ async function init(): Promise<void> {
   let waitingForStartIntroVisualCompletion = false;
   let startMenuMusicTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingDemoStartupAfterIntro: { showAttract: boolean } | null = null;
+  let pendingDemoStartupInProgress = false;
   let suppressNextStartPhaseEffects = false;
   const demoInputActionSubscribers = new Set<
     (action: "rotate" | "fire" | "dash") => void
@@ -279,6 +280,7 @@ async function init(): Promise<void> {
   });
   startUI.setOnActionCommit(() => {
     pendingDemoStartupAfterIntro = null;
+    pendingDemoStartupInProgress = false;
   });
 
   const clearStartMenuMusicTimer = (): void => {
@@ -338,6 +340,7 @@ async function init(): Promise<void> {
     AudioManager.stopCue("SPLASH_STING");
     if (phase !== "START") {
       pendingDemoStartupAfterIntro = null;
+      pendingDemoStartupInProgress = false;
       waitingForStartIntroVisualCompletion = false;
       startUI.cancelTitleIntroAudioSync();
       AudioManager.stopCue("LOGO_STING");
@@ -601,15 +604,34 @@ async function init(): Promise<void> {
     ) {
       return;
     }
+    if (pendingDemoStartupInProgress) {
+      return;
+    }
     if (pendingDemoStartupAfterIntro === null) {
       return;
     }
 
-    const { showAttract } = pendingDemoStartupAfterIntro;
-    pendingDemoStartupAfterIntro = null;
-    void startDemoSession(showAttract).catch((error) => {
-      void handleDemoStartupFailure(error);
-    });
+    const pending = pendingDemoStartupAfterIntro;
+    pendingDemoStartupInProgress = true;
+    void (async () => {
+      try {
+        if (pending.showAttract) {
+          await startUI.playTitleOutro();
+        }
+        if (
+          pendingDemoStartupAfterIntro !== pending ||
+          currentPhase !== "START"
+        ) {
+          return;
+        }
+        pendingDemoStartupAfterIntro = null;
+        await startDemoSession(pending.showAttract);
+      } catch (error) {
+        void handleDemoStartupFailure(error);
+      } finally {
+        pendingDemoStartupInProgress = false;
+      }
+    })();
   }
 
   const syncScreenToPhase = (
