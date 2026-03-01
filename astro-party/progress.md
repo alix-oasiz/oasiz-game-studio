@@ -20,6 +20,28 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
 - Once completed, close the thread and capture final outcome in a dated milestone entry.
 
 ## Active Task Threads
+
+### 2026-03-01 - First-run demo startup timing hold after title intro (Closed)
+
+- Original prompt:
+  - Fix first-run (`demo_seen` false) startup flow where demo begins before the full title intro completes and holds.
+- Intent:
+  - Ensure startup sequence is: splash -> title intro completes -> intentional hold beat -> attract demo begins.
+- Plan:
+  - Add an explicit title-intro visual-settle readiness signal from `startScreen.ts`.
+  - Keep non-first-run demo startup path immediate.
+  - Gate demo startup on both intro-audio readiness and intro-visual readiness.
+- Progress updates:
+  - Added `onIntroVisualComplete` callback wiring in `startScreen.ts` based on intro timeline settle.
+  - Added `waitingForStartIntroVisualCompletion` gating in `main.ts`.
+  - Updated demo startup orchestration so first-run attract waits for both intro audio and visual readiness.
+  - Kept non-first-run startup path immediate (`showAttract=false`) while removing ad hoc startup-hold timer logic.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Closed. First-run demo startup no longer jumps early and now waits for the full intro lifecycle to settle.
+
 ### 2026-03-01 - Demo FREEPLAY cleanup + local score-submit eligibility fix (Closed)
 
 - Original prompt:
@@ -40,8 +62,6 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
   - `astro-party`: `bun run build` passed.
   - `astro-party/server`: `npm run typecheck` passed.
   - `astro-party/server`: `npm run build` passed.
-- Outcome:
-  - Closed. Freeplay branch removed and local score-submit eligibility aligned to single-human local sessions.
 
 ### 2026-03-01 - One-shot ruleset/context runtime implementation + endless mode + demo hardening (Closed)
 
@@ -502,3 +522,14 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
   - `astro-party/server`: `npm run typecheck` passed.
   - `astro-party/server`: `npm run build` passed.
 
+## 2026-03-01 - First-run demo startup timing hold after title intro
+
+- Added intro visual-settle signaling in `src/ui/startScreen.ts` via `onIntroVisualComplete`.
+- Added `waitingForStartIntroVisualCompletion` gating in `src/main.ts` and required both:
+  - intro audio readiness
+  - intro visual-settle readiness
+  before first-run demo startup can launch.
+- Kept non-first-run startup path immediate (`showAttract=false`) so return-to-menu behavior is unchanged.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.

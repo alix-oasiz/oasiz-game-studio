@@ -14,6 +14,7 @@ export interface StartScreenUI {
 
 interface StartScreenAudioCallbacks {
   onIntroAudioComplete?: () => void;
+  onIntroVisualComplete?: () => void;
 }
 
 export function createStartScreenUI(
@@ -24,7 +25,11 @@ export function createStartScreenUI(
   const titleWrap = document.getElementById("gameTitleWrap");
   const startShell = document.querySelector<HTMLElement>("#startScreen .start-shell");
   const FORCE_TITLE_ANIMATION_DELAY_SEC = 0.465;
+  // Matches CSS intro timings in index.html:
+  // mainButtons reveal (1280ms delay + 560ms animation) + deliberate hold beat.
+  const TITLE_INTRO_VISUAL_SETTLE_MS = 2160;
   let forceTitleTriggerRafId = 0;
+  let introVisualTimer: ReturnType<typeof setTimeout> | null = null;
   let titleIntroRunToken = 0;
 
   function cancelTitleAudioSync(): void {
@@ -32,6 +37,14 @@ export function createStartScreenUI(
       cancelAnimationFrame(forceTitleTriggerRafId);
       forceTitleTriggerRafId = 0;
     }
+  }
+
+  function cancelTitleVisualSync(): void {
+    if (introVisualTimer === null) {
+      return;
+    }
+    clearTimeout(introVisualTimer);
+    introVisualTimer = null;
   }
 
   function playTitleIntro(): void {
@@ -42,6 +55,7 @@ export function createStartScreenUI(
     titleIntroRunToken += 1;
     const introRunToken = titleIntroRunToken;
     cancelTitleAudioSync();
+    cancelTitleVisualSync();
 
     if (titleWrap) {
       titleWrap.classList.remove("intro-active");
@@ -59,6 +73,14 @@ export function createStartScreenUI(
     if (startShell) {
       startShell.classList.add("ui-intro-active");
     }
+
+    introVisualTimer = setTimeout(() => {
+      introVisualTimer = null;
+      if (introRunToken !== titleIntroRunToken) {
+        return;
+      }
+      callbacks.onIntroVisualComplete?.();
+    }, TITLE_INTRO_VISUAL_SETTLE_MS);
 
     void AudioManager.playLogoRevealCue();
     const introStartMs = performance.now();
@@ -99,6 +121,7 @@ export function createStartScreenUI(
   function cancelTitleIntroAudioSync(): void {
     titleIntroRunToken += 1;
     cancelTitleAudioSync();
+    cancelTitleVisualSync();
   }
 
   function showJoinSection(): void {

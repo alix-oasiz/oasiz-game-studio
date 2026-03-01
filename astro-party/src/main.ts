@@ -249,6 +249,7 @@ async function init(): Promise<void> {
   bindEndScreenUI(game);
   let currentPhase: GamePhase = "START";
   let waitingForStartIntroAudioCompletion = false;
+  let waitingForStartIntroVisualCompletion = false;
   let startMenuMusicTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingDemoStartupAfterIntro: { showAttract: boolean } | null = null;
   let suppressNextStartPhaseEffects = false;
@@ -266,6 +267,12 @@ async function init(): Promise<void> {
         if (currentPhase === "START") {
           void AudioManager.playSceneMusic("START", { restart: false });
         }
+      }
+      startPendingDemoStartupAfterIntro();
+    },
+    onIntroVisualComplete: () => {
+      if (waitingForStartIntroVisualCompletion) {
+        waitingForStartIntroVisualCompletion = false;
       }
       startPendingDemoStartupAfterIntro();
     },
@@ -321,6 +328,7 @@ async function init(): Promise<void> {
   ): void => {
     if (phase === "START" && suppressNextStartPhaseEffects) {
       waitingForStartIntroAudioCompletion = false;
+      waitingForStartIntroVisualCompletion = false;
       clearStartMenuMusicTimer();
       return;
     }
@@ -330,6 +338,7 @@ async function init(): Promise<void> {
     AudioManager.stopCue("SPLASH_STING");
     if (phase !== "START") {
       pendingDemoStartupAfterIntro = null;
+      waitingForStartIntroVisualCompletion = false;
       startUI.cancelTitleIntroAudioSync();
       AudioManager.stopCue("LOGO_STING");
     }
@@ -345,9 +354,11 @@ async function init(): Promise<void> {
         previousPhase === null || previousPhase !== "START";
       if (shouldWaitForIntro) {
         waitingForStartIntroAudioCompletion = true;
+        waitingForStartIntroVisualCompletion = true;
         scheduleStartMenuMusic();
       } else {
         waitingForStartIntroAudioCompletion = false;
+        waitingForStartIntroVisualCompletion = false;
         clearStartMenuMusicTimer();
         void AudioManager.playSceneMusic("START", { restart: false });
         startPendingDemoStartupAfterIntro();
@@ -356,6 +367,7 @@ async function init(): Promise<void> {
     }
 
     waitingForStartIntroAudioCompletion = false;
+    waitingForStartIntroVisualCompletion = false;
     clearStartMenuMusicTimer();
     void AudioManager.playSceneMusic(nextScene);
   };
@@ -582,7 +594,11 @@ async function init(): Promise<void> {
   }
 
   function startPendingDemoStartupAfterIntro(): void {
-    if (waitingForStartIntroAudioCompletion || currentPhase !== "START") {
+    if (
+      waitingForStartIntroAudioCompletion ||
+      waitingForStartIntroVisualCompletion ||
+      currentPhase !== "START"
+    ) {
       return;
     }
     if (pendingDemoStartupAfterIntro === null) {
