@@ -196,19 +196,6 @@ export default class Level extends Phaser.Scene {
         g.beginPath(); g.moveTo(0, mid - BAND / 2 - 5); g.lineTo(w, mid - BAND / 2 - 5); g.strokePath();
         g.beginPath(); g.moveTo(0, mid + BAND / 2 + 5); g.lineTo(w, mid + BAND / 2 + 5); g.strokePath();
 
-        // White diamond accents evenly along the band
-        const DS = 5;
-        for (let x = 40; x < w - 20; x += 60) {
-            g.fillStyle(0xffffff, 1);
-            g.beginPath();
-            g.moveTo(x, mid - DS);
-            g.lineTo(x + DS, mid);
-            g.lineTo(x, mid + DS);
-            g.lineTo(x - DS, mid);
-            g.closePath();
-            g.fillPath();
-        }
-
         // ── Ground line: heavier with small tick marks ─────────────────────────
         const gY = this.groundY;
         g.lineStyle(2, 0x1a1a1a, 0.75);
