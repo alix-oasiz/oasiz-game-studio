@@ -20,8 +20,8 @@
         <div id="hud">ORBS 00</div>
         <p id="tutorial">Dash right before the rocks open.</p>
         <div id="dash-flash" aria-hidden="true"></div>
-        <div id="settings-modal" hidden>
-          <div id="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <dialog id="settings-modal" aria-labelledby="settings-title">
+          <div id="settings-card">
             <div id="settings-head">
               <h2 id="settings-title">SETTINGS</h2>
               <button id="settings-close" type="button">Close</button>
@@ -52,7 +52,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </dialog>
         <div id="menu" class="visible">
           <div id="menu-card">
             <p id="menu-kicker">SPRING RUNNER</p>
@@ -61,9 +61,9 @@
               Click or press Space to dash. Hit the opening and collect the orb.
             </p>
             <button id="start-btn" type="button">PLAY</button>
-            <p id="menu-controls">Enter replay - F fullscreen</p>
           </div>
         </div>
+        <div id="cloud-veil" aria-hidden="true"></div>
       </section>
     </main>
     <script type="module" src="/src/main.js"></script>

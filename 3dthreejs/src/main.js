@@ -1,5 +1,9 @@
 import * as THREE from "three";
 
+const isMobile =
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+  window.innerWidth <= 768;
+
 const FIXED_STEP = 1 / 60;
 const TILE_SIZE = 2;
 const TILE_COLUMNS = 9;
@@ -17,7 +21,8 @@ const STEP_BLOCK_WAVE_HEIGHT = 1.25;
 const STEP_BLOCK_WAVE_FREQ = 0.42;
 const STEP_BLOCK_MIN_Y = 0.35;
 const PLAYER_BLOCK_OFFSET_Y = 0.66;
-const HAZARD_POOL_COUNT = STEP_BLOCK_COUNT - 1;
+const HAZARD_POOL_COUNT = isMobile ? 5 : 6;
+const MAX_ACTIVE_ORB_SLOTS = 5;
 const HAZARD_ROCK_COUNT = 4;
 const HAZARD_ROCK_COUNT_VARIANTS = [4, 3, 2, 1];
 const HAZARD_ORBIT_RADIUS = 4.2;
@@ -32,13 +37,16 @@ const ORB_MULTIPLIER_POP_TIME = 0.34;
 const ORB_MULTIPLIER_POP_SCALE = 0.26;
 const HAZARD_COLLIDER_RADIUS = 0.9;
 const PLAYER_COLLIDER_RADIUS = 0.56;
+const DIFFICULTY_ORB_STEP = 10;
+const DIFFICULTY_SPEED_FACTOR = 1.05;
+const DIFFICULTY_SPEED_MAX = 2.0;
 const COLLIDER_Y_SCALE = 0.76;
 const HAZARD_SAFE_GAP = PLAYER_COLLIDER_RADIUS + HAZARD_COLLIDER_RADIUS;
 const EGG_COLLECT_FLASH_TIME = 0.38;
-const EGG_BURST_POOL_SIZE = 44;
+const EGG_BURST_POOL_SIZE = isMobile ? 20 : 44;
 const EGG_BURST_LIFE = 0.52;
-const CAMERA_BASE_HEIGHT = 11.2;
-const CAMERA_BASE_Z = 14.4;
+const CAMERA_BASE_HEIGHT = 12.0;
+const CAMERA_BASE_Z = isMobile ? 14.6 : 13.9;
 const CAMERA_LOOK_Z_OFFSET = -11.4;
 const CAMERA_LOOK_Y_FACTOR = 0.42;
 const CAMERA_FOLLOW_DAMP = 2.35;
@@ -47,7 +55,7 @@ const CAMERA_CATCHUP_TIME = 0.46;
 const DASH_FLASH_TIME = 0.42;
 const DASH_SHAKE_TIME = 0.24;
 const DASH_SHAKE_POWER = 0.28;
-const TRAIL_POOL_SIZE = 52;
+const TRAIL_POOL_SIZE = isMobile ? 24 : 52;
 const TRAIL_EMIT_INTERVAL = 0.015;
 const TRAIL_RING_TIME = 0.55;
 const DASH_RIBBON_TIME = 0.45;
@@ -56,7 +64,7 @@ const DASH_GROUND_WAVE_RANGE = 64;
 const DASH_GROUND_WAVE_SPEED = DASH_GROUND_WAVE_RANGE / DASH_GROUND_WAVE_TIME;
 const DASH_GROUND_WAVE_BAND = 4;
 const DASH_GROUND_WAVE_TAIL = 34;
-const DASH_GROUND_WAVE_MAX_DISTANCE = 260;
+const DASH_GROUND_WAVE_MAX_DISTANCE = isMobile ? 80 : 260;
 const DASH_GROUND_WAVE_LIFT = 0.72;
 const DASH_GROUND_WAVE_FLASH = 0.9;
 const DEATH_ANIM_TIME = 1.16;
@@ -75,8 +83,8 @@ const LOW_FPS_ENTER_TIME = 0.7;
 const LOW_FPS_EXIT_TIME = 1.2;
 const STEP_BLOCK_FLASH_TIME = 0.16;
 const SCENERY_FRONT_Z_OFFSET = 24;
-const SCENERY_POOL_DEPTH = 142;
-const TREE_ROW_COUNT_PER_SIDE = 7;
+const SCENERY_POOL_DEPTH = isMobile ? 90 : 142;
+const TREE_ROW_COUNT_PER_SIDE = isMobile ? 3 : 7;
 const SIDE_TERRACE_ROWS = TREE_ROW_COUNT_PER_SIDE;
 const SIDE_TERRACE_BLOCK_HEIGHT = 1.1;
 const SIDE_TERRACE_ROW_OFFSET = 1.02;
@@ -90,6 +98,7 @@ const menu = document.querySelector("#menu");
 const menuTitle = document.querySelector("#menu-title");
 const menuText = document.querySelector("#menu-text");
 const startButton = document.querySelector("#start-btn");
+const cloudVeil = document.querySelector("#cloud-veil");
 const hud = document.querySelector("#hud");
 const tutorial = document.querySelector("#tutorial");
 const dashFlash = document.querySelector("#dash-flash");
@@ -134,7 +143,7 @@ function saveSettings() {
 }
 
 function isSettingsOpen() {
-  return Boolean(settingsModal && !settingsModal.hasAttribute("hidden"));
+  return Boolean(settingsModal && settingsModal.open);
 }
 
 function renderSettingsUI() {
@@ -161,24 +170,46 @@ function triggerHaptic(type) {
 
 function openSettings() {
   if (!settingsModal) return;
-  settingsModal.removeAttribute("hidden");
   renderSettingsUI();
+  settingsModal.showModal();
 }
 
 function closeSettings() {
-  if (!settingsModal) return;
-  settingsModal.setAttribute("hidden", "");
+  if (!settingsModal || !settingsModal.open) return;
+  settingsModal.close();
 }
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+let settingsOpenedAt = -Infinity;
+
+function bindPressAction(element, handler) {
+  if (!element) return;
+  element.addEventListener("pointerup", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    handler(event);
+  });
+  element.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  element.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    if (key !== "enter" && key !== " " && key !== "spacebar") return;
+    event.preventDefault();
+    event.stopPropagation();
+    handler(event);
+  });
+}
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile });
+renderer.setPixelRatio(isMobile ? Math.min(window.devicePixelRatio, 1) : Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x6d88d8);
-scene.fog = new THREE.Fog(0x6d88d8, 14, 72);
+scene.fog = new THREE.Fog(0x6d88d8, 12, isMobile ? 46 : 72);
 
-const camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.1, 180);
+const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, isMobile ? 100 : 180);
 camera.position.set(0, CAMERA_BASE_HEIGHT, CAMERA_BASE_Z);
 camera.lookAt(0, 0, PLAYER_BASE_Z + CAMERA_LOOK_Z_OFFSET);
 
@@ -260,6 +291,50 @@ const input = {
   pointerDown: false,
 };
 
+const bgMusicAudio = new Audio("/sounds/bg-music.mp3");
+bgMusicAudio.loop = true;
+
+// Define WebAudio properties to prevent HTML5 audio source stalling.
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let dashAudioBuffer = null;
+
+// Fetch and decode the audio file asynchronously so playing it won't stall the main thread
+fetch("/sounds/dash.mp3")
+  .then((response) => response.arrayBuffer())
+  .then((arrayBuffer) => audioCtx.decodeAudioData(arrayBuffer))
+  .then((audioBuffer) => {
+    dashAudioBuffer = audioBuffer;
+  })
+  .catch((e) => console.log("Failed to load dash audio", e));
+
+function playDashSound() {
+  if (!settings.fx || !dashAudioBuffer) return;
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  // Create an impermanent source node for the lightweight buffer memory
+  const source = audioCtx.createBufferSource();
+  source.buffer = dashAudioBuffer;
+
+  // Create a GainNode to multiply the volume by 6
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 6.0;
+
+  source.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  source.start(0);
+}
+
+function updateMusicState() {
+  if (settings.music) {
+    bgMusicAudio.play().catch(() => { });
+  } else {
+    bgMusicAudio.pause();
+  }
+}
+
 const tiles = [];
 const sideTerraces = [];
 const scenery = [];
@@ -286,9 +361,9 @@ function getTerrainRowFromZ(z) {
 function getSideTerraceX(side, rowIndex, jitter = 0) {
   return (
     side *
-      (PATH_HALF_WIDTH +
-        TILE_SIZE *
-          (SIDE_TERRACE_ROW_OFFSET + rowIndex * SIDE_TERRACE_ROW_SPACING)) +
+    (PATH_HALF_WIDTH +
+      TILE_SIZE *
+      (SIDE_TERRACE_ROW_OFFSET + rowIndex * SIDE_TERRACE_ROW_SPACING)) +
     jitter
   );
 }
@@ -346,7 +421,7 @@ for (let row = 0; row < TILE_ROWS; row += 1) {
         new THREE.MeshStandardMaterial({
           color:
             sideTerracePalette[
-              (row + rowIndex + (side > 0 ? 1 : 0)) % sideTerracePalette.length
+            (row + rowIndex + (side > 0 ? 1 : 0)) % sideTerracePalette.length
             ],
           roughness: 0.88,
           metalness: 0.02,
@@ -542,15 +617,15 @@ function createTree(side, rowIndex = 0) {
   const colorPairs =
     side > 0
       ? [
-          [0xff9fe4, 0xff5db6],
-          [0xffdea1, 0xffb86a],
-          [0x72e7ff, 0x45c2ff],
-        ]
+        [0xff9fe4, 0xff5db6],
+        [0xffdea1, 0xffb86a],
+        [0x72e7ff, 0x45c2ff],
+      ]
       : [
-          [0xe4b6ff, 0xc382ff],
-          [0x7bd6ff, 0x49b7ff],
-          [0xff95df, 0xff57c1],
-        ];
+        [0xe4b6ff, 0xc382ff],
+        [0x7bd6ff, 0x49b7ff],
+        [0xff95df, 0xff57c1],
+      ];
   const picked = colorPairs[Math.floor(Math.random() * colorPairs.length)];
   const [colorTop, colorBottom] = picked;
   const coneBottom = new THREE.Mesh(
@@ -629,241 +704,275 @@ function createBush(side) {
   scenery.push(mesh);
 }
 
-for (let i = 0; i < 28; i += 1) {
+for (let i = 0; i < (isMobile ? 10 : 28); i += 1) {
   for (let rowIndex = 0; rowIndex < TREE_ROW_COUNT_PER_SIDE; rowIndex += 1) {
     createTree(-1, rowIndex);
     createTree(1, rowIndex);
   }
 }
-for (let i = 0; i < 36; i += 1) {
+for (let i = 0; i < (isMobile ? 14 : 36); i += 1) {
   createBush(-1);
   createBush(1);
 }
 
 for (const tile of tiles) {
-  decorateTileWithFlora(tile, 0.36, 0.34, 0.26);
+  decorateTileWithFlora(tile, 0.36, isMobile ? 0.06 : 0.34, isMobile ? 0.05 : 0.26);
 }
 for (const tile of sideTerraces) {
-  decorateTileWithFlora(tile, SIDE_TERRACE_BLOCK_HEIGHT * 0.5, 0.24, 0.34);
+  decorateTileWithFlora(tile, SIDE_TERRACE_BLOCK_HEIGHT * 0.5, isMobile ? 0.04 : 0.24, isMobile ? 0.06 : 0.34);
 }
 
 const bunny = new THREE.Group();
 
-// Body - soft lavender
-const bunnyBody = new THREE.Mesh(
-  new THREE.SphereGeometry(0.95, 28, 28),
-  new THREE.MeshStandardMaterial({
-    color: 0x9be7ff,
-    emissive: 0x3f7aa5,
-    emissiveIntensity: 0.22,
-    roughness: 0.64,
-    metalness: 0.02,
-  })
-);
-bunnyBody.scale.set(1.0, 0.9, 1.05);
-bunnyBody.position.y = 1.0;
-bunny.add(bunnyBody);
+// --- Materials ---
+const furMat = new THREE.MeshStandardMaterial({
+  color: 0xb3b3ff, // cool lavender-blue mix
+  emissive: 0x4a2cba, // deep purple glow
+  emissiveIntensity: 0.15,
+  roughness: 0.75,
+  metalness: 0.1,
+});
 
-// Belly - cream highlight
-const bunnyBelly = new THREE.Mesh(
-  new THREE.SphereGeometry(0.6, 18, 18),
-  new THREE.MeshStandardMaterial({ color: 0xfff6b7, roughness: 0.7 })
-);
-bunnyBelly.scale.set(0.82, 0.68, 0.34);
-bunnyBelly.position.set(0, 0.9, -0.72);
-bunny.add(bunnyBelly);
+const bellyMat = new THREE.MeshStandardMaterial({
+  color: 0xe0f7fa, // cool ice cyan-white
+  emissive: 0x004466,
+  emissiveIntensity: 0.15,
+  roughness: 0.85,
+});
 
-// Head
-const bunnyHead = new THREE.Mesh(
-  new THREE.SphereGeometry(0.68, 28, 28),
-  new THREE.MeshStandardMaterial({
-    color: 0xffc8e7,
-    emissive: 0x8e4a8e,
-    emissiveIntensity: 0.12,
-    roughness: 0.62,
-  })
-);
-bunnyHead.position.set(0, 1.83, -0.1);
-bunny.add(bunnyHead);
+const pinkMat = new THREE.MeshStandardMaterial({
+  color: 0x00ffff, // cyan neon inner accent
+  emissive: 0x0088ff,
+  emissiveIntensity: 0.35,
+  roughness: 0.4,
+});
 
-const neckBand = new THREE.Mesh(
-  new THREE.TorusGeometry(0.56, 0.08, 10, 28),
-  new THREE.MeshStandardMaterial({
-    color: 0xff5fb0,
-    emissive: 0xc2317f,
-    emissiveIntensity: 0.42,
-    roughness: 0.34,
-    metalness: 0.08,
-  })
-);
-neckBand.rotation.x = Math.PI / 2;
-neckBand.position.set(0, 1.48, -0.1);
-bunny.add(neckBand);
-
-// Eyes - big and cute
-const eyeGeo = new THREE.SphereGeometry(0.12, 18, 18);
 const eyeMat = new THREE.MeshStandardMaterial({
-  color: 0x38c8f0,
-  emissive: 0x14a8d0,
-  emissiveIntensity: 0.7,
+  color: 0x050505,
+  roughness: 0.1,
+  metalness: 0.8,
 });
-const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-leftEye.position.set(-0.22, 1.86, -0.69);
-const rightEye = leftEye.clone();
-rightEye.position.x = 0.22;
-bunny.add(leftEye, rightEye);
 
-// Eye shine sparkle
-const shineGeo = new THREE.SphereGeometry(0.042, 8, 8);
-const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-const leftShine = new THREE.Mesh(shineGeo, shineMat);
-leftShine.position.set(-0.19, 1.9, -0.77);
-const rightShine = leftShine.clone();
-rightShine.position.x = 0.19;
-bunny.add(leftShine, rightShine);
+const irisMat = new THREE.MeshStandardMaterial({
+  color: 0x0099ff,
+  emissive: 0x0055ff,
+  emissiveIntensity: 0.5,
+  roughness: 0.2,
+});
 
-// Nose - pink button
-const noseMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(0.072, 12, 12),
-  new THREE.MeshStandardMaterial({
-    color: 0xff9ab4,
-    emissive: 0xdd5580,
-    emissiveIntensity: 0.28,
-    roughness: 0.5,
-  })
-);
-noseMesh.position.set(0, 1.72, -0.74);
-bunny.add(noseMesh);
 
-// Blush cheeks
-const cheekMat = new THREE.MeshStandardMaterial({
-  color: 0xffaac4,
-  roughness: 0.95,
+
+// --- Body ---
+// Pear shaped body
+const bodyGroup = new THREE.Group();
+bunny.add(bodyGroup);
+
+const lowerBody = new THREE.Mesh(new THREE.SphereGeometry(0.75, 32, 32), furMat);
+lowerBody.scale.set(1.0, 0.95, 1.05);
+lowerBody.position.set(0, 0.7, 0);
+bodyGroup.add(lowerBody);
+
+const upperBody = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 32), furMat);
+upperBody.scale.set(1.0, 0.9, 1.0);
+upperBody.position.set(0, 1.2, 0.05);
+bodyGroup.add(upperBody);
+
+// Belly white patch
+const bellyPatch = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bellyMat);
+bellyPatch.scale.set(0.85, 0.9, 0.3);
+bellyPatch.position.set(0, 0.75, -0.72);
+bodyGroup.add(bellyPatch);
+
+// --- Head ---
+const headGroup = new THREE.Group();
+headGroup.position.set(0, 1.7, -0.05);
+bunny.add(headGroup);
+
+const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.82, 32, 32), furMat);
+headMesh.scale.set(1.15, 0.9, 1.05);
+headGroup.add(headMesh);
+
+const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 32), bellyMat);
+muzzle.scale.set(1.25, 0.8, 0.95);
+muzzle.position.set(0, -0.15, -0.68);
+headGroup.add(muzzle);
+
+const nose = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 16), pinkMat);
+nose.scale.set(1.2, 0.7, 0.8);
+nose.position.set(0, 0.02, -1.04);
+headGroup.add(nose);
+
+// Cheeks
+const cheekGeo = new THREE.SphereGeometry(0.18, 16, 16);
+const cheekMatColor = new THREE.MeshStandardMaterial({
+  color: 0xff88aa,
+  emissive: 0xff3366,
+  emissiveIntensity: 0.35,
   transparent: true,
-  opacity: 0.48,
+  opacity: 0.65,
+  roughness: 1.0
 });
-const leftCheek = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), cheekMat);
-leftCheek.scale.set(1.1, 0.52, 0.26);
-leftCheek.position.set(-0.44, 1.72, -0.66);
-const rightCheek = leftCheek.clone();
-rightCheek.position.x = 0.44;
-bunny.add(leftCheek, rightCheek);
+const cheekL = new THREE.Mesh(cheekGeo, cheekMatColor);
+cheekL.scale.set(1.1, 0.65, 0.4);
+cheekL.position.set(-0.58, -0.1, -0.7);
+headGroup.add(cheekL);
+const cheekR = cheekL.clone();
+cheekR.position.x = 0.58;
+headGroup.add(cheekR);
 
-// Fluffy tail
-const tailMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(0.3, 16, 16),
-  new THREE.MeshStandardMaterial({ color: 0xfbf0ff, roughness: 0.88 })
-);
-tailMesh.position.set(0, 1.0, 1.02);
-bunny.add(tailMesh);
+// Eyes
+const buildEye = (side) => {
+  const eyeGroup = new THREE.Group();
 
-const ribbonPink = new THREE.Mesh(
-  new THREE.BoxGeometry(0.18, 0.62, 0.38),
-  new THREE.MeshStandardMaterial({
-    color: 0xff60ba,
-    emissive: 0xcf3e8c,
-    emissiveIntensity: 0.42,
-    roughness: 0.44,
-  })
-);
-ribbonPink.position.set(-0.27, 1.06, 0.7);
-ribbonPink.rotation.x = -0.12;
-ribbonPink.rotation.z = -0.2;
-bunny.add(ribbonPink);
+  // Outer pupil / backing
+  const baseEye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 24, 24), eyeMat);
+  baseEye.scale.set(0.85, 1, 0.35);
+  eyeGroup.add(baseEye);
 
-const ribbonBlue = new THREE.Mesh(
-  new THREE.BoxGeometry(0.18, 0.62, 0.38),
-  new THREE.MeshStandardMaterial({
-    color: 0x5de9ff,
-    emissive: 0x299ac0,
-    emissiveIntensity: 0.42,
-    roughness: 0.44,
-  })
-);
-ribbonBlue.position.set(0.27, 1.06, 0.7);
-ribbonBlue.rotation.x = -0.12;
-ribbonBlue.rotation.z = 0.2;
-bunny.add(ribbonBlue);
+  // Iris color
+  const iris = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 24), irisMat);
+  iris.scale.set(0.85, 1, 0.35);
+  iris.position.set(0, -0.02, -0.04);
+  eyeGroup.add(iris);
 
-// Paws / feet
-const pawMat = new THREE.MeshStandardMaterial({
-  color: 0xb4dbff,
-  emissive: 0x4a78a5,
-  emissiveIntensity: 0.14,
-  roughness: 0.78,
-});
-const leftFoot = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), pawMat);
-leftFoot.scale.set(0.62, 0.4, 1.12);
-leftFoot.position.set(-0.38, 0.2, -0.26);
-const rightFoot = leftFoot.clone();
-rightFoot.position.x = 0.38;
-bunny.add(leftFoot, rightFoot);
+  // Huge cute highlight
+  const shine1 = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), bellyMat);
+  shine1.position.set(-0.045, 0.06, -0.08);
+  eyeGroup.add(shine1);
 
+  // Small secondary highlight
+  const shine2 = new THREE.Mesh(new THREE.SphereGeometry(0.025, 16, 16), bellyMat);
+  shine2.position.set(0.035, -0.05, -0.08);
+  eyeGroup.add(shine2);
+
+  eyeGroup.position.set(side * 0.38, 0.18, -0.76);
+  // Tilt slightly towards center
+  eyeGroup.rotation.y = side * -0.15;
+  eyeGroup.rotation.z = side * 0.08;
+  eyeGroup.rotation.x = 0.05;
+  headGroup.add(eyeGroup);
+};
+buildEye(-1);
+buildEye(1);
+
+// --- Ears (Animated) ---
 function createEar(side) {
   const earGroup = new THREE.Group();
-  const baseX = side * 0.36;
-  const baseY = 2.1;
-  const baseZ = -0.06;
-  const baseRotZ = side * 0.11;
-  const baseRotX = -0.18;
+  // Anchor points for rotation
+  const baseX = side * 0.35; // Moved closer together
+  const baseY = 2.4;
+  const baseZ = -0.05;
+  const baseRotZ = side * -0.4; // Point a bit more upwards
+  const baseRotX = -0.15;
+
   earGroup.position.set(baseX, baseY, baseZ);
   earGroup.rotation.z = baseRotZ;
   earGroup.rotation.x = baseRotX;
 
-  // Outer ear
-  const earOuter = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.18, 1.12, 6, 12),
-    new THREE.MeshStandardMaterial({
-      color: 0xc9d7ff,
-      emissive: 0x5c69aa,
-      emissiveIntensity: 0.12,
-      roughness: 0.7,
-    })
-  );
-  earOuter.position.y = 0.74;
+  // Ear base - shorter capsule
+  const earOuter = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.9, 16, 16), furMat);
+  earOuter.position.y = 0.45;
+  earOuter.rotation.x = 0.12;
+  earOuter.scale.set(1, 1, 0.4);
   earGroup.add(earOuter);
 
-  // Inner ear - pink
-  const earInner = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.09, 0.72, 6, 12),
-    new THREE.MeshStandardMaterial({
-      color: 0xffb8cf,
-      roughness: 0.78,
-      emissive: 0xdd7090,
-      emissiveIntensity: 0.18,
-    })
-  );
-  earInner.position.set(0, 0.72, -0.1);
+  // Inner ear glowing cyan
+  const earInner = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.7, 16, 16), pinkMat);
+  earInner.position.set(0, 0.45, -0.06);
+  earInner.rotation.x = 0.12;
+  earInner.scale.set(1, 1, 0.25);
   earGroup.add(earInner);
 
-  // Ear tip glow
-  const earTip = new THREE.Mesh(
-    new THREE.SphereGeometry(0.15, 12, 12),
-    new THREE.MeshStandardMaterial({
-      color: 0xffa5cf,
-      emissive: 0xff66bc,
-      emissiveIntensity: 0.7,
-    })
-  );
-  earTip.position.y = 1.3;
+  // Glowing ear tip for extra aesthetic
+  const earTip = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), pinkMat);
+  earTip.position.set(0, 0.9, 0.05);
+  earTip.rotation.x = 0.12;
+  earTip.scale.set(1, 1.2, 0.4);
   earGroup.add(earTip);
 
   bunny.add(earGroup);
-  earGroup.userData = {
-    side,
-    baseX,
-    baseY,
-    baseZ,
-    baseRotX,
-    baseRotZ,
-  };
+
+  // Ensure we register them for animation
+  earGroup.userData = { side, baseX, baseY, baseZ, baseRotX, baseRotZ };
   bunnyEars.push(earGroup);
 }
-
 createEar(-1);
 createEar(1);
+
+// --- Limbs & Tail ---
+// Arms
+const buildArm = (side) => {
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.45, 16, 16), furMat);
+  arm.position.set(side * 0.58, 1.05, -0.2);
+  arm.rotation.z = side * 0.45;
+  arm.rotation.x = -0.4;
+
+  const paw = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 16), bellyMat);
+  paw.position.set(0, -0.25, -0.05);
+  arm.add(paw);
+
+  bunny.add(arm);
+};
+buildArm(-1);
+buildArm(1);
+
+// Legs & Feet
+const buildLeg = (side) => {
+  // Thigh
+  const thigh = new THREE.Mesh(new THREE.SphereGeometry(0.38, 24, 24), furMat);
+  thigh.scale.set(0.85, 1.15, 1.05);
+  thigh.position.set(side * 0.52, 0.5, 0.15);
+  thigh.rotation.z = side * 0.18;
+  bunny.add(thigh);
+
+  // Foot
+  const footGroup = new THREE.Group();
+  footGroup.position.set(side * 0.48, 0.18, -0.28);
+
+  const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.45, 16, 16), bellyMat);
+  foot.rotation.x = Math.PI / 2;
+  foot.scale.set(1, 1, 0.65);
+  footGroup.add(foot);
+
+  // Cute Toe Beans!
+  const beanMat = new THREE.MeshStandardMaterial({ color: 0xff66a3, roughness: 0.5 });
+  const mainPad = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), beanMat);
+  mainPad.scale.set(1, 0.4, 1);
+  mainPad.position.set(0, -0.09, 0.06);
+  footGroup.add(mainPad);
+
+  [-0.1, 0, 0.1].forEach((tx) => {
+    const toe = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 16), beanMat);
+    toe.scale.set(1, 0.5, 1);
+    toe.position.set(tx, -0.07, -0.16);
+    footGroup.add(toe);
+  });
+
+  bunny.add(footGroup);
+};
+buildLeg(-1);
+buildLeg(1);
+
+// Tail (Fluffy cloud-like tail composed of multiple spheres)
+const tailGroup = new THREE.Group();
+tailGroup.position.set(0, 0.55, 0.7);
+const t1 = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), bellyMat);
+tailGroup.add(t1);
+const t2 = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 16), bellyMat);
+t2.position.set(0.14, 0.12, 0.06);
+tailGroup.add(t2);
+const t3 = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 16), bellyMat);
+t3.position.set(-0.14, 0.12, 0.06);
+tailGroup.add(t3);
+const t4 = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 16), bellyMat);
+t4.position.set(0, 0.18, 0.14);
+tailGroup.add(t4);
+bunny.add(tailGroup);
+
+
 bunny.position.set(0, getStepBlockY(0) + PLAYER_BLOCK_OFFSET_Y, PLAYER_BASE_Z);
 scene.add(bunny);
+bunny.visible = false;
 
 function updateEarTuck(targetTuck, dt) {
   const lerpAmount = 1 - Math.exp(-dt * 14);
@@ -884,6 +993,7 @@ function updateEarTuck(targetTuck, dt) {
 
 const trailGeometry = new THREE.IcosahedronGeometry(0.27, 1);
 const dashTrail = [];
+let dashTrailCursor = 0;
 for (let i = 0; i < TRAIL_POOL_SIZE; i += 1) {
   const material = new THREE.MeshBasicMaterial({
     color: 0xbdfdff,
@@ -908,6 +1018,7 @@ for (let i = 0; i < TRAIL_POOL_SIZE; i += 1) {
 
 const eggBurstGeometry = new THREE.IcosahedronGeometry(0.18, 0);
 const eggBurstParticles = [];
+let eggBurstCursor = 0;
 for (let i = 0; i < EGG_BURST_POOL_SIZE; i += 1) {
   const material = new THREE.MeshBasicMaterial({
     color: i % 2 === 0 ? 0x8ce9ff : 0xb995ff,
@@ -976,6 +1087,9 @@ deathShockwave.rotation.x = -Math.PI / 2;
 deathShockwave.visible = false;
 scene.add(deathShockwave);
 
+const _bgColor = new THREE.Color();
+const _deathFlashColor = new THREE.Color(0xff9ecf);
+
 const hazardRockMaterial = new THREE.MeshStandardMaterial({
   color: 0xe0e4e8,
   roughness: 0.82,
@@ -1038,6 +1152,11 @@ function setHazardOrbCount(slot, count, pop = false) {
   slot.userData.orbCount = nextCount;
   slot.userData.orbDecayTimer =
     nextCount > ORB_MULTIPLIER_MIN ? ORB_MULTIPLIER_DECAY_TIME : 0;
+}
+
+function getDifficultySpeedMultiplier() {
+  const tier = Math.floor(state.score / DIFFICULTY_ORB_STEP);
+  return Math.min(Math.pow(DIFFICULTY_SPEED_FACTOR, tier), DIFFICULTY_SPEED_MAX);
 }
 
 function configureHazardSlot(slot, segmentIndex) {
@@ -1243,7 +1362,7 @@ function ensureHazardsAhead(targetSegment) {
 
 function ensureCourseAhead(playerBlockIndex) {
   ensureStepBlocksAhead(playerBlockIndex + STEP_BLOCK_COUNT - 6);
-  ensureHazardsAhead(playerBlockIndex + HAZARD_POOL_COUNT - 6);
+  ensureHazardsAhead(playerBlockIndex + HAZARD_POOL_COUNT - 1);
 }
 
 function getStepBlock(index) {
@@ -1326,10 +1445,8 @@ function resetDashEffects() {
 }
 
 function emitEggBurstParticle(origin) {
-  let particle = eggBurstParticles.find((candidate) => candidate.life <= 0);
-  if (!particle) {
-    particle = eggBurstParticles[0];
-  }
+  const particle = eggBurstParticles[eggBurstCursor];
+  eggBurstCursor = (eggBurstCursor + 1) % eggBurstParticles.length;
 
   const angle = Math.random() * Math.PI * 2;
   const spread = 0.8 + Math.random() * 0.9;
@@ -1386,10 +1503,8 @@ function triggerDeathBurst(strength = 1) {
 }
 
 function emitTrailParticle(impulse = 1, custom = null) {
-  let particle = dashTrail.find((candidate) => candidate.life <= 0);
-  if (!particle) {
-    particle = dashTrail[0];
-  }
+  const particle = dashTrail[dashTrailCursor];
+  dashTrailCursor = (dashTrailCursor + 1) % dashTrail.length;
 
   particle.maxLife = 0.42 + Math.random() * 0.36;
   particle.life = particle.maxLife;
@@ -1448,11 +1563,13 @@ function triggerDashEffects(fromLaneZ, toLaneZ) {
   state.effects.dashRibbonFromZ = fromLaneZ;
   state.effects.dashRibbonToZ = toLaneZ;
   state.effects.trailEmitTimer = 0;
-  const burstCount = Math.max(8, Math.round(26 - lowFpsBlend * 10));
+  const burstBase = isMobile ? 6 : 26;
+  const burstCount = Math.max(isMobile ? 3 : 8, Math.round(burstBase - lowFpsBlend * (isMobile ? 3 : 10)));
   for (let i = 0; i < burstCount; i += 1) {
     emitTrailParticle(1.85);
   }
-  const segmentCount = Math.max(6, Math.round(14 - lowFpsBlend * 4));
+  const segmentBase = isMobile ? 4 : 14;
+  const segmentCount = Math.max(isMobile ? 2 : 6, Math.round(segmentBase - lowFpsBlend * (isMobile ? 2 : 4)));
   for (let i = 0; i < segmentCount; i += 1) {
     const t = segmentCount === 1 ? 1 : i / (segmentCount - 1);
     emitTrailParticle(0.32, {
@@ -1564,8 +1681,28 @@ function resetCourseLayout() {
   state.course.furthestSegment = HAZARD_POOL_COUNT - 1;
 }
 
+let cloudTransitionActive = false;
+
+function triggerCloudTransition() {
+  if (cloudTransitionActive) return;
+  if (state.mode !== "home" && state.mode !== "gameover") return;
+  cloudTransitionActive = true;
+  cloudVeil.classList.add("covering");
+  setTimeout(() => {
+    startGame();
+    setTimeout(() => {
+      cloudVeil.classList.remove("covering");
+      cloudTransitionActive = false;
+    }, 80);
+  }, 380);
+}
+
 function startGame() {
   state.mode = "playing";
+  bunny.visible = true;
+  camera.fov = 62;
+  camera.updateProjectionMatrix();
+  updateMusicState();
   state.elapsed = 0;
   state.score = 0;
   state.worldSpeed = 0;
@@ -1678,7 +1815,9 @@ function triggerJump() {
     getBlockPosition(state.player.fromBlock).z,
     getBlockPosition(state.player.toBlock).z
   );
-  triggerHaptic("medium");
+  setTimeout(() => {
+    playDashSound();
+  }, 0);
 }
 
 function boostUpcomingOrbMultiplier(currentBlockIndex) {
@@ -1846,20 +1985,16 @@ function collectOrbFromSegment(segmentIndex) {
   const hazard = getHazardSlot(segmentIndex);
   if (!hazard || hazard.userData.collected) return 0;
   const collectedOrbCount = hazard.userData.orbCount ?? 1;
-  hazard.userData.collected = true;
-  hazard.userData.orb.visible = false;
-  hazard.userData.orbAura.visible = false;
-  hazard.userData.ring.visible = false;
-  for (const extra of hazard.userData.orbExtras) {
-    extra.visible = false;
-  }
-  hazard.userData.orbDecayTimer = 0;
-  hazard.userData.orbPopTimer = 0;
   triggerOrbCollectEffects(hazard);
+  const newest = getNewestHazardSlot();
+  const nextSegment = newest.userData.segmentIndex + 1;
+  configureHazardSlot(hazard, nextSegment);
+  state.course.furthestSegment = Math.max(state.course.furthestSegment, nextSegment);
   return collectedOrbCount;
 }
 
 function updatePlayer(dt) {
+  if (state.mode === "home") return;
   if (state.mode === "dying") {
     updateDeathAnimation(dt);
     return;
@@ -1940,10 +2075,17 @@ function updatePlayer(dt) {
   bunny.rotation.y = Math.sin(state.elapsed * 8) * 0.04;
 }
 
+function isOrbSegmentActive(segmentIndex) {
+  const firstActive = state.player.currentBlock;
+  const lastExclusive = firstActive + MAX_ACTIVE_ORB_SLOTS;
+  return segmentIndex >= firstActive && segmentIndex < lastExclusive;
+}
+
 function updateHazards(dt) {
+  const speedMult = getDifficultySpeedMultiplier();
   for (const hazard of hazards) {
     const data = hazard.userData;
-    data.phase += dt * data.speed;
+    data.phase += dt * data.speed * speedMult;
     const segmentIndex = data.segmentIndex;
     hazard.position.z = getSegmentCenterZ(segmentIndex);
     hazard.position.y =
@@ -1964,11 +2106,14 @@ function updateHazards(dt) {
       rock.position.x = Math.cos(angle) * data.radius;
       rock.position.z = Math.sin(angle) * data.depth;
       rock.position.y = 0.14 + Math.sin(state.elapsed * 2.4 + i) * 0.08;
-      rock.rotation.x += dt * (0.8 + i * 0.25);
-      rock.rotation.y -= dt * (0.74 + i * 0.21);
+      rock.rotation.x += dt * (0.8 + i * 0.25) * speedMult;
+      rock.rotation.y -= dt * (0.74 + i * 0.21) * speedMult;
     }
 
-    if (!data.collected) {
+    const orbActive = !data.collected && isOrbSegmentActive(segmentIndex);
+    data.orb.visible = orbActive;
+
+    if (orbActive) {
       if (data.orbPopTimer > 0) {
         data.orbPopTimer = Math.max(0, data.orbPopTimer - dt);
       }
@@ -2024,10 +2169,10 @@ function updateHazards(dt) {
           continue;
         }
         const orbitAngle = state.elapsed * 2.2 + segmentIndex * 0.45 + i * Math.PI;
-        const orbitRadius = 0.5 + i * 0.08;
+        const orbitRadius = 1.0 + i * 0.3;
         extra.position.set(
           Math.cos(orbitAngle) * orbitRadius,
-          data.orb.position.y + 0.04 + i * 0.06,
+          data.orb.position.y + 0.15 + i * 0.2 + Math.sin(state.elapsed * 3 + i) * 0.2,
           Math.sin(orbitAngle) * orbitRadius * 0.74
         );
         const targetExtraScale = 0.78 + (data.orbCount - 1) * 0.08;
@@ -2046,6 +2191,7 @@ function updateHazards(dt) {
       data.orbAura.visible = true;
       data.ring.visible = true;
     } else {
+      data.orb.visible = false;
       data.orbAura.visible = false;
       data.ring.visible = false;
       for (const extra of data.orbExtras) {
@@ -2139,11 +2285,15 @@ function updateWorld(dt) {
       11,
       dt
     );
-    tile.position.y =
-      -0.5 +
-      Math.sin(tile.position.z * 0.14 + tile.userData.bobOffset) * 0.22 +
-      Math.sin(state.elapsed * 0.7 + tile.position.x * 0.25) * 0.08 +
-      tile.userData.waveLift;
+    if (!isMobile) {
+      tile.position.y =
+        -0.5 +
+        Math.sin(tile.position.z * 0.14 + tile.userData.bobOffset) * 0.22 +
+        Math.sin(state.elapsed * 0.7 + tile.position.x * 0.25) * 0.08 +
+        tile.userData.waveLift;
+    } else {
+      tile.position.y = -0.5 + tile.userData.waveLift;
+    }
     tile.material.emissiveIntensity = waveImpact * DASH_GROUND_WAVE_FLASH;
   }
 
@@ -2176,16 +2326,18 @@ function updateWorld(dt) {
     terrace.position.y =
       topY -
       SIDE_TERRACE_BLOCK_HEIGHT * 0.5 +
-      Math.sin(state.elapsed * 0.74 + terrace.userData.bobOffset) * terrace.userData.bobAmount +
+      (isMobile ? 0 : Math.sin(state.elapsed * 0.74 + terrace.userData.bobOffset) * terrace.userData.bobAmount) +
       terrace.userData.waveLift;
     terrace.material.emissiveIntensity = waveImpact * 0.58;
   }
 
-  for (const flora of flowerDecor) {
-    const sway =
-      Math.sin(state.elapsed * 1.7 + flora.userData.swayOffset) * flora.userData.swayAmount;
-    flora.rotation.x = Math.sin(state.elapsed * 1.2 + flora.userData.swayOffset * 1.4) * 0.05;
-    flora.rotation.z = sway * 0.18;
+  if (!isMobile) {
+    for (const flora of flowerDecor) {
+      const sway =
+        Math.sin(state.elapsed * 1.7 + flora.userData.swayOffset) * flora.userData.swayAmount;
+      flora.rotation.x = Math.sin(state.elapsed * 1.2 + flora.userData.swayOffset * 1.4) * 0.05;
+      flora.rotation.z = sway * 0.18;
+    }
   }
 
   for (const block of stepBlocks) {
@@ -2238,8 +2390,10 @@ function updateWorld(dt) {
     item.position.y =
       getSideTerraceTopY(item.position.z, item.userData.rowIndex) +
       (item.userData.baseYOffset ?? 0.1);
-    item.rotation.y = Math.sin(state.elapsed * 0.9 + item.userData.swayOffset) * 0.08;
-    item.rotation.z = Math.sin(state.elapsed * 0.7 + item.userData.swayOffset * 1.4) * 0.02;
+    if (!isMobile) {
+      item.rotation.y = Math.sin(state.elapsed * 0.9 + item.userData.swayOffset) * 0.08;
+      item.rotation.z = Math.sin(state.elapsed * 0.7 + item.userData.swayOffset * 1.4) * 0.02;
+    }
   }
 }
 
@@ -2277,37 +2431,34 @@ function updateBackgroundFlash(dt) {
   const deathModeBoost =
     state.mode === "dying"
       ? 0.24 +
-        Math.abs(Math.sin(state.elapsed * 18)) *
-          (1 - state.death.timer / Math.max(0.0001, DEATH_ANIM_TIME)) *
-          0.28
+      Math.abs(Math.sin(state.elapsed * 18)) *
+      (1 - state.death.timer / Math.max(0.0001, DEATH_ANIM_TIME)) *
+      0.28
       : 0;
   const deathBoost = Math.min(1, deathFlashBoost * 0.86 + deathModeBoost);
   const boost = Math.min(
     1,
     scoreBoost * 0.52 +
-      dashBoost * 0.85 +
-      waveBoost * 0.28 +
-      eggBoost * 0.78 +
-      deathBoost * 0.72
+    dashBoost * 0.85 +
+    waveBoost * 0.28 +
+    eggBoost * 0.78 +
+    deathBoost * 0.72
   );
-  const c = new THREE.Color(
+  _bgColor.setRGB(
     THREE.MathUtils.lerp(0.24, 0.42, boost),
     THREE.MathUtils.lerp(0.37, 0.58, boost),
     THREE.MathUtils.lerp(0.66, 0.87, boost)
   );
   if (deathBoost > 0) {
-    c.lerp(new THREE.Color(0xff9ecf), deathBoost * 0.18);
+    _bgColor.lerp(_deathFlashColor, deathBoost * 0.18);
   }
-  scene.background = c;
-  scene.fog.color.copy(c);
+  scene.background.copy(_bgColor);
+  scene.fog.color.copy(_bgColor);
 
-  bunnyBody.material.emissiveIntensity = 0.22 + eggBoost * 0.68 + deathBoost * 0.24;
-  bunnyHead.material.emissiveIntensity = 0.12 + eggBoost * 0.54 + deathBoost * 0.22;
-  pawMat.emissiveIntensity = 0.14 + eggBoost * 0.42 + deathBoost * 0.16;
-  neckBand.material.emissiveIntensity = 0.42 + eggBoost * 0.6 + deathBoost * 0.32;
-  ribbonPink.material.emissiveIntensity = 0.42 + eggBoost * 0.7 + deathBoost * 0.3;
-  ribbonBlue.material.emissiveIntensity = 0.42 + eggBoost * 0.7 + deathBoost * 0.3;
-  eyeMat.emissiveIntensity = 0.7 + eggBoost * 0.3 + deathBoost * 0.26;
+  furMat.emissiveIntensity = 0.15 + eggBoost * 0.68 + deathBoost * 0.24;
+  bellyMat.emissiveIntensity = 0.1 + eggBoost * 0.54 + deathBoost * 0.22;
+  pinkMat.emissiveIntensity = 0.25 + eggBoost * 0.42 + deathBoost * 0.16;
+  irisMat.emissiveIntensity = 0.5 + eggBoost * 0.3 + deathBoost * 0.26;
 
   if (dashFlash) {
     dashFlash.style.opacity = String(
@@ -2320,6 +2471,17 @@ function updateBackgroundFlash(dt) {
 }
 
 function updateCamera(dt) {
+  if (state.mode === "home") {
+    const t = state.elapsed;
+    const camX = Math.sin(t * 0.21) * 4.2 + Math.sin(t * 0.08) * 1.6;
+    const camY = 16.0 + Math.sin(t * 0.16) * 0.7;
+    const camZ = bunny.position.z + 14.6;
+    camera.position.set(camX, camY, camZ);
+    camera.lookAt(camX * 0.06, 0.9, bunny.position.z + CAMERA_LOOK_Z_OFFSET);
+    camera.fov = 68;
+    camera.updateProjectionMatrix();
+    return;
+  }
   state.camera.catchupTimer = Math.max(0, state.camera.catchupTimer - dt);
   const lowFpsBlend = state.performance.lowFpsBlend;
   const deathProgress =
@@ -2379,6 +2541,9 @@ function updateCamera(dt) {
 
 function update(dt) {
   state.elapsed += dt;
+  if (state.mode === "home") {
+    bunny.position.z += dt * 3.2;
+  }
   const worldDt = state.mode === "dying" ? dt * DEATH_WORLD_TIME_SCALE : dt;
   updatePlayer(dt);
   updateDashTrail(worldDt);
@@ -2391,13 +2556,6 @@ function render() {
   renderer.render(scene, camera);
 }
 
-function toggleFullscreen() {
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
-  } else {
-    shell.requestFullscreen();
-  }
-}
 
 function onPointerDown() {
   if (isSettingsOpen()) return;
@@ -2419,10 +2577,7 @@ function onKeyDown(event) {
     triggerJump();
   }
   if (key === "enter" && (state.mode === "home" || state.mode === "gameover")) {
-    startGame();
-  }
-  if (key === "f") {
-    toggleFullscreen();
+    triggerCloudTransition();
   }
 }
 
@@ -2434,66 +2589,64 @@ canvas.addEventListener("pointerdown", onPointerDown);
 window.addEventListener("keydown", onKeyDown);
 window.addEventListener("keyup", onKeyUp);
 window.addEventListener("resize", setCanvasSize);
-document.addEventListener("fullscreenchange", setCanvasSize);
 
-startButton.addEventListener("click", () => {
+bindPressAction(startButton, () => {
   triggerHaptic("light");
-  startGame();
+  triggerCloudTransition();
 });
 
-if (settingsButton) {
-  settingsButton.addEventListener("click", () => {
-    if (isSettingsOpen()) {
-      closeSettings();
-    } else {
-      openSettings();
-    }
-    triggerHaptic("light");
-  });
-}
-
-if (settingsCloseButton) {
-  settingsCloseButton.addEventListener("click", () => {
+bindPressAction(settingsButton, () => {
+  if (isSettingsOpen()) {
     closeSettings();
-    triggerHaptic("light");
-  });
-}
+  } else {
+    openSettings();
+    settingsOpenedAt = performance.now();
+  }
+  triggerHaptic("light");
+});
+
+bindPressAction(settingsCloseButton, () => {
+  closeSettings();
+  triggerHaptic("light");
+});
 
 if (settingsModal) {
-  settingsModal.addEventListener("pointerdown", (event) => {
-    if (event.target === settingsModal) {
+  // Close when clicking the native backdrop
+  settingsModal.addEventListener("pointerup", (e) => {
+    if (e.target === settingsModal) {
+      // Ignore the same tap that opened the dialog; prevents flaky open/instant-close on mobile.
+      if (performance.now() - settingsOpenedAt < 180) return;
       closeSettings();
       triggerHaptic("light");
     }
   });
-}
 
-if (musicToggleButton) {
-  musicToggleButton.addEventListener("click", () => {
-    settings.music = !settings.music;
-    saveSettings();
-    renderSettingsUI();
+  settingsModal.addEventListener("cancel", () => {
     triggerHaptic("light");
   });
 }
 
-if (fxToggleButton) {
-  fxToggleButton.addEventListener("click", () => {
-    settings.fx = !settings.fx;
-    saveSettings();
-    renderSettingsUI();
-    triggerHaptic("light");
-  });
-}
+bindPressAction(musicToggleButton, () => {
+  settings.music = !settings.music;
+  saveSettings();
+  renderSettingsUI();
+  updateMusicState();
+  triggerHaptic("light");
+});
 
-if (hapticsToggleButton) {
-  hapticsToggleButton.addEventListener("click", () => {
-    settings.haptics = !settings.haptics;
-    saveSettings();
-    renderSettingsUI();
-    triggerHaptic("light");
-  });
-}
+bindPressAction(fxToggleButton, () => {
+  settings.fx = !settings.fx;
+  saveSettings();
+  renderSettingsUI();
+  triggerHaptic("light");
+});
+
+bindPressAction(hapticsToggleButton, () => {
+  settings.haptics = !settings.haptics;
+  saveSettings();
+  renderSettingsUI();
+  triggerHaptic("light");
+});
 
 function toShort(value) {
   return Number(value.toFixed(2));
@@ -2665,8 +2818,9 @@ setMenu(
 );
 renderSettingsUI();
 closeSettings();
-tutorial.classList.remove("hidden");
+tutorial.classList.add("hidden");
 setHudVisibility(false);
 updateHud();
 setCanvasSize();
+updateMusicState();
 requestAnimationFrame(animationLoop);

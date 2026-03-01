@@ -195,3 +195,52 @@ Dogrulama:
 - Dogrulama:
   - `node --check src/main.js` basarili.
   - `npm run build` basarili.
+
+## 2026-02-22 Mobile camera pullback
+- Kullanici talebi: mobilde kamera hafif geri alindi.
+- `CAMERA_BASE_Z` mobilde `15.2`, desktopta `14.4` olarak ayarlandi (`src/main.js`).
+
+
+## 2026-02-22 Orb active limit + pooling teleport
+- Kullanici talebi: ekranda ayni anda gorunen/aktif orb sayisi max 5 olacak sekilde sinirlandi.
+- `MAX_ACTIVE_ORB_SLOTS = 5` eklendi; sadece oyuncunun mevcut segmentinden sonraki ilk 5 segment orb aktif gorunuyor.
+- Orb toplandiginda kaybolup beklemek yerine ayni hazard slotu en ileri segmentin sonrasina tasiniyor (`collectOrbFromSegment` icinde `configureHazardSlot`).
+- Boylece orb/hazard nesneleri destroy-create yapmadan pooling ile yeniden kullaniliyor.
+- Dogrulama: `npm run build` basarili.
+- Not: Playwright otomasyonu bu sandbox ortaminda Chromium izin hatasi nedeniyle calismadi (MachPort permission denied).
+
+## 2026-02-22 Camera up + closer + wider
+- Kullanici talebi: kamera daha yukari alindi, karaktere yaklastirildi ve gorus acisi genisletildi.
+- `CAMERA_BASE_HEIGHT` 11.2 -> 12.0
+- `CAMERA_BASE_Z` mobil 15.2 -> 14.6, desktop 14.4 -> 13.9
+- `PerspectiveCamera` FOV 48 -> 54
+
+## 2026-02-22 Dash sound x3
+- Kullanici talebi: dash sesi 3 kat artirildi.
+- `DASH_AUDIO_LAYERS = 3` ve `dashAudioPool` eklendi; `playDashSound` artik dash sesini 3 kanal ust uste caliyor.
+
+## 2026-02-22 Mobile dash audio hitch fix
+- Mobilde dash anindaki anlik takilma icin ses katmani optimize edildi.
+- `DASH_AUDIO_LAYERS` artik mobilde 1, desktopta 3 (`isMobile ? 1 : 3`).
+- Boylece mobilde ayni anda 3 ses reset/play kaynakli frame spike azaltildi.
+
+## 2026-02-22 Dash hitch deep fix
+- Kullanici geri bildirimiyle mobil ses katmani geri alindi: `DASH_AUDIO_LAYERS = 3`.
+- Dash anindaki mikro takilma icin partikül emit tarafi optimize edildi:
+  - `emitTrailParticle` ve `emitEggBurstParticle` lineer `find(...)` yerine round-robin cursor pooling kullaniyor.
+  - Dash tetiginde mobil icin burst/segment partikül adetleri dusuruldu (ani frame spike azaltimi).
+- Amac: dash baslangicindaki allocation + scan maliyetini dusurmek.
+
+## 2026-02-26 Settings/mobile button fix
+- Kullanici geri bildirimi: settings butonu mobilde tutarsiz acilip kapaniyor ve buton sistemi bozuk.
+- `src/main.js` icinde UI buton event akisi teklestirildi:
+  - Yeni `bindPressAction(...)` yardimcisi eklendi (`pointerup` + klavye + click suppression).
+  - `start`, `settings`, `close`, `music/fx/haptics` butonlari `onclick` yerine bu yardimciya baglandi.
+  - Mobilde ghost-click ve cift tetiklenmeyi azaltmak icin `pointerup` bazli aksiyon + `preventDefault/stopPropagation` uygulandi.
+- Settings modal icin backdrop kapama davranisi iyilestirildi:
+  - Modal acilis zaman damgasi tutuldu (`settingsOpenedAt`).
+  - Acildiktan hemen sonraki 180ms icindeki backdrop dokunusu yok sayilarak "acilip aninda kapanma" sorunu engellendi.
+- Dogrulama:
+  - `npm run build` basarili.
+  - Playwright client ile `#settings-btn` tiklanarak modalin acildigi screenshot alindi: `output/web-game-settings-open-fix/shot-0.png`.
+  - `output/web-game-settings-open-fix/errors-0.json` olusmadi (yeni console/page error yok).
