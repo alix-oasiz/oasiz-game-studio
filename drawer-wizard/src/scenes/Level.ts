@@ -246,9 +246,9 @@ export default class Level extends Phaser.Scene {
         const h = this.scale.height;
 
         this.scoreText = this.add.text(w / 2, 18, "0", {
-            fontFamily: "Arial", fontSize: "66px", color: "#aaaaaa",
+            fontFamily: "'Outfit', sans-serif", fontSize: "66px", color: "#000000",
             fontStyle: "100",
-        }).setOrigin(0.5, 0).setAlpha(0.18);
+        }).setOrigin(0.5, 0).setAlpha(0.4);
 
         this.feedbackText = this.add.text(w / 2, (3 * h) / 4, "", {
             fontFamily: "Arial", fontSize: "40px", color: "#ffffff",
