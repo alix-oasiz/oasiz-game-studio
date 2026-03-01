@@ -1,357 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#081223">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Paper.io 3D</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      touch-action: none;
-      font-family: "Space Grotesk", sans-serif;
-      background: radial-gradient(circle at 20% 20%, #153259 0%, #081223 55%, #040912 100%);
-      color: #ecf2ff;
-      -webkit-user-select: none;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    canvas {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #07070F; font-family: 'DM Sans', sans-serif; color: #E8E8F0; }
 
-    #ui-layer {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 80;
-    }
-    .screen {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      pointer-events: none;
-      background: linear-gradient(180deg, rgba(5, 14, 27, 0.52) 0%, rgba(4, 8, 16, 0.74) 100%);
-      backdrop-filter: blur(4px);
-    }
-    .screen-card {
-      width: min(520px, 92vw);
-      border-radius: 24px;
-      padding: 30px 28px;
-      background:
-        radial-gradient(circle at 20% 20%, rgba(115, 172, 255, 0.2) 0%, transparent 48%),
-        linear-gradient(160deg, rgba(13, 31, 56, 0.94) 0%, rgba(6, 15, 30, 0.98) 100%);
-      border: 1px solid rgba(143, 194, 255, 0.28);
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-      pointer-events: auto;
-      text-align: center;
-    }
-    .screen-title {
-      font-size: clamp(34px, 8vw, 56px);
-      font-weight: 800;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      margin-bottom: 10px;
-      color: #f4f7ff;
-      text-shadow: 0 8px 26px rgba(79, 130, 255, 0.35);
-    }
-    .screen-subtitle {
-      font-size: clamp(14px, 3.4vw, 18px);
-      font-weight: 500;
-      color: rgba(236, 242, 255, 0.75);
-      margin-bottom: 26px;
-      line-height: 1.4;
-    }
-    .hint-row {
-      margin-bottom: 22px;
-      display: grid;
-      gap: 8px;
-      font-size: clamp(12px, 3.2vw, 15px);
-      color: rgba(205, 221, 245, 0.8);
-    }
-    .primary-btn {
-      min-height: 52px;
-      min-width: 220px;
-      border-radius: 999px;
-      border: 1px solid rgba(145, 194, 255, 0.5);
-      background:
-        linear-gradient(140deg, #4992ff 0%, #2f7cff 45%, #2a6cf0 100%);
-      color: #f8fbff;
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: transform 0.18s ease, filter 0.18s ease;
-      pointer-events: auto;
-      box-shadow: 0 12px 25px rgba(35, 112, 235, 0.4);
-      padding: 0 28px;
-    }
-    .primary-btn:hover { filter: brightness(1.08); }
-    .primary-btn:active { transform: translateY(2px) scale(0.985); }
+    #game-canvas { width: 100%; height: 100%; display: block; }
 
+    /* ─── Menu ─── */
+    #menu-screen {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; background: #07070F; z-index: 100;
+    }
+    #menu-screen h1 {
+      font-family: 'Orbitron', sans-serif; font-size: 3rem; font-weight: 900;
+      color: #00E5FF; text-shadow: 0 0 30px rgba(0,229,255,0.4); margin-bottom: 2rem;
+      letter-spacing: 4px;
+    }
+    .menu-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; font-size: 1rem; }
+    .menu-row label { min-width: 120px; text-align: right; opacity: 0.7; }
+    .menu-btn-group { display: flex; gap: 6px; }
+    .menu-btn-group button {
+      background: #1A1A28; border: 1px solid #333; color: #E8E8F0; padding: 8px 16px;
+      border-radius: 6px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .menu-btn-group button.active { background: #00E5FF; color: #07070F; border-color: #00E5FF; font-weight: 700; }
+    .menu-btn-group button:hover { border-color: #00E5FF; }
+
+    #play-btn {
+      margin-top: 2rem; padding: 14px 60px; font-family: 'Orbitron', sans-serif;
+      font-size: 1.3rem; font-weight: 700; background: #00E5FF; color: #07070F;
+      border: none; border-radius: 10px; cursor: pointer; letter-spacing: 2px;
+      transition: all 0.3s; box-shadow: 0 0 20px rgba(0,229,255,0.3);
+    }
+    #play-btn:hover { box-shadow: 0 0 40px rgba(0,229,255,0.6); transform: scale(1.05); }
+
+    .how-to-play { margin-top: 1.5rem; opacity: 0.5; font-size: 0.85rem; cursor: pointer; }
+    .how-to-play:hover { opacity: 0.8; }
+    #how-to-content { display: none; margin-top: 0.8rem; font-size: 0.8rem; opacity: 0.6; line-height: 1.6; text-align: center; }
+    #how-to-content.show { display: block; }
+
+    /* ─── HUD ─── */
     #hud {
-      position: fixed;
-      left: 16px;
-      top: 45px;
-      pointer-events: none;
-      display: grid;
-      gap: 10px;
+      position: absolute; top: 0; left: 0; right: 0; pointer-events: none;
+      padding: 16px 20px; display: none; z-index: 50;
     }
-    #score-pill {
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-size: clamp(20px, 4.8vw, 34px);
-      font-weight: 800;
-      line-height: 1;
-      color: #ffffff;
-      letter-spacing: 0.02em;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(176, 207, 255, 0.24);
-      min-width: 110px;
-      text-align: center;
-      text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    }
-    #status-line {
-      font-size: clamp(12px, 2.8vw, 15px);
-      color: rgba(232, 241, 255, 0.82);
-      background: rgba(4, 10, 18, 0.42);
-      border: 1px solid rgba(164, 202, 255, 0.2);
-      border-radius: 10px;
-      padding: 8px 10px;
-      max-width: min(360px, 72vw);
-      line-height: 1.3;
-    }
+    #hud.visible { display: flex; justify-content: space-between; align-items: flex-start; }
 
-    #settings-btn {
-      position: fixed;
-      top: 45px;
-      right: 16px;
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      border: 1px solid rgba(161, 201, 255, 0.32);
-      background: rgba(7, 15, 29, 0.6);
-      backdrop-filter: blur(10px);
-      cursor: pointer;
-      z-index: 120;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.2s ease, background 0.2s ease;
-      pointer-events: auto;
+    #hud-left { display: flex; flex-direction: column; gap: 8px; }
+    #hud-player {
+      font-family: 'Orbitron', sans-serif; font-size: 1.1rem; font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
     }
-    #settings-btn:hover { background: rgba(15, 33, 61, 0.78); }
-    #settings-btn:active { transform: scale(0.92); }
-    #settings-btn svg {
-      width: 24px;
-      height: 24px;
-      fill: #d9e8ff;
+    .color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+    #hud-timer { font-size: 0.9rem; opacity: 0.6; }
+    #mute-btn {
+      pointer-events: all; background: none; border: none; color: #E8E8F0;
+      font-size: 1.3rem; cursor: pointer; opacity: 0.6; margin-top: 4px;
     }
+    #mute-btn:hover { opacity: 1; }
 
-    #settings-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.56);
-      backdrop-filter: blur(5px);
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: auto;
+    #leaderboard {
+      background: rgba(13,13,18,0.85); border-radius: 10px; padding: 12px 16px;
+      min-width: 160px; backdrop-filter: blur(6px);
     }
-    #settings-panel {
-      width: min(340px, 92vw);
-      border-radius: 20px;
-      padding: 24px 22px;
-      background:
-        radial-gradient(circle at 12% 8%, rgba(130, 180, 255, 0.24) 0%, transparent 40%),
-        linear-gradient(155deg, #101f36 0%, #091424 100%);
-      border: 1px solid rgba(173, 210, 255, 0.26);
-      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.5);
-      color: #edf4ff;
-    }
-    .settings-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 18px;
-    }
-    .settings-title {
-      font-size: 21px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      color: #eff5ff;
-    }
-    #settings-close {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      border: 1px solid rgba(167, 205, 255, 0.35);
-      background: rgba(11, 23, 42, 0.72);
-      color: #cfe4ff;
-      font-size: 18px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 0;
-      border-bottom: 1px solid rgba(161, 198, 247, 0.2);
-    }
-    .toggle-row:last-child { border-bottom: none; }
-    .toggle-label {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 16px;
-      font-weight: 500;
-      color: rgba(234, 243, 255, 0.94);
-    }
-    .toggle-icon {
-      width: 22px;
-      height: 22px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .toggle-icon svg {
-      width: 20px;
-      height: 20px;
-      fill: #c8dfff;
-    }
-    .toggle-switch {
-      position: relative;
-      width: 52px;
-      height: 30px;
-      border-radius: 999px;
-      border: 1px solid rgba(150, 187, 236, 0.38);
-      background: rgba(9, 23, 42, 0.9);
-      cursor: pointer;
-      transition: background 0.2s ease;
-      flex-shrink: 0;
-    }
-    .toggle-switch::after {
-      content: "";
-      position: absolute;
-      left: 3px;
-      top: 3px;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: #d8e8ff;
-      transition: transform 0.22s ease;
-    }
-    .toggle-switch.active {
-      background: linear-gradient(140deg, #3b88ff 0%, #2a74f0 100%);
-      border-color: rgba(166, 207, 255, 0.66);
-    }
-    .toggle-switch.active::after {
-      transform: translateX(22px);
-      background: #f9fcff;
-    }
+    #leaderboard h3 { font-size: 0.7rem; text-transform: uppercase; opacity: 0.4; margin-bottom: 8px; letter-spacing: 1px; }
+    .lb-entry { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; padding: 3px 0; }
+    .lb-entry.dead { opacity: 0.35; text-decoration: line-through; }
+    .lb-name { flex: 1; }
+    .lb-pct { font-weight: 700; font-family: 'Orbitron', sans-serif; font-size: 0.75rem; }
 
-    .hidden { display: none !important; }
-
-    @media (pointer: coarse) {
-      #hud { top: 120px; left: 14px; }
-      #settings-btn { top: 120px; right: 14px; width: 52px; height: 52px; }
-      .screen { padding: 16px; }
-      .screen-card { border-radius: 18px; padding: 24px 18px; }
-      .primary-btn { width: 100%; min-height: 56px; }
+    /* ─── Game Over ─── */
+    #game-over {
+      position: absolute; inset: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; background: rgba(7,7,15,0.92);
+      z-index: 80; backdrop-filter: blur(8px);
     }
+    #game-over.visible { display: flex; }
+    #game-over h2 { font-family: 'Orbitron', sans-serif; font-size: 2.2rem; color: #FF3D71; margin-bottom: 1.5rem; }
+    .go-stat { font-size: 1rem; opacity: 0.7; margin: 4px 0; }
+    .go-stat span { font-weight: 700; color: #E8E8F0; }
+    .go-buttons { display: flex; gap: 12px; margin-top: 1.5rem; }
+    .go-btn {
+      padding: 12px 32px; font-family: 'Orbitron', sans-serif; font-size: 0.9rem;
+      font-weight: 700; border: none; border-radius: 8px; cursor: pointer; letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+    .go-btn.primary { background: #00E5FF; color: #07070F; }
+    .go-btn.secondary { background: #1A1A28; color: #E8E8F0; border: 1px solid #333; }
+    .go-btn:hover { transform: scale(1.05); }
+
+    /* ─── Pause ─── */
+    #pause-overlay {
+      position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+      background: rgba(7,7,15,0.7); z-index: 70; backdrop-filter: blur(4px);
+    }
+    #pause-overlay.visible { display: flex; }
+    #pause-overlay h2 { font-family: 'Orbitron', sans-serif; font-size: 2rem; opacity: 0.6; }
+
+    /* ─── Mobile D-Pad ─── */
+    #dpad {
+      position: absolute; bottom: 30px; right: 30px; width: 130px; height: 130px;
+      pointer-events: all; display: none; z-index: 60;
+    }
+    @media (pointer: coarse) { #dpad { display: block; } }
+    .dpad-btn {
+      position: absolute; width: 40px; height: 40px; background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #E8E8F0;
+      font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; -webkit-user-select: none;
+    }
+    .dpad-btn:active { background: rgba(0,229,255,0.3); }
+    .dpad-up { top: 0; left: 50%; transform: translateX(-50%); }
+    .dpad-down { bottom: 0; left: 50%; transform: translateX(-50%); }
+    .dpad-left { left: 0; top: 50%; transform: translateY(-50%); }
+    .dpad-right { right: 0; top: 50%; transform: translateY(-50%); }
   </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
+  <canvas id="game-canvas"></canvas>
 
-  <div id="ui-layer">
-    <div id="start-screen" class="screen">
-      <div class="screen-card">
-        <div class="screen-title">Paper.io 3D</div>
-        <p class="screen-subtitle">Cut through neutral space, close your loop, and steal the arena in full 3D.</p>
-        <div class="hint-row">
-          <div>Desktop: Move cursor to steer</div>
-          <div>Mobile: Touch and drag to steer</div>
-        </div>
-        <button id="start-btn" class="primary-btn">Start Match</button>
+  <!-- Menu -->
+  <div id="menu-screen">
+    <h1>PAPER.IO 3D</h1>
+    <div class="menu-row">
+      <label>Bots:</label>
+      <div class="menu-btn-group" id="bot-count-group">
+        <button data-val="3">3</button>
+        <button data-val="5" class="active">5</button>
       </div>
     </div>
-
-    <div id="hud" class="hidden">
-      <div id="score-pill">0.0%</div>
-      <div id="status-line"></div>
-    </div>
-
-    <div id="game-over" class="screen hidden">
-      <div class="screen-card">
-        <div class="screen-title">Eliminated</div>
-        <p class="screen-subtitle">Territory secured this run</p>
-        <div id="final-score" style="font-size: clamp(44px, 9vw, 72px); font-weight: 800; margin-bottom: 18px;">0%</div>
-        <button id="restart-btn" class="primary-btn">Back To Start</button>
+    <div class="menu-row">
+      <label>Difficulty:</label>
+      <div class="menu-btn-group" id="difficulty-group">
+        <button data-val="easy">Easy</button>
+        <button data-val="medium" class="active">Medium</button>
+        <button data-val="hard">Hard</button>
       </div>
+    </div>
+    <button id="play-btn">PLAY</button>
+    <div class="how-to-play" id="how-to-toggle">How to Play</div>
+    <div id="how-to-content">
+      Arrow Keys / WASD to move<br>
+      Leave your territory to draw a trail<br>
+      Return home to capture the enclosed area<br>
+      Don't let anyone cross your trail!<br>
+      P to Pause &bull; R to Restart
     </div>
   </div>
 
-  <button id="settings-btn" class="hidden" aria-label="Settings">
-    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
-  </button>
-
-  <div id="settings-overlay" class="hidden">
-    <div id="settings-panel">
-      <div class="settings-header">
-        <span class="settings-title">Settings</span>
-        <button id="settings-close" aria-label="Close Settings">&times;</button>
-      </div>
-
-      <div class="toggle-row">
-        <span class="toggle-label">
-          <span class="toggle-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 2.69-9 6v6c0 3.31 4.03 6 9 6s9-2.69 9-6V9c0-3.31-4.03-6-9-6zm0 2c3.87 0 7 1.79 7 4s-3.13 4-7 4-7-1.79-7-4 3.13-4 7-4zm0 14c-3.87 0-7-1.79-7-4v-2.11C6.57 13.57 9.17 14 12 14s5.43-.43 7-1.11V15c0 2.21-3.13 4-7 4z"/></svg>
-          </span>
-          Music
-        </span>
-        <button class="toggle-switch active" id="toggle-music" aria-label="Toggle Music"></button>
-      </div>
-
-      <div class="toggle-row">
-        <span class="toggle-label">
-          <span class="toggle-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 01-2.5 4.03v2.21A6.5 6.5 0 0018.5 12a6.5 6.5 0 00-4.5-6.24v2.21A4.5 4.5 0 0116.5 12z"/></svg>
-          </span>
-          FX
-        </span>
-        <button class="toggle-switch active" id="toggle-fx" aria-label="Toggle Sound Effects"></button>
-      </div>
-
-      <div class="toggle-row">
-        <span class="toggle-label">
-          <span class="toggle-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M7 2h10v2H7V2zm-2 4h14v14H5V6zm4 3v8h2V9H9zm4 0v8h2V9h-2z"/></svg>
-          </span>
-          Haptics
-        </span>
-        <button class="toggle-switch active" id="toggle-haptics" aria-label="Toggle Haptics"></button>
-      </div>
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hud-left">
+      <div id="hud-player"><span class="color-dot" id="player-dot"></span> YOU <span id="player-pct">0%</span></div>
+      <div id="hud-timer">00:00</div>
+      <button id="mute-btn">🔊</button>
     </div>
+    <div id="leaderboard">
+      <h3>Leaderboard</h3>
+      <div id="lb-entries"></div>
+    </div>
+  </div>
+
+  <!-- Game Over -->
+  <div id="game-over">
+    <h2>GAME OVER</h2>
+    <div class="go-stat">Final Score: <span id="go-score">0%</span></div>
+    <div class="go-stat">Rank: <span id="go-rank">#1</span></div>
+    <div class="go-stat">Time: <span id="go-time">00:00</span></div>
+    <div class="go-buttons">
+      <button class="go-btn primary" id="go-play-again">PLAY AGAIN</button>
+      <button class="go-btn secondary" id="go-main-menu">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause-overlay"><h2>PAUSED</h2></div>
+
+  <!-- Mobile D-Pad -->
+  <div id="dpad">
+    <div class="dpad-btn dpad-up" data-dir="UP">▲</div>
+    <div class="dpad-btn dpad-down" data-dir="DOWN">▼</div>
+    <div class="dpad-btn dpad-left" data-dir="LEFT">◄</div>
+    <div class="dpad-btn dpad-right" data-dir="RIGHT">►</div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

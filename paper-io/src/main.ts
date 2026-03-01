@@ -1,3 +1,3 @@
-import { PaperIO3D } from "./game/PaperIO3D";
+import { Game } from './Game.ts';
 
-new PaperIO3D();
+new Game();
