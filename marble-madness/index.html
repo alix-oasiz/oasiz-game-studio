@@ -116,6 +116,58 @@
         top: 92px;
       }
 
+      #level-progress {
+        position: fixed;
+        top: 46px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(38vw, 360px);
+        pointer-events: none;
+      }
+
+      .level-progress-track {
+        position: relative;
+        height: 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        background: linear-gradient(180deg, rgba(16, 32, 76, 0.94), rgba(7, 15, 36, 0.95));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.18),
+          0 8px 18px rgba(0, 0, 0, 0.36);
+        overflow: visible;
+      }
+
+      .level-progress-markers {
+        position: absolute;
+        inset: 2px 6px;
+        pointer-events: none;
+      }
+
+      .level-progress-marker {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        border-radius: 999px;
+        background: rgba(176, 207, 255, 0.48);
+      }
+
+      .level-progress-marble {
+        position: absolute;
+        top: 50%;
+        left: 0%;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        border: 1px solid rgba(188, 225, 255, 0.95);
+        background:
+          radial-gradient(circle at 35% 30%, #d6f3ff 0%, #7accff 30%, #2f8fe9 62%, #165cbf 100%);
+        box-shadow:
+          0 0 16px rgba(83, 168, 255, 0.68),
+          inset 0 1px 0 rgba(255, 255, 255, 0.62);
+      }
+
       #version-label {
         position: fixed;
         right: 14px;
@@ -275,6 +327,13 @@
           top: 168px;
         }
 
+        #level-progress {
+          top: 120px;
+          width: min(34vw, 220px);
+          left: 50%;
+          transform: translateX(-50%);
+        }
+
         #version-label {
           right: 12px;
           bottom: 52px;
@@ -310,6 +369,12 @@
       <div id="hud" class="overlay hidden">
         <div id="time-label" class="hud-chip">Time: 0.00s</div>
         <div id="speed-label" class="hud-chip">Speed: 0.0</div>
+        <div id="level-progress">
+          <div class="level-progress-track">
+            <div id="level-progress-markers" class="level-progress-markers"></div>
+            <div id="level-progress-marble" class="level-progress-marble"></div>
+          </div>
+        </div>
       </div>
       <div id="version-label">Build 0.0.0</div>
       <div id="fps-label">FPS 0</div>
