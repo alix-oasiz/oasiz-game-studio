@@ -3,58 +3,138 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>Wordfall</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    :root {
+      --bg-deep: #2A1E17;
+      --bg-surface: #3D2B1F;
+      --bg-card: #4E342E;
+      --accent: #FF9F00;
+      --accent-dim: rgba(255, 159, 0, 0.15);
+      --accent-glow: rgba(255, 159, 0, 0.4);
+      --danger: #FF5252;
+      --danger-glow: rgba(255, 82, 82, 0.4);
+      --freeze-color: #4DD0E1;
+      --shrink-color: #BA68C8;
+      --text-primary: #FFF3E0;
+      --text-muted: rgba(255, 243, 224, 0.45);
+      --grid-line: rgba(255, 159, 0, 0.04);
     }
 
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
     html, body {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       overflow: hidden;
       touch-action: none;
-      font-family: 'Outfit', sans-serif;
-      background: #0a0a1a;
+      font-family: 'Fredoka', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        /* Vignette shadow around the edges */
+        radial-gradient(circle at 50% 50%, transparent 40%, rgba(0,0,0,0.6) 100%),
+        /* Diagonal wood/desk panels */
+        repeating-linear-gradient(
+          -45deg,
+          var(--bg-deep),
+          var(--bg-deep) 30px,
+          var(--bg-surface) 30px,
+          var(--bg-surface) 60px
+        );
+      pointer-events: none;
+      z-index: 0;
     }
 
     canvas {
       display: block;
       position: absolute;
-      top: 0;
-      left: 0;
+      top: 0; left: 0;
       z-index: 1;
     }
 
-    /* Hidden input for typing */
     #typingInput {
       position: absolute;
-      left: -9999px;
-      top: 0;
+      left: -9999px; top: 0;
       opacity: 0;
-      width: 1px;
-      height: 1px;
+      width: 1px; height: 1px;
     }
 
-    /* Overlay container */
+    /* ===== ANIMATIONS ===== */
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.85) translateY(20px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes fadeInUp {
+      0% { opacity: 0; transform: translateY(24px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideDown {
+      0% { opacity: 0; transform: translateY(-30px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    @keyframes fall {
+      0% { transform: translateY(-100px) rotate(-8deg); opacity: 0; }
+      8% { opacity: 1; }
+      92% { opacity: 1; }
+      100% { transform: translateY(calc(100vh + 100px)) rotate(8deg); opacity: 0; }
+    }
+
+    @keyframes comboPop {
+      0% { transform: translate(-50%, -50%) scale(0.4); }
+      50% { transform: translate(-50%, -50%) scale(1.25); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    @keyframes scanSweep {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100vh); }
+    }
+
+    @keyframes hudPop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes bufferFlash {
+      0% { border-color: #22c55e; }
+      100% { border-color: var(--accent); }
+    }
+
+    /* ===== OVERLAY SYSTEM ===== */
     .overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       z-index: 100;
       pointer-events: none;
-      transition: opacity 0.3s ease, visibility 0.3s ease;
+      transition: opacity 0.4s ease, visibility 0.4s ease;
     }
 
     .overlay.hidden {
@@ -68,118 +148,206 @@
       padding: 2rem;
     }
 
-    /* Start Screen */
-    #startScreen {
-      background: linear-gradient(180deg, rgba(10, 10, 26, 0.95) 0%, rgba(20, 15, 40, 0.98) 100%);
-    }
-
-    .game-title {
-      font-family: 'Outfit', sans-serif;
-      font-size: clamp(3rem, 12vw, 6rem);
-      font-weight: 800;
-      background: linear-gradient(135deg, #00d4ff 0%, #a855f7 50%, #ff6b9d 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-shadow: 0 0 60px rgba(0, 212, 255, 0.5);
-      margin-bottom: 1rem;
-      letter-spacing: -0.02em;
-    }
-
-    .game-subtitle {
-      font-size: clamp(1rem, 3vw, 1.4rem);
-      color: rgba(255, 255, 255, 0.7);
-      margin-bottom: 2.5rem;
-      max-width: 400px;
-      line-height: 1.5;
-    }
-
+    /* ===== BUTTONS ===== */
     .btn {
-      font-family: 'Outfit', sans-serif;
-      font-size: clamp(1.1rem, 3vw, 1.3rem);
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.1rem;
       font-weight: 700;
-      padding: 1rem 3rem;
+      padding: 1rem 2.5rem;
       border: none;
-      border-radius: 50px;
+      border-radius: 12px;
       cursor: pointer;
-      transition: all 0.2s ease;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.05em;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      position: relative;
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
-      color: #000;
-      box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4);
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 8px 0 #cc7a00, 0 15px 20px rgba(0,0,0,0.4);
     }
 
     .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 30px rgba(0, 212, 255, 0.6);
+      background: #ffb732;
     }
 
     .btn-primary:active {
-      transform: translateY(0);
+      transform: translateY(8px);
+      box-shadow: 0 0 0 #cc7a00, 0 5px 10px rgba(0,0,0,0.4);
     }
 
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.1);
-      color: #fff;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      margin-top: 1rem;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: 0 8px 0 #32211C, 0 15px 20px rgba(0,0,0,0.4);
     }
 
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: #5E3F38;
     }
 
-    /* HUD */
+    .btn-secondary:active {
+      transform: translateY(8px);
+      box-shadow: 0 0 0 #32211C, 0 5px 10px rgba(0,0,0,0.4);
+    }
+
+    /* ===== START SCREEN ===== */
+    #startScreen {
+      background: transparent;
+      position: relative;
+    }
+
+    .start-bg-words {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .start-word {
+      position: absolute;
+      top: -100px;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      font-size: clamp(1rem, 2.5vw, 1.8rem);
+      color: rgba(0,229,255,0.12);
+      animation: fall linear infinite;
+      white-space: nowrap;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      background: rgba(0,229,255,0.03);
+      border: 1px solid rgba(0,229,255,0.08);
+    }
+
+    .start-word.special {
+      color: rgba(255,45,111,0.2);
+      background: rgba(255,45,111,0.04);
+      border-color: rgba(255,45,111,0.12);
+    }
+
+    #startScreen .overlay-content {
+      z-index: 1;
+      animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    .game-title {
+      font-family: 'Fredoka', sans-serif;
+      font-size: clamp(3.5rem, 16vw, 7.5rem);
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.3rem;
+      letter-spacing: -0.03em;
+      line-height: 0.9;
+      text-shadow:
+        0 4px 0 #8d6e63,
+        0 8px 0 #5d4037,
+        0 15px 20px rgba(0,0,0,0.5);
+    }
+
+    .game-title span {
+      color: var(--accent);
+      text-shadow:
+        0 4px 0 #cc7a00,
+        0 8px 0 #995c00,
+        0 15px 20px rgba(0,0,0,0.5);
+    }
+
+    .game-subtitle {
+      font-family: 'Nunito', sans-serif;
+      font-size: clamp(0.8rem, 2.5vw, 1rem);
+      color: var(--text-muted);
+      margin-bottom: 2.5rem;
+      max-width: 420px;
+      line-height: 1.7;
+      font-weight: 500;
+    }
+
+    .game-subtitle .prompt {
+      color: var(--accent);
+      opacity: 0.7;
+    }
+
+    .game-subtitle .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 1.1em;
+      background: var(--accent);
+      vertical-align: text-bottom;
+      margin-left: 2px;
+      animation: blink 0.8s step-end infinite;
+      opacity: 0.7;
+    }
+
+    .start-decorative {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .start-decorative span {
+      opacity: 0.5;
+    }
+
+    /* ===== HUD ===== */
     #hud {
       position: fixed;
-      top: 10px; /* Safe area handled by padding below */
-      left: 0;
-      right: 0;
+      top: 45px;
+      left: 0; right: 0;
       display: none;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: flex-start;
-      padding: 0 10px;
+      padding: 0 16px;
       z-index: 50;
       pointer-events: none;
     }
 
     .hud-badge {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 0.4rem 0.8rem;
+      background: var(--bg-card);
       border-radius: 12px;
+      padding: 0.6rem 1.4rem;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      min-width: 70px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      align-items: flex-start;
+      min-width: 100px;
+      box-shadow: 0 6px 0 #32211C, 0 10px 15px rgba(0,0,0,0.3);
     }
 
     .hud-label {
+      font-family: 'Nunito', sans-serif;
       font-size: 0.6rem;
-      font-weight: 700;
-      color: rgba(255, 255, 255, 0.5);
+      font-weight: 500;
+      color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 0.1rem;
+      letter-spacing: 0.15em;
+      margin-bottom: 0.15rem;
     }
 
     .hud-value {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1.2rem;
+      font-family: 'Nunito', sans-serif;
+      font-size: 1.6rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
+      transition: color 0.15s;
     }
 
-    /* Typing Buffer Display */
+    .hud-value.pop {
+      animation: hudPop 0.25s ease-out;
+      color: var(--accent);
+    }
+
+    /* ===== TYPING BUFFER ===== */
     #bufferDisplay {
       position: fixed;
-      bottom: 50%; /* Default, will be overridden by JS on mobile */
+      bottom: 50%;
       left: 50%;
       transform: translate(-50%, 0);
       z-index: 50;
@@ -187,221 +355,453 @@
     }
 
     .buffer-container {
-      background: rgba(15, 23, 42, 0.95);
-      backdrop-filter: blur(8px);
-      border: 2px solid rgba(0, 212, 255, 0.5);
+      background: var(--bg-card);
       border-radius: 12px;
-      padding: 0.4rem 1rem;
-      min-width: 220px;
-      text-align: center;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      padding: 0.8rem 1.5rem;
+      min-width: 260px;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      box-shadow: 0 8px 0 #32211C, 0 15px 20px rgba(0,0,0,0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
     }
 
-    .buffer-label {
-      font-size: 0.6rem;
+    .buffer-container.flash {
+      animation: bufferFlash 0.3s ease-out;
+      transform: translateY(4px);
+      box-shadow: 0 4px 0 #32211C, 0 8px 10px rgba(0,0,0,0.4);
+    }
+
+    .buffer-prompt {
+      font-family: 'Nunito', sans-serif;
+      font-size: 1rem;
       font-weight: 700;
-      color: rgba(255, 255, 255, 0.4);
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      margin-bottom: 0.1rem;
+      color: var(--accent);
+      opacity: 0.6;
+      flex-shrink: 0;
     }
 
     .buffer-text {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Nunito', sans-serif;
       font-size: 1.4rem;
       font-weight: 700;
-      color: #00d4ff;
+      color: var(--accent);
       min-height: 1.8rem;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 8px var(--accent-glow);
+      display: flex;
+      align-items: center;
     }
 
     .buffer-cursor {
       display: inline-block;
-      width: 2px;
-      height: 1.5rem;
-      background: #00d4ff;
-      margin-left: 2px;
-      animation: blink 0.8s infinite;
-      vertical-align: middle;
+      width: 10px;
+      height: 1.4rem;
+      background: var(--accent);
+      margin-left: 1px;
+      animation: blink 0.7s step-end infinite;
+      opacity: 0.8;
     }
 
-    @keyframes blink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
-    }
-
-    /* Freeze Overlay */
+    /* ===== FREEZE OVERLAY ===== */
     #freezeOverlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(ellipse at center, rgba(0, 150, 255, 0.15) 0%, rgba(0, 100, 200, 0.3) 100%);
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(77,208,225,0.1) 0%, rgba(77,208,225,0.2) 100%);
       pointer-events: none;
       z-index: 40;
       opacity: 0;
       transition: opacity 0.3s ease;
+      overflow: hidden;
     }
 
-    #freezeOverlay.active {
-      opacity: 1;
+    #freezeOverlay::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
     }
+
+    #freezeOverlay.active { opacity: 1; }
 
     #freezeTimer {
       position: fixed;
-      top: 50%;
-      left: 50%;
+      top: 30%; left: 50%;
       transform: translate(-50%, -50%);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 4rem;
+      font-family: 'Fredoka', sans-serif;
+      font-size: 5rem;
       font-weight: 700;
-      color: #00bfff;
-      text-shadow: 0 0 30px rgba(0, 191, 255, 0.8);
+      color: var(--freeze-color);
+      text-shadow:
+        0 6px 0 #008ba3,
+        0 15px 20px rgba(0,0,0,0.5);
       z-index: 41;
       opacity: 0;
       transition: opacity 0.3s ease;
+      text-align: center;
     }
 
-    #freezeTimer.active {
-      opacity: 1;
+    #freezeTimer::after {
+      content: 'FROZEN';
+      display: block;
+      font-size: 0.8rem;
+      letter-spacing: 0.3em;
+      color: rgba(6,182,212,0.6);
+      margin-top: 0.5rem;
     }
 
-    /* Game Over Screen */
+    #freezeTimer.active { opacity: 1; }
+
+    /* ===== GAME OVER ===== */
     #gameOverScreen {
-      background: linear-gradient(180deg, rgba(10, 10, 26, 0.98) 0%, rgba(30, 10, 20, 0.98) 100%);
+      background: rgba(42,30,23,0.85);
+      backdrop-filter: blur(8px);
+    }
+
+    #gameOverScreen .overlay-content {
+      margin-top: -100px;
     }
 
     .game-over-title {
-      font-size: clamp(2.5rem, 10vw, 4rem);
-      font-weight: 800;
-      color: #ff4757;
+      font-family: 'Fredoka', sans-serif;
+      font-size: clamp(2.8rem, 12vw, 5rem);
+      font-weight: 700;
+      color: var(--danger);
       margin-bottom: 2rem;
-      text-shadow: 0 0 40px rgba(255, 71, 87, 0.5);
+      letter-spacing: -0.02em;
+      text-shadow:
+        0 4px 0 #cc0000,
+        0 8px 0 #990000,
+        0 15px 20px rgba(0,0,0,0.5);
+      animation: slideDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
     }
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1.5rem;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
       margin-bottom: 2rem;
-      max-width: 350px;
+      max-width: 440px;
     }
 
     .stat-item {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-card);
       border-radius: 12px;
       padding: 1rem;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: left;
+      animation: fadeInUp 0.4s ease both;
+      box-shadow: 0 6px 0 #32211C, 0 10px 15px rgba(0,0,0,0.3);
+    }
+
+    .stat-item:nth-child(1) {
+      animation-delay: 0.15s;
+    }
+    .stat-item:nth-child(2) {
+      animation-delay: 0.25s;
+    }
+    .stat-item:nth-child(3) {
+      animation-delay: 0.35s;
     }
 
     .stat-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.5);
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.6rem;
+      font-weight: 500;
+      color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 0.25rem;
+      letter-spacing: 0.12em;
+      margin-bottom: 0.3rem;
     }
 
     .stat-value {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Nunito', sans-serif;
       font-size: 1.5rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
     }
 
     .stat-value.highlight {
-      color: #ffd700;
+      color: var(--accent);
+    }
+
+    .stat-value.gold {
+      color: #FFC107;
     }
 
     .buttons-row {
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-      margin-top: 1rem;
+      margin-top: 0.5rem;
+      animation: fadeInUp 0.4s ease both;
+      animation-delay: 0.45s;
     }
 
-    /* Combo Display */
+    /* ===== COMBO DISPLAY ===== */
     #comboDisplay {
       position: fixed;
-      top: 40%;
       left: 50%;
       transform: translate(-50%, -50%);
-      font-family: 'Outfit', sans-serif;
+      font-family: 'Fredoka', sans-serif;
       font-size: 3rem;
-      font-weight: 800;
-      color: #ffd700;
-      text-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+      font-weight: 700;
       z-index: 45;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.15s ease;
+      letter-spacing: 0.05em;
     }
 
     #comboDisplay.active {
       opacity: 1;
-      animation: comboPop 0.4s ease-out;
+      animation: comboPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
-    @keyframes comboPop {
-      0% { transform: translate(-50%, -50%) scale(0.5); }
-      50% { transform: translate(-50%, -50%) scale(1.2); }
-      100% { transform: translate(-50%, -50%) scale(1); }
+    #comboDisplay.tier-1 {
+      font-size: 2.5rem;
+      color: var(--accent);
+      text-shadow:
+        0 4px 0 #cc7a00,
+        0 8px 0 rgba(0,0,0,0.5);
     }
 
-    /* Mobile adjustments */
+    #comboDisplay.tier-2 {
+      font-size: 3.2rem;
+      color: var(--shrink-color);
+      text-shadow:
+        0 4px 0 #8e24aa,
+        0 8px 0 rgba(0,0,0,0.5);
+    }
+
+    #comboDisplay.tier-3 {
+      font-size: 4rem;
+      color: #fff;
+      text-shadow:
+        0 6px 0 #e0e0e0,
+        0 12px 0 rgba(0,0,0,0.5);
+    }
+
+    /* ===== SETTINGS MODAL ===== */
+    #settingsModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(10px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    #settingsModal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .settings-panel {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 1.8rem 2rem;
+      width: min(340px, 90%);
+      color: var(--text-primary);
+      transform: translateY(20px) scale(0.95);
+      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 8px 0 #32211C, 0 20px 25px rgba(0,0,0,0.5);
+    }
+
+    #settingsModal.active .settings-panel {
+      transform: translateY(0) scale(1);
+    }
+
+    .settings-title {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(240,244,248,0.05);
+    }
+
+    .setting-row:last-of-type {
+      border-bottom: none;
+    }
+
+    .setting-row span {
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: rgba(240,244,248,0.8);
+    }
+
+    .toggle {
+      width: 52px;
+      height: 28px;
+      background: rgba(240,244,248,0.1);
+      border-radius: 14px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.3s;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 4px; left: 4px;
+      width: 20px; height: 20px;
+      background: rgba(240,244,248,0.5);
+      border-radius: 50%;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.3s;
+    }
+
+    .toggle.active {
+      background: var(--accent);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.15), 0 0 12px var(--accent-glow);
+    }
+
+    .toggle.active::after {
+      transform: translateX(24px);
+      background: #fff;
+    }
+
+    .settings-close {
+      width: 100%;
+      margin-top: 1.2rem;
+      padding: 0.75rem;
+      background: rgba(240,244,248,0.06);
+      border: 1px solid rgba(240,244,248,0.1);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: 'Fredoka', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .settings-close:hover {
+      background: rgba(240,244,248,0.12);
+      border-color: rgba(240,244,248,0.2);
+    }
+
+    .settings-close:active {
+      transform: translateY(1px);
+    }
+
+    /* ===== TOP BUTTONS ===== */
+    #topButtons {
+      position: absolute;
+      top: 45px; right: 20px;
+      z-index: 50;
+      display: flex;
+      gap: 10px;
+    }
+
+    .icon-btn {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: var(--bg-card);
+      color: var(--text-muted);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+      box-shadow: 0 6px 0 #32211C, 0 10px 15px rgba(0,0,0,0.3);
+    }
+
+    .icon-btn:hover {
+      background: #5E3F38;
+      color: var(--accent);
+    }
+
+    .icon-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #32211C, 0 5px 10px rgba(0,0,0,0.3);
+    }
+
+    .icon-btn svg {
+      width: 20px; height: 20px;
+      fill: currentColor;
+    }
+
+    /* ===== MOBILE ===== */
     @media (pointer: coarse) {
-      #bufferDisplay {
-        bottom: 1rem;
+      #startScreen .overlay-content {
+        margin-top: 300px; /* Push down to center below Oasiz platform top bar */
       }
-      
-      .buffer-container {
-        min-width: 280px;
-        padding: 1rem 1.5rem;
-      }
-      
-      .buffer-text {
-        font-size: 1.8rem;
-      }
+
+      #topButtons { top: 120px; }
 
       #hud {
-        padding: 0.75rem 1rem;
-        padding-top: max(0.75rem, env(safe-area-inset-top));
+        top: 120px;
+        padding: 0 12px;
       }
 
-      .hud-value {
-        font-size: 1.4rem;
+      .hud-badge {
+        min-width: 70px;
+        padding: 0.4rem 0.8rem;
       }
 
-      .game-subtitle {
-        padding: 0 1rem;
+      .hud-label { font-size: 0.55rem; }
+      .hud-value { font-size: 1.3rem; }
+
+      #bufferDisplay { bottom: 1rem; }
+
+      .buffer-container {
+        min-width: 280px;
+        padding: 0.7rem 1.2rem 0.7rem 0.8rem;
       }
+
+      .buffer-text { font-size: 1.6rem; }
+
+      .game-subtitle { padding: 0 1.5rem; }
+
+      .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        max-width: 95vw;
+      }
+
+      .stat-item { padding: 0.75rem 0.6rem; }
+      .stat-value { font-size: 1.2rem; }
     }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
-  
-  <!-- Hidden input for keyboard capture -->
+
   <input type="text" id="typingInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-  
+
   <!-- HUD -->
   <div id="hud">
     <div class="hud-badge">
       <div class="hud-label">Score</div>
       <div class="hud-value" id="score">0</div>
     </div>
-    <div class="hud-badge">
-      <div class="hud-label">Time</div>
-      <div class="hud-value" id="timer">0:00</div>
-    </div>
   </div>
 
-  <!-- Typing Buffer Display -->
+  <!-- Typing Buffer -->
   <div id="bufferDisplay">
     <div class="buffer-container">
-      <div class="buffer-label">Type Here</div>
+      <span class="buffer-prompt">$&gt;</span>
       <div class="buffer-text">
         <span id="bufferText"></span><span class="buffer-cursor"></span>
       </div>
@@ -417,9 +817,28 @@
 
   <!-- Start Screen -->
   <div id="startScreen" class="overlay">
+    <div class="start-bg-words">
+      <div class="start-word" style="left: 8%; animation-duration: 7s; animation-delay: 0s;">SPEEDRUN</div>
+      <div class="start-word special" style="left: 28%; animation-duration: 9s; animation-delay: 2s;">BOMB</div>
+      <div class="start-word" style="left: 52%; animation-duration: 8s; animation-delay: 1s;">TYPE</div>
+      <div class="start-word special" style="left: 72%; animation-duration: 10s; animation-delay: 3s;">FREEZE</div>
+      <div class="start-word" style="left: 88%; animation-duration: 7s; animation-delay: 1.5s;">COMBO</div>
+      <div class="start-word" style="left: 18%; animation-duration: 11s; animation-delay: 4s;">QUICK</div>
+      <div class="start-word" style="left: 62%; animation-duration: 8s; animation-delay: 5s;">WORDS</div>
+      <div class="start-word special" style="left: 42%; animation-duration: 9s; animation-delay: 6s;">SHRINK</div>
+      <div class="start-word" style="left: 3%; animation-duration: 10s; animation-delay: 7s;">SCORE</div>
+      <div class="start-word" style="left: 92%; animation-duration: 8s; animation-delay: 8s;">ARCADE</div>
+    </div>
     <div class="overlay-content">
-      <h1 class="game-title">Wordfall</h1>
-      <p class="game-subtitle">Type falling words before they stack up! Special words trigger powerful effects.</p>
+      <h1 class="game-title">WORD<span>FALL</span></h1>
+      <div class="start-decorative">
+        <span>v1.0</span>
+        <span>//</span>
+        <span>typing arcade</span>
+      </div>
+      <p class="game-subtitle">
+        <span class="prompt">&gt; </span>type falling words before they stack up<span class="cursor-blink"></span>
+      </p>
       <button class="btn btn-primary" id="startButton">Start Game</button>
     </div>
   </div>
@@ -427,29 +846,54 @@
   <!-- Game Over Screen -->
   <div id="gameOverScreen" class="overlay hidden">
     <div class="overlay-content">
-      <h1 class="game-over-title">Game Over</h1>
+      <h1 class="game-over-title">GAME OVER</h1>
       <div class="stats-grid">
         <div class="stat-item">
-          <div class="stat-label">Final Score</div>
+          <div class="stat-label">Score</div>
           <div class="stat-value highlight" id="finalScore">0</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Time Survived</div>
-          <div class="stat-value" id="finalTime">0:00</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Words Cleared</div>
+          <div class="stat-label">Words</div>
           <div class="stat-value" id="wordsCleared">0</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Best Combo</div>
-          <div class="stat-value" id="bestCombo">0</div>
+          <div class="stat-label">Combo</div>
+          <div class="stat-value gold" id="bestCombo">0</div>
         </div>
       </div>
       <div class="buttons-row">
         <button class="btn btn-primary" id="restartButton">Play Again</button>
         <button class="btn btn-secondary" id="menuButton">Main Menu</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Top Buttons -->
+  <div id="topButtons">
+    <button class="icon-btn" id="settingsBtn" title="Settings">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.43 12.98a7.79 7.79 0 0 0 0-1.96l2.11-1.65-2-3.46-2.49 1a7.72 7.72 0 0 0-1.69-.98L14.88 3h-4l-.48 2.93a7.72 7.72 0 0 0-1.69.98l-2.49-1-2 3.46 2.11 1.65a7.93 7.93 0 0 0 0 1.96L4.22 14.6l2 3.46 2.49-1c.52.4 1.08.72 1.69.98L10.88 21h4l.48-2.93a7.72 7.72 0 0 0 1.69-.98l2.49 1 2-3.46-2.1-1.65zM12.88 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal">
+    <div class="settings-panel">
+      <div class="settings-title">Settings</div>
+      <div class="setting-row">
+        <span>Music</span>
+        <div id="musicToggle" class="toggle active"></div>
+      </div>
+      <div class="setting-row">
+        <span>SFX</span>
+        <div id="fxToggle" class="toggle active"></div>
+      </div>
+      <div class="setting-row">
+        <span>Haptics</span>
+        <div id="hapticsToggle" class="toggle active"></div>
+      </div>
+      <button class="settings-close" id="settingsCloseBtn">Done</button>
     </div>
   </div>
 

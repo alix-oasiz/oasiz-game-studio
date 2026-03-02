@@ -1018,7 +1018,7 @@ export default class Scene extends Phaser.Scene {
 			// HP Scaling: White = 1-hit kill early, Blue = tanky, Red = strongest
 			const whiteHP = 1 + (this.level - 1) * 0.8;
 			const blueHP = 3 + (this.level - 1) * 2.5;
-			const redHP = 6 + (this.level - 1) * 5;
+			const redHP = 5 + (this.level - 1) * 4;
 
 			if (rand < redChance) {
 				color = 0xff0000;

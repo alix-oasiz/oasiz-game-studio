@@ -49,11 +49,8 @@
             background: linear-gradient(180deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
             overflow: hidden;
             border-radius: 24px;
-            border: 3px solid var(--neon-cyan);
-            box-shadow: 
-                0 0 20px rgba(0, 245, 255, 0.3),
-                0 0 40px rgba(0, 245, 255, 0.1),
-                inset 0 0 60px rgba(0, 245, 255, 0.05);
+            border: 3px solid #1e293b;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
         @media (pointer: coarse) {
@@ -102,33 +99,47 @@
             pointer-events: auto;
         }
 
+        .hidden {
+            display: none !important;
+        }
+
         .content {
             text-align: center;
             padding: 40px;
-            max-width: 90%;
+            width: 90%;
+            max-width: 420px;
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border-radius: 24px;
+            border-top: 2px solid #475569;
+            border-left: 2px solid #334155;
+            border-right: 2px solid #020617;
+            border-bottom: 8px solid #020617;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
         }
 
         /* Title */
         .game-title {
-            font-size: 2.5rem;
+            font-size: 2.8rem;
             font-weight: 900;
-            color: var(--neon-cyan);
+            color: #fff;
             letter-spacing: 4px;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             text-transform: uppercase;
             text-shadow: 
-                0 0 10px var(--neon-cyan),
-                0 0 20px var(--neon-cyan),
-                0 0 40px rgba(0, 245, 255, 0.5);
+                0 4px 0 var(--neon-cyan),
+                0 6px 0 rgba(0,0,0,0.4);
         }
 
         .subtitle {
-            font-size: 0.75rem;
-            color: rgba(0, 245, 255, 0.5);
+            font-size: 0.9rem;
+            color: var(--neon-pink);
             margin-bottom: 40px;
-            font-weight: 500;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 6px;
+            letter-spacing: 8px;
+            text-shadow: 
+                0 2px 0 rgba(200, 0, 200, 0.8),
+                0 4px 0 rgba(0,0,0,0.4);
         }
 
         /* Block Preview Animation */
@@ -141,13 +152,14 @@
         }
 
         .preview-block {
-            width: 40px;
-            height: 40px;
-            border-radius: 6px;
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
             box-shadow: 
-                0 0 15px currentColor,
-                0 0 30px currentColor,
-                inset 0 0 10px rgba(255,255,255,0.3);
+                0 6px 0px rgba(0, 0, 0, 0.6),
+                inset 0 4px 4px rgba(255, 255, 255, 0.2);
+            border-bottom: 4px solid rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .preview-block.left {
@@ -185,45 +197,52 @@
         }
 
         .instruction-icon {
-            width: 24px;
-            height: 24px;
+            padding: 4px 8px;
             border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 0.6rem;
+            min-width: 24px;
         }
 
         /* Buttons */
         .btn {
-            background: transparent;
+            background: #1e293b;
             color: var(--neon-cyan);
-            border: 2px solid var(--neon-cyan);
+            border: 2px solid #0f172a;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
             padding: 16px 50px;
             font-family: 'Orbitron', sans-serif;
             font-size: 1rem;
             font-weight: 700;
             cursor: pointer;
-            border-radius: 8px;
+            border-radius: 12px;
             text-transform: uppercase;
             letter-spacing: 3px;
-            transition: all 0.3s ease;
+            transition: all 0.1s ease;
             box-shadow: 
-                0 0 10px rgba(0, 245, 255, 0.3),
-                inset 0 0 20px rgba(0, 245, 255, 0.1);
+                0 6px 0px rgba(0, 150, 180, 0.8),
+                0 8px 0px rgba(0, 0, 0, 0.6);
+            text-shadow: none;
+            position: relative;
+            margin-bottom: 6px;
         }
 
         .btn:hover {
-            background: rgba(0, 245, 255, 0.1);
+            transform: translateY(2px);
             box-shadow: 
-                0 0 20px rgba(0, 245, 255, 0.5),
-                inset 0 0 30px rgba(0, 245, 255, 0.2);
-            transform: translateY(-2px);
+                0 4px 0px rgba(0, 150, 180, 0.8),
+                0 6px 0px rgba(0, 0, 0, 0.6);
+            background: #253347;
         }
 
         .btn:active {
-            transform: translateY(1px);
+            transform: translateY(6px);
+            box-shadow: 
+                0 0px 0px rgba(0, 150, 180, 0.8),
+                0 0px 0px rgba(0, 0, 0, 0.6);
         }
 
         .start-btn {
@@ -232,8 +251,18 @@
         }
 
         @keyframes btnPulse {
-            0%, 100% { box-shadow: 0 0 10px rgba(0, 245, 255, 0.3), inset 0 0 20px rgba(0, 245, 255, 0.1); }
-            50% { box-shadow: 0 0 25px rgba(0, 245, 255, 0.6), inset 0 0 30px rgba(0, 245, 255, 0.2); }
+            0%, 100% { 
+                box-shadow: 
+                    0 6px 0px rgba(0, 150, 180, 0.8),
+                    0 8px 0px rgba(0, 0, 0, 0.6);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 
+                    0 8px 0px rgba(0, 150, 180, 0.8),
+                    0 10px 0px rgba(0, 0, 0, 0.6);
+                transform: scale(1.02) translateY(-2px);
+            }
         }
 
         /* Settings Button */
@@ -244,26 +273,33 @@
             width: 44px;
             height: 44px;
             border-radius: 10px;
-            background: rgba(0, 245, 255, 0.1);
-            border: 2px solid rgba(0, 245, 255, 0.3);
+            background: #1e293b;
+            border: 2px solid #0f172a;
+            box-shadow: 0 4px 0px rgba(0, 150, 180, 0.8), 0 6px 0px rgba(0, 0, 0, 0.6);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.1s ease;
             z-index: 15;
         }
 
         .settings-btn:hover {
-            background: rgba(0, 245, 255, 0.2);
-            transform: rotate(30deg);
+            background: #253347;
+            transform: translateY(2px) rotate(15deg);
+            box-shadow: 0 2px 0px rgba(0, 150, 180, 0.8), 0 4px 0px rgba(0, 0, 0, 0.6);
+        }
+
+        .settings-btn:active {
+            transform: translateY(4px) rotate(15deg);
+            box-shadow: 0 0px 0px rgba(0, 150, 180, 0.8), 0 0px 0px rgba(0, 0, 0, 0.6);
         }
 
         .settings-btn svg {
             width: 22px;
             height: 22px;
             fill: var(--neon-cyan);
-            opacity: 0.7;
+            opacity: 0.9;
         }
 
         /* Pause Button */
@@ -274,38 +310,46 @@
             width: 44px;
             height: 44px;
             border-radius: 10px;
-            background: rgba(0, 245, 255, 0.1);
-            border: 2px solid rgba(0, 245, 255, 0.3);
+            background: #1e293b;
+            border: 2px solid #0f172a;
+            box-shadow: 0 4px 0px rgba(0, 150, 180, 0.8), 0 6px 0px rgba(0, 0, 0, 0.6);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.1s ease;
             z-index: 15;
         }
 
         .pause-btn:hover {
-            background: rgba(0, 245, 255, 0.2);
+            background: #253347;
+            transform: translateY(2px);
+            box-shadow: 0 2px 0px rgba(0, 150, 180, 0.8), 0 4px 0px rgba(0, 0, 0, 0.6);
+        }
+
+        .pause-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0px 0px rgba(0, 150, 180, 0.8), 0 0px 0px rgba(0, 0, 0, 0.6);
         }
 
         .pause-btn svg {
             width: 22px;
             height: 22px;
             fill: var(--neon-cyan);
-            opacity: 0.7;
+            opacity: 0.9;
         }
 
         /* Game Over Screen */
         .game-over-title {
-            font-size: 2rem;
+            font-size: 2.8rem;
             font-weight: 900;
-            color: var(--danger-red);
+            color: #fff;
             letter-spacing: 4px;
             margin-bottom: 20px;
             text-transform: uppercase;
             text-shadow: 
-                0 0 10px var(--danger-red),
-                0 0 20px var(--danger-red);
+                0 4px 0 var(--danger-red),
+                0 6px 0px rgba(0,0,0,0.4);
             animation: glitch 0.3s ease-in-out;
         }
 
@@ -334,15 +378,16 @@
             font-weight: 900;
             color: var(--neon-cyan);
             text-shadow: 
-                0 0 10px var(--neon-cyan),
-                0 0 30px var(--neon-cyan);
+                0 6px 0px rgba(0, 150, 180, 0.8),
+                0 8px 0px rgba(0, 0, 0, 0.6);
         }
 
         .checkpoint-count {
             font-size: 1rem;
             color: var(--neon-purple);
             margin-top: 10px;
-            text-shadow: 0 0 10px var(--neon-purple);
+            font-weight: 700;
+            text-shadow: 0 2px 0px rgba(0, 0, 0, 0.6);
         }
 
         .game-over-buttons {
@@ -354,16 +399,25 @@
         }
 
         .btn-secondary {
-            border-color: rgba(255, 255, 255, 0.3);
-            color: rgba(255, 255, 255, 0.6);
-            box-shadow: none;
+            border-color: #0f172a;
+            color: var(--neon-pink);
+            box-shadow: 
+                0 6px 0px rgba(180, 0, 180, 0.8),
+                0 8px 0px rgba(0, 0, 0, 0.6);
+            text-shadow: none;
         }
 
         .btn-secondary:hover {
-            border-color: rgba(255, 255, 255, 0.5);
-            color: rgba(255, 255, 255, 0.8);
-            background: rgba(255, 255, 255, 0.05);
-            box-shadow: none;
+            box-shadow: 
+                0 4px 0px rgba(180, 0, 180, 0.8),
+                0 6px 0px rgba(0, 0, 0, 0.6);
+            background: #253347;
+        }
+
+        .btn-secondary:active {
+            box-shadow: 
+                0 0px 0px rgba(180, 0, 180, 0.8),
+                0 0px 0px rgba(0, 0, 0, 0.6);
         }
 
         /* Settings Modal */
@@ -372,15 +426,18 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: var(--bg-dark);
-            border-radius: 16px;
-            border: 2px solid var(--neon-cyan);
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border-radius: 24px;
+            border-top: 2px solid #475569;
+            border-left: 2px solid #334155;
+            border-right: 2px solid #020617;
+            border-bottom: 8px solid #020617;
             padding: 30px 40px;
             z-index: 100;
             box-shadow: 
-                0 0 30px rgba(0, 245, 255, 0.3),
-                inset 0 0 30px rgba(0, 245, 255, 0.05);
-            min-width: 280px;
+                0 30px 60px rgba(0,0,0,0.8),
+                0 0 40px rgba(0, 245, 255, 0.1);
+            min-width: 300px;
         }
 
         .settings-modal.hidden {
@@ -388,13 +445,16 @@
         }
 
         .settings-title {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: var(--neon-cyan);
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: #fff;
             margin-bottom: 24px;
             text-align: center;
             text-transform: uppercase;
             letter-spacing: 3px;
+            text-shadow: 
+                0 4px 0 var(--neon-cyan),
+                0 6px 0px rgba(0,0,0,0.4);
         }
 
         .settings-row {
@@ -420,17 +480,18 @@
         .toggle {
             width: 50px;
             height: 28px;
-            background: rgba(255, 255, 255, 0.1);
+            background: #1e293b;
             border-radius: 14px;
             position: relative;
             cursor: pointer;
-            transition: all 0.3s ease;
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s ease;
+            border: 2px solid #0f172a;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .toggle.active {
-            background: rgba(0, 245, 255, 0.3);
-            border-color: var(--neon-cyan);
+            background: var(--neon-cyan);
+            border-color: #0f172a;
         }
 
         .toggle::after {
@@ -438,18 +499,18 @@
             position: absolute;
             width: 20px;
             height: 20px;
-            background: #fff;
+            background: #94a3b8;
             border-radius: 50%;
             top: 2px;
             left: 2px;
-            transition: transform 0.3s ease;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         .toggle.active::after {
             transform: translateX(22px);
-            background: var(--neon-cyan);
-            box-shadow: 0 0 10px var(--neon-cyan);
+            background: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         .settings-close {
@@ -462,20 +523,16 @@
             background: rgba(5, 5, 16, 0.95);
         }
 
-        .pause-menu .content {
-            background: var(--bg-dark);
-            border-radius: 16px;
-            border: 2px solid var(--neon-cyan);
-            box-shadow: 0 0 30px rgba(0, 245, 255, 0.3);
-        }
-
         .pause-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--neon-cyan);
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: #fff;
             margin-bottom: 24px;
             text-transform: uppercase;
             letter-spacing: 4px;
+            text-shadow: 
+                0 4px 0 var(--neon-cyan),
+                0 6px 0px rgba(0,0,0,0.4);
         }
 
         .pause-buttons {
@@ -558,15 +615,15 @@
 
                 <div class="instructions">
                     <div class="instruction-row">
-                        <span class="instruction-icon">L</span>
+                        <span class="instruction-icon">TAP LEFT</span>
                         <span>Both blocks move left</span>
                     </div>
                     <div class="instruction-row">
-                        <span class="instruction-icon">R</span>
+                        <span class="instruction-icon">TAP RIGHT</span>
                         <span>Both blocks move right</span>
                     </div>
                     <div class="instruction-row">
-                        <span class="instruction-icon">L+R</span>
+                        <span class="instruction-icon">BOTH SIDES</span>
                         <span>Blocks split apart</span>
                     </div>
                 </div>

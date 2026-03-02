@@ -2,6 +2,7 @@
 /* START OF COMPILED CODE */
 
 /* START-USER-IMPORTS */
+import { oasiz } from "@oasiz/sdk";
 /* END-USER-IMPORTS */
 
 
@@ -12,11 +13,19 @@ type TrapType =
 	'SIDE_WIND_ZONE' |
 	'SIDE_MOVER' |
 	'HEXAGON_TURRET' |
-	'MAGNET_CORE' |
+	'MINE_FIELD' |
 	'LASER_GRID' |
 	'PULSE_RING' |
 	'TELEPORT_GATE' |
-	'GRAVITY_FLIP_ZONE';
+	'BOUNCE_SPEED_ZONE';
+
+type MineUnit = {
+	x: number;
+	y: number;
+	armed: boolean;
+	graphics: Phaser.GameObjects.Graphics;
+	glow: Phaser.GameObjects.Arc;
+};
 
 type SideMoverUnit = {
 	t: number;
@@ -24,8 +33,8 @@ type SideMoverUnit = {
 	waitTimer: number;
 	yOffset: number;
 	x: number;
-	square: Phaser.GameObjects.Rectangle;
-	glow: Phaser.GameObjects.Rectangle;
+	square: Phaser.GameObjects.Graphics;
+	glow: Phaser.GameObjects.Graphics;
 };
 
 type HexProjectile = {
@@ -46,8 +55,8 @@ type LaserBeamUnit = {
 	yOffset: number;
 	phase: number;
 	active: boolean;
-	beam: Phaser.GameObjects.Rectangle;
-	glow: Phaser.GameObjects.Rectangle;
+	beam: Phaser.GameObjects.Graphics;
+	glow: Phaser.GameObjects.Graphics;
 };
 
 type Barrier = {
@@ -59,10 +68,10 @@ type Barrier = {
 	gapWidth?: number;
 	leftX?: number; leftW?: number;
 	rightX?: number; rightW?: number;
-	left?: Phaser.GameObjects.Rectangle;
-	right?: Phaser.GameObjects.Rectangle;
-	leftGlow?: Phaser.GameObjects.Rectangle;
-	rightGlow?: Phaser.GameObjects.Rectangle;
+	left?: Phaser.GameObjects.Graphics;
+	right?: Phaser.GameObjects.Graphics;
+	leftGlow?: Phaser.GameObjects.Graphics;
+	rightGlow?: Phaser.GameObjects.Graphics;
 	// Rotating Bar Properties
 	angle?: number;
 	rotationSpeed?: number;
@@ -96,19 +105,14 @@ type Barrier = {
 	turretProjectiles?: HexProjectile[];
 	turretProjectileSpeed?: number;
 	turretProjectileLife?: number;
-	// Magnet Core Properties
-	magnetCenterX?: number;
-	magnetInfluenceRadius?: number;
-	magnetForce?: number;
-	magnetPolarity?: number; // 1 pull, -1 push
-	magnetPhaseTimer?: number;
-	magnetPhaseDuration?: number;
-	magnetCoreRadius?: number;
-	magnetCore?: Phaser.GameObjects.Arc;
-	magnetGlow?: Phaser.GameObjects.Arc;
-	magnetRingA?: Phaser.GameObjects.Arc;
-	magnetRingB?: Phaser.GameObjects.Arc;
-	magnetArcs?: Phaser.GameObjects.Graphics;
+	// Mine Field Properties
+	mineFieldCenterX?: number;
+	mineFieldRadius?: number;
+	mines?: MineUnit[];
+	minePatternTimer?: number;
+	minePatternDuration?: number;
+	mineFieldBorder?: Phaser.GameObjects.Graphics;
+	mineFieldGlow?: Phaser.GameObjects.Arc;
 	// Laser Grid Properties
 	laserBandHeight?: number;
 	laserThickness?: number;
@@ -125,6 +129,9 @@ type Barrier = {
 	pulseCore?: Phaser.GameObjects.Arc;
 	pulseRing?: Phaser.GameObjects.Arc;
 	pulseGlow?: Phaser.GameObjects.Arc;
+	pulseRingSoft?: Phaser.GameObjects.Arc;
+	pulseHoldTimer?: number;
+	pulseWaitTimer?: number;
 	// Teleport Gate Properties
 	teleportAX?: number;
 	teleportBX?: number;
@@ -135,14 +142,14 @@ type Barrier = {
 	teleportAGlow?: Phaser.GameObjects.Arc;
 	teleportBGlow?: Phaser.GameObjects.Arc;
 	teleportLink?: Phaser.GameObjects.Graphics;
-	// Gravity Flip Zone Properties
-	gravityZoneHeight?: number;
-	gravityCurrentScale?: number;
-	gravityTargetScale?: number;
-	gravityScaleTimer?: number;
-	gravityScaleInterval?: number;
-	gravityZoneGraphics?: Phaser.GameObjects.Graphics;
-	gravityWaveGraphics?: Phaser.GameObjects.Graphics;
+	// Bounce Speed Zone Properties
+	bsMode?: 'BOUNCE' | 'SPEED';
+	bsModeTimer?: number;
+	bsModeDuration?: number;
+	bsZoneGraphics?: Phaser.GameObjects.Graphics;
+	bsIconGraphics?: Phaser.GameObjects.Graphics;
+	bsTransitionAlpha?: number;
+	bsZoneHeight?: number;
 };
 
 type TailPoint = {
@@ -154,6 +161,9 @@ type TailPoint = {
 export default class Level extends Phaser.Scene {
 
 	private ball!: Phaser.GameObjects.Arc;
+	private ballInner!: Phaser.GameObjects.Arc;
+	private ballCore!: Phaser.GameObjects.Arc;
+	private ballSpec!: Phaser.GameObjects.Arc;
 	private ballGlow!: Phaser.GameObjects.Arc;
 	private ballHalo!: Phaser.GameObjects.Arc;
 	private floor!: Phaser.GameObjects.Rectangle;
@@ -180,7 +190,7 @@ export default class Level extends Phaser.Scene {
 	private worldWidth = 0;
 	private worldHeight = 0;
 
-	private ballRadius = 26;
+	private ballRadius = 32;
 	private trapHitboxScale = 0.72;
 	private ballVx = 0;
 	private ballVy = 0;
@@ -194,13 +204,14 @@ export default class Level extends Phaser.Scene {
 	private isGameOver = false;
 	private hasStarted = false;
 
-	private gapWidth = 210;
-	private barrierHeight = 28;
+	private gapWidth = 240;
+	private gapWidthMin = 140;
+	private barrierHeight = 44;
 	private nextBarrierSpawnY = 0;
 	private spawnAheadMin = 140;
 	private spawnAheadMax = 420;
-	private barrierSpacingMin = 190;
-	private barrierSpacingMax = 300;
+	private barrierSpacingMin = 210;
+	private barrierSpacingMax = 330;
 	private minLaunchPower = 260;
 	private maxLaunchPower = 760;
 	private launchCooldownMs = 250;
@@ -231,18 +242,27 @@ export default class Level extends Phaser.Scene {
 	private nextPickupSpawnY = -1120;
 	private boostedLaunches = 0;
 
-	private readonly ballColor = 0x7df9ff;
-	private readonly neonPink = 0xff2ea6;
-	private readonly neonBlue = 0x00e5ff;
-	private readonly neonPurple = 0x7b2cff;
+	private readonly ballColor = 0x82B1FF;
+	private readonly accentCoral = 0xFF8A80;
+	private readonly accentBlue = 0x82B1FF;
+	private readonly accentLavender = 0xB388FF;
+	private readonly accentMint = 0xA7FFEB;
 	private readonly barrierColor = 0xffffff;
-	private readonly floorColor = 0x2a0429;
+	private readonly floorColor = 0x5D4037;
+	private readonly shadowColor = 0x3E2723;
+	private readonly highlightColor = 0xFFF8E1;
+	private readonly clayBg1 = 0xFFF8E1;
+	private readonly clayBg2 = 0xE3F2FD;
 
 	private startY = 0;
 	private maxHeightScore = 0;
 	private isGameStarted = false;
 	private readonly launchBoost = 1.5;
 	private readonly flightDistanceBoost = 1.31;
+
+	private settings: { music: boolean; fx: boolean; haptics: boolean } = { music: true, fx: true, haptics: true };
+	private offPause?: () => void;
+	private offResume?: () => void;
 	private readonly onPointerDown = () => {
 		if (!this.isGameStarted) return;
 
@@ -265,7 +285,7 @@ export default class Level extends Phaser.Scene {
 
 	/* START-USER-CODE */
 
-	create() {
+	create(data?: any) {
 		this.isGameOver = false;
 		this.hasStarted = false;
 		this.score = 0;
@@ -312,9 +332,9 @@ export default class Level extends Phaser.Scene {
 			(this.floorY + this.worldHeight) / 2,
 			this.worldWidth,
 			this.worldHeight - this.floorY + 14,
-			this.neonPink,
-			0.26
-		).setBlendMode(Phaser.BlendModes.ADD);
+			this.shadowColor,
+			0.3
+		);
 
 		this.floor = this.add.rectangle(
 			this.worldWidth / 2,
@@ -324,43 +344,58 @@ export default class Level extends Phaser.Scene {
 			this.floorColor
 		);
 
-		this.ballHalo = this.add.circle(centerX, ballStartY, this.ballRadius + 34, this.neonPink, 0.14)
-			.setBlendMode(Phaser.BlendModes.ADD);
-		this.ballGlow = this.add.circle(centerX, ballStartY, this.ballRadius + 18, this.neonBlue, 0.42)
-			.setBlendMode(Phaser.BlendModes.ADD);
+		this.ballHalo = this.add.circle(centerX, ballStartY, this.ballRadius + 34, this.accentCoral, 0.1);
+		this.ballGlow = this.add.circle(centerX, ballStartY + 4, this.ballRadius + 4, this.shadowColor, 0.4);
 		this.ball = this.add.circle(centerX, ballStartY, this.ballRadius, this.ballColor);
+		this.ballInner = this.add.circle(centerX, ballStartY + 2, this.ballRadius * 0.7, 0xBBDEFB, 0.85);
+		this.ballCore = this.add.circle(centerX, ballStartY + 4, this.ballRadius * 0.4, 0xE3F2FD, 0.7);
+		this.ballSpec = this.add.circle(centerX - 8, ballStartY - 8, this.ballRadius * 0.2, 0xffffff, 0.9);
 
-		this.aimLine = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-		this.aimArc = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-		this.aimCenterArrow = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+		this.aimLine = this.add.graphics();
+		this.aimArc = this.add.graphics();
+		this.aimCenterArrow = this.add.graphics();
 		this.sideLines = this.add.graphics().setDepth(18);
 		this.colliderDebug = this.add.graphics().setDepth(140);
-		this.tailRibbon = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setDepth(24);
-		this.tailCore = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setDepth(25);
+		this.tailRibbon = this.add.graphics().setDepth(24);
+		this.tailCore = this.add.graphics().setDepth(25);
 
-		this.titleText = this.add.text(this.worldWidth / 2, 80, "NEON PUSH", {
+		this.titleText = this.add.text(this.worldWidth / 2, 80, "PUSH", {
 			fontFamily: "'Outfit', sans-serif",
 			fontSize: "64px",
-			color: "#ffffff",
+			color: "#3E2723",
 			fontStyle: "900",
-			shadow: { blur: 0, color: "#2a2a30", fill: true, offsetX: 4, offsetY: 4 }
+			shadow: { blur: 0, color: "#D7CCC8", fill: true, offsetX: 4, offsetY: 4 }
 		}).setOrigin(0.5).setScrollFactor(0);
 
-		this.scoreText = this.add.text(24, 24, "0", {
+		this.scoreText = this.add.text(this.worldWidth / 2, 200, "0", {
 			fontFamily: "'Outfit', sans-serif",
 			fontSize: "48px",
-			color: "#ffffff",
+			color: "#3E2723",
 			fontStyle: "900",
-			shadow: { blur: 0, color: "#000000", fill: true, offsetX: 3, offsetY: 3 }
-		}).setScrollFactor(0);
+			shadow: { blur: 0, color: "#D7CCC8", fill: true, offsetX: 3, offsetY: 3 }
+		}).setOrigin(0.5, 0).setScrollFactor(0);
 
-		this.hintText = this.add.text(this.worldWidth / 2, 160, "TAP TO SHOOT", {
+		this.hintText = this.add.text(this.worldWidth / 2, this.worldHeight / 2 - 50, "TAP TO SHOOT", {
 			fontFamily: "'Outfit', sans-serif",
-			fontSize: "20px",
-			color: "#00f0ff", // Accent Primary
-			fontStyle: "700"
+			fontSize: "36px",
+			color: "#FF8A80",
+			fontStyle: "900",
+			stroke: "#5D4037",
+			strokeThickness: 2,
+			shadow: { blur: 0, color: "#D7CCC8", fill: true, offsetX: 2, offsetY: 2 }
 		}).setOrigin(0.5).setScrollFactor(0);
 		this.hintText.setVisible(false);
+
+		this.tweens.add({
+			targets: this.hintText,
+			alpha: { from: 0.5, to: 1 },
+			scaleX: { from: 0.95, to: 1.05 },
+			scaleY: { from: 0.95, to: 1.05 },
+			duration: 900,
+			yoyo: true,
+			repeat: -1,
+			ease: "Sine.easeInOut"
+		});
 
 		this.ensureParticleTexture();
 		this.launchFx = this.add.particles(0, 0, "neon-dot", {
@@ -368,33 +403,55 @@ export default class Level extends Phaser.Scene {
 			lifespan: { min: 260, max: 600 },
 			angle: { min: 0, max: 360 },
 			scale: { start: 0.82, end: 0 },
-			alpha: { start: 0.9, end: 0 },
-			blendMode: Phaser.BlendModes.ADD,
+			alpha: { start: 0.85, end: 0 },
 			quantity: 0,
-			tint: [this.neonBlue, this.neonPink, this.neonPurple]
+			tint: [this.accentBlue, this.accentCoral, this.accentLavender]
 		});
 		this.trailFx = this.add.particles(0, 0, "neon-dot", {
 			speed: { min: 26, max: 120 },
 			lifespan: { min: 280, max: 620 },
 			scale: { start: 0.9, end: 0 },
-			alpha: { start: 0.88, end: 0 },
-			blendMode: Phaser.BlendModes.ADD,
+			alpha: { start: 0.75, end: 0 },
 			frequency: 14,
 			quantity: 2,
 			emitting: false,
-			tint: [this.neonBlue, this.neonPink, 0xeaffff]
+			tint: [this.accentBlue, this.accentCoral, this.accentLavender]
 		});
 
 		this.input.off("pointerdown", this.onPointerDown, this);
 		this.input.on("pointerdown", this.onPointerDown, this);
 		this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
 			this.input.off("pointerdown", this.onPointerDown, this);
+			this.offPause?.();
+			this.offResume?.();
 		});
 
 		this.fillBarriersAhead();
 		this.ensureBgMusicPlaying();
 		this.initUI();
-		this.toggleMainMenu(true);
+
+		if (data?.quickRestart) {
+			this.toggleMainMenu(false);
+			this.isGameStarted = true;
+			this.hintText.setVisible(true);
+		} else {
+			this.toggleMainMenu(true);
+		}
+
+		this.offPause?.();
+		this.offResume?.();
+		this.offPause = oasiz.onPause(() => {
+			if (this.isGameStarted && !this.isGameOver) {
+				this.scene.pause();
+				if (this.bgMusic?.isPlaying) this.bgMusic.pause();
+			}
+		});
+		this.offResume = oasiz.onResume(() => {
+			if (this.isGameStarted && !this.isGameOver) {
+				this.scene.resume();
+				if (this.settings.music && this.bgMusic && !this.bgMusic.isPlaying) this.bgMusic.play();
+			}
+		});
 	}
 
 	update(_: number, delta: number) {
@@ -428,8 +485,8 @@ export default class Level extends Phaser.Scene {
 		for (let i = 0; i < bands; i++) {
 			const t = i / (bands - 1);
 			const color = Phaser.Display.Color.Interpolate.ColorWithColor(
-				Phaser.Display.Color.ValueToColor(0x070910),
-				Phaser.Display.Color.ValueToColor(0x1b0633),
+				Phaser.Display.Color.ValueToColor(this.clayBg1),
+				Phaser.Display.Color.ValueToColor(this.clayBg2),
 				100,
 				Math.floor(t * 100)
 			);
@@ -439,50 +496,41 @@ export default class Level extends Phaser.Scene {
 			gradient.fillRect(0, y, this.worldWidth, this.worldHeight / bands + 3);
 		}
 
-		const grid = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setScrollFactor(0);
-		grid.lineStyle(1, this.neonBlue, 0.15);
-		for (let x = 0; x <= this.worldWidth; x += 60) {
-			grid.beginPath();
-			grid.moveTo(x, 0);
-			grid.lineTo(x, this.worldHeight);
-			grid.strokePath();
-		}
-		for (let y = 0; y <= this.worldHeight; y += 70) {
-			grid.beginPath();
-			grid.moveTo(0, y);
-			grid.lineTo(this.worldWidth, y);
-			grid.strokePath();
+		const dotGrid = this.add.graphics().setScrollFactor(0);
+		dotGrid.fillStyle(0xBCAAA4, 0.18);
+		for (let x = 30; x <= this.worldWidth; x += 60) {
+			for (let y = 35; y <= this.worldHeight; y += 70) {
+				dotGrid.fillCircle(x, y, 2);
+			}
 		}
 
-		this.scanLines = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setScrollFactor(0);
+		this.scanLines = this.add.graphics().setScrollFactor(0);
 	}
 
 	private updateNeonPulse() {
 		const t = this.time.now * 0.001;
-		const pulse = 1 + Math.sin(t * 5.2) * 0.07;
+		const pulse = 1 + Math.sin(t * 5.2) * 0.04;
 
-		this.ballGlow.x = this.ball.x;
-		this.ballGlow.y = this.ball.y;
+		this.ballGlow.x = this.ball.x + 4;
+		this.ballGlow.y = this.ball.y + 4;
 		this.ballGlow.setScale(pulse);
-		this.ballGlow.alpha = 0.34 + (Math.sin(t * 9) + 1) * 0.12;
+		this.ballGlow.alpha = 0.35;
 		this.ballHalo.x = this.ball.x;
 		this.ballHalo.y = this.ball.y;
-		this.ballHalo.setScale(1 + Math.sin(t * 4.1) * 0.1);
-		this.ballHalo.alpha = 0.1 + (Math.sin(t * 6.7) + 1) * 0.06;
+		this.ballHalo.setScale(1 + Math.sin(t * 4.1) * 0.06);
+		this.ballHalo.alpha = 0.08;
 
-		this.floorGlow.alpha = 0.25 + (Math.sin(t * 3) + 1) * 0.14;
-		this.titleText.setScale(1 + Math.sin(t * 2.8) * 0.03);
+		this.ballInner.x = this.ball.x;
+		this.ballInner.y = this.ball.y + 2;
+		this.ballCore.x = this.ball.x;
+		this.ballCore.y = this.ball.y + 4;
+		this.ballSpec.x = this.ball.x - 8;
+		this.ballSpec.y = this.ball.y - 8;
+
+		this.floorGlow.alpha = 0.3;
+		this.titleText.setScale(1 + Math.sin(t * 2.8) * 0.02);
 
 		this.scanLines.clear();
-		this.scanLines.lineStyle(2, this.neonBlue, 0.13);
-		const offset = (t * 80) % 34;
-		for (let y = -34; y < this.worldHeight + 34; y += 34) {
-			const lineY = y + offset;
-			this.scanLines.beginPath();
-			this.scanLines.moveTo(0, lineY);
-			this.scanLines.lineTo(this.worldWidth, lineY);
-			this.scanLines.strokePath();
-		}
 	}
 
 	private updateSideLines() {
@@ -492,43 +540,46 @@ export default class Level extends Phaser.Scene {
 		const step = 8;
 
 		this.sideLines.clear();
-		this.sideLines.lineStyle(12, this.neonPink, 0.16);
+
+		this.sideLines.lineStyle(10, this.shadowColor, 0.2);
 		this.sideLines.beginPath();
 		for (let y = top; y <= bottom; y += step) {
-			const lx = this.getSideWallX(y, true);
-			if (y === top) {
-				this.sideLines.moveTo(lx, y);
-			} else {
-				this.sideLines.lineTo(lx, y);
-			}
+			const lx = this.getSideWallX(y, true) + 3;
+			if (y === top) this.sideLines.moveTo(lx, y + 3);
+			else this.sideLines.lineTo(lx, y + 3);
 		}
 		for (let y = top; y <= bottom; y += step) {
-			const rx = this.getSideWallX(y, false);
-			if (y === top) {
-				this.sideLines.moveTo(rx, y);
-			} else {
-				this.sideLines.lineTo(rx, y);
-			}
+			const rx = this.getSideWallX(y, false) + 3;
+			if (y === top) this.sideLines.moveTo(rx, y + 3);
+			else this.sideLines.lineTo(rx, y + 3);
 		}
 		this.sideLines.strokePath();
 
-		this.sideLines.lineStyle(4, this.neonPink, 0.95);
+		this.sideLines.lineStyle(6, 0xD7CCC8, 1);
 		this.sideLines.beginPath();
 		for (let y = top; y <= bottom; y += step) {
 			const lx = this.getSideWallX(y, true);
-			if (y === top) {
-				this.sideLines.moveTo(lx, y);
-			} else {
-				this.sideLines.lineTo(lx, y);
-			}
+			if (y === top) this.sideLines.moveTo(lx, y);
+			else this.sideLines.lineTo(lx, y);
 		}
 		for (let y = top; y <= bottom; y += step) {
 			const rx = this.getSideWallX(y, false);
-			if (y === top) {
-				this.sideLines.moveTo(rx, y);
-			} else {
-				this.sideLines.lineTo(rx, y);
-			}
+			if (y === top) this.sideLines.moveTo(rx, y);
+			else this.sideLines.lineTo(rx, y);
+		}
+		this.sideLines.strokePath();
+
+		this.sideLines.lineStyle(2, 0xEFEBE9, 0.6);
+		this.sideLines.beginPath();
+		for (let y = top; y <= bottom; y += step) {
+			const lx = this.getSideWallX(y, true) - 1;
+			if (y === top) this.sideLines.moveTo(lx, y - 1);
+			else this.sideLines.lineTo(lx, y - 1);
+		}
+		for (let y = top; y <= bottom; y += step) {
+			const rx = this.getSideWallX(y, false) - 1;
+			if (y === top) this.sideLines.moveTo(rx, y - 1);
+			else this.sideLines.lineTo(rx, y - 1);
 		}
 		this.sideLines.strokePath();
 	}
@@ -672,10 +723,10 @@ export default class Level extends Phaser.Scene {
 		const fillY = this.ball.y + (endY - this.ball.y) * powerFill;
 
 		this.aimLine.clear();
-		this.drawTaperedBar(this.ball.x, this.ball.y, endX, endY, 16, 2.2, this.neonBlue, 0.14);
-		this.drawTaperedBar(this.ball.x, this.ball.y, fillX, fillY, 24, 4, this.neonBlue, 0.24);
-		this.drawTaperedBar(this.ball.x, this.ball.y, fillX, fillY, 13, 2.2, this.neonPink, 0.88);
-		this.drawTaperedBar(this.ball.x, this.ball.y, fillX, fillY, 6, 1, 0xeaffff, 0.88);
+		this.drawTaperedBar(this.ball.x, this.ball.y, endX, endY, 24, 4.2, this.accentBlue, 0.14);
+		this.drawTaperedBar(this.ball.x, this.ball.y, fillX, fillY, 32, 6, this.accentBlue, 0.24);
+		this.drawTaperedBar(this.ball.x, this.ball.y, fillX, fillY, 18, 4.2, this.accentCoral, 0.88);
+		this.drawTaperedBar(this.ball.x, this.ball.y, fillX, fillY, 8, 2, 0xeaffff, 0.88);
 
 		this.drawAimRangeArc();
 		this.drawAimCenterArrow(angle, endX, endY, powerFill);
@@ -722,22 +773,22 @@ export default class Level extends Phaser.Scene {
 	private drawAimRangeArc() {
 		const minAngle = this.aimMinAngle;
 		const maxAngle = this.aimMaxAngle;
-		const radius = 62;
+		const radius = 72;
 		const segment = Phaser.Math.DegToRad(3);
 		const gap = Phaser.Math.DegToRad(2);
 
 		this.aimArc.clear();
-		this.aimArc.lineStyle(14, this.neonPink, 0.16);
+		this.aimArc.lineStyle(18, this.accentCoral, 0.16);
 		this.aimArc.beginPath();
 		this.aimArc.arc(this.ball.x, this.ball.y, radius, minAngle, maxAngle, false);
 		this.aimArc.strokePath();
 
-		this.aimArc.lineStyle(8, this.neonPink, 0.28);
+		this.aimArc.lineStyle(10, this.accentCoral, 0.28);
 		this.aimArc.beginPath();
 		this.aimArc.arc(this.ball.x, this.ball.y, radius, minAngle, maxAngle, false);
 		this.aimArc.strokePath();
 
-		this.aimArc.lineStyle(5, this.neonPink, 0.9);
+		this.aimArc.lineStyle(6, this.accentCoral, 0.9);
 		for (let a = minAngle; a < maxAngle; a += segment + gap) {
 			const a0 = a;
 			const a1 = Math.min(a + segment, maxAngle);
@@ -749,7 +800,7 @@ export default class Level extends Phaser.Scene {
 			this.aimArc.strokePath();
 		}
 
-		this.aimArc.lineStyle(10, this.neonPink, 0.2);
+		this.aimArc.lineStyle(14, this.accentCoral, 0.2);
 		this.aimArc.beginPath();
 		this.aimArc.arc(this.ball.x, this.ball.y, radius, minAngle, maxAngle, false);
 		this.aimArc.strokePath();
@@ -757,8 +808,8 @@ export default class Level extends Phaser.Scene {
 
 		// Draw top center arrow
 		const centerAngle = this.aimSmoothCenterAngle;
-		const tipDist = radius + 28;
-		const baseDist = radius + 14;
+		const tipDist = radius + 36;
+		const baseDist = radius + 18;
 
 		const tipX = this.ball.x + Math.cos(centerAngle) * tipDist;
 		const tipY = this.ball.y + Math.sin(centerAngle) * tipDist;
@@ -766,11 +817,11 @@ export default class Level extends Phaser.Scene {
 		const baseCx = this.ball.x + Math.cos(centerAngle) * baseDist;
 		const baseCy = this.ball.y + Math.sin(centerAngle) * baseDist;
 
-		const perpX = Math.cos(centerAngle + Math.PI / 2) * 7;
-		const perpY = Math.sin(centerAngle + Math.PI / 2) * 7;
+		const perpX = Math.cos(centerAngle + Math.PI / 2) * 10;
+		const perpY = Math.sin(centerAngle + Math.PI / 2) * 10;
 
 
-		this.aimArc.fillStyle(this.neonPink, 1);
+		this.aimArc.fillStyle(this.accentCoral, 1);
 		this.aimArc.beginPath();
 		this.aimArc.moveTo(tipX, tipY);
 		this.aimArc.lineTo(baseCx + perpX, baseCy + perpY);
@@ -786,8 +837,8 @@ export default class Level extends Phaser.Scene {
 		const nx = -dirY;
 		const ny = dirX;
 
-		const headLen = 28 * pulse;
-		const wing = 10 * pulse;
+		const headLen = 36 * pulse;
+		const wing = 14 * pulse;
 		const tipX = endX + dirX * 10;
 		const tipY = endY + dirY * 10;
 		const headBaseX = tipX - dirX * headLen;
@@ -797,8 +848,8 @@ export default class Level extends Phaser.Scene {
 		const rightX = headBaseX - nx * wing;
 		const rightY = headBaseY - ny * wing;
 
-		const shaftStartX = this.ball.x + dirX * 16;
-		const shaftStartY = this.ball.y + dirY * 16;
+		const shaftStartX = this.ball.x + dirX * 24;
+		const shaftStartY = this.ball.y + dirY * 24;
 		const shaftEndX = headBaseX - dirX * 8;
 		const shaftEndY = headBaseY - dirY * 8;
 		const fillEndX = Phaser.Math.Linear(shaftStartX, shaftEndX, powerFill);
@@ -807,33 +858,33 @@ export default class Level extends Phaser.Scene {
 		this.aimCenterArrow.clear();
 
 		// Always-visible transparent rotating arrow body.
-		this.aimCenterArrow.lineStyle(14, this.neonBlue, 0.16);
+		this.aimCenterArrow.lineStyle(20, this.accentBlue, 0.16);
 		this.aimCenterArrow.beginPath();
 		this.aimCenterArrow.moveTo(shaftStartX, shaftStartY);
 		this.aimCenterArrow.lineTo(shaftEndX, shaftEndY);
 		this.aimCenterArrow.strokePath();
 
-		this.aimCenterArrow.lineStyle(6, 0xeaffff, 0.18);
+		this.aimCenterArrow.lineStyle(10, 0xeaffff, 0.18);
 		this.aimCenterArrow.beginPath();
 		this.aimCenterArrow.moveTo(shaftStartX, shaftStartY);
 		this.aimCenterArrow.lineTo(shaftEndX, shaftEndY);
 		this.aimCenterArrow.strokePath();
 
 		// Fill grows from start to end while arrow stays present.
-		this.aimCenterArrow.lineStyle(10, this.neonPink, 0.42 + powerFill * 0.28);
+		this.aimCenterArrow.lineStyle(16, this.accentCoral, 0.42 + powerFill * 0.28);
 		this.aimCenterArrow.beginPath();
 		this.aimCenterArrow.moveTo(shaftStartX, shaftStartY);
 		this.aimCenterArrow.lineTo(fillEndX, fillEndY);
 		this.aimCenterArrow.strokePath();
 
-		this.aimCenterArrow.lineStyle(4, 0xeaffff, 0.52 + powerFill * 0.36);
+		this.aimCenterArrow.lineStyle(8, 0xeaffff, 0.52 + powerFill * 0.36);
 		this.aimCenterArrow.beginPath();
 		this.aimCenterArrow.moveTo(shaftStartX, shaftStartY);
 		this.aimCenterArrow.lineTo(fillEndX, fillEndY);
 		this.aimCenterArrow.strokePath();
 
 		// Transparent arrow head always visible.
-		this.aimCenterArrow.fillStyle(this.neonBlue, 0.16);
+		this.aimCenterArrow.fillStyle(this.accentBlue, 0.16);
 		this.aimCenterArrow.beginPath();
 		this.aimCenterArrow.moveTo(tipX, tipY);
 		this.aimCenterArrow.lineTo(leftX, leftY);
@@ -841,7 +892,7 @@ export default class Level extends Phaser.Scene {
 		this.aimCenterArrow.closePath();
 		this.aimCenterArrow.fillPath();
 
-		this.aimCenterArrow.lineStyle(2, this.neonBlue, 0.46);
+		this.aimCenterArrow.lineStyle(6, this.accentBlue, 0.46);
 		this.aimCenterArrow.beginPath();
 		this.aimCenterArrow.moveTo(tipX, tipY);
 		this.aimCenterArrow.lineTo(leftX, leftY);
@@ -849,7 +900,7 @@ export default class Level extends Phaser.Scene {
 		this.aimCenterArrow.closePath();
 		this.aimCenterArrow.strokePath();
 
-		// Filled neon core on top.
+		// Filled core on top.
 		this.aimCenterArrow.fillStyle(0xeaffff, 0.2 + powerFill * 0.72);
 		this.aimCenterArrow.beginPath();
 		this.aimCenterArrow.moveTo(tipX, tipY);
@@ -860,31 +911,31 @@ export default class Level extends Phaser.Scene {
 
 		if (powerFill >= 0.999) {
 			const pulseT = (Math.sin(this.time.now * 0.02) + 1) * 0.5;
-			const innerR = Phaser.Math.Linear(10, 18, pulseT);
-			const outerR = innerR + Phaser.Math.Linear(8, 16, pulseT);
+			const innerR = Phaser.Math.Linear(14, 24, pulseT);
+			const outerR = innerR + Phaser.Math.Linear(12, 22, pulseT);
 			const ringAlpha = Phaser.Math.Linear(0.62, 0.18, pulseT);
 
-			this.aimCenterArrow.lineStyle(8, this.neonBlue, 0.22);
+			this.aimCenterArrow.lineStyle(12, this.accentBlue, 0.22);
 			this.aimCenterArrow.beginPath();
 			this.aimCenterArrow.moveTo(shaftEndX, shaftEndY);
 			this.aimCenterArrow.lineTo(tipX, tipY);
 			this.aimCenterArrow.strokePath();
 
-			this.aimCenterArrow.lineStyle(4, 0xeaffff, 0.64);
+			this.aimCenterArrow.lineStyle(8, 0xeaffff, 0.64);
 			this.aimCenterArrow.strokeCircle(tipX, tipY, innerR);
 
-			this.aimCenterArrow.lineStyle(2, this.neonPink, ringAlpha);
+			this.aimCenterArrow.lineStyle(4, this.accentCoral, ringAlpha);
 			this.aimCenterArrow.strokeCircle(tipX, tipY, outerR);
 
 			for (let i = 0; i < 6; i++) {
 				const rayA = angle + i * (Math.PI / 3);
 				const rayStart = outerR + 1;
-				const rayLen = Phaser.Math.Linear(4, 12, pulseT);
+				const rayLen = Phaser.Math.Linear(6, 18, pulseT);
 				const rx0 = tipX + Math.cos(rayA) * rayStart;
 				const ry0 = tipY + Math.sin(rayA) * rayStart;
 				const rx1 = tipX + Math.cos(rayA) * (rayStart + rayLen);
 				const ry1 = tipY + Math.sin(rayA) * (rayStart + rayLen);
-				this.aimCenterArrow.lineStyle(2, 0xeaffff, 0.4 * (1 - pulseT) + 0.2);
+				this.aimCenterArrow.lineStyle(4, 0xeaffff, 0.4 * (1 - pulseT) + 0.2);
 				this.aimCenterArrow.beginPath();
 				this.aimCenterArrow.moveTo(rx0, ry0);
 				this.aimCenterArrow.lineTo(rx1, ry1);
@@ -931,7 +982,6 @@ export default class Level extends Phaser.Scene {
 		this.trailFx.startFollow(this.ball);
 		this.trailFx.start();
 		this.cameras.main.shake(90, 0.008);
-		this.cameras.main.flash(100, 20, 255, 245, false);
 		this.tweens.add({
 			targets: this.cameras.main,
 			zoom: 1.045,
@@ -970,12 +1020,12 @@ export default class Level extends Phaser.Scene {
 			this.pushTailPoint(anchorX, anchorY);
 		}
 
-		this.drawNeonTailLayer(this.tailRibbon, 0x11d4ff, 0.2, 1.8, speed);
-		this.drawNeonTailLayer(this.tailCore, 0x72f8ff, 0.42, 1, speed);
+		this.drawNeonTailLayer(this.tailRibbon, this.accentBlue, 0.2, 1.8, speed);
+		this.drawNeonTailLayer(this.tailCore, this.accentCoral, 0.35, 1, speed);
 
 		if (this.tailPoints.length >= 2) {
-			const sparkleAlpha = Phaser.Math.Clamp(0.28 + speed / this.maxLaunchPower * 0.42, 0.2, 0.62);
-			this.tailCore.lineStyle(2, 0xeaffff, sparkleAlpha);
+			const sparkleAlpha = Phaser.Math.Clamp(0.2 + speed / this.maxLaunchPower * 0.3, 0.15, 0.45);
+			this.tailCore.lineStyle(2, this.highlightColor, sparkleAlpha);
 			this.tailCore.beginPath();
 			this.tailCore.moveTo(this.tailPoints[0].x, this.tailPoints[0].y);
 			for (let i = 1; i < this.tailPoints.length; i++) {
@@ -1095,9 +1145,15 @@ export default class Level extends Phaser.Scene {
 
 	}
 
+	private getDifficulty(): number {
+		const height = Math.max(0, this.startY - this.ball.y);
+		return Phaser.Math.Clamp(height / 10000, 0, 1);
+	}
+
 	private updateWorld(dt: number) {
 		this.floorY -= this.floorRiseSpeed * dt;
-		this.floorRiseSpeed += 2.2 * dt;
+		const d = this.getDifficulty();
+		this.floorRiseSpeed += (2.2 + d * 1.5) * dt;
 
 		this.maxHeightScore = Math.max(this.maxHeightScore, Math.floor(this.startY - this.ball.y));
 
@@ -1130,16 +1186,16 @@ export default class Level extends Phaser.Scene {
 				this.updateSideMover(barrier, dt);
 			} else if (barrier.type === 'HEXAGON_TURRET') {
 				this.updateHexagonTurret(barrier, dt);
-			} else if (barrier.type === 'MAGNET_CORE') {
-				this.updateMagnetCore(barrier, dt);
+			} else if (barrier.type === 'MINE_FIELD') {
+				this.updateMineField(barrier, dt);
 			} else if (barrier.type === 'LASER_GRID') {
 				this.updateLaserGrid(barrier, dt);
 			} else if (barrier.type === 'PULSE_RING') {
 				this.updatePulseRing(barrier, dt);
 			} else if (barrier.type === 'TELEPORT_GATE') {
 				this.updateTeleportGate(barrier, dt);
-			} else if (barrier.type === 'GRAVITY_FLIP_ZONE') {
-				this.updateGravityFlipZone(barrier, dt);
+			} else if (barrier.type === 'BOUNCE_SPEED_ZONE') {
+				this.updateBounceSpeedZone(barrier, dt);
 			}
 
 			if (!barrier.passed) {
@@ -1151,16 +1207,16 @@ export default class Level extends Phaser.Scene {
 					passedThreshold = barrier.y - (barrier.windZoneHeight || 0) / 2 - this.ballRadius;
 				} else if (barrier.type === 'HEXAGON_TURRET') {
 					passedThreshold = barrier.y - (barrier.turretRadius || 56) - this.ballRadius;
-				} else if (barrier.type === 'MAGNET_CORE') {
-					passedThreshold = barrier.y - (barrier.magnetInfluenceRadius || 220) - this.ballRadius;
+				} else if (barrier.type === 'MINE_FIELD') {
+					passedThreshold = barrier.y - 200 - this.ballRadius;
 				} else if (barrier.type === 'LASER_GRID') {
 					passedThreshold = barrier.y - (barrier.laserBandHeight || 220) * 0.5 - this.ballRadius;
 				} else if (barrier.type === 'PULSE_RING') {
 					passedThreshold = barrier.y - (barrier.pulseMaxRadius || 220) - this.ballRadius;
 				} else if (barrier.type === 'TELEPORT_GATE') {
 					passedThreshold = barrier.y - (barrier.teleportRadius || 34) - this.ballRadius;
-				} else if (barrier.type === 'GRAVITY_FLIP_ZONE') {
-					passedThreshold = barrier.y - (barrier.gravityZoneHeight || 260) * 0.5 - this.ballRadius;
+				} else if (barrier.type === 'BOUNCE_SPEED_ZONE') {
+					passedThreshold = barrier.y - (barrier.bsZoneHeight || 260) * 0.5 - this.ballRadius;
 				} else {
 					passedThreshold = barrier.y + this.ballRadius;
 				}
@@ -1169,7 +1225,6 @@ export default class Level extends Phaser.Scene {
 					barrier.passed = true;
 					// Score is now height-based, no increment here
 					this.launchFx.explode(22, this.ball.x, this.ball.y);
-					this.cameras.main.flash(60, 255, 46, 166, false);
 				}
 			}
 		}
@@ -1218,10 +1273,9 @@ export default class Level extends Phaser.Scene {
 		const container = this.add.container(x, y).setDepth(34);
 		container.setData("baseY", y);
 
-		const glow = this.add.circle(0, 0, this.pickupRadius + 18, 0xffea00, 0.42)
-			.setBlendMode(Phaser.BlendModes.ADD);
-		const core = this.add.circle(0, 0, this.pickupRadius, 0xffd200, 0.95)
-			.setStrokeStyle(3, 0xfff59a, 1);
+		const glow = this.add.circle(3, 3, this.pickupRadius + 6, this.shadowColor, 0.2);
+		const core = this.add.circle(0, 0, this.pickupRadius, 0xFFE082, 0.95)
+			.setStrokeStyle(3, 0xFFD54F, 1);
 		const bolt = this.add.graphics();
 		bolt.fillStyle(0xfff8cf, 1);
 		bolt.beginPath();
@@ -1252,7 +1306,6 @@ export default class Level extends Phaser.Scene {
 		this.boostedLaunches += 3;
 		this.nextPickupSpawnY = y - Phaser.Math.Between(1520, 2600);
 		this.launchFx.explode(52, x, y);
-		this.cameras.main.flash(90, 255, 235, 40, false);
 		this.playSfx("chargedbuff");
 		this.triggerHaptic("success");
 	}
@@ -1310,11 +1363,14 @@ export default class Level extends Phaser.Scene {
 				projectile.glow.destroy();
 			}
 		}
-		barrier.magnetCore?.destroy();
-		barrier.magnetGlow?.destroy();
-		barrier.magnetRingA?.destroy();
-		barrier.magnetRingB?.destroy();
-		barrier.magnetArcs?.destroy();
+		if (barrier.mines) {
+			for (const mine of barrier.mines) {
+				mine.graphics.destroy();
+				mine.glow.destroy();
+			}
+		}
+		barrier.mineFieldBorder?.destroy();
+		barrier.mineFieldGlow?.destroy();
 		if (barrier.laserBeamUnits) {
 			for (const beam of barrier.laserBeamUnits) {
 				beam.beam.destroy();
@@ -1329,16 +1385,20 @@ export default class Level extends Phaser.Scene {
 		barrier.teleportAGlow?.destroy();
 		barrier.teleportBGlow?.destroy();
 		barrier.teleportLink?.destroy();
-		barrier.gravityZoneGraphics?.destroy();
-		barrier.gravityWaveGraphics?.destroy();
+		barrier.pulseRingSoft?.destroy();
+		barrier.bsZoneGraphics?.destroy();
+		barrier.bsIconGraphics?.destroy();
 	}
 
 	private fillBarriersAhead() {
 		const topY = this.cameras.main.scrollY;
 		const spawnEndY = topY - this.spawnAheadMax;
+		const d = this.getDifficulty();
+		const spacingMin = this.barrierSpacingMin - Math.floor(d * 40);
+		const spacingMax = this.barrierSpacingMax - Math.floor(d * 60);
 		while (this.nextBarrierSpawnY >= spawnEndY) {
 			this.spawnBarrier(this.nextBarrierSpawnY);
-			this.nextBarrierSpawnY -= Phaser.Math.Between(this.barrierSpacingMin, this.barrierSpacingMax);
+			this.nextBarrierSpawnY -= Phaser.Math.Between(spacingMin, spacingMax);
 		}
 	}
 
@@ -1371,7 +1431,7 @@ export default class Level extends Phaser.Scene {
 		} else if (rand < 0.56) {
 			trapType = 'HEXAGON_TURRET';
 		} else if (rand < 0.66) {
-			trapType = 'MAGNET_CORE';
+			trapType = 'MINE_FIELD';
 		} else if (rand < 0.78) {
 			trapType = 'LASER_GRID';
 		} else if (rand < 0.88) {
@@ -1379,7 +1439,7 @@ export default class Level extends Phaser.Scene {
 		} else if (rand < 0.95) {
 			trapType = 'TELEPORT_GATE';
 		} else {
-			trapType = 'GRAVITY_FLIP_ZONE';
+			trapType = 'BOUNCE_SPEED_ZONE';
 		}
 
 		let heightReserved = 0;
@@ -1388,7 +1448,6 @@ export default class Level extends Phaser.Scene {
 			this.spawnStaticBarrier(spawnY);
 			heightReserved = Phaser.Math.Between(this.barrierSpacingMin, this.barrierSpacingMax);
 		} else if (trapType === 'ROTATING_BAR') {
-			// Rotating bar variations
 			const variation = Phaser.Math.RND.integerInRange(0, 2);
 
 			if (variation === 0) {
@@ -1412,8 +1471,8 @@ export default class Level extends Phaser.Scene {
 		} else if (trapType === 'HEXAGON_TURRET') {
 			this.spawnHexagonTurret(spawnY);
 			heightReserved = Phaser.Math.Between(360, 520);
-		} else if (trapType === 'MAGNET_CORE') {
-			this.spawnMagnetCore(spawnY);
+		} else if (trapType === 'MINE_FIELD') {
+			this.spawnMineField(spawnY);
 			heightReserved = Phaser.Math.Between(430, 560);
 		} else if (trapType === 'LASER_GRID') {
 			this.spawnLaserGrid(spawnY);
@@ -1424,8 +1483,8 @@ export default class Level extends Phaser.Scene {
 		} else if (trapType === 'TELEPORT_GATE') {
 			this.spawnTeleportGate(spawnY);
 			heightReserved = Phaser.Math.Between(420, 540);
-		} else if (trapType === 'GRAVITY_FLIP_ZONE') {
-			this.spawnGravityFlipZone(spawnY);
+		} else if (trapType === 'BOUNCE_SPEED_ZONE') {
+			this.spawnBounceSpeedZone(spawnY);
 			heightReserved = Phaser.Math.Between(420, 560);
 		}
 
@@ -1441,13 +1500,12 @@ export default class Level extends Phaser.Scene {
 		const centerX = safeLeft < safeRight
 			? Phaser.Math.Between(safeLeft, safeRight)
 			: (leftWall + rightWall) * 0.5;
-		const radius = 52;
+		const radius = 72;
+		const d = this.getDifficulty();
 		const turretAngle = Math.random() * Math.PI * 2;
-		const turretAngularVelocity = Phaser.Math.FloatBetween(0.45, 0.95) * (Math.random() > 0.5 ? 1 : -1);
+		const turretAngularVelocity = Phaser.Math.FloatBetween(0.45 + d * 0.3, 0.95 + d * 0.5) * (Math.random() > 0.5 ? 1 : -1);
 
-		const glow = this.add.graphics()
-			.setDepth(26)
-			.setBlendMode(Phaser.BlendModes.ADD);
+		const glow = this.add.graphics().setDepth(26);
 		glow.x = centerX;
 		glow.y = spawnY;
 		const body = this.add.graphics().setDepth(32);
@@ -1465,13 +1523,13 @@ export default class Level extends Phaser.Scene {
 			turretAngle,
 			turretAngularVelocity,
 			turretShootTimer: Phaser.Math.FloatBetween(0.35, 0.9),
-			turretShootInterval: Phaser.Math.FloatBetween(0.7, 1.05),
+			turretShootInterval: Phaser.Math.FloatBetween(0.7 - d * 0.2, 1.05 - d * 0.25),
 			turretShotIndex: Phaser.Math.Between(0, 5),
 			turretGraphics: body,
 			turretGlowGraphics: glow,
 			turretProjectiles: [],
-			turretProjectileSpeed: Phaser.Math.Between(160, 220),
-			turretProjectileLife: Phaser.Math.FloatBetween(1.7, 2.35)
+			turretProjectileSpeed: Phaser.Math.Between(160 + Math.floor(d * 60), 220 + Math.floor(d * 80)),
+			turretProjectileLife: Phaser.Math.FloatBetween(1.7 + d * 0.3, 2.35 + d * 0.4)
 		});
 	}
 
@@ -1481,35 +1539,35 @@ export default class Level extends Phaser.Scene {
 		radius: number
 	) {
 		glowGraphics.clear();
-		glowGraphics.fillStyle(this.neonBlue, 0.22);
+		glowGraphics.fillStyle(this.shadowColor, 0.4);
 		glowGraphics.beginPath();
-		this.traceRegularPolygonPath(glowGraphics, 0, 0, radius + 18, 6);
+		this.traceRegularPolygonPath(glowGraphics, 6, 6, radius + 10, 6);
 		glowGraphics.closePath();
 		glowGraphics.fillPath();
 
-		glowGraphics.lineStyle(8, this.neonPink, 0.3);
-		glowGraphics.beginPath();
-		this.traceRegularPolygonPath(glowGraphics, 0, 0, radius + 8, 6);
-		glowGraphics.closePath();
-		glowGraphics.strokePath();
-
 		bodyGraphics.clear();
-		bodyGraphics.fillStyle(0xd8fcff, 0.94);
+		bodyGraphics.fillStyle(this.accentLavender, 1);
 		bodyGraphics.beginPath();
 		this.traceRegularPolygonPath(bodyGraphics, 0, 0, radius, 6);
 		bodyGraphics.closePath();
 		bodyGraphics.fillPath();
 
-		bodyGraphics.lineStyle(3, this.neonPink, 0.95);
+		bodyGraphics.lineStyle(6, this.accentCoral, 1);
 		bodyGraphics.beginPath();
 		this.traceRegularPolygonPath(bodyGraphics, 0, 0, radius, 6);
 		bodyGraphics.closePath();
 		bodyGraphics.strokePath();
 
-		bodyGraphics.fillStyle(0xffffff, 0.95);
-		bodyGraphics.fillCircle(0, 0, radius * 0.36);
-		bodyGraphics.lineStyle(2, this.neonBlue, 0.9);
-		bodyGraphics.strokeCircle(0, 0, radius * 0.36);
+		bodyGraphics.fillStyle(0xE1BEE7, 0.6);
+		bodyGraphics.beginPath();
+		this.traceRegularPolygonPath(bodyGraphics, -4, -4, radius * 0.7, 6);
+		bodyGraphics.closePath();
+		bodyGraphics.fillPath();
+
+		bodyGraphics.fillStyle(0xffffff, 0.9);
+		bodyGraphics.fillCircle(0, 0, radius * 0.35);
+		bodyGraphics.lineStyle(2, this.accentLavender, 0.8);
+		bodyGraphics.strokeCircle(0, 0, radius * 0.32);
 	}
 
 	private traceRegularPolygonPath(
@@ -1621,11 +1679,10 @@ export default class Level extends Phaser.Scene {
 		const vx = Math.cos(shootAngle) * speed;
 		const vy = Math.sin(shootAngle) * speed;
 
-		const glow = this.add.rectangle(x, y, size + 14, size + 14, this.neonBlue, 0.52)
-			.setBlendMode(Phaser.BlendModes.ADD)
+		const glow = this.add.rectangle(x + 2, y + 2, size + 6, size + 6, this.shadowColor, 0.3)
 			.setDepth(28);
-		const body = this.add.rectangle(x, y, size, size, 0xe9fdff, 1)
-			.setStrokeStyle(2, this.neonPink, 0.98)
+		const body = this.add.rectangle(x, y, size, size, this.accentLavender, 1)
+			.setStrokeStyle(2, this.accentCoral, 0.9)
 			.setDepth(33);
 		body.rotation = shootAngle + Math.PI / 4;
 		glow.rotation = body.rotation;
@@ -1672,186 +1729,115 @@ export default class Level extends Phaser.Scene {
 		});
 	}
 
-	private spawnMagnetCore(spawnY: number) {
+	private spawnMineField(spawnY: number) {
+		const d = this.getDifficulty();
 		const leftWall = this.getSideWallX(spawnY, true);
 		const rightWall = this.getSideWallX(spawnY, false);
-		const influenceRadius = Phaser.Math.Between(210, 280);
-		const coreRadius = Phaser.Math.Between(24, 31);
-		const sidePadding = Math.min(130, influenceRadius * 0.38);
-		const safeLeft = leftWall + sidePadding;
-		const safeRight = rightWall - sidePadding;
-		const centerX = safeLeft < safeRight
-			? Phaser.Math.Between(safeLeft, safeRight)
-			: (leftWall + rightWall) * 0.5;
+		const centerX = (leftWall + rightWall) * 0.5;
+		const mineCount = Phaser.Math.Between(5, 6);
+		const verticalSpread = Phaser.Math.Between(280, 380);
+		const mineRadius = 24;
+		const mines: MineUnit[] = [];
 
-		const glow = this.add.circle(centerX, spawnY, influenceRadius * 0.62, this.neonBlue, 0.11)
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(22);
-		const ringA = this.add.circle(centerX, spawnY, influenceRadius * 0.72, this.neonBlue, 0)
-			.setStrokeStyle(5, this.neonBlue, 0.46)
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(26);
-		const ringB = this.add.circle(centerX, spawnY, influenceRadius * 0.44, this.neonPink, 0)
-			.setStrokeStyle(4, this.neonPink, 0.62)
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(27);
-		const core = this.add.circle(centerX, spawnY, coreRadius, 0xe8fdff, 1)
-			.setStrokeStyle(3, this.neonPink, 0.95)
-			.setDepth(34);
-		const arcs = this.add.graphics()
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(29);
+		for (let i = 0; i < mineCount; i++) {
+			const t = mineCount <= 1 ? 0.5 : i / (mineCount - 1);
+			const my = spawnY + Phaser.Math.Linear(-verticalSpread * 0.5, verticalSpread * 0.5, t);
+			const lw = this.getSideWallX(my, true) + 40;
+			const rw = this.getSideWallX(my, false) - 40;
+			const mx = Phaser.Math.Between(lw, rw);
+
+			const g = this.add.graphics().setDepth(32);
+			const glow = this.add.circle(mx, my, mineRadius + 8, this.accentCoral, 0).setDepth(28);
+
+			mines.push({ x: mx, y: my, armed: false, graphics: g, glow });
+		}
+
+		const armedCount = Math.min(Phaser.Math.Between(2, 2 + Math.floor(d * 2)), 4);
+		const indices = Array.from({ length: mineCount }, (_, i) => i);
+		Phaser.Utils.Array.Shuffle(indices);
+		for (let i = 0; i < armedCount; i++) {
+			mines[indices[i]].armed = true;
+		}
 
 		this.barriers.push({
-			type: 'MAGNET_CORE',
+			type: 'MINE_FIELD',
 			y: spawnY,
 			passed: false,
-			magnetCenterX: centerX,
-			magnetInfluenceRadius: influenceRadius,
-			magnetCoreRadius: coreRadius,
-			magnetForce: Phaser.Math.Between(1400, 1950),
-			magnetPolarity: Math.random() > 0.5 ? 1 : -1,
-			magnetPhaseDuration: Phaser.Math.FloatBetween(1.45, 2.1),
-			magnetPhaseTimer: Phaser.Math.FloatBetween(0.4, 1.1),
-			magnetCore: core,
-			magnetGlow: glow,
-			magnetRingA: ringA,
-			magnetRingB: ringB,
-			magnetArcs: arcs
+			mineFieldCenterX: centerX,
+			mineFieldRadius: mineRadius,
+			mines,
+			minePatternTimer: Phaser.Math.FloatBetween(1.6, 2.2),
+			minePatternDuration: Phaser.Math.FloatBetween(1.6, 2.2),
 		});
 	}
 
-	private updateMagnetCore(barrier: Barrier, dt: number) {
-		if (
-			barrier.magnetCenterX === undefined ||
-			barrier.magnetInfluenceRadius === undefined ||
-			barrier.magnetCoreRadius === undefined ||
-			barrier.magnetForce === undefined ||
-			barrier.magnetPolarity === undefined ||
-			barrier.magnetPhaseDuration === undefined ||
-			barrier.magnetPhaseTimer === undefined ||
-			!barrier.magnetCore ||
-			!barrier.magnetGlow ||
-			!barrier.magnetRingA ||
-			!barrier.magnetRingB ||
-			!barrier.magnetArcs
-		) {
-			return;
-		}
+	private updateMineField(barrier: Barrier, dt: number) {
+		if (!barrier.mines || barrier.minePatternTimer === undefined || barrier.minePatternDuration === undefined || barrier.mineFieldRadius === undefined) return;
 
-		const cx = barrier.magnetCenterX;
-		const cy = barrier.y;
-		const polarityColor = barrier.magnetPolarity === 1 ? this.neonBlue : this.neonPink;
-		const altColor = barrier.magnetPolarity === 1 ? this.neonPink : this.neonBlue;
+		const d = this.getDifficulty();
+		const mineRadius = barrier.mineFieldRadius;
+		const now = this.time.now * 0.001;
 
-		barrier.magnetPhaseTimer -= dt;
-		if (barrier.magnetPhaseTimer <= 0) {
-			barrier.magnetPolarity *= -1;
-			barrier.magnetPhaseDuration = Phaser.Math.FloatBetween(1.4, 2.15);
-			barrier.magnetPhaseTimer = barrier.magnetPhaseDuration;
-			this.launchFx.explode(26, cx, cy);
-			this.cameras.main.flash(55, 110, 230, 255, false);
-		}
-
-		const phaseT = Phaser.Math.Clamp(barrier.magnetPhaseTimer / barrier.magnetPhaseDuration, 0, 1);
-		const t = this.time.now * 0.001;
-		const pulse = 1 + Math.sin(t * 7.6 + cy * 0.02) * 0.07;
-		const surge = 0.5 + Math.sin(t * 12.0 + (1 - phaseT) * Math.PI * 2) * 0.5;
-
-		barrier.magnetCore.x = cx;
-		barrier.magnetCore.y = cy;
-		barrier.magnetGlow.x = cx;
-		barrier.magnetGlow.y = cy;
-		barrier.magnetRingA.x = cx;
-		barrier.magnetRingA.y = cy;
-		barrier.magnetRingB.x = cx;
-		barrier.magnetRingB.y = cy;
-
-		barrier.magnetCore.setFillStyle(0xefffff, 0.9);
-		barrier.magnetCore.setStrokeStyle(3, polarityColor, 0.95);
-		barrier.magnetCore.setScale(pulse * (0.92 + surge * 0.14));
-		barrier.magnetGlow.setFillStyle(polarityColor, 0.08 + surge * 0.08);
-		barrier.magnetGlow.setScale(0.95 + surge * 0.18);
-
-		barrier.magnetRingA.setStrokeStyle(5, polarityColor, 0.42 + surge * 0.32);
-		barrier.magnetRingA.rotation += dt * 0.65;
-		barrier.magnetRingA.setScale(0.95 + (1 - phaseT) * 0.08);
-		barrier.magnetRingB.setStrokeStyle(4, altColor, 0.45 + (1 - surge) * 0.28);
-		barrier.magnetRingB.rotation -= dt * 1.15;
-		barrier.magnetRingB.setScale(0.88 + surge * 0.14);
-
-		const arcs = barrier.magnetArcs;
-		arcs.clear();
-		const influenceRadius = barrier.magnetInfluenceRadius;
-		for (let i = 0; i < 6; i++) {
-			const baseAngle = t * (barrier.magnetPolarity === 1 ? 1.5 : -1.7) + (Math.PI * 2 * i) / 6;
-			const endAngle = baseAngle + Math.sin(t * 4 + i) * 0.22;
-			const startR = barrier.magnetCoreRadius + 8;
-			const endR = influenceRadius * Phaser.Math.Linear(0.56, 0.95, (i + surge) / 6);
-			const segments = 6;
-			arcs.lineStyle(2.2, polarityColor, 0.18 + surge * 0.3);
-			arcs.beginPath();
-			for (let s = 0; s <= segments; s++) {
-				const segT = s / segments;
-				const a = Phaser.Math.Linear(baseAngle, endAngle, segT) + Math.sin(t * 9 + i * 1.7 + s) * 0.08;
-				const r = Phaser.Math.Linear(startR, endR, segT) + Math.sin(t * 12 + i * 2.4 + s * 0.6) * 7;
-				const px = cx + Math.cos(a) * r;
-				const py = cy + Math.sin(a) * r;
-				if (s === 0) {
-					arcs.moveTo(px, py);
-				} else {
-					arcs.lineTo(px, py);
-				}
+		barrier.minePatternTimer -= dt;
+		if (barrier.minePatternTimer <= 0) {
+			const armedCount = Math.min(Phaser.Math.Between(2, 2 + Math.floor(d * 2)), 4);
+			for (const mine of barrier.mines) mine.armed = false;
+			const indices = Array.from({ length: barrier.mines.length }, (_, i) => i);
+			Phaser.Utils.Array.Shuffle(indices);
+			for (let i = 0; i < armedCount; i++) {
+				barrier.mines[indices[i]].armed = true;
 			}
-			arcs.strokePath();
+			barrier.minePatternDuration = Phaser.Math.FloatBetween(1.6, 2.2);
+			barrier.minePatternTimer = barrier.minePatternDuration;
 		}
 
-		const dx = cx - this.ball.x;
-		const dy = cy - this.ball.y;
-		const dist = Math.hypot(dx, dy);
-		if (dist > 1 && dist < influenceRadius) {
-			const nx = dx / dist;
-			const ny = dy / dist;
-			const falloff = Phaser.Math.Clamp(1 - dist / influenceRadius, 0, 1);
-			const strength = (falloff * falloff) * barrier.magnetForce;
-			const pullSign = barrier.magnetPolarity === 1 ? 1 : -1;
-			const swirlSign = Math.sin(t * 3.8 + cy * 0.01) >= 0 ? 1 : -1;
-			const tx = -ny * swirlSign;
-			const ty = nx * swirlSign;
-			const fx = nx * strength * pullSign + tx * strength * 0.16;
-			const fy = ny * strength * pullSign + ty * strength * 0.16;
-			this.ballVx += fx * dt;
-			this.ballVy += fy * dt;
+		for (const mine of barrier.mines) {
+			const g = mine.graphics;
+			g.clear();
 
-			if (falloff > 0.82 && Math.random() < 0.22) {
-				this.launchFx.explode(1, this.ball.x, this.ball.y);
+			if (mine.armed) {
+				const pulse = 1 + Math.sin(now * 8 + mine.x * 0.05 + mine.y * 0.03) * 0.12;
+				const r = mineRadius * pulse;
+				g.fillStyle(this.shadowColor, 0.5);
+				g.fillCircle(mine.x + 5, mine.y + 5, r);
+				g.fillStyle(this.accentCoral, 1);
+				g.fillCircle(mine.x, mine.y, r);
+				g.fillStyle(0xFFCDD2, 0.7);
+				g.fillCircle(mine.x - 5, mine.y - 6, r * 0.45);
+				g.fillStyle(0xffffff, 0.8);
+				g.fillCircle(mine.x - 6, mine.y - 7, r * 0.22);
+				mine.glow.x = mine.x;
+				mine.glow.y = mine.y;
+				mine.glow.setFillStyle(this.accentCoral, 0.15 + pulse * 0.1);
+				mine.glow.setScale(pulse);
+				mine.glow.setVisible(true);
+			} else {
+				g.fillStyle(this.shadowColor, 0.3);
+				g.fillCircle(mine.x + 4, mine.y + 4, mineRadius);
+				g.fillStyle(0xD7CCC8, 1);
+				g.fillCircle(mine.x, mine.y, mineRadius);
+				g.fillStyle(0xEFEBE9, 0.6);
+				g.fillCircle(mine.x - 4, mine.y - 5, mineRadius * 0.4);
+				mine.glow.setVisible(false);
 			}
 		}
 	}
 
 	private spawnLaserGrid(spawnY: number) {
-		const beamCount = 4;
+		const d = this.getDifficulty();
+		const beamCount = 4 + Math.floor(d * 2);
 		const bandHeight = Phaser.Math.Between(210, 250);
-		const thickness = Phaser.Math.Between(12, 16);
-		const perBeamDuration = Phaser.Math.FloatBetween(0.32, 0.48);
-		const allOffDuration = 3;
+		const thickness = Phaser.Math.Between(18, 24);
+		const perBeamDuration = Phaser.Math.FloatBetween(0.32 - d * 0.08, 0.48 - d * 0.1);
+		const allOffDuration = 3 - d * 1.2;
 		const units: LaserBeamUnit[] = [];
 
 		for (let i = 0; i < beamCount; i++) {
 			const t = beamCount <= 1 ? 0.5 : i / (beamCount - 1);
 			const yOffset = Phaser.Math.Linear(-bandHeight * 0.42, bandHeight * 0.42, t);
-			const y = spawnY + yOffset;
-			const leftWall = this.getSideWallX(y, true) + 6;
-			const rightWall = this.getSideWallX(y, false) - 6;
-			const width = Math.max(30, rightWall - leftWall);
-			const glow = this.add.rectangle(leftWall, y, width, thickness + 16, this.neonBlue, 0.28)
-				.setOrigin(0, 0.5)
-				.setBlendMode(Phaser.BlendModes.ADD)
-				.setDepth(24);
-			const beam = this.add.rectangle(leftWall, y, width, thickness, 0xeeffff, 1)
-				.setOrigin(0, 0.5)
-				.setStrokeStyle(2, this.neonPink, 0.95)
-				.setDepth(31);
+			
+			const glow = this.add.graphics().setDepth(24);
+			const beam = this.add.graphics().setDepth(31);
 
 			units.push({
 				yOffset,
@@ -1903,20 +1889,24 @@ export default class Level extends Phaser.Scene {
 			const active = i === activeBeamIndex;
 
 			unit.active = active;
-			unit.beam.x = leftWall;
-			unit.beam.y = y;
-			unit.beam.width = width;
-			unit.beam.height = barrier.laserThickness;
-			unit.glow.x = leftWall;
-			unit.glow.y = y;
-			unit.glow.width = width;
-			unit.glow.height = barrier.laserThickness + 16;
 
 			const pulse = 0.74 + (Math.sin(now * 14 + i * 1.3 + barrier.y * 0.02) + 1) * 0.12;
 			const beamTargetAlpha = active ? pulse : (allOffPhase ? 0.18 : 0.24);
 			const glowTargetAlpha = active ? 0.22 + pulse * 0.3 : (allOffPhase ? 0.12 : 0.18);
+			
+			// Custom soft alpha tracking since we don't have .alpha on drawing
 			unit.beam.alpha += (beamTargetAlpha - unit.beam.alpha) * 0.24;
 			unit.glow.alpha += (glowTargetAlpha - unit.glow.alpha) * 0.24;
+
+			unit.beam.clear();
+			unit.beam.fillStyle(this.accentCoral, 1);
+			unit.beam.fillRoundedRect(leftWall, y - barrier.laserThickness / 2, width, barrier.laserThickness, barrier.laserThickness / 2);
+			unit.beam.lineStyle(4, 0xFFCDD2, 1);
+			unit.beam.strokeRoundedRect(leftWall, y - barrier.laserThickness / 2, width, barrier.laserThickness, barrier.laserThickness / 2);
+
+			unit.glow.clear();
+			unit.glow.fillStyle(this.shadowColor, 0.4);
+			unit.glow.fillRoundedRect(leftWall + 4, y - barrier.laserThickness / 2 + 4, width, barrier.laserThickness + 4, barrier.laserThickness / 2);
 		}
 	}
 
@@ -1931,25 +1921,24 @@ export default class Level extends Phaser.Scene {
 			: (leftWall + rightWall) * 0.5;
 		const maxRadius = Phaser.Math.Clamp(
 			Math.min(
-				Phaser.Math.Between(180, 260),
-				Math.min(centerX - leftWall, rightWall - centerX) - 18
+				Phaser.Math.Between(220, 320),
+				Math.min(centerX - leftWall, rightWall - centerX) - 24
 			),
-			130,
-			280
+			160,
+			350
 		);
-		const startRadius = 24;
-		const bandWidth = Phaser.Math.Between(22, 30);
-		const speed = Phaser.Math.Between(170, 245);
+		const d = this.getDifficulty();
+		const startRadius = 32;
+		const bandWidth = Phaser.Math.Between(34, 46);
+		const speed = Phaser.Math.Between(170 + Math.floor(d * 80), 245 + Math.floor(d * 100));
 
-		const glow = this.add.circle(centerX, spawnY, maxRadius * 0.38, this.neonBlue, 0.1)
-			.setBlendMode(Phaser.BlendModes.ADD)
+		const glow = this.add.circle(centerX + 6, spawnY + 6, maxRadius * 0.45, this.shadowColor, 0.25)
 			.setDepth(22);
 		const ring = this.add.circle(centerX, spawnY, startRadius, 0, 0)
-			.setStrokeStyle(6, this.neonBlue, 0.88)
-			.setBlendMode(Phaser.BlendModes.ADD)
+			.setStrokeStyle(12, this.accentBlue, 0.85)
 			.setDepth(30);
-		const core = this.add.circle(centerX, spawnY, 18, 0xeeffff, 0.92)
-			.setStrokeStyle(3, this.neonPink, 0.95)
+		const core = this.add.circle(centerX, spawnY, 28, this.accentBlue, 0.9)
+			.setStrokeStyle(6, this.accentCoral, 0.9)
 			.setDepth(34);
 
 		this.barriers.push({
@@ -1982,10 +1971,35 @@ export default class Level extends Phaser.Scene {
 			return;
 		}
 
-		barrier.pulseCurrentRadius += barrier.pulseSpeed * dt;
-		if (barrier.pulseCurrentRadius > barrier.pulseMaxRadius) {
+		const d = this.getDifficulty();
+		const holdDuration = 1.5;
+		const waitDuration = Math.max(1.2, 2.5 - d * 1.0);
+
+		if (barrier.pulseHoldTimer === undefined) barrier.pulseHoldTimer = 0;
+		if (barrier.pulseWaitTimer === undefined) barrier.pulseWaitTimer = 0;
+
+		let isLethal = false;
+
+		if (barrier.pulseWaitTimer > 0) {
+			barrier.pulseWaitTimer -= dt;
 			barrier.pulseCurrentRadius = barrier.pulseStartRadius;
-			this.launchFx.explode(10, barrier.pulseCenterX, barrier.y);
+			isLethal = false;
+		} else if (barrier.pulseHoldTimer > 0) {
+			barrier.pulseHoldTimer -= dt;
+			barrier.pulseCurrentRadius = barrier.pulseMaxRadius;
+			isLethal = true;
+			if (barrier.pulseHoldTimer <= 0) {
+				barrier.pulseWaitTimer = waitDuration;
+				barrier.pulseCurrentRadius = barrier.pulseStartRadius;
+			}
+		} else {
+			barrier.pulseCurrentRadius += barrier.pulseSpeed * dt;
+			isLethal = true;
+			if (barrier.pulseCurrentRadius >= barrier.pulseMaxRadius) {
+				barrier.pulseCurrentRadius = barrier.pulseMaxRadius;
+				barrier.pulseHoldTimer = holdDuration;
+				this.launchFx.explode(10, barrier.pulseCenterX, barrier.y);
+			}
 		}
 
 		const now = this.time.now * 0.001;
@@ -1994,29 +2008,29 @@ export default class Level extends Phaser.Scene {
 			0,
 			1
 		);
-		const color = progress > 0.68 ? this.neonPink : this.neonBlue;
-		const ringAlpha = 0.55 + (1 - progress) * 0.35;
+		const color = isLethal ? this.accentCoral : this.accentMint;
+		const ringAlpha = isLethal ? (0.55 + (1 - progress) * 0.35) : 0.3;
 
 		barrier.pulseRing.x = barrier.pulseCenterX;
 		barrier.pulseRing.y = barrier.y;
 		barrier.pulseRing.radius = barrier.pulseCurrentRadius;
-		barrier.pulseRing.setStrokeStyle(6, color, ringAlpha);
+		barrier.pulseRing.setStrokeStyle(12, color, ringAlpha);
 
 		barrier.pulseCore.x = barrier.pulseCenterX;
 		barrier.pulseCore.y = barrier.y;
 		barrier.pulseCore.setScale(0.92 + Math.sin(now * 9.2 + barrier.y * 0.02) * 0.09);
-		barrier.pulseCore.setStrokeStyle(3, this.neonPink, 0.86 + (1 - progress) * 0.14);
+		barrier.pulseCore.setStrokeStyle(6, isLethal ? this.accentCoral : this.accentMint, 0.86 + (1 - progress) * 0.14);
 
 		barrier.pulseGlow.x = barrier.pulseCenterX;
 		barrier.pulseGlow.y = barrier.y;
 		barrier.pulseGlow.setScale(0.86 + progress * 0.52);
-		barrier.pulseGlow.setFillStyle(color, 0.07 + (1 - progress) * 0.12);
+		barrier.pulseGlow.setFillStyle(color, isLethal ? (0.07 + (1 - progress) * 0.12) : 0.04);
 	}
 
 	private spawnTeleportGate(spawnY: number) {
 		const leftWall = this.getSideWallX(spawnY, true);
 		const rightWall = this.getSideWallX(spawnY, false);
-		const portalRadius = 34;
+		const portalRadius = 46;
 		const safeLeft = leftWall + 80;
 		const safeRight = rightWall - 80;
 		let portalAX = Phaser.Math.Linear(safeLeft, safeRight, 0.3);
@@ -2037,21 +2051,17 @@ export default class Level extends Phaser.Scene {
 		portalAX = Phaser.Math.Clamp(portalAX, minX, maxX);
 		portalBX = Phaser.Math.Clamp(portalBX, minX, maxX);
 
-		const glowA = this.add.circle(portalAX, spawnY, portalRadius + 22, this.neonBlue, 0.22)
-			.setBlendMode(Phaser.BlendModes.ADD)
+		const glowA = this.add.circle(portalAX + 6, spawnY + 6, portalRadius + 8, this.shadowColor, 0.4)
 			.setDepth(24);
-		const glowB = this.add.circle(portalBX, spawnY, portalRadius + 22, this.neonPink, 0.22)
-			.setBlendMode(Phaser.BlendModes.ADD)
+		const glowB = this.add.circle(portalBX + 6, spawnY + 6, portalRadius + 8, this.shadowColor, 0.4)
 			.setDepth(24);
-		const portalA = this.add.circle(portalAX, spawnY, portalRadius, 0x121833, 0.56)
-			.setStrokeStyle(4, this.neonBlue, 0.95)
+		const portalA = this.add.circle(portalAX, spawnY, portalRadius, this.accentLavender, 0.95)
+			.setStrokeStyle(8, 0xE1BEE7, 1)
 			.setDepth(32);
-		const portalB = this.add.circle(portalBX, spawnY, portalRadius, 0x261125, 0.56)
-			.setStrokeStyle(4, this.neonPink, 0.95)
+		const portalB = this.add.circle(portalBX, spawnY, portalRadius, this.accentMint, 0.95)
+			.setStrokeStyle(8, 0x80CBC4, 1)
 			.setDepth(32);
-		const link = this.add.graphics()
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(26);
+		const link = this.add.graphics().setDepth(26);
 
 		this.barriers.push({
 			type: 'TELEPORT_GATE',
@@ -2099,13 +2109,13 @@ export default class Level extends Phaser.Scene {
 		barrier.teleportA.y = barrier.y;
 		barrier.teleportA.setScale(0.96 + pulseA * 0.08);
 		barrier.teleportA.rotation += dt * 0.9;
-		barrier.teleportA.setStrokeStyle(4, this.neonBlue, 0.84 + pulseA * 0.08);
+		barrier.teleportA.setStrokeStyle(4, 0xE1BEE7, 0.84 + pulseA * 0.08);
 
 		barrier.teleportB.x = barrier.teleportBX;
 		barrier.teleportB.y = barrier.y;
 		barrier.teleportB.setScale(0.96 + pulseB * 0.08);
 		barrier.teleportB.rotation -= dt * 1.05;
-		barrier.teleportB.setStrokeStyle(4, this.neonPink, 0.84 + pulseB * 0.08);
+		barrier.teleportB.setStrokeStyle(4, 0x80CBC4, 0.84 + pulseB * 0.08);
 
 		const link = barrier.teleportLink;
 		const wave = Math.sin(now * 4.6 + barrier.y * 0.02) * 24;
@@ -2113,7 +2123,7 @@ export default class Level extends Phaser.Scene {
 		const span = Math.max(1, barrier.teleportBX - barrier.teleportAX);
 		const segments = 18;
 		link.clear();
-		link.lineStyle(4, this.neonBlue, 0.26);
+		link.lineStyle(4, this.accentLavender, 0.3);
 		link.beginPath();
 		link.moveTo(barrier.teleportAX, barrier.y);
 		for (let i = 1; i <= segments; i++) {
@@ -2123,7 +2133,7 @@ export default class Level extends Phaser.Scene {
 			link.lineTo(x, barrier.y - curve);
 		}
 		link.strokePath();
-		link.lineStyle(2, this.neonPink, 0.42);
+		link.lineStyle(2, this.accentMint, 0.4);
 		link.beginPath();
 		link.moveTo(barrier.teleportAX, barrier.y);
 		for (let i = 1; i <= segments; i++) {
@@ -2173,120 +2183,111 @@ export default class Level extends Phaser.Scene {
 		barrier.teleportCooldownUntil = now + 420;
 		this.launchFx.explode(16, fromX, barrier.y);
 		this.launchFx.explode(16, toX, targetY);
-		this.cameras.main.flash(45, 90, 230, 255, false);
 	}
 
-	private spawnGravityFlipZone(spawnY: number) {
-		const zoneHeight = Phaser.Math.Between(240, 300);
-		const zoneGraphics = this.add.graphics()
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(20);
-		const waveGraphics = this.add.graphics()
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(24);
-		const initialScale = -0.72;
+	private spawnBounceSpeedZone(spawnY: number) {
+		const d = this.getDifficulty();
+		const zoneHeight = Phaser.Math.Between(300 + Math.floor(d * 40), 380 + Math.floor(d * 60));
+		const zoneGraphics = this.add.graphics().setDepth(20);
+		const iconGraphics = this.add.graphics().setDepth(24);
+		const initialMode: 'BOUNCE' | 'SPEED' = Math.random() > 0.5 ? 'BOUNCE' : 'SPEED';
 
 		this.barriers.push({
-			type: 'GRAVITY_FLIP_ZONE',
+			type: 'BOUNCE_SPEED_ZONE',
 			y: spawnY,
 			passed: false,
-			gravityZoneHeight: zoneHeight,
-			gravityCurrentScale: initialScale,
-			gravityTargetScale: initialScale,
-			gravityScaleInterval: Phaser.Math.FloatBetween(1.35, 2.1),
-			gravityScaleTimer: Phaser.Math.FloatBetween(0.35, 1.0),
-			gravityZoneGraphics: zoneGraphics,
-			gravityWaveGraphics: waveGraphics
+			bsMode: initialMode,
+			bsModeTimer: 2.5,
+			bsModeDuration: 2.5,
+			bsZoneGraphics: zoneGraphics,
+			bsIconGraphics: iconGraphics,
+			bsTransitionAlpha: 1,
+			bsZoneHeight: zoneHeight,
 		});
 	}
 
-	private updateGravityFlipZone(barrier: Barrier, dt: number) {
+	private updateBounceSpeedZone(barrier: Barrier, dt: number) {
 		if (
-			barrier.gravityZoneHeight === undefined ||
-			barrier.gravityCurrentScale === undefined ||
-			barrier.gravityTargetScale === undefined ||
-			barrier.gravityScaleTimer === undefined ||
-			barrier.gravityScaleInterval === undefined ||
-			!barrier.gravityZoneGraphics ||
-			!barrier.gravityWaveGraphics
+			!barrier.bsMode ||
+			barrier.bsModeTimer === undefined ||
+			barrier.bsModeDuration === undefined ||
+			!barrier.bsZoneGraphics ||
+			!barrier.bsIconGraphics ||
+			barrier.bsZoneHeight === undefined
 		) {
 			return;
 		}
 
-		barrier.gravityScaleTimer -= dt;
-		if (barrier.gravityScaleTimer <= 0) {
-			const inverted = Math.random() > 0.45;
-			barrier.gravityTargetScale = inverted
-				? -Phaser.Math.FloatBetween(0.55, 0.95)
-				: Phaser.Math.FloatBetween(0.22, 0.6);
-			barrier.gravityScaleInterval = Phaser.Math.FloatBetween(1.3, 2.05);
-			barrier.gravityScaleTimer = barrier.gravityScaleInterval;
-			this.launchFx.explode(8, this.worldWidth * 0.5, barrier.y);
+		barrier.bsModeTimer -= dt;
+		if (barrier.bsModeTimer <= 0) {
+			barrier.bsMode = barrier.bsMode === 'BOUNCE' ? 'SPEED' : 'BOUNCE';
+			barrier.bsModeDuration = 2.5;
+			barrier.bsModeTimer = barrier.bsModeDuration;
+			barrier.bsTransitionAlpha = 0;
 		}
+		barrier.bsTransitionAlpha = Phaser.Math.Clamp((barrier.bsTransitionAlpha || 0) + dt * 3, 0, 1);
 
-		barrier.gravityCurrentScale = Phaser.Math.Linear(
-			barrier.gravityCurrentScale,
-			barrier.gravityTargetScale,
-			dt * 2.6
-		);
-
-		const top = barrier.y - barrier.gravityZoneHeight * 0.5;
-		const bottom = barrier.y + barrier.gravityZoneHeight * 0.5;
+		const top = barrier.y - barrier.bsZoneHeight * 0.5;
 		const now = this.time.now * 0.001;
-		const positive = barrier.gravityCurrentScale >= 0;
-		const zoneColor = positive ? this.neonPink : this.neonBlue;
-		const altColor = positive ? this.neonBlue : this.neonPink;
-		const amp = Phaser.Math.Clamp(Math.abs(barrier.gravityCurrentScale), 0, 1);
-		const zoneG = barrier.gravityZoneGraphics;
-		zoneG.clear();
-		zoneG.fillStyle(zoneColor, 0.03 + amp * 0.05);
-		zoneG.fillRect(0, top, this.worldWidth, barrier.gravityZoneHeight);
-		zoneG.lineStyle(2.5, zoneColor, 0.22 + amp * 0.16);
-		zoneG.strokeRect(0, top, this.worldWidth, barrier.gravityZoneHeight);
+		const isSpeed = barrier.bsMode === 'SPEED';
+		const zoneColor = isSpeed ? this.accentMint : 0xFFE082;
+		const alpha = barrier.bsTransitionAlpha;
 
-		const waveG = barrier.gravityWaveGraphics;
-		waveG.clear();
-		const lineCount = 5;
-		for (let i = 0; i < lineCount; i++) {
-			const yT = lineCount <= 1 ? 0.5 : i / (lineCount - 1);
-			const y = Phaser.Math.Linear(top + 24, bottom - 24, yT);
-			const phase = now * (2.6 + i * 0.45) + barrier.y * 0.01;
-			waveG.lineStyle(2, i % 2 === 0 ? zoneColor : altColor, 0.16 + amp * 0.28);
-			waveG.beginPath();
-			for (let x = 0; x <= this.worldWidth; x += 24) {
-				const wy = y + Math.sin(phase + x * 0.018) * (6 + amp * 12);
-				if (x === 0) {
-					waveG.moveTo(x, wy);
-				} else {
-					waveG.lineTo(x, wy);
-				}
+		const zoneG = barrier.bsZoneGraphics;
+		zoneG.clear();
+		zoneG.fillStyle(zoneColor, 0.08 * alpha);
+		zoneG.fillRoundedRect(4, top, this.worldWidth - 8, barrier.bsZoneHeight, 16);
+		zoneG.lineStyle(6, zoneColor, 0.45 * alpha);
+		zoneG.strokeRoundedRect(4, top, this.worldWidth - 8, barrier.bsZoneHeight, 16);
+
+		const iconG = barrier.bsIconGraphics;
+		iconG.clear();
+		const chevronCount = 4;
+		const chevronSpacing = barrier.bsZoneHeight / (chevronCount + 1);
+		for (let i = 0; i < chevronCount; i++) {
+			const cy = top + chevronSpacing * (i + 1);
+			const cx = this.worldWidth * 0.5;
+			const size = 18;
+			const animOffset = Math.sin(now * 3 + i * 0.8) * 6;
+			const chevronAlpha = 0.25 + Math.sin(now * 4 + i * 1.2) * 0.15;
+
+			iconG.lineStyle(3, zoneColor, chevronAlpha * alpha);
+			iconG.beginPath();
+			if (isSpeed) {
+				iconG.moveTo(cx - size, cy + size * 0.5 + animOffset);
+				iconG.lineTo(cx, cy - size * 0.5 + animOffset);
+				iconG.lineTo(cx + size, cy + size * 0.5 + animOffset);
+			} else {
+				iconG.moveTo(cx - size, cy - size * 0.5 + animOffset);
+				iconG.lineTo(cx, cy + size * 0.5 + animOffset);
+				iconG.lineTo(cx + size, cy - size * 0.5 + animOffset);
 			}
-			waveG.strokePath();
+			iconG.strokePath();
 		}
 
-		if (this.ball.y > top && this.ball.y < bottom) {
-			const desiredScale = barrier.gravityCurrentScale;
-			const correction = (desiredScale - 1) * this.gravity;
-			this.ballVy += correction * dt;
-			const centerFalloff = Phaser.Math.Clamp(
-				1 - Math.abs(this.ball.y - barrier.y) / (barrier.gravityZoneHeight * 0.5),
-				0,
-				1
-			);
-			const sway = Math.sin(now * 6.3 + barrier.y * 0.017) * 72;
-			this.ballVx += sway * centerFalloff * dt;
-			if (centerFalloff > 0.82 && Math.random() < 0.06) {
-				this.launchFx.explode(1, this.ball.x, this.ball.y);
+		if (this.ball.y > top && this.ball.y < top + barrier.bsZoneHeight) {
+			const speed = Math.hypot(this.ballVx, this.ballVy);
+			if (isSpeed) {
+				const boostFactor = Phaser.Math.Clamp(speed / 400, 0.5, 2.5);
+				this.ballVy -= 800 * boostFactor * dt;
+			} else {
+				this.ballVy *= (1 - 2.5 * dt);
+				this.ballVx *= (1 - 1.5 * dt);
+				if (speed < 60) {
+					this.ballVy += 200 * dt;
+				}
 			}
 		}
 	}
 
 	private spawnStaticBarrier(spawnY: number) {
+		const d = this.getDifficulty();
 		const gapMargin = 65;
 		const leftWall = this.getSideWallX(spawnY, true);
 		const rightWall = this.getSideWallX(spawnY, false);
 		const inTriangleZone = this.getSideWallOffset(spawnY) > 0.5;
-		const desiredGapWidth = this.gapWidth * (inTriangleZone ? 3 : 2);
+		const scaledGap = Phaser.Math.Linear(this.gapWidth, this.gapWidthMin, d);
+		const desiredGapWidth = scaledGap * (inTriangleZone ? 3 : 2);
 		const rawMaxGap = (rightWall - leftWall) - gapMargin * 2;
 		let gapWidth = Math.min(desiredGapWidth, Math.max(40, rawMaxGap));
 		let halfGap = gapWidth / 2;
@@ -2304,23 +2305,31 @@ export default class Level extends Phaser.Scene {
 		const leftWidth = Math.max(0, gapX - halfGap);
 		const rightX = Math.min(this.worldWidth, gapX + halfGap);
 		const rightWidth = Math.max(0, this.worldWidth - rightX);
+		const r = this.barrierHeight / 2;
 
-		const leftGlow = this.add.rectangle(0, spawnY, leftWidth, this.barrierHeight + 14, this.neonBlue, 0.38)
-			.setOrigin(0, 0.5)
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(25);
-		const rightGlow = this.add.rectangle(rightX, spawnY, rightWidth, this.barrierHeight + 14, this.neonBlue, 0.38)
-			.setOrigin(0, 0.5)
-			.setBlendMode(Phaser.BlendModes.ADD)
-			.setDepth(25);
-		const left = this.add.rectangle(0, spawnY, leftWidth, this.barrierHeight, this.barrierColor)
-			.setOrigin(0, 0.5)
-			.setStrokeStyle(2, 0x5a5a5a, 0.9)
-			.setDepth(30);
-		const right = this.add.rectangle(rightX, spawnY, rightWidth, this.barrierHeight, this.barrierColor)
-			.setOrigin(0, 0.5)
-			.setStrokeStyle(2, 0x5a5a5a, 0.9)
-			.setDepth(30);
+		const leftGlow = this.add.graphics();
+		leftGlow.setDepth(25).fillStyle(this.shadowColor, 0.4);
+		leftGlow.fillRoundedRect(3, 3 - this.barrierHeight / 2, leftWidth, this.barrierHeight, {tl:0, tr:r, br:r, bl:0} as any);
+		leftGlow.y = spawnY;
+
+		const rightGlow = this.add.graphics();
+		rightGlow.setDepth(25).fillStyle(this.shadowColor, 0.4);
+		rightGlow.fillRoundedRect(rightX + 3, 3 - this.barrierHeight / 2, rightWidth, this.barrierHeight, {tl:r, tr:0, br:0, bl:r} as any);
+		rightGlow.y = spawnY;
+
+		const left = this.add.graphics();
+		left.setDepth(30).fillStyle(this.highlightColor, 1);
+		left.fillRoundedRect(0, -this.barrierHeight / 2, leftWidth, this.barrierHeight, {tl:0, tr:r, br:r, bl:0} as any);
+		left.lineStyle(4, 0xD7CCC8, 1);
+		left.strokeRoundedRect(0, -this.barrierHeight / 2, leftWidth, this.barrierHeight, {tl:0, tr:r, br:r, bl:0} as any);
+		left.y = spawnY;
+
+		const right = this.add.graphics();
+		right.setDepth(30).fillStyle(this.highlightColor, 1);
+		right.fillRoundedRect(rightX, -this.barrierHeight / 2, rightWidth, this.barrierHeight, {tl:r, tr:0, br:0, bl:r} as any);
+		right.lineStyle(4, 0xD7CCC8, 1);
+		right.strokeRoundedRect(rightX, -this.barrierHeight / 2, rightWidth, this.barrierHeight, {tl:r, tr:0, br:0, bl:r} as any);
+		right.y = spawnY;
 
 		this.barriers.push({
 			type: 'STATIC_GAP',
@@ -2343,19 +2352,17 @@ export default class Level extends Phaser.Scene {
 	}
 
 	private spawnWindZone(spawnY: number) {
-		const height = 240;
-		const direction = Math.random() > 0.5 ? 1 : -1; // 1: Right, -1: Left
-		const windForce = 1400 * direction;
+		const d = this.getDifficulty();
+		const height = 300;
+		const direction = Math.random() > 0.5 ? 1 : -1;
+		const windForce = (1400 + Math.floor(d * 600)) * direction;
 
-		// Visual container
 		const g = this.add.graphics();
 		g.setDepth(20);
-		g.setBlendMode(Phaser.BlendModes.ADD);
 
-		// Minimal background
-		const color = direction === 1 ? 0x00ff66 : 0xffaa00;
-		g.fillStyle(color, 0.03);
-		g.fillRect(0, spawnY - height / 2, this.worldWidth, height);
+		const color = direction === 1 ? this.accentMint : 0xFFE082;
+		g.fillStyle(color, 0.08);
+		g.fillRoundedRect(4, spawnY - height / 2, this.worldWidth - 8, height, 16);
 
 		// Create arrows group
 		const arrowGroup = this.add.group();
@@ -2366,28 +2373,24 @@ export default class Level extends Phaser.Scene {
 			const arrowG = this.add.graphics();
 			arrowG.setDepth(21);
 
-			// Draw Big Chevron with 3D Effect
-			const w = 50;
-			const h = 80;
+			const w = 60;
+			const h = 100;
+			const chevColor = direction === 1 ? this.accentMint : 0xFFE082;
 
-			// 1. Depth/Shadow Layer (Offset)
-			arrowG.lineStyle(8, 0x000000, 0.6);
+			arrowG.lineStyle(10, this.shadowColor, 0.3);
 			arrowG.beginPath();
-			const offX = 6;
-			const offY = 6;
 			if (direction === 1) {
-				arrowG.moveTo(-w / 2 + offX, -h / 2 + offY);
-				arrowG.lineTo(w / 2 + offX, 0 + offY);
-				arrowG.lineTo(-w / 2 + offX, h / 2 + offY);
+				arrowG.moveTo(-w / 2 + 4, -h / 2 + 4);
+				arrowG.lineTo(w / 2 + 4, 0 + 4);
+				arrowG.lineTo(-w / 2 + 4, h / 2 + 4);
 			} else {
-				arrowG.moveTo(w / 2 + offX, -h / 2 + offY);
-				arrowG.lineTo(-w / 2 + offX, 0 + offY);
-				arrowG.lineTo(w / 2 + offX, h / 2 + offY);
+				arrowG.moveTo(w / 2 + 4, -h / 2 + 4);
+				arrowG.lineTo(-w / 2 + 4, 0 + 4);
+				arrowG.lineTo(w / 2 + 4, h / 2 + 4);
 			}
 			arrowG.strokePath();
 
-			// 2. Main Neon Layer
-			arrowG.lineStyle(6, this.neonBlue, 1);
+			arrowG.lineStyle(8, chevColor, 0.9);
 			arrowG.beginPath();
 			if (direction === 1) {
 				arrowG.moveTo(-w / 2, -h / 2);
@@ -2442,21 +2445,21 @@ export default class Level extends Phaser.Scene {
 			arrow.alpha = 0.25 + Math.sin(this.time.now * 0.002 + arrow.x * 0.005) * 0.15;
 		});
 
-		// Minimal Background Pulse
 		if (barrier.windGraphics) {
 			barrier.windGraphics.clear();
-			const color = barrier.windDirection === 1 ? 0x00ff66 : 0xffaa00;
-			const pulse = 0.02 + Math.sin(this.time.now * 0.002) * 0.015;
+			const color = barrier.windDirection === 1 ? this.accentMint : 0xFFE082;
+			const pulse = 0.04 + Math.sin(this.time.now * 0.002) * 0.02;
 			barrier.windGraphics.fillStyle(color, pulse);
-			barrier.windGraphics.fillRect(0, top, this.worldWidth, height);
+			barrier.windGraphics.fillRoundedRect(4, top, this.worldWidth - 8, height, 12);
 		}
 	}
 
 	private spawnSideMover(spawnY: number, spawnDouble: boolean) {
-		const size = 44;
+		const d = this.getDifficulty();
+		const size = 60;
 		const padding = 28;
-		const speed = Phaser.Math.Between(180, 260);
-		const waitAtEnd = 1.0;
+		const speed = Phaser.Math.Between(180 + Math.floor(d * 60), 260 + Math.floor(d * 80));
+		const waitAtEnd = Math.max(0.3, 1.0 - d * 0.4);
 		const verticalGap = size + 90;
 		const offsets = spawnDouble ? [-(verticalGap * 0.5), verticalGap * 0.5] : [0];
 		const units: SideMoverUnit[] = [];
@@ -2471,12 +2474,19 @@ export default class Level extends Phaser.Scene {
 			const rightBound = this.getSideWallX(y, false) - padding - size * 0.5;
 			const x = Phaser.Math.Linear(leftBound, rightBound, t);
 
-			const glow = this.add.rectangle(x, y, size + 30, size + 30, this.neonBlue, 0.36)
-				.setBlendMode(Phaser.BlendModes.ADD)
-				.setDepth(27);
-			const square = this.add.rectangle(x, y, size, size, 0xc9fdff, 1)
-				.setStrokeStyle(3, this.neonPink, 0.95)
-				.setDepth(32);
+			const glow = this.add.graphics();
+			glow.setDepth(27).fillStyle(this.shadowColor, 0.4);
+			glow.fillRoundedRect(-size / 2 + 5, -size / 2 + 5, size, size, 16);
+			glow.x = x;
+			glow.y = y;
+
+			const square = this.add.graphics();
+			square.setDepth(32).fillStyle(this.accentBlue, 1);
+			square.fillRoundedRect(-size / 2, -size / 2, size, size, 16);
+			square.lineStyle(4, 0xBBDEFB, 1);
+			square.strokeRoundedRect(-size / 2, -size / 2, size, size, 16);
+			square.x = x;
+			square.y = y;
 
 			units.push({
 				t,
@@ -2544,37 +2554,38 @@ export default class Level extends Phaser.Scene {
 	}
 
 	private spawnRotatingBar(spawnY: number, centerX: number) {
-		const len = 240;
-		const thickness = 22;
-		const angularVel = Phaser.Math.FloatBetween(0.8, 1.8) * (Math.random() > 0.5 ? 1 : -1);
+		const d = this.getDifficulty();
+		const len = 300;
+		const thickness = 40;
+		const baseMin = 0.8 + d * 0.6;
+		const baseMax = 1.8 + d * 0.8;
+		const angularVel = Phaser.Math.FloatBetween(baseMin, baseMax) * (Math.random() > 0.5 ? 1 : -1);
 
 		const barG = this.add.graphics();
 		barG.setDepth(30);
 		barG.x = centerX;
 		barG.y = spawnY;
 
-		// Draw Bar
-		barG.fillStyle(0xffffff, 1);
-		barG.fillRoundedRect(-len / 2, -thickness / 2, len, thickness, 6);
-		barG.lineStyle(2, 0x5a5a5a, 1);
-		barG.strokeRoundedRect(-len / 2, -thickness / 2, len, thickness, 6);
+		barG.fillStyle(this.barrierColor, 1);
+		barG.fillRoundedRect(-len / 2, -thickness / 2, len, thickness, thickness / 2);
+		barG.lineStyle(4, 0xD7CCC8, 1);
+		barG.strokeRoundedRect(-len / 2, -thickness / 2, len, thickness, thickness / 2);
 
-		// Draw Center Hub
-		barG.fillStyle(0xffffff, 1);
-		barG.fillCircle(0, 0, 18);
-		barG.lineStyle(2, 0x5a5a5a, 1);
-		barG.strokeCircle(0, 0, 18);
+		barG.fillStyle(this.accentCoral, 1);
+		barG.fillCircle(0, 0, 24);
+		barG.fillStyle(0xFFCDD2, 0.6);
+		barG.fillCircle(-6, -6, 10);
+		barG.lineStyle(4, 0xD7CCC8, 1);
+		barG.strokeCircle(0, 0, 24);
 
 		const glowG = this.add.graphics();
 		glowG.setDepth(25);
-		glowG.setBlendMode(Phaser.BlendModes.ADD);
 		glowG.x = centerX;
 		glowG.y = spawnY;
 
-		// Glow
-		glowG.fillStyle(this.neonPink, 0.35);
-		glowG.fillRoundedRect(-len / 2 - 4, -thickness / 2 - 4, len + 8, thickness + 8, 8);
-		glowG.fillCircle(0, 0, 26);
+		glowG.fillStyle(this.shadowColor, 0.4);
+		glowG.fillRoundedRect(-len / 2 + 5, -thickness / 2 + 5, len, thickness, thickness / 2);
+		glowG.fillCircle(5, 5, 24);
 
 		this.barriers.push({
 			type: 'ROTATING_BAR',
@@ -2712,22 +2723,15 @@ export default class Level extends Phaser.Scene {
 						return;
 					}
 				}
-			} else if (barrier.type === 'MAGNET_CORE') {
-				if (
-					barrier.magnetCenterX === undefined ||
-					barrier.magnetCoreRadius === undefined
-				) {
-					continue;
-				}
-				const coreHit = Phaser.Math.Distance.Between(
-					this.ball.x,
-					this.ball.y,
-					barrier.magnetCenterX,
-					barrier.y
-				) <= (trapHitRadius + barrier.magnetCoreRadius);
-				if (coreHit) {
-					this.endGame();
-					return;
+			} else if (barrier.type === 'MINE_FIELD') {
+				if (!barrier.mines || barrier.mineFieldRadius === undefined) continue;
+				for (const mine of barrier.mines) {
+					if (!mine.armed) continue;
+					const dist = Phaser.Math.Distance.Between(this.ball.x, this.ball.y, mine.x, mine.y);
+					if (dist <= trapHitRadius + barrier.mineFieldRadius) {
+						this.endGame();
+						return;
+					}
 				}
 			} else if (barrier.type === 'LASER_GRID') {
 				if (!barrier.laserBeamUnits || barrier.laserThickness === undefined) {
@@ -2761,17 +2765,20 @@ export default class Level extends Phaser.Scene {
 				) {
 					continue;
 				}
-				const dist = Phaser.Math.Distance.Between(
-					this.ball.x,
-					this.ball.y,
-					barrier.pulseCenterX,
-					barrier.y
-				);
-				const ringBand = barrier.pulseBandWidth * 0.5 + trapHitRadius;
-				const ringHit = Math.abs(dist - barrier.pulseCurrentRadius) <= ringBand;
-				if (ringHit) {
-					this.endGame();
-					return;
+				const isSafe = (barrier.pulseWaitTimer || 0) > 0;
+				if (!isSafe) {
+					const dist = Phaser.Math.Distance.Between(
+						this.ball.x,
+						this.ball.y,
+						barrier.pulseCenterX,
+						barrier.y
+					);
+					const ringBand = barrier.pulseBandWidth * 0.5 + trapHitRadius;
+					const ringHit = Math.abs(dist - barrier.pulseCurrentRadius) <= ringBand;
+					if (ringHit) {
+						this.endGame();
+						return;
+					}
 				}
 			}
 		}
@@ -2978,27 +2985,13 @@ export default class Level extends Phaser.Scene {
 						projectile.size
 					);
 				}
-			} else if (barrier.type === 'MAGNET_CORE') {
-				if (
-					barrier.magnetCenterX === undefined ||
-					barrier.magnetCoreRadius === undefined ||
-					barrier.magnetInfluenceRadius === undefined
-				) {
-					continue;
+			} else if (barrier.type === 'MINE_FIELD') {
+				if (!barrier.mines || barrier.mineFieldRadius === undefined) continue;
+				for (const mine of barrier.mines) {
+					if (!mine.armed) continue;
+					g.lineStyle(2, 0xff6666, 0.9);
+					g.strokeCircle(mine.x, mine.y, barrier.mineFieldRadius);
 				}
-
-				g.lineStyle(2, 0x5cf4ff, 0.65);
-				g.strokeCircle(
-					barrier.magnetCenterX,
-					barrier.y,
-					barrier.magnetInfluenceRadius
-				);
-				g.lineStyle(2, 0xff2ea6, 0.95);
-				g.strokeCircle(
-					barrier.magnetCenterX,
-					barrier.y,
-					barrier.magnetCoreRadius
-				);
 			} else if (barrier.type === 'LASER_GRID') {
 				if (!barrier.laserBeamUnits || barrier.laserThickness === undefined) {
 					continue;
@@ -3053,13 +3046,11 @@ export default class Level extends Phaser.Scene {
 				g.strokeCircle(barrier.teleportAX, barrier.y, barrier.teleportRadius);
 				g.lineStyle(2, 0xff6bc6, 0.9);
 				g.strokeCircle(barrier.teleportBX, barrier.y, barrier.teleportRadius);
-			} else if (barrier.type === 'GRAVITY_FLIP_ZONE') {
-				if (barrier.gravityZoneHeight === undefined) {
-					continue;
-				}
-				const top = barrier.y - barrier.gravityZoneHeight * 0.5;
-				g.lineStyle(2, 0x7de5ff, 0.62);
-				g.strokeRect(0, top, this.worldWidth, barrier.gravityZoneHeight);
+			} else if (barrier.type === 'BOUNCE_SPEED_ZONE') {
+				if (barrier.bsZoneHeight === undefined) continue;
+				const top = barrier.y - barrier.bsZoneHeight * 0.5;
+				g.lineStyle(2, 0x66cc99, 0.62);
+				g.strokeRect(0, top, this.worldWidth, barrier.bsZoneHeight);
 			}
 		}
 	}
@@ -3078,7 +3069,6 @@ export default class Level extends Phaser.Scene {
 		this.tailPoints = [];
 		this.trailFx.stop();
 		this.cameras.main.shake(230, 0.02);
-		this.cameras.main.flash(140, 255, 70, 166, false);
 		this.launchFx.explode(120, this.ball.x, this.ball.y);
 		this.time.delayedCall(70, () => this.launchFx.explode(90, this.ball.x, this.ball.y));
 		this.time.delayedCall(140, () => this.launchFx.explode(70, this.ball.x, this.ball.y));
@@ -3090,8 +3080,7 @@ export default class Level extends Phaser.Scene {
 			ease: "Cubic.easeOut"
 		});
 
-		const blastRing = this.add.circle(this.ball.x, this.ball.y, 24, this.neonPink, 0.7)
-			.setBlendMode(Phaser.BlendModes.ADD)
+		const blastRing = this.add.circle(this.ball.x, this.ball.y, 24, this.accentCoral, 0.7)
 			.setDepth(95);
 		this.tweens.add({
 			targets: blastRing,
@@ -3142,22 +3131,20 @@ export default class Level extends Phaser.Scene {
 				volume: 0.45
 			});
 		}
-		if (!this.bgMusic.isPlaying) {
+		if (this.settings.music && !this.bgMusic.isPlaying) {
 			this.bgMusic.play();
 		}
 	}
 
 	private playSfx(key: string) {
-		this.sound.play(key, { volume: 0.85 });
+		if (this.settings.fx) {
+			this.sound.play(key, { volume: 0.85 });
+		}
 	}
 
 	private triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error") {
-		const fn = (window as any).triggerHaptic;
-		if (typeof fn === "function") {
-			const enabled = localStorage.getItem("setting_haptic") !== "false";
-			if (enabled) {
-				fn(type);
-			}
+		if (this.settings.haptics) {
+			oasiz.triggerHaptic(type);
 		}
 	}
 
@@ -3168,43 +3155,72 @@ export default class Level extends Phaser.Scene {
 		const restartGameOverBtn = document.getElementById("btn-restart-gameover");
 		const quitBtn = document.getElementById("btn-quit");
 		const startGameBtn = document.getElementById("btn-start-game");
+		const howToPlayBtn = document.getElementById("btn-how-to-play");
+		const tutorialOverlay = document.getElementById("tutorial-carousel");
+		const tutNextBtn = document.getElementById("tut-next");
 
 		const pauseMenu = document.getElementById("pause-menu");
 		const gameOverMenu = document.getElementById("game-over-menu");
 
-		// Reset visibility
 		pauseMenu?.classList.add("hidden");
 		gameOverMenu?.classList.add("hidden");
-		// hud visibility managed by menu state
+		tutorialOverlay?.classList.add("hidden");
 
-		// Listeners (assign to onclick to prevent stacking)
 		if (pauseBtn) pauseBtn.onclick = () => this.pauseGame();
 		if (resumeBtn) resumeBtn.onclick = () => this.resumeGame();
 
-		if (startGameBtn) startGameBtn.onclick = () => {
+		const showHowToPlay = () => {
+			tutorialOverlay?.classList.remove("hidden");
+		};
+
+		const startNormalGame = () => {
 			this.toggleMainMenu(false);
 			this.isGameStarted = true;
 			this.hintText.setVisible(true);
 			this.ensureBgMusicPlaying();
+			this.triggerHaptic("light");
+		};
+
+		if (startGameBtn) startGameBtn.onclick = () => {
+			const tutCompleted = localStorage.getItem("tutorialCompleted") === "true";
+			if (!tutCompleted) {
+				showHowToPlay();
+			} else {
+				startNormalGame();
+			}
+		};
+
+		if (howToPlayBtn) howToPlayBtn.onclick = () => {
+			showHowToPlay();
+		};
+
+		if (tutNextBtn) tutNextBtn.onclick = (e) => {
+			e.stopPropagation();
+			localStorage.setItem("tutorialCompleted", "true");
+			tutorialOverlay?.classList.add("hidden");
+			startNormalGame();
+			this.triggerHaptic("light");
 		};
 
 		if (restartPauseBtn) restartPauseBtn.onclick = () => {
+			this.triggerHaptic("light");
 			this.resumeGame();
-			this.scene.restart();
+			this.scene.restart({ quickRestart: true });
 		};
 
 		if (restartGameOverBtn) restartGameOverBtn.onclick = () => {
-			// Hide UI before restart
+			this.triggerHaptic("light");
 			gameOverMenu?.classList.add("hidden");
 			document.getElementById("hud")?.classList.remove("hidden");
-			this.scene.restart();
+			this.scene.restart({ quickRestart: true });
 		};
 
 		if (quitBtn) quitBtn.onclick = () => {
-			location.reload();
+			this.triggerHaptic("light");
+			this.resumeGame();
+			this.scene.restart({ quickRestart: false });
 		};
 
-		// Settings Toggles
 		document.querySelectorAll(".setting-toggle").forEach(el => {
 			(el as HTMLElement).onclick = (e) => {
 				const target = (e.currentTarget as HTMLElement).dataset.setting;
@@ -3219,12 +3235,16 @@ export default class Level extends Phaser.Scene {
 		this.scene.pause();
 		document.getElementById("pause-menu")?.classList.remove("hidden");
 		document.getElementById("hud")?.classList.add("hidden");
+		if (this.bgMusic?.isPlaying) this.bgMusic.pause();
+		this.triggerHaptic("light");
 	}
 
 	private resumeGame() {
 		this.scene.resume();
 		document.getElementById("pause-menu")?.classList.add("hidden");
 		document.getElementById("hud")?.classList.remove("hidden");
+		if (this.settings.music && this.bgMusic && !this.bgMusic.isPlaying) this.bgMusic.play();
+		this.triggerHaptic("light");
 	}
 
 	private showGameOverScreen() {
@@ -3237,27 +3257,44 @@ export default class Level extends Phaser.Scene {
 		hud?.classList.add("hidden");
 		gameOverMenu?.classList.remove("hidden");
 
-		// Submit score
-		if (typeof (window as any).submitScore === "function") {
-			(window as any).submitScore(this.score);
-		}
+		oasiz.submitScore(this.score);
 	}
 
 	private toggleSetting(key: string) {
-		const storeKey = `setting_${key}`;
-		const current = localStorage.getItem(storeKey) !== "false";
+		const settingKey = key === "sfx" ? "fx" : key === "haptic" ? "haptics" : key;
+		const current = this.settings[settingKey as keyof typeof this.settings];
 		const next = !current;
-		localStorage.setItem(storeKey, next.toString());
+		(this.settings as Record<string, boolean>)[settingKey] = next;
+		this.saveSettings();
 		this.applySettings(key, next);
 		this.updateSettingUI(key, next);
+		this.triggerHaptic("light");
 	}
 
 	private loadSettings() {
-		["music", "sfx", "haptic"].forEach(key => {
-			const enabled = localStorage.getItem(`setting_${key}`) !== "false";
-			this.applySettings(key, enabled);
-			this.updateSettingUI(key, enabled);
-		});
+		const saved = localStorage.getItem("gameSettings");
+		if (saved) {
+			try {
+				const parsed = JSON.parse(saved);
+				this.settings = {
+					music: parsed.music !== false,
+					fx: parsed.fx !== false,
+					haptics: parsed.haptics !== false,
+				};
+			} catch {
+				this.settings = { music: true, fx: true, haptics: true };
+			}
+		}
+		this.applySettings("music", this.settings.music);
+		this.updateSettingUI("music", this.settings.music);
+		this.applySettings("sfx", this.settings.fx);
+		this.updateSettingUI("sfx", this.settings.fx);
+		this.applySettings("haptic", this.settings.haptics);
+		this.updateSettingUI("haptic", this.settings.haptics);
+	}
+
+	private saveSettings() {
+		localStorage.setItem("gameSettings", JSON.stringify(this.settings));
 	}
 
 	private updateSettingUI(key: string, enabled: boolean) {
@@ -3273,12 +3310,30 @@ export default class Level extends Phaser.Scene {
 			}
 		});
 
-		const iconName = key === "music" ? (enabled ? "music_note" : "music_off") :
-			key === "sfx" ? (enabled ? "volume_up" : "volume_off") :
-				(enabled ? "smartphone" : "smartphone"); // Material Symbols Rounded
-
-		if (icon) icon.innerText = iconName;
-		if (iconMain) iconMain.innerText = iconName;
+		if (key === "haptic") {
+			const hapticIcon = "vibration";
+			if (icon) {
+				icon.innerText = hapticIcon;
+				if (enabled) {
+					icon.classList.remove("icon-strikethrough");
+				} else {
+					icon.classList.add("icon-strikethrough");
+				}
+			}
+			if (iconMain) {
+				iconMain.innerText = hapticIcon;
+				if (enabled) {
+					iconMain.classList.remove("icon-strikethrough");
+				} else {
+					iconMain.classList.add("icon-strikethrough");
+				}
+			}
+		} else {
+			const iconName = key === "music" ? (enabled ? "music_note" : "music_off") :
+				(enabled ? "volume_up" : "volume_off");
+			if (icon) icon.innerText = iconName;
+			if (iconMain) iconMain.innerText = iconName;
+		}
 	}
 
 	private toggleMainMenu(visible: boolean) {
@@ -3302,9 +3357,7 @@ export default class Level extends Phaser.Scene {
 				if (enabled && !this.bgMusic.isPlaying) this.bgMusic.play();
 				if (!enabled && this.bgMusic.isPlaying) this.bgMusic.pause();
 			}
-			this.sound.mute = !enabled && (localStorage.getItem("setting_sfx") === "false"); // Simple check
 		}
-		// SFX is handled in playSfx
 	}
 
 	/* END-USER-CODE */

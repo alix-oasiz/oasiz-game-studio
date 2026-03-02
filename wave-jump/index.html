@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Egg Hunt Clone</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section id="game-shell">
+        <canvas id="game-canvas" aria-label="Egg Hunt game canvas"></canvas>
+        <button id="settings-btn" type="button" aria-label="Open settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+        <div id="hud">ORBS 00</div>
+        <p id="tutorial" class="hidden"></p>
+        <div id="tap-hint" class="hidden" aria-hidden="true">
+          <div id="tap-ring"></div>
+          <span id="tap-label">Tap to Jump</span>
+        </div>
+        <div id="score-popup" aria-hidden="true">
+          <span id="score-prefix">x</span><span id="score-number"></span>
+        </div>
+        <div id="milestone-popup" aria-hidden="true">
+          <span id="milestone-number"></span>
+          <span id="milestone-label"></span>
+        </div>
+        <div id="dash-flash" aria-hidden="true"></div>
+        <div id="crumble-vignette" aria-hidden="true"></div>
+        <dialog id="settings-modal" aria-labelledby="settings-title">
+          <div id="settings-card">
+            <div id="settings-head">
+              <h2 id="settings-title">SETTINGS</h2>
+              <button id="settings-close" type="button">Close</button>
+            </div>
+            <div id="settings-body">
+              <div class="setting-row">
+                <span class="setting-label">Music</span>
+                <button id="toggle-music" class="setting-toggle" type="button" aria-pressed="true">
+                  ON
+                </button>
+              </div>
+              <div class="setting-row">
+                <span class="setting-label">FX</span>
+                <button id="toggle-fx" class="setting-toggle" type="button" aria-pressed="true">
+                  ON
+                </button>
+              </div>
+              <div class="setting-row">
+                <span class="setting-label">Haptics</span>
+                <button
+                  id="toggle-haptics"
+                  class="setting-toggle"
+                  type="button"
+                  aria-pressed="true"
+                >
+                  ON
+                </button>
+              </div>
+            </div>
+          </div>
+        </dialog>
+        <div id="menu" class="visible">
+          <div id="menu-bg"></div>
+          <div id="menu-orbs" aria-hidden="true">
+            <div class="menu-orb orb-1"></div>
+            <div class="menu-orb orb-2"></div>
+            <div class="menu-orb orb-3"></div>
+            <div class="menu-orb orb-4"></div>
+            <div class="menu-orb orb-5"></div>
+          </div>
+          <div id="menu-content">
+            <p id="menu-kicker">LEAP FORWARD</p>
+            <h1 id="menu-title"><span class="tl">C</span><span class="tl">H</span><span class="tl">R</span><span class="tl">O</span><span class="tl">M</span><span class="tl">A</span><span class="tl">B</span><span class="tl">O</span><span class="tl">U</span><span class="tl">N</span><span class="tl">D</span></h1>
+            <div id="menu-divider"></div>
+            <p id="menu-text">
+              Dash through an endless path. Collect orbs to bring color back to the world.
+            </p>
+            <button id="start-btn" type="button">PLAY</button>
+          </div>
+        </div>
+        <div id="cloud-veil" aria-hidden="true"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

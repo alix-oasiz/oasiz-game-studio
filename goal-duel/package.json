@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "webkit": "node webkit-test.js",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write 'src/**/*.{ts,tsx,css,html}'"
   },
@@ -15,10 +16,10 @@
   },
   "devDependencies": {
     "@types/matter-js": "^0.19.7",
+    "playwright": "^1.58.2",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "vite-plugin-singlefile": "^2.0.3"
   }
 }
-

@@ -5,19 +5,20 @@
  * When collected, time freezes, a title-style text drops in with the 
  * powerup name/description, then rises away and the game continues.
  * 
- * Powerups are stackable and each has a configurable duration.
+ * Powerups are single-active with a configurable duration.
  * 
  * Types:
  *  - Blast: Every 3rd shot creates an explosion on enemy hit, damaging nearby enemies
  *  - Laser: Shoots a beam straight down (or in shoot direction)
- *  - Satellite: 3 rotating orbs that kill enemies on contact and block projectiles
+ *  - Shield: 3 rotating orbs that kill enemies on contact and block projectiles
  *  - Lightning Chain: Every 4th shot chains lightning to nearby enemies in a radius
+ *  - Magnet: Pulls nearby gems toward the player
  */
 
 import { CONFIG } from "./config";
 
 // ============= TYPES =============
-export type PowerUpType = "BLAST" | "LASER" | "SATELLITE" | "LIGHTNING";
+export type PowerUpType = "BLAST" | "LASER" | "SHIELD" | "LIGHTNING" | "MAGNET";
 
 export interface PowerUpOrb {
   x: number;
@@ -36,8 +37,8 @@ export interface ActivePowerUp {
   totalFrames: number;     // Total frames for progress tracking
 }
 
-// Satellite orbiting entity
-export interface SatelliteOrb {
+// Shield orbiting entity
+export interface ShieldOrb {
   angle: number;    // Current angle in radians
   radius: number;   // Orbit radius
 }
@@ -76,7 +77,7 @@ export const POWERUP_CONSTANTS = {
   
   // Blast
   BLAST_EVERY_N_SHOTS: 3,        // Every 3rd shot triggers blast
-  BLAST_RADIUS: 80,              // Explosion radius
+  BLAST_RADIUS: 240,             // Explosion radius (3x larger)
   BLAST_DAMAGE: 1,               // Damage to nearby enemies
   
   // Laser
@@ -84,12 +85,12 @@ export const POWERUP_CONSTANTS = {
   LASER_DAMAGE: 2,               // Damage per frame (kills quickly)
   LASER_DURATION: 15,            // Visual frames the beam persists
   
-  // Satellite
-  SATELLITE_COUNT: 3,            // Number of orbiting satellites
-  SATELLITE_RADIUS: 50,          // Orbit radius
-  SATELLITE_SPEED: 0.06,         // Radians per frame
-  SATELLITE_ORB_SIZE: 8,         // Size of each satellite orb
-  SATELLITE_DAMAGE: 1,           // Damage on contact
+  // Shield
+  SHIELD_COUNT: 3,            // Number of orbiting shields
+  SHIELD_RADIUS: 50,          // Orbit radius
+  SHIELD_SPEED: 0.06,         // Radians per frame
+  SHIELD_ORB_SIZE: 8,         // Size of each shield orb
+  SHIELD_DAMAGE: 1,           // Damage on contact
   
   // Lightning
   LIGHTNING_EVERY_N_SHOTS: 4,    // Every 4th shot triggers chain
@@ -102,7 +103,7 @@ export const POWERUP_CONSTANTS = {
 export const POWERUP_INFO: Record<PowerUpType, { name: string; description: string; color: string; glowColor: string }> = {
   BLAST: {
     name: "BLAST",
-    description: "Every 3rd shot explodes on impact",
+    description: "Every shot explodes on impact",
     color: "#ff6633",
     glowColor: "rgba(255, 102, 51, 0.6)",
   },
@@ -112,17 +113,23 @@ export const POWERUP_INFO: Record<PowerUpType, { name: string; description: stri
     color: "#00ffcc",
     glowColor: "rgba(0, 255, 204, 0.6)",
   },
-  SATELLITE: {
-    name: "SATELLITE",
-    description: "3 orbs orbit and destroy enemies",
+  SHIELD: {
+    name: "SHIELD",
+    description: "3 orbiting shields destroy enemies",
     color: "#cc88ff",
     glowColor: "rgba(204, 136, 255, 0.6)",
   },
   LIGHTNING: {
     name: "LIGHTNING",
-    description: "Every 4th shot chains to enemies",
+    description: "Every shot chains to enemies",
     color: "#ffee33",
     glowColor: "rgba(255, 238, 51, 0.6)",
+  },
+  MAGNET: {
+    name: "MAGNET",
+    description: "Pulls nearby gems to you",
+    color: "#4dd4ff",
+    glowColor: "rgba(77, 212, 255, 0.6)",
   },
 };
 
@@ -130,7 +137,9 @@ export const POWERUP_INFO: Record<PowerUpType, { name: string; description: stri
 export class PowerUpManager {
   private orbs: PowerUpOrb[] = [];
   private activePowerUps: ActivePowerUp[] = [];
-  private satellites: SatelliteOrb[] = [];
+  private shields: ShieldOrb[] = [];
+  private visibleOrbsScratch: PowerUpOrb[] = [];
+  private shieldPositionsScratch: { x: number; y: number }[] = [];
   
   // Visual effects
   private blastExplosions: BlastExplosion[] = [];
@@ -151,7 +160,7 @@ export class PowerUpManager {
   
   // Available types to cycle through
   private typeIndex: number = 0;
-  private typeOrder: PowerUpType[] = ["LASER", "BLAST", "LIGHTNING", "SATELLITE"];
+  private typeOrder: PowerUpType[] = ["LASER", "BLAST", "LIGHTNING", "SHIELD", "MAGNET"];
   
   constructor() {
     this.reset();
@@ -160,7 +169,7 @@ export class PowerUpManager {
   reset(): void {
     this.orbs = [];
     this.activePowerUps = [];
-    this.satellites = [];
+    this.shields = [];
     this.blastExplosions = [];
     this.lightningChains = [];
     this.laserBeams = [];
@@ -170,22 +179,42 @@ export class PowerUpManager {
     this.announceFrame = 0;
     this.spawnedMilestones.clear();
     this.typeIndex = 0;
+    this.visibleOrbsScratch.length = 0;
+    this.shieldPositionsScratch.length = 0;
   }
   
   // ============= ORB SPAWNING =============
   
   /** Check if a new powerup orb should be spawned at the given depth */
-  checkSpawnOrb(maxDepth: number, playerX: number): void {
+  checkSpawnOrb(
+    maxDepth: number,
+    playerX: number,
+    resolveSafeX?: (worldY: number, entityWidth: number, preferredX: number) => number,
+    minWorldY?: number
+  ): void {
+    // Do not spawn new upgrade orbs while one is active.
+    if (this.activePowerUps.length > 0) return;
+
     // Calculate the NEXT milestone ahead of the player
     const nextMilestone = (Math.floor(maxDepth / CONFIG.POWERUP_SPAWN_DEPTH_INTERVAL) + 1) * CONFIG.POWERUP_SPAWN_DEPTH_INTERVAL;
+    const nextWorldY = nextMilestone * 10;
+
+    // Keep spawns off-screen (below the visible area) so new upgrades don't pop in next to player.
+    if (minWorldY !== undefined && nextWorldY <= minWorldY) {
+      return;
+    }
     
     if (!this.spawnedMilestones.has(nextMilestone)) {
       this.spawnedMilestones.add(nextMilestone);
-      this.spawnOrb(nextMilestone, playerX);
+      this.spawnOrb(nextMilestone, playerX, resolveSafeX);
     }
   }
   
-  private spawnOrb(depthMilestone: number, playerX: number): void {
+  private spawnOrb(
+    depthMilestone: number,
+    playerX: number,
+    resolveSafeX?: (worldY: number, entityWidth: number, preferredX: number) => number
+  ): void {
     // Pick the next powerup type in cycle
     const type = this.typeOrder[this.typeIndex % this.typeOrder.length];
     this.typeIndex++;
@@ -196,7 +225,10 @@ export class PowerUpManager {
     // Center horizontally in the well, with some variation
     const centerX = CONFIG.INTERNAL_WIDTH / 2;
     const variation = (Math.sin(depthMilestone * 0.1) * 0.5) * (CONFIG.INTERNAL_WIDTH - CONFIG.WALL_WIDTH * 4);
-    const orbX = centerX + variation;
+    const preferredX = centerX + variation;
+    const orbX = resolveSafeX
+      ? resolveSafeX(worldY, POWERUP_CONSTANTS.ORB_HITBOX, preferredX)
+      : preferredX;
     
     const orb: PowerUpOrb = {
       x: orbX,
@@ -217,6 +249,9 @@ export class PowerUpManager {
   
   /** Check if player collects any orb. Returns the collected orb type or null */
   checkCollection(playerX: number, playerY: number, playerWidth: number, playerHeight: number): PowerUpType | null {
+    // While an upgrade is active, ignore new pickups.
+    if (this.activePowerUps.length > 0) return null;
+
     const px = playerX - playerWidth / 2;
     const py = playerY - playerHeight / 2;
     
@@ -237,34 +272,44 @@ export class PowerUpManager {
   }
   
   private activatePowerUp(type: PowerUpType): void {
-    // Check if this type is already active - if so, refresh its duration (stackable)
-    const existing = this.activePowerUps.find(p => p.type === type);
-    if (existing) {
-      // Stack: add duration on top
-      existing.remainingFrames += CONFIG.POWERUP_DURATION_FRAMES;
-      existing.totalFrames = existing.remainingFrames;
-    } else {
-      this.activePowerUps.push({
-        type,
-        remainingFrames: CONFIG.POWERUP_DURATION_FRAMES,
-        totalFrames: CONFIG.POWERUP_DURATION_FRAMES,
-      });
-    }
-    
-    // Initialize satellites if this is a satellite powerup
-    if (type === "SATELLITE" && this.satellites.length === 0) {
-      this.initSatellites();
+    // Clear any pending orbs so none remain visible while a powerup is active.
+    this.orbs = [];
+
+    // Single-active model: activating any upgrade replaces the current one.
+    const durationFrames = this.getPowerUpDurationFrames(type);
+    this.activePowerUps = [{
+      type,
+      remainingFrames: durationFrames,
+      totalFrames: durationFrames,
+    }];
+
+    // Initialize shields if this is a shield powerup
+    if (type === "SHIELD" && this.shields.length === 0) {
+      this.initShields();
+    } else if (type !== "SHIELD") {
+      this.shields = [];
     }
     
     console.log(`[PowerUpManager] Activated ${type} powerup`);
   }
+
+  /** Grant a powerup directly (used by room rewards). */
+  grantPowerUp(type: PowerUpType): void {
+    this.activatePowerUp(type);
+  }
+
+  private getPowerUpDurationFrames(type: PowerUpType): number {
+    // Shield is intentionally shorter than other powerups.
+    if (type === "SHIELD") return 360;
+    return CONFIG.POWERUP_DURATION_FRAMES;
+  }
   
-  private initSatellites(): void {
-    this.satellites = [];
-    for (let i = 0; i < POWERUP_CONSTANTS.SATELLITE_COUNT; i++) {
-      this.satellites.push({
-        angle: (Math.PI * 2 / POWERUP_CONSTANTS.SATELLITE_COUNT) * i,
-        radius: POWERUP_CONSTANTS.SATELLITE_RADIUS,
+  private initShields(): void {
+    this.shields = [];
+    for (let i = 0; i < POWERUP_CONSTANTS.SHIELD_COUNT; i++) {
+      this.shields.push({
+        angle: (Math.PI * 2 / POWERUP_CONSTANTS.SHIELD_COUNT) * i,
+        radius: POWERUP_CONSTANTS.SHIELD_RADIUS,
       });
     }
   }
@@ -280,17 +325,29 @@ export class PowerUpManager {
         console.log(`[PowerUpManager] ${expired.type} powerup expired`);
         this.activePowerUps.splice(i, 1);
         
-        // Clean up satellites if no more satellite powerups remain
-        if (expired.type === "SATELLITE" && !this.hasPowerUp("SATELLITE")) {
-          this.satellites = [];
+        // Clean up shields if no more shield powerups remain
+        if (expired.type === "SHIELD" && !this.hasPowerUp("SHIELD")) {
+          this.shields = [];
         }
       }
     }
+
+    this.updateVisualEffectsAndAnnouncement();
     
-    // Update satellite positions
-    if (this.hasPowerUp("SATELLITE")) {
-      for (const sat of this.satellites) {
-        sat.angle += POWERUP_CONSTANTS.SATELLITE_SPEED;
+    // Clean up collected orbs that are far away (3 chunks above camera)
+    // This is handled externally via getVisibleOrbs
+  }
+
+  /** Update non-timer animations/effects while keeping active durations frozen. */
+  updateVisualsOnly(): void {
+    this.updateVisualEffectsAndAnnouncement();
+  }
+
+  private updateVisualEffectsAndAnnouncement(): void {
+    // Update shield positions
+    if (this.hasPowerUp("SHIELD")) {
+      for (const sat of this.shields) {
+        sat.angle += POWERUP_CONSTANTS.SHIELD_SPEED;
       }
     }
     
@@ -308,9 +365,6 @@ export class PowerUpManager {
         this.announceFrame = 0;
       }
     }
-    
-    // Clean up collected orbs that are far away (3 chunks above camera)
-    // This is handled externally via getVisibleOrbs
   }
   
   private updateBlastExplosions(): void {
@@ -362,8 +416,8 @@ export class PowerUpManager {
     const hasLaser = this.hasPowerUp("LASER");
     
     return {
-      triggerBlast: hasBlast && (this.shotCounter % POWERUP_CONSTANTS.BLAST_EVERY_N_SHOTS === 0),
-      triggerLightning: hasLightning && (this.shotCounter % POWERUP_CONSTANTS.LIGHTNING_EVERY_N_SHOTS === 0),
+      triggerBlast: hasBlast,
+      triggerLightning: hasLightning,
       triggerLaser: hasLaser,
     };
   }
@@ -410,9 +464,13 @@ export class PowerUpManager {
   getActivePowerUps(): ActivePowerUp[] {
     return this.activePowerUps;
   }
+
+  getPrimaryPowerUp(): ActivePowerUp | null {
+    return this.activePowerUps.length > 0 ? this.activePowerUps[0] : null;
+  }
   
-  getSatellites(): SatelliteOrb[] {
-    return this.satellites;
+  getShields(): ShieldOrb[] {
+    return this.shields;
   }
   
   getBlastExplosions(): BlastExplosion[] {
@@ -429,11 +487,14 @@ export class PowerUpManager {
   
   getVisibleOrbs(cameraY: number, viewportHeight: number): PowerUpOrb[] {
     const buffer = viewportHeight;
-    return this.orbs.filter(orb => 
-      !orb.collected && 
-      orb.y > cameraY - buffer && 
-      orb.y < cameraY + viewportHeight + buffer
-    );
+    this.visibleOrbsScratch.length = 0;
+    for (const orb of this.orbs) {
+      if (orb.collected) continue;
+      if (orb.y <= cameraY - buffer) continue;
+      if (orb.y >= cameraY + viewportHeight + buffer) continue;
+      this.visibleOrbsScratch.push(orb);
+    }
+    return this.visibleOrbsScratch;
   }
   
   // ============= ANNOUNCEMENT STATE =============
@@ -456,11 +517,21 @@ export class PowerUpManager {
     };
   }
   
-  // Get satellite world positions given player position
-  getSatellitePositions(playerX: number, playerY: number): { x: number; y: number }[] {
-    return this.satellites.map(sat => ({
-      x: playerX + Math.cos(sat.angle) * sat.radius,
-      y: playerY + Math.sin(sat.angle) * sat.radius,
-    }));
+  // Get shield world positions given player position
+  getShieldPositions(playerX: number, playerY: number): { x: number; y: number }[] {
+    if (this.shieldPositionsScratch.length < this.shields.length) {
+      const needed = this.shields.length - this.shieldPositionsScratch.length;
+      for (let i = 0; i < needed; i++) {
+        this.shieldPositionsScratch.push({ x: 0, y: 0 });
+      }
+    }
+    this.shieldPositionsScratch.length = this.shields.length;
+    for (let i = 0; i < this.shields.length; i++) {
+      const sat = this.shields[i];
+      const pos = this.shieldPositionsScratch[i];
+      pos.x = playerX + Math.cos(sat.angle) * sat.radius;
+      pos.y = playerY + Math.sin(sat.angle) * sat.radius;
+    }
+    return this.shieldPositionsScratch;
   }
 }

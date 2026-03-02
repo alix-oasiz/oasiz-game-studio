@@ -29,7 +29,7 @@ export function initInput(
 
   const isUI = (e: Event) =>
     !!(e.target as HTMLElement).closest(
-      ".modal-card,.icon-btn,.setting-row,.settings-list,.ctrl-btn,.shop-btn,.shop-container,#shopModal,#rotateBtn,.rotate-btn",
+      ".modal-card,.icon-btn,.setting-row,.settings-list,.ctrl-btn,.shop-btn,.shop-container,#shopModal,#pauseModal,.pause-btn,.pause-overlay,.shop-action-btn,.shop-back-btn,.stealth-btn,.start-bottom-row",
     );
 
   const handleTap = (e: Event) => {

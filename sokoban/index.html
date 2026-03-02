@@ -1,0 +1,1393 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Sokoban</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;700;800&display=swap");
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #2a2a3a;
+        color: #fff;
+        font-family: "Inter", sans-serif;
+      }
+
+      #gameContainer {
+        position: relative;
+        width: 1040px;
+        height: 1240px;
+        max-width: 100vw;
+        max-height: 100vh;
+        border-radius: 24px;
+        overflow: hidden;
+        background: linear-gradient(180deg, #e7dcc7 0%, #d3c1a0 100%);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      }
+
+      #gameCanvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      #hud {
+        position: absolute;
+        top: 45px;
+        left: 14px;
+        right: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 25;
+        pointer-events: none;
+      }
+
+      .hud-pill {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(26, 31, 48, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        padding: 8px 14px;
+        backdrop-filter: blur(6px);
+        pointer-events: none;
+      }
+
+      .hud-pill-button {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .hud-pill-button:hover {
+        background: rgba(36, 44, 66, 0.9);
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+
+      .hud-pill-button:active {
+        transform: scale(0.97);
+      }
+
+      .hud-label {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.55);
+      }
+
+      .hud-value {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #fff;
+      }
+
+      .hud-spacer {
+        flex: 1;
+      }
+
+      #hudButtons {
+        display: flex;
+        gap: 8px;
+        pointer-events: auto;
+      }
+
+      .icon-btn {
+        width: 44px;
+        height: 44px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        background: rgba(26, 31, 48, 0.82);
+        backdrop-filter: blur(6px);
+        color: #fff;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.12s ease, background 0.15s ease;
+        pointer-events: auto;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .icon-btn:active {
+        transform: scale(0.92);
+        background: rgba(60, 70, 100, 0.95);
+      }
+
+      .icon-btn:hover {
+        background: rgba(40, 50, 75, 0.92);
+      }
+
+      .icon-btn svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+      }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, rgba(29, 34, 52, 0.92), rgba(17, 19, 30, 0.94));
+        padding: 24px;
+      }
+
+      .overlay-content {
+        width: min(760px, 95%);
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 24px;
+        padding: 28px;
+        text-align: center;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+      }
+
+      .title {
+        font-family: "Press Start 2P", sans-serif;
+        font-size: clamp(1.5rem, 2.7vw, 2.35rem);
+        line-height: 1.35;
+        color: #ffde7f;
+        text-shadow: 2px 2px 0 #7c4d12;
+      }
+
+      .subtitle {
+        margin-top: 16px;
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 1rem;
+        line-height: 1.55;
+      }
+
+      .instruction-list {
+        margin: 18px auto 0 auto;
+        max-width: 540px;
+        text-align: left;
+        color: rgba(255, 255, 255, 0.9);
+        line-height: 1.7;
+        padding-left: 18px;
+      }
+
+      .btn-row {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 22px;
+      }
+
+      .btn {
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #f7be59, #da8d2a);
+        color: #201810;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        padding: 12px 24px;
+        cursor: pointer;
+        min-width: 130px;
+        transition: transform 0.15s ease, filter 0.2s ease;
+      }
+
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      .btn:hover {
+        filter: brightness(1.06);
+      }
+
+      .btn.secondary {
+        background: linear-gradient(180deg, #90a6d9, #5f77ad);
+        color: #0d1a2b;
+      }
+
+      /* ── Level Select ────────────────────── */
+
+      .level-select-overlay {
+        background: linear-gradient(170deg, #2a2418 0%, #1a1510 40%, #12100c 100%);
+        flex-direction: column;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .level-select-header {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 48px 24px 16px;
+        flex-shrink: 0;
+      }
+
+      @media (pointer: coarse) {
+        .level-select-header {
+          padding-top: 120px;
+        }
+      }
+
+      .level-select-back {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        color: rgba(255,255,255,0.7);
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s ease;
+      }
+
+      .level-select-back:active {
+        background: rgba(255,255,255,0.15);
+      }
+
+      .level-select-title-group {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .level-select-title {
+        font-family: "Press Start 2P", sans-serif;
+        font-size: clamp(0.9rem, 2vw, 1.2rem);
+        color: #ffde7f;
+        text-shadow: 1px 1px 0 #7c4d12;
+      }
+
+      .level-select-subtitle {
+        color: rgba(255,255,255,0.4);
+        font-size: 0.72rem;
+        font-weight: 600;
+        margin: 0;
+      }
+
+      .level-select-scroll {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 8px 24px 40px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      #levelGrid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .level-card {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        cursor: pointer;
+        overflow: hidden;
+        transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .level-card:hover {
+        border-color: rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.1);
+      }
+
+      .level-card:active {
+        transform: scale(0.96);
+      }
+
+      .level-card-preview {
+        width: 100%;
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+        background: rgba(0,0,0,0.15);
+      }
+
+      .level-card-preview canvas {
+        width: 100%;
+        height: 100%;
+        image-rendering: pixelated;
+        border-radius: 4px;
+      }
+
+      .level-card-info {
+        padding: 8px 10px 10px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 4px;
+      }
+
+      .level-card-name {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.7);
+        white-space: nowrap;
+      }
+
+      .level-card-par {
+        font-size: 0.6rem;
+        font-weight: 600;
+        color: rgba(255,255,255,0.35);
+        white-space: nowrap;
+      }
+
+      .level-card.completed {
+        border-color: rgba(125, 214, 131, 0.35);
+      }
+
+      .level-card.completed .level-card-name {
+        color: rgba(125, 214, 131, 0.85);
+      }
+
+      .level-card.completed .level-card-par {
+        color: rgba(125, 214, 131, 0.5);
+      }
+
+      #tutorialHint {
+        position: absolute;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        z-index: 30;
+        max-width: min(92%, 720px);
+        background: rgba(20, 26, 40, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 14px;
+        padding: 12px 16px;
+        text-align: center;
+        font-weight: 700;
+        line-height: 1.45;
+      }
+
+      #parInfo {
+        position: absolute;
+        left: 50%;
+        bottom: 20px;
+        transform: translateX(-50%);
+        z-index: 24;
+        background: rgba(20, 26, 40, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 8px 18px;
+        text-align: center;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.55);
+        backdrop-filter: blur(6px);
+        pointer-events: none;
+        white-space: nowrap;
+      }
+
+      #parInfo .par-number {
+        color: #ffde7f;
+        font-weight: 800;
+      }
+
+      #parInfo .par-sep {
+        margin: 0 8px;
+        opacity: 0.35;
+      }
+
+      #confettiCanvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .lc-panel {
+        position: relative;
+        z-index: 2;
+        width: min(380px, 90%);
+        background: #1e1b16;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 24px;
+        padding: 32px 28px 24px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        animation: panelSlideUp 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+      }
+
+      @keyframes panelSlideUp {
+        0% { transform: translateY(30px); opacity: 0; }
+        100% { transform: translateY(0); opacity: 1; }
+      }
+
+      .level-clear-title {
+        animation: clearPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      }
+
+      @keyframes clearPop {
+        0% { transform: scale(0.3); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
+      .lc-stats {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 20px;
+        animation: panelSlideUp 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) 0.05s both;
+      }
+
+      .lc-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .lc-stat-label {
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.45);
+      }
+
+      .lc-stat-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #fff;
+        line-height: 1;
+      }
+
+      .lc-par {
+        color: rgba(255, 255, 255, 0.5);
+      }
+
+      .lc-stat-divider {
+        width: 1px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .lc-score-section {
+        margin-top: 20px;
+        padding: 16px 0 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        animation: panelSlideUp 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) 0.1s both;
+      }
+
+      .lc-score-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.45);
+      }
+
+      .lc-score-value {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffde7f;
+        line-height: 1.1;
+        margin-top: 4px;
+        text-shadow: 0 0 20px rgba(255, 222, 127, 0.3);
+      }
+
+      .lc-score-detail {
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.4);
+        margin-top: 6px;
+        font-weight: 600;
+      }
+
+      .lc-score-detail.perfect {
+        color: rgba(125, 214, 131, 0.85);
+      }
+
+      .lc-levels-link {
+        display: inline-block;
+        margin-top: 10px;
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.35);
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 6px 12px;
+        transition: color 0.15s ease;
+      }
+
+      .lc-levels-link:hover {
+        color: rgba(255, 255, 255, 0.6);
+      }
+
+      .lc-panel .btn-row {
+        margin-top: 20px;
+        animation: panelSlideUp 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) 0.15s both;
+      }
+
+      /* ── Start Screen ────────────────────── */
+
+      .start-overlay {
+        background: linear-gradient(170deg, #2a2418 0%, #1a1510 40%, #12100c 100%);
+        flex-direction: column;
+        gap: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .start-bg-grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.06;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px);
+        background-size: 48px 48px;
+        pointer-events: none;
+      }
+
+      .start-scene {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-top: clamp(40px, 8vh, 80px);
+        perspective: 600px;
+      }
+
+      .start-mini-board {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px;
+        background: rgba(0,0,0,0.3);
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 80px rgba(255,222,127,0.06);
+        transform: rotateX(8deg);
+        animation: boardFloat 4s ease-in-out infinite;
+      }
+
+      @keyframes boardFloat {
+        0%, 100% { transform: rotateX(8deg) translateY(0); }
+        50% { transform: rotateX(8deg) translateY(-8px); }
+      }
+
+      .mini-row {
+        display: flex;
+        gap: 2px;
+      }
+
+      .mini-cell {
+        width: clamp(38px, 8vw, 52px);
+        height: clamp(38px, 8vw, 52px);
+        border-radius: 4px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .mini-wall {
+        background: #3e424a;
+        box-shadow: inset 0 -2px 0 rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+      }
+
+      .mini-floor {
+        background: #c4b696;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+      }
+
+      .mini-goal {
+        width: 40%;
+        height: 40%;
+        border-radius: 50%;
+        background: rgba(224, 120, 110, 0.85);
+        box-shadow: 0 0 12px rgba(224, 120, 110, 0.5);
+        animation: goalPulse 2s ease-in-out infinite;
+      }
+
+      @keyframes goalPulse {
+        0%, 100% { box-shadow: 0 0 8px rgba(224, 120, 110, 0.4); transform: scale(1); }
+        50% { box-shadow: 0 0 18px rgba(224, 120, 110, 0.7); transform: scale(1.1); }
+      }
+
+      .mini-player {
+        width: 60%;
+        height: 60%;
+        border-radius: 50%;
+        background: #235da6;
+        border: 2px solid rgba(255,255,255,0.5);
+        z-index: 3;
+        position: absolute;
+        animation: playerPush 4s ease-in-out infinite;
+      }
+
+      @keyframes playerPush {
+        0%, 10% { left: 15%; }
+        30%, 60% { left: calc(100% + 4px + 15%); }
+        80%, 100% { left: 15%; }
+      }
+
+      .mini-box {
+        width: 62%;
+        height: 62%;
+        border-radius: 4px;
+        background: linear-gradient(180deg, #f1b64a, #cc7e1e);
+        border: 2px solid #7e4715;
+        z-index: 2;
+        position: absolute;
+        animation: boxSlide 4s ease-in-out infinite;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      }
+
+      @keyframes boxSlide {
+        0%, 10% { left: 18%; transform: scale(1); }
+        30%, 60% { left: calc(100% + 4px + 18%); transform: scale(1); }
+        35% { transform: scale(1.08); }
+        40% { transform: scale(1); }
+        80%, 100% { left: 18%; transform: scale(1); }
+      }
+
+      .mini-goal-cell .mini-goal {
+        animation: goalPulse 2s ease-in-out infinite, goalHit 4s ease-in-out infinite;
+      }
+
+      @keyframes goalHit {
+        0%, 28% { background: rgba(224, 120, 110, 0.85); }
+        35%, 58% { background: rgba(125, 214, 131, 0.9); box-shadow: 0 0 20px rgba(125, 214, 131, 0.6); }
+        65%, 100% { background: rgba(224, 120, 110, 0.85); }
+      }
+
+      .start-content {
+        position: relative;
+        z-index: 3;
+        text-align: center;
+        padding: 28px 24px 40px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .start-title {
+        font-size: clamp(1.8rem, 4vw, 2.8rem);
+        margin-bottom: 0;
+        animation: titleGlow 3s ease-in-out infinite;
+      }
+
+      @keyframes titleGlow {
+        0%, 100% { text-shadow: 2px 2px 0 #7c4d12, 0 0 20px rgba(255, 222, 127, 0.1); }
+        50% { text-shadow: 2px 2px 0 #7c4d12, 0 0 40px rgba(255, 222, 127, 0.25); }
+      }
+
+      .start-tagline {
+        margin-top: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.95rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+      }
+
+      .start-instructions {
+        display: flex;
+        gap: 24px;
+        margin-top: 22px;
+      }
+
+      .start-instruction-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 0.78rem;
+        font-weight: 600;
+      }
+
+      .start-instruction-item svg {
+        opacity: 0.5;
+        flex-shrink: 0;
+      }
+
+      .start-play-btn {
+        margin-top: 28px;
+        padding: 14px 48px;
+        font-size: 1rem;
+        border-radius: 14px;
+        box-shadow: 0 4px 20px rgba(247, 190, 89, 0.25);
+        transition: transform 0.15s ease, box-shadow 0.2s ease;
+      }
+
+      .start-play-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(247, 190, 89, 0.35);
+      }
+
+      @media (pointer: coarse) {
+        .start-scene {
+          padding-top: clamp(100px, 15vh, 160px);
+        }
+
+        .start-instructions {
+          flex-direction: column;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .start-play-btn {
+          padding: 16px 56px;
+          font-size: 1.05rem;
+        }
+      }
+
+      #settingsModal {
+        position: absolute;
+        inset: 0;
+        z-index: 70;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 20px;
+      }
+
+      #settingsModal.active {
+        display: flex;
+      }
+
+      .settings-panel {
+        width: min(440px, 96%);
+        background: #1b2438;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 20px;
+      }
+
+      .settings-title {
+        font-family: "Press Start 2P", sans-serif;
+        font-size: 1rem;
+        color: #ffde7f;
+        text-align: center;
+      }
+
+      .setting-row {
+        margin-top: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: #f7f7f7;
+      }
+
+      .toggle {
+        width: 54px;
+        height: 30px;
+        border-radius: 999px;
+        background: #596377;
+        position: relative;
+        cursor: pointer;
+      }
+
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #fff;
+        transition: transform 0.2s ease;
+      }
+
+      .toggle.active {
+        background: #5ec37f;
+      }
+
+      .toggle.active::after {
+        transform: translateX(24px);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      /* ── Editor ────────────────────────────── */
+
+      #editorScreen.overlay {
+        background: none;
+        padding: 0;
+      }
+
+      .editor-container {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        pointer-events: none;
+      }
+
+      .editor-top-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 50px 14px 10px;
+        z-index: 45;
+        flex-shrink: 0;
+        background: linear-gradient(180deg, rgba(14, 16, 26, 0.95) 0%, rgba(14, 16, 26, 0.85) 80%, transparent 100%);
+        pointer-events: auto;
+      }
+
+      .editor-name-input {
+        flex: 1;
+        min-width: 0;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        padding: 10px 14px;
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 600;
+        outline: none;
+      }
+
+      .editor-name-input::placeholder {
+        color: rgba(255, 255, 255, 0.35);
+      }
+
+      .editor-name-input:focus {
+        border-color: rgba(255, 222, 127, 0.55);
+      }
+
+      .editor-size-controls {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        padding: 4px 8px;
+      }
+
+      .size-btn {
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s ease;
+      }
+
+      .size-btn:active {
+        background: rgba(255, 222, 127, 0.3);
+      }
+
+      .size-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+
+      .size-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.8);
+        min-width: 36px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .editor-canvas-spacer {
+        flex: 1;
+      }
+
+      .editor-toolbar {
+        display: flex;
+        gap: 6px;
+        padding: 8px 14px;
+        overflow-x: auto;
+        flex-shrink: 0;
+        z-index: 45;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        background: rgba(14, 16, 26, 0.88);
+        pointer-events: auto;
+      }
+
+      .editor-toolbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .tool-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 6px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.7);
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s, border-color 0.15s;
+        min-width: 52px;
+      }
+
+      .tool-btn.active {
+        background: rgba(255, 222, 127, 0.18);
+        border-color: rgba(255, 222, 127, 0.5);
+        color: #ffde7f;
+      }
+
+      .tool-btn:active {
+        transform: scale(0.95);
+      }
+
+      .tool-swatch {
+        width: 22px;
+        height: 22px;
+        border-radius: 5px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .tool-wall { background: #4a4f58; }
+      .tool-floor { background: #d8c9ab; }
+      .tool-goal { background: rgba(224, 148, 139, 0.9); border-radius: 50%; }
+      .tool-ice { background: linear-gradient(135deg, #c3e4ff, #8abff1); }
+      .tool-fragile { background: linear-gradient(135deg, #c29870, #806a4a); }
+      .tool-portal-a { background: radial-gradient(circle, #80d1ff, #60aaff 70%); border-radius: 50%; }
+      .tool-portal-b { background: radial-gradient(circle, #de96ff, #bc7cff 70%); border-radius: 50%; }
+      .tool-player { background: #235da6; border-radius: 50%; }
+      .tool-box { background: linear-gradient(180deg, #f1b64a, #cc7e1e); }
+      .tool-eraser { background: repeating-linear-gradient(45deg, #555, #555 3px, #888 3px, #888 6px); }
+
+      .tool-label {
+        font-size: 0.55rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+
+      .editor-validation {
+        padding: 8px 14px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #fca5a5;
+        text-align: center;
+        flex-shrink: 0;
+        background: rgba(14, 16, 26, 0.88);
+        pointer-events: auto;
+      }
+
+      .editor-validation.success {
+        color: #86efac;
+      }
+
+      .editor-bottom-bar {
+        display: flex;
+        gap: 12px;
+        padding: 10px 14px 24px;
+        justify-content: center;
+        flex-shrink: 0;
+        z-index: 45;
+        background: linear-gradient(0deg, rgba(14, 16, 26, 0.95) 0%, rgba(14, 16, 26, 0.85) 80%, transparent 100%);
+        pointer-events: auto;
+      }
+
+      .editor-bottom-bar .btn {
+        min-width: 120px;
+      }
+
+      /* ── Custom Levels in Level Select ────── */
+
+      .custom-levels-section {
+        margin-top: 20px;
+      }
+
+      .custom-levels-header {
+        font-family: "Press Start 2P", sans-serif;
+        font-size: 0.65rem;
+        color: rgba(255, 222, 127, 0.7);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 10px;
+      }
+
+      .custom-levels-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .custom-level-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        padding: 10px 14px;
+      }
+
+      .custom-level-name {
+        flex: 1;
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: #fff;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .custom-level-actions {
+        display: flex;
+        gap: 6px;
+      }
+
+      .custom-level-actions button {
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 6px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .custom-level-actions button:active {
+        transform: scale(0.95);
+      }
+
+      .custom-level-actions .delete-btn {
+        color: #fca5a5;
+        border-color: rgba(252, 165, 165, 0.3);
+      }
+
+      @media (pointer: coarse) {
+        html,
+        body {
+          background: #1e2231;
+        }
+
+        #gameContainer {
+          width: 100%;
+          height: 100%;
+          border-radius: 0;
+          box-shadow: none;
+          border: none;
+        }
+
+        #hud {
+          top: 120px;
+          left: 10px;
+          right: 10px;
+          gap: 8px;
+        }
+
+        .icon-btn {
+          width: 48px;
+          height: 48px;
+        }
+
+        .overlay-content {
+          padding: 22px;
+        }
+
+        #levelGrid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .editor-top-bar {
+          padding-top: 125px;
+        }
+
+        .tool-btn {
+          padding: 8px 12px;
+          min-width: 56px;
+        }
+
+        .tool-swatch {
+          width: 26px;
+          height: 26px;
+        }
+
+        .editor-bottom-bar {
+          padding-bottom: 36px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameContainer">
+      <canvas id="gameCanvas"></canvas>
+
+      <div id="hud" class="hidden">
+        <button class="hud-pill hud-pill-button" id="levelSwitcherBtn" title="Back to levels">
+          <svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:currentColor;flex-shrink:0;"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path></svg>
+          <span class="hud-value" style="font-size:0.78rem;">Levels</span>
+        </button>
+        <div class="hud-pill">
+          <span class="hud-label">Moves</span>
+          <span class="hud-value" id="movesValue">0</span>
+        </div>
+        <div class="hud-spacer"></div>
+        <div id="hudButtons">
+          <button class="icon-btn" id="undoBtn" title="Undo">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12.5 8C9.85 8 7.45 9 5.6 10.6L2 7v9h9l-3.6-3.6A8 8 0 0 1 20 16l2.4-1.2A10.5 10.5 0 0 0 12.5 8z"></path>
+            </svg>
+          </button>
+          <button class="icon-btn" id="restartBtn" title="Restart">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-1.76-4.24L14 10h6V4l-2.35 2.35z"></path>
+            </svg>
+          </button>
+          <button class="icon-btn" id="settingsBtn" title="Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19.43 12.98a7.79 7.79 0 0 0 0-1.96l2.11-1.65-2-3.46-2.49 1a7.72 7.72 0 0 0-1.69-.98L14.88 3h-4l-.48 2.93a7.72 7.72 0 0 0-1.69.98l-2.49-1-2 3.46 2.11 1.65a7.93 7.93 0 0 0 0 1.96L4.22 14.6l2 3.46 2.49-1c.52.4 1.08.72 1.69.98L10.88 21h4l.48-2.93a7.72 7.72 0 0 0 1.69-.98l2.49 1 2-3.46-2.1-1.65zM12.88 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="parInfo" class="hidden"></div>
+
+      <div id="tutorialHint" class="hidden"></div>
+
+      <div id="startScreen" class="overlay start-overlay">
+        <div class="start-bg-grid" id="startBgGrid"></div>
+        <div class="start-scene">
+          <div class="start-mini-board">
+            <div class="mini-row">
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+            </div>
+            <div class="mini-row">
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-floor"></div>
+              <div class="mini-cell mini-floor"></div>
+              <div class="mini-cell mini-floor"></div>
+              <div class="mini-cell mini-wall"></div>
+            </div>
+            <div class="mini-row">
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-floor">
+                <div class="mini-player"></div>
+              </div>
+              <div class="mini-cell mini-floor">
+                <div class="mini-box"></div>
+              </div>
+              <div class="mini-cell mini-floor mini-goal-cell">
+                <div class="mini-goal"></div>
+              </div>
+              <div class="mini-cell mini-wall"></div>
+            </div>
+            <div class="mini-row">
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-floor"></div>
+              <div class="mini-cell mini-floor"></div>
+              <div class="mini-cell mini-floor"></div>
+              <div class="mini-cell mini-wall"></div>
+            </div>
+            <div class="mini-row">
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+              <div class="mini-cell mini-wall"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="start-content">
+          <div class="title start-title">SOKOBAN</div>
+          <p class="start-tagline">Push crates. Solve puzzles. Beat the par.</p>
+          <div class="start-instructions">
+            <div class="start-instruction-item">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15 5l-1.41 1.41L18.17 11H2v2h16.17l-4.59 4.59L15 19l7-7-7-7z"/></svg>
+              <span>Swipe to move.</span>
+            </div>
+          </div>
+          <button id="startButton" class="btn start-play-btn">Play</button>
+        </div>
+      </div>
+
+      <div id="levelSelectScreen" class="overlay level-select-overlay hidden">
+        <div class="level-select-header">
+          <button id="levelSelectBackBtn" class="level-select-back" title="Back">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+          </button>
+          <div class="level-select-title-group">
+            <div class="level-select-title">Select Level</div>
+            <p class="level-select-subtitle" id="levelSelectSubtitle">Par = fewest moves to solve</p>
+          </div>
+        </div>
+        <div class="level-select-scroll">
+          <div id="levelGrid"></div>
+        </div>
+      </div>
+
+      <div id="editorScreen" class="overlay hidden">
+        <div class="editor-container">
+          <div class="editor-top-bar">
+            <button id="editorBackBtn" class="icon-btn" title="Back to level select">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path></svg>
+            </button>
+            <input id="editorLevelName" type="text" class="editor-name-input" placeholder="Level name" maxlength="32" />
+            <div class="editor-size-controls">
+              <button id="editorRowsDec" class="size-btn" title="Fewer rows">
+                <svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
+              </button>
+              <span id="editorSizeLabel" class="size-label">8x8</span>
+              <button id="editorRowsInc" class="size-btn" title="More rows">
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="editor-toolbar" id="editorToolbar">
+            <button class="tool-btn active" data-tool="wall" title="Wall">
+              <span class="tool-swatch tool-wall"></span><span class="tool-label">Wall</span>
+            </button>
+            <button class="tool-btn" data-tool="floor" title="Floor">
+              <span class="tool-swatch tool-floor"></span><span class="tool-label">Floor</span>
+            </button>
+            <button class="tool-btn" data-tool="goal" title="Goal">
+              <span class="tool-swatch tool-goal"></span><span class="tool-label">Goal</span>
+            </button>
+            <button class="tool-btn" data-tool="ice" title="Ice">
+              <span class="tool-swatch tool-ice"></span><span class="tool-label">Ice</span>
+            </button>
+            <button class="tool-btn" data-tool="fragile" title="Fragile">
+              <span class="tool-swatch tool-fragile"></span><span class="tool-label">Fragile</span>
+            </button>
+            <button class="tool-btn" data-tool="portal_a" title="Portal A">
+              <span class="tool-swatch tool-portal-a"></span><span class="tool-label">Portal A</span>
+            </button>
+            <button class="tool-btn" data-tool="portal_b" title="Portal B">
+              <span class="tool-swatch tool-portal-b"></span><span class="tool-label">Portal B</span>
+            </button>
+            <button class="tool-btn" data-tool="player" title="Player">
+              <span class="tool-swatch tool-player"></span><span class="tool-label">Player</span>
+            </button>
+            <button class="tool-btn" data-tool="box" title="Box">
+              <span class="tool-swatch tool-box"></span><span class="tool-label">Box</span>
+            </button>
+            <button class="tool-btn" data-tool="eraser" title="Eraser">
+              <span class="tool-swatch tool-eraser"></span><span class="tool-label">Erase</span>
+            </button>
+          </div>
+
+          <div id="editorValidationMsg" class="editor-validation hidden"></div>
+
+          <div class="editor-canvas-spacer"></div>
+
+          <div class="editor-bottom-bar">
+            <button id="editorTestBtn" class="btn">Test Play</button>
+            <button id="editorSaveBtn" class="btn">Save Level</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="levelCompleteScreen" class="overlay hidden">
+        <canvas id="confettiCanvas"></canvas>
+        <div class="lc-panel">
+          <div class="title level-clear-title">LEVEL CLEAR</div>
+
+          <div class="lc-stats">
+            <div class="lc-stat">
+              <span class="lc-stat-label">Your moves</span>
+              <span class="lc-stat-value" id="lcMoves">0</span>
+            </div>
+            <div class="lc-stat-divider"></div>
+            <div class="lc-stat">
+              <span class="lc-stat-label">Par</span>
+              <span class="lc-stat-value lc-par" id="lcPar">0</span>
+            </div>
+          </div>
+
+          <div class="lc-score-section">
+            <span class="lc-score-label">Score</span>
+            <div class="lc-score-value" id="lcScore">0</div>
+            <div class="lc-score-detail" id="lcScoreDetail"></div>
+          </div>
+
+          <div class="btn-row">
+            <button id="replayLevelBtn" class="btn secondary">Play Again</button>
+            <button id="nextLevelBtn" class="btn">Next Level</button>
+          </div>
+          <button id="levelSelectBtn" class="lc-levels-link">Back to Levels</button>
+        </div>
+      </div>
+
+      <div id="settingsModal">
+        <div class="settings-panel">
+          <div class="settings-title">SETTINGS</div>
+          <div class="setting-row">
+            <span>Music</span>
+            <div id="musicToggle" class="toggle active"></div>
+          </div>
+          <div class="setting-row">
+            <span>FX</span>
+            <div id="fxToggle" class="toggle active"></div>
+          </div>
+          <div class="setting-row">
+            <span>Haptics</span>
+            <div id="hapticsToggle" class="toggle active"></div>
+          </div>
+          <div class="btn-row">
+            <button id="settingsCloseBtn" class="btn secondary">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

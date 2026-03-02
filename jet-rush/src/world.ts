@@ -19,7 +19,7 @@ const OUTLINE_COLORS = [
   0x00aaff, 0x00ff88, 0xffdd00, 0xff6600, 0xff0066, 0xaa00ff, 0x0088ff, 0x88ff00,
 ];
 
-const _outlineBaseColors = OUTLINE_COLORS.map((c) => new THREE.Color(c));
+export const OUTLINE_BASE_COLORS = OUTLINE_COLORS.map((c) => new THREE.Color(c));
 
 function ensureMats(): void {
   if (matsReady) return;
@@ -106,33 +106,51 @@ function getCachedEdgesGeo(boxGeo: THREE.BoxGeometry, w: number, h: number, d: n
   return geo;
 }
 
-const _reusableColArr = new Float32Array(256 * 6);
+let _reusableColArr = new Float32Array(512 * 6);
 
 /* ── Ground ── */
 
 export function buildGround(scene: THREE.Scene): THREE.Group[] {
   ensureMats();
   const size = C.GROUND_SIZE;
+  const cols = C.GROUND_COLS;
+  const rows = C.GROUND_SEGMENTS;
   const tiles: THREE.Group[] = [];
+  const halfCols = Math.floor(cols / 2);
 
-  for (let i = 0; i < C.GROUND_SEGMENTS; i++) {
-    const g = new THREE.Group();
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), groundMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    g.add(floor);
-    g.position.z = -i * size;
-    scene.add(g);
-    tiles.push(g);
+  for (let row = 0; row < rows; row++) {
+    for (let col = -halfCols; col <= halfCols; col++) {
+      const g = new THREE.Group();
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), groundMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = 0;
+      g.add(floor);
+      g.position.z = -row * size;
+      g.position.x = col * size;
+      scene.add(g);
+      tiles.push(g);
+    }
   }
 
   return tiles;
 }
 
-export function recycleGround(tiles: THREE.Group[], planeZ: number): void {
+export function recycleGround(tiles: THREE.Group[], planeZ: number, planeX: number = 0): void {
+  const size = C.GROUND_SIZE;
+  const cols = C.GROUND_COLS;
+  const rows = C.GROUND_SEGMENTS;
+  const totalZ = size * rows;
+  const totalX = size * cols;
+
   for (const g of tiles) {
-    if (g.position.z > planeZ + C.GROUND_SIZE) {
-      g.position.z -= C.GROUND_SIZE * C.GROUND_SEGMENTS;
+    if (g.position.z > planeZ + size) {
+      g.position.z -= totalZ;
+    }
+    while (g.position.x < planeX - totalX * 0.5) {
+      g.position.x += totalX;
+    }
+    while (g.position.x > planeX + totalX * 0.5) {
+      g.position.x -= totalX;
     }
   }
 }
@@ -156,14 +174,17 @@ function ensureNoise(seed: number): void {
 
 /* ── Height from noise ── */
 
-function sampleHeight(x: number, z: number): number {
+function sampleHeight(x: number, z: number, score: number = 0): number {
   const lo = (noiseLo.noise2D(x * C.NOISE_SCALE_LO, z * C.NOISE_SCALE_LO) + 1) * 0.5;
   const hi = (noiseHi.noise2D(x * C.NOISE_SCALE_HI, z * C.NOISE_SCALE_HI) + 1) * 0.5;
   const raw = lo * C.NOISE_WEIGHT_LO + hi * C.NOISE_WEIGHT_HI;
   const shaped = Math.pow(raw, C.NOISE_HEIGHT_POW);
 
-  if (shaped >= C.TALL_NOISE_CUTOFF) {
-    const t = (shaped - C.TALL_NOISE_CUTOFF) / (1 - C.TALL_NOISE_CUTOFF);
+  const difficulty = Math.min(1.0, score / 10000);
+  const cutoff = Math.max(0.1, C.TALL_NOISE_CUTOFF - 0.2 * difficulty);
+
+  if (shaped >= cutoff) {
+    const t = (shaped - cutoff) / (1 - cutoff);
     return C.TALL_H_MIN + t * (C.TALL_H_MAX - C.TALL_H_MIN);
   }
   const t = shaped / C.TALL_NOISE_CUTOFF;
@@ -205,40 +226,47 @@ export function spawnRow(
   safeZone: boolean = false,
   score: number = 0,
   edgeTallOnly: boolean = false,
+  mobile: boolean = false,
+  centerX: number = 0,
 ): BlockRow {
   ensureMats();
   ensureNoise(runSeed);
 
-  const rng = seededRandom(Math.floor(z * 7.37 + runSeed));
   const cx1 = corridorCenterX(z);
   const cx2 = corridor2CenterX(z);
 
-  const edgeThreshold = C.BLOCK_SPREAD_X * 0.55;
+  const spreadX = mobile ? 75 : C.BLOCK_SPREAD_X;
+  const edgeThreshold = spreadX * 0.55;
+
+  const gridSnap = Math.round(centerX / C.CELL_SIZE_X) * C.CELL_SIZE_X;
+  const loX = gridSnap - spreadX;
+  const hiX = gridSnap + spreadX;
 
   /* ── Pass 1: compute cell positions and heights ── */
   const cells: CellData[] = [];
 
-  for (let cellX = -C.BLOCK_SPREAD_X; cellX <= C.BLOCK_SPREAD_X; cellX += C.CELL_SIZE_X) {
-    const jitterX = (rng() - 0.5) * 1.2;
-    const jitterZ = (rng() - 0.5) * 1.0;
+  for (let cellX = loX; cellX <= hiX; cellX += C.CELL_SIZE_X) {
+    const cellRng = seededRandom(Math.floor(z * 7.37 + cellX * 13.17 + runSeed));
+    const jitterX = (cellRng() - 0.5) * 1.2;
+    const jitterZ = (cellRng() - 0.5) * 1.0;
     const bx = cellX + jitterX;
     const bz = z + jitterZ;
 
-    const bw = C.BLOCK_W_MIN + rng() * (C.BLOCK_W_MAX - C.BLOCK_W_MIN);
-    const bd = C.BLOCK_D_MIN + rng() * (C.BLOCK_D_MAX - C.BLOCK_D_MIN);
+    const bw = C.BLOCK_W_MIN + cellRng() * (C.BLOCK_W_MAX - C.BLOCK_W_MIN);
+    const bd = C.BLOCK_D_MIN + cellRng() * (C.BLOCK_D_MAX - C.BLOCK_D_MIN);
 
-    let bh = sampleHeight(bx, bz);
+    let bh = sampleHeight(bx, bz, score);
 
     if (safeZone) {
       bh = Math.min(bh, C.CORRIDOR_SAFE_H);
     }
 
     if (edgeTallOnly) {
-      const absBx = Math.abs(bx);
+      const absBx = Math.abs(bx - gridSnap);
       if (absBx < edgeThreshold) {
         bh = Math.min(bh, C.SHORT_H_MAX * 0.6);
       } else {
-        const edgeFactor = (absBx - edgeThreshold) / (C.BLOCK_SPREAD_X - edgeThreshold);
+        const edgeFactor = (absBx - edgeThreshold) / (spreadX - edgeThreshold);
         const minTall = C.TALL_H_MIN * 0.6;
         const maxTall = C.TALL_H_MAX;
         bh = minTall + edgeFactor * edgeFactor * (maxTall - minTall);
@@ -274,14 +302,16 @@ export function spawnRow(
 
   /* ── Pass 2: de-clump tall blocks ── */
   if (!safeZone) {
-    const gap = C.TALL_MIN_GAP_CELLS;
+    const difficulty = Math.min(1.0, score / 10000);
+    const gap = Math.max(0, Math.floor(C.TALL_MIN_GAP_CELLS - 2 * difficulty));
     const thresh = C.TALL_THRESHOLD;
     let lastTallIdx = -gap - 1;
 
     for (let i = 0; i < cells.length; i++) {
       if (cells[i].bh >= thresh) {
         if (i - lastTallIdx <= gap) {
-          cells[i].bh = C.SHORT_H_MIN + rng() * (C.SHORT_H_MAX - C.SHORT_H_MIN);
+          const declumpRng = seededRandom(Math.floor(z * 11.3 + i * 5.7 + runSeed));
+          cells[i].bh = C.SHORT_H_MIN + declumpRng() * (C.SHORT_H_MAX - C.SHORT_H_MIN);
         } else {
           lastTallIdx = i;
         }
@@ -291,10 +321,11 @@ export function spawnRow(
 
   /* ── Pass 3: create meshes from cell data ── */
   const blocks: Block[] = [];
-  const rng2 = seededRandom(Math.floor(z * 3.13 + runSeed));
 
-  for (const cell of cells) {
+  for (let ci = 0; ci < cells.length; ci++) {
+    const cell = cells[ci];
     const { bx, bz, bw, bd, bh } = cell;
+    const rng2 = seededRandom(Math.floor(bx * 3.13 + z * 9.71 + runSeed));
 
     const isMoving = !safeZone && bh > C.PLANE_Y && rng2() < C.MOVE_CHANCE;
     const moveAmp = isMoving
@@ -310,39 +341,36 @@ export function spawnRow(
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(bx, bh / 2, bz);
 
-    const outlineTier = Math.floor(score / 100) % OUTLINE_COLORS.length;
+    const outlineTier = Math.floor(score / 500) % OUTLINE_COLORS.length;
     const edgesGeo = getCachedEdgesGeo(geo, bw, bh, bd);
     const lineGeo = new LineSegmentsGeometry().fromEdgesGeometry(edgesGeo);
 
-    const baseCol = _outlineBaseColors[outlineTier];
+    const baseCol = OUTLINE_BASE_COLORS[outlineTier];
     const posBuffer = (lineGeo.attributes.instanceStart as THREE.InterleavedBufferAttribute)
       .data.array as Float32Array;
     const segCount = posBuffer.length / 6;
     const needed = segCount * 6;
-    const colArr = needed <= _reusableColArr.length
-      ? _reusableColArr
-      : new Float32Array(needed);
+    if (needed > _reusableColArr.length) {
+      _reusableColArr = new Float32Array(needed);
+    }
     const halfH = bh / 2;
+    const br = baseCol.r, bg = baseCol.g, bb = baseCol.b;
     for (let si = 0; si < segCount; si++) {
       const off = si * 6;
       const y0 = posBuffer[off + 1];
       const y1 = posBuffer[off + 4];
-      const t0 = THREE.MathUtils.clamp((y0 + halfH) / bh, 0, 1);
-      const t1 = THREE.MathUtils.clamp((y1 + halfH) / bh, 0, 1);
-      const b0 = 0.15 + t0 * 0.85;
-      const b1 = 0.15 + t1 * 0.85;
-      colArr[off]     = baseCol.r * b0;
-      colArr[off + 1] = baseCol.g * b0;
-      colArr[off + 2] = baseCol.b * b0;
-      colArr[off + 3] = baseCol.r * b1;
-      colArr[off + 4] = baseCol.g * b1;
-      colArr[off + 5] = baseCol.b * b1;
+      const t0 = (y0 + halfH) / bh;
+      const t1 = (y1 + halfH) / bh;
+      const b0 = 0.15 + (t0 < 0 ? 0 : t0 > 1 ? 1 : t0) * 0.85;
+      const b1 = 0.15 + (t1 < 0 ? 0 : t1 > 1 ? 1 : t1) * 0.85;
+      _reusableColArr[off]     = br * b0;
+      _reusableColArr[off + 1] = bg * b0;
+      _reusableColArr[off + 2] = bb * b0;
+      _reusableColArr[off + 3] = br * b1;
+      _reusableColArr[off + 4] = bg * b1;
+      _reusableColArr[off + 5] = bb * b1;
     }
-    if (colArr === _reusableColArr) {
-      lineGeo.setColors(Array.from(colArr.subarray(0, needed)));
-    } else {
-      lineGeo.setColors(colArr);
-    }
+    lineGeo.setColors(new Float32Array(_reusableColArr.buffer.slice(0, needed * 4)) as unknown as number[]);
 
     const wireframe = new LineSegments2(lineGeo, wireframeMats[outlineTier]);
     wireframe.name = "wireframeOutline";
@@ -388,19 +416,25 @@ export function spawnRow(
 
 /** Removes a row from the scene and disposes only per-instance geometry (LineSegmentsGeometry). */
 export function destroyRow(scene: THREE.Scene, row: BlockRow): void {
-  for (const b of row.blocks) {
-    scene.remove(b.mesh);
-    b.mesh.traverse((child) => {
-      if (child instanceof LineSegments2) {
-        child.geometry.dispose();
+  for (let i = 0; i < row.blocks.length; i++) {
+    const mesh = row.blocks[i].mesh;
+    scene.remove(mesh);
+    const children = mesh.children;
+    for (let j = 0; j < children.length; j++) {
+      if (children[j].name === "wireframeOutline") {
+        (children[j] as LineSegments2).geometry.dispose();
       }
-    });
+    }
   }
 }
 
-/** Animates all moving blocks based on elapsed time. */
-export function updateBlockAnimations(rows: BlockRow[], elapsed: number): void {
+/** Animates moving blocks near the camera. Rows outside the visible range are skipped. */
+export function updateBlockAnimations(rows: BlockRow[], elapsed: number, camZ: number): void {
+  const ahead = camZ - 200;
+  const behind = camZ + 50;
   for (let ri = 0; ri < rows.length; ri++) {
+    const rz = rows[ri].z;
+    if (rz < ahead || rz > behind) continue;
     const blocks = rows[ri].blocks;
     for (let bi = 0; bi < blocks.length; bi++) {
       const b = blocks[bi];

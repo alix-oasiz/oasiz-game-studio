@@ -1,674 +1,1013 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Car Balance</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      touch-action: none;
-      background: #87CEEB;
-      font-family: 'Fredoka', sans-serif;
-    }
-    
-    #game {
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-    
-    /* UI Overlays */
-    .overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-      z-index: 10;
-      transition: opacity 0.3s ease;
-    }
-    
-    .overlay.hidden {
-      opacity: 0;
-      visibility: hidden;
-    }
-    
-    /* Start Screen - Enhanced design */
-    #start-screen {
-      background: linear-gradient(180deg, #87CEEB 0%, #7EC8E3 50%, #5BA3D0 100%);
-      overflow: hidden;
-    }
-    
-    .start-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      z-index: 2;
-      animation: fadeInUp 0.8s ease-out;
-    }
-    
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>Car Balance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Fredoka:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    
-    #start-screen h1 {
-      font-family: 'Patrick Hand', cursive;
-      font-size: clamp(3rem, 12vw, 6rem);
-      color: #222;
-      margin-bottom: 0.3rem;
-      text-shadow: 3px 3px 0 rgba(255,255,255,0.5);
-      animation: titleBounce 2s ease-in-out infinite;
-    }
-    
-    @keyframes titleBounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-8px); }
-    }
-    
-    #start-screen p {
-      font-family: 'Patrick Hand', cursive;
-      color: #333;
-      font-size: clamp(1.1rem, 3vw, 1.5rem);
-      margin-bottom: 1.5rem;
-    }
-    
-    /* Car illustration on start screen */
-    .start-illustration {
-      position: relative;
-      width: 280px;
-      height: 160px;
-      margin-bottom: 2rem;
-    }
-    
-    .start-beam {
-      position: absolute;
-      bottom: 40px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 240px;
-      height: 12px;
-      background: #1a1a1a;
-      border-radius: 6px;
-      animation: beamTilt 3s ease-in-out infinite;
-      transform-origin: center;
-    }
-    
-    @keyframes beamTilt {
-      0%, 100% { transform: translateX(-50%) rotate(-8deg); }
-      50% { transform: translateX(-50%) rotate(8deg); }
-    }
-    
-    .start-pivot {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 6px;
-      height: 45px;
-      background: #1a1a1a;
-      border-radius: 3px;
-    }
-    
-    .start-car {
-      position: absolute;
-      bottom: 52px;
-      left: 50%;
-      transform: translateX(-30px);
-      animation: carSlide 3s ease-in-out infinite;
-    }
-    
-    @keyframes carSlide {
-      0%, 100% { transform: translateX(-80px) rotate(-8deg); }
-      50% { transform: translateX(20px) rotate(8deg); }
-    }
-    
-    .start-car-body {
-      width: 60px;
-      height: 22px;
-      background: #e63946;
-      border: 3px solid #a11d2a;
-      border-radius: 11px;
-    }
-    
-    .start-car-wheels {
-      position: absolute;
-      bottom: -8px;
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      padding: 0 5px;
-    }
-    
-    .start-wheel {
-      width: 18px;
-      height: 18px;
-      background: #1a1a1a;
-      border-radius: 50%;
-      border: 2px solid #333;
-      animation: wheelSpin 1s linear infinite;
-    }
-    
-    @keyframes wheelSpin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-    
-    /* Water decoration at bottom */
-    .start-water {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 120px;
-      background: linear-gradient(180deg, rgba(74,144,194,0.8) 0%, #3d7aa8 100%);
-      z-index: 1;
-    }
-    
-    .start-wave {
-      position: absolute;
-      top: -15px;
-      left: 0;
-      right: 0;
-      height: 30px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 30'%3E%3Cpath d='M0,15 Q150,0 300,15 T600,15 T900,15 T1200,15 L1200,30 L0,30 Z' fill='%234a90c2'/%3E%3C/svg%3E") repeat-x;
-      background-size: 600px 30px;
-      animation: waveMove 4s linear infinite;
-    }
-    
-    @keyframes waveMove {
-      from { background-position-x: 0; }
-      to { background-position-x: 600px; }
-    }
-    
-    /* Floating clouds */
-    .start-clouds {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 200px;
-      pointer-events: none;
-      z-index: 0;
-    }
-    
-    .cloud {
-      position: absolute;
-      background: rgba(255,255,255,0.7);
-      border-radius: 50px;
-      animation: cloudFloat 20s linear infinite;
-    }
-    
-    .cloud::before, .cloud::after {
-      content: '';
-      position: absolute;
-      background: rgba(255,255,255,0.7);
-      border-radius: 50%;
-    }
-    
-    .cloud-1 {
-      width: 80px;
-      height: 30px;
-      top: 40px;
-      left: -100px;
-      animation-duration: 25s;
-    }
-    
-    .cloud-1::before {
-      width: 40px;
-      height: 40px;
-      top: -20px;
-      left: 10px;
-    }
-    
-    .cloud-1::after {
-      width: 50px;
-      height: 35px;
-      top: -15px;
-      left: 35px;
-    }
-    
-    .cloud-2 {
-      width: 100px;
-      height: 35px;
-      top: 80px;
-      left: -150px;
-      animation-duration: 30s;
-      animation-delay: -10s;
-    }
-    
-    .cloud-2::before {
-      width: 50px;
-      height: 50px;
-      top: -25px;
-      left: 15px;
-    }
-    
-    .cloud-2::after {
-      width: 60px;
-      height: 40px;
-      top: -18px;
-      left: 45px;
-    }
-    
-    @keyframes cloudFloat {
-      from { transform: translateX(0); }
-      to { transform: translateX(calc(100vw + 200px)); }
-    }
-    
-    .start-btn {
-      font-family: 'Fredoka', sans-serif;
-      font-weight: 600;
-      font-size: clamp(1.2rem, 3.5vw, 1.6rem);
-      padding: 1.2rem 3rem;
-      background: linear-gradient(180deg, #fff8dc 0%, #f5f5dc 100%);
-      color: #222;
-      border: 4px solid #222;
-      border-radius: 25px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      pointer-events: auto;
-      box-shadow: 5px 5px 0 #222;
-      position: relative;
-      z-index: 3;
-      animation: buttonPulse 2s ease-in-out infinite;
-    }
-    
-    @keyframes buttonPulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.03); }
-    }
-    
-    .start-btn:hover {
-      transform: translate(-3px, -3px) scale(1.05);
-      box-shadow: 8px 8px 0 #222;
-      background: linear-gradient(180deg, #fffaef 0%, #fff8dc 100%);
-      animation: none;
-    }
-    
-    .start-btn:active {
-      transform: translate(2px, 2px);
-      box-shadow: 3px 3px 0 #222;
-    }
-    
-    /* HUD */
-    #hud {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      padding: 1rem;
-      display: flex;
-      justify-content: center;
-      z-index: 5;
-      pointer-events: none;
-    }
-    
-    #hud.hidden {
-      display: none;
-    }
-    
-    .timer {
-      font-family: 'Patrick Hand', cursive;
-      font-size: clamp(2rem, 6vw, 3rem);
-      font-weight: 400;
-      color: #222;
-    }
-    
-    /* Control Buttons - Mobile Only */
-    #controls {
-      position: fixed;
-      bottom: 200px;
-      left: 0;
-      right: 0;
-      display: none;
-      justify-content: center;
-      gap: 80px;
-      z-index: 5;
-      pointer-events: none;
-    }
-    
-    #controls.hidden {
-      display: none !important;
-    }
-    
-    .control-btn {
-      width: 110px;
-      height: 110px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #f5f5dc;
-      border: 4px solid #222;
-      box-shadow: 5px 5px 0 #222;
-      cursor: pointer;
-      pointer-events: auto;
-      transition: all 0.1s ease;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    
-    .control-btn:active,
-    .control-btn.active {
-      transform: translate(2px, 2px);
-      box-shadow: 3px 3px 0 #222;
-      background: #e8e8c8;
-    }
-    
-    .control-btn svg {
-      width: 60px;
-      height: 60px;
-      fill: #222;
-    }
-    
-    /* Show controls only on mobile (small screens or touch devices) */
-    @media (max-width: 768px), (pointer: coarse) {
-      #controls:not(.hidden) {
-        display: flex;
-      }
-    }
-    
-    /* Hide controls on desktop with mouse */
-    @media (min-width: 769px) and (pointer: fine) {
-      #controls {
-        display: none !important;
-      }
-    }
-    
-    /* Game Over Screen - Hand-drawn theme */
-    #game-over {
-      background: rgba(135, 206, 235, 0.97);
-    }
-    
-    #game-over h2 {
-      font-family: 'Patrick Hand', cursive;
-      font-size: clamp(2rem, 8vw, 4rem);
-      color: #222;
-      margin-bottom: 0.5rem;
-    }
-    
-    #game-over .final-time {
-      font-family: 'Fredoka', sans-serif;
-      font-size: clamp(3rem, 12vw, 6rem);
-      font-weight: 700;
-      color: #222;
-      margin-bottom: 0.3rem;
-    }
-    
-    #game-over .time-label {
-      font-family: 'Patrick Hand', cursive;
-      color: #444;
-      font-size: clamp(1rem, 2.5vw, 1.2rem);
-      margin-bottom: 2rem;
-    }
-    
-    .restart-btn {
-      font-family: 'Fredoka', sans-serif;
-      font-weight: 600;
-      font-size: clamp(1rem, 2.5vw, 1.3rem);
-      padding: 0.8rem 2rem;
-      background: #f5f5dc;
-      color: #222;
-      border: 3px solid #222;
-      border-radius: 15px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      pointer-events: auto;
-      box-shadow: 3px 3px 0 #222;
-    }
-    
-    .restart-btn:hover {
-      transform: translate(-2px, -2px);
-      box-shadow: 5px 5px 0 #222;
-    }
-    
-    .gallery-btn {
-      font-family: 'Fredoka', sans-serif;
-      font-weight: 600;
-      font-size: clamp(0.9rem, 2vw, 1.1rem);
-      padding: 0.6rem 1.5rem;
-      background: transparent;
-      color: #444;
-      border: 2px solid #444;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      pointer-events: auto;
-      margin-top: 1rem;
-    }
-    
-    .gallery-btn:hover {
-      background: rgba(0,0,0,0.05);
-      border-color: #222;
-      color: #222;
-    }
-    
-    /* Gallery Screen */
-    #gallery {
-      background: #87ceeb;
-      pointer-events: auto;
-    }
-    
-    #gallery h2 {
-      font-family: 'Patrick Hand', cursive;
-      font-size: clamp(1.5rem, 5vw, 2.5rem);
-      color: #222;
-      margin-bottom: 1rem;
-    }
-    
-    /* Large preview of selected car */
-    .car-preview {
-      background: #f5f5dc;
-      border: 4px solid #222;
-      border-radius: 20px;
-      padding: 1rem 1.5rem;
-      margin-bottom: 1.5rem;
-      box-shadow: 4px 4px 0 #222;
-    }
-    
-    .car-preview canvas {
-      display: block;
-      margin: 0 auto 0.5rem;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 10px;
-    }
-    
-    .car-preview .preview-name {
-      font-family: 'Fredoka', sans-serif;
-      font-size: 1.4rem;
-      font-weight: 600;
-      color: #222;
-      text-align: center;
-    }
-    
-    .gallery-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.8rem;
-      max-width: 360px;
-      width: 100%;
-      margin-bottom: 1.5rem;
-    }
-    
-    .car-option {
-      background: #f5f5dc;
-      border: 3px solid #222;
-      border-radius: 12px;
-      padding: 0.5rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      box-shadow: 2px 2px 0 #222;
-    }
-    
-    .car-option:hover {
-      transform: translate(-1px, -1px);
-      box-shadow: 3px 3px 0 #222;
-    }
-    
-    .car-option.selected {
-      background: #90EE90;
-      border-color: #228B22;
-      box-shadow: 2px 2px 0 #228B22;
-    }
-    
-    .car-option canvas {
-      display: block;
-      margin-bottom: 0.3rem;
-    }
-    
-    .car-option .car-name {
-      font-family: 'Fredoka', sans-serif;
-      font-size: 0.75rem;
-      color: #222;
-      text-align: center;
-    }
-    
-    .back-btn {
-      font-family: 'Fredoka', sans-serif;
-      font-weight: 600;
-      font-size: clamp(1rem, 2.5vw, 1.2rem);
-      padding: 0.7rem 2rem;
-      background: #f5f5dc;
-      color: #222;
-      border: 3px solid #222;
-      border-radius: 15px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      box-shadow: 3px 3px 0 #222;
-    }
-    
-    .back-btn:hover {
-      transform: translate(-2px, -2px);
-      box-shadow: 5px 5px 0 #222;
-    }
 
-    /* Desktop keyboard hints */
-    .keyboard-hint {
-      display: none;
-    }
-    
-    @media (hover: hover) and (pointer: fine) {
-      .keyboard-hint {
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        touch-action: none;
+        background: #87ceeb;
+        font-family: "Fredoka", sans-serif;
+      }
+
+      #game {
         display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+
+      /* UI Overlays */
+      .overlay {
         position: fixed;
-        bottom: 1rem;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 10;
+        transition: opacity 0.3s ease;
+      }
+
+      .overlay.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      /* Start Screen - Enhanced design */
+      #start-screen {
+        background: linear-gradient(
+          180deg,
+          #87ceeb 0%,
+          #7ec8e3 50%,
+          #5ba3d0 100%
+        );
+        overflow: hidden;
+      }
+
+      .start-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        z-index: 2;
+        animation: fadeInUp 0.8s ease-out;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      #start-screen h1 {
+        font-family: "Patrick Hand", cursive;
+        font-size: clamp(3rem, 12vw, 6rem);
+        color: #222;
+        margin-bottom: 0.3rem;
+        text-shadow: 3px 3px 0 rgba(255, 255, 255, 0.5);
+        animation: titleBounce 2s ease-in-out infinite;
+      }
+
+      @keyframes titleBounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+      }
+
+      #start-screen p {
+        font-family: "Patrick Hand", cursive;
+        color: #333;
+        font-size: clamp(1.1rem, 3vw, 1.5rem);
+        margin-bottom: 1.5rem;
+      }
+
+      /* Car illustration on start screen */
+      .start-illustration {
+        position: relative;
+        width: 280px;
+        height: 160px;
+        margin-bottom: 2rem;
+      }
+
+      .start-beam {
+        position: absolute;
+        bottom: 40px;
         left: 50%;
         transform: translateX(-50%);
-        font-family: 'Patrick Hand', cursive;
-        color: #333;
-        font-size: 1rem;
-        z-index: 5;
+        width: 240px;
+        height: 12px;
+        background: #1a1a1a;
+        border-radius: 6px;
+        animation: beamTilt 3s ease-in-out infinite;
+        transform-origin: center;
       }
-      
-    }
-  </style>
-</head>
-<body>
-  <canvas id="game"></canvas>
-  
-  <!-- HUD -->
-  <div id="hud" class="hidden">
-    <div class="timer" id="timer">0.0s</div>
-  </div>
-  
-  <!-- Control Buttons (Mobile Only) -->
-  <div id="controls" class="hidden">
-    <button class="control-btn" id="btn-left" aria-label="Tilt Left">
-      <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
-    </button>
-    <button class="control-btn" id="btn-right" aria-label="Tilt Right">
-      <svg viewBox="0 0 24 24"><path d="M11.5 8c2.65 0 5.05.99 6.9 2.6L22 7v9h-9l3.62-3.62c-1.39-1.16-3.16-1.88-5.12-1.88-3.54 0-6.55 2.31-7.6 5.5l-2.37-.78C2.92 11.03 6.85 8 11.5 8z"/></svg>
-    </button>
-  </div>
-  
-  <!-- Start Screen -->
-  <div id="start-screen" class="overlay">
-    <!-- Floating clouds -->
-    <div class="start-clouds">
-      <div class="cloud cloud-1"></div>
-      <div class="cloud cloud-2"></div>
-    </div>
-    
-    <!-- Main content -->
-    <div class="start-content">
-      <h1>Car Balance</h1>
-      <p>Keep the car balanced as long as you can</p>
-      
-      <!-- Animated illustration -->
-      <div class="start-illustration">
-        <div class="start-car">
-          <div class="start-car-body"></div>
-          <div class="start-car-wheels">
-            <div class="start-wheel"></div>
-            <div class="start-wheel"></div>
-          </div>
+
+      @keyframes beamTilt {
+        0%,
+        100% {
+          transform: translateX(-50%) rotate(-8deg);
+        }
+        50% {
+          transform: translateX(-50%) rotate(8deg);
+        }
+      }
+
+      .start-pivot {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 6px;
+        height: 45px;
+        background: #1a1a1a;
+        border-radius: 3px;
+      }
+
+      .start-car {
+        position: absolute;
+        bottom: 52px;
+        left: 50%;
+        transform: translateX(-30px);
+        animation: carSlide 3s ease-in-out infinite;
+      }
+
+      @keyframes carSlide {
+        0%,
+        100% {
+          transform: translateX(-80px) rotate(-8deg);
+        }
+        50% {
+          transform: translateX(20px) rotate(8deg);
+        }
+      }
+
+      .start-car-body {
+        width: 60px;
+        height: 22px;
+        background: #e63946;
+        border: 3px solid #a11d2a;
+        border-radius: 11px;
+      }
+
+      .start-car-wheels {
+        position: absolute;
+        bottom: -8px;
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0 5px;
+      }
+
+      .start-wheel {
+        width: 18px;
+        height: 18px;
+        background: #1a1a1a;
+        border-radius: 50%;
+        border: 2px solid #333;
+        animation: wheelSpin 1s linear infinite;
+      }
+
+      @keyframes wheelSpin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Water decoration at bottom */
+      .start-water {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 120px;
+        background: linear-gradient(
+          180deg,
+          rgba(74, 144, 194, 0.8) 0%,
+          #3d7aa8 100%
+        );
+        z-index: 1;
+      }
+
+      .start-wave {
+        position: absolute;
+        top: -15px;
+        left: 0;
+        right: 0;
+        height: 30px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 30'%3E%3Cpath d='M0,15 Q150,0 300,15 T600,15 T900,15 T1200,15 L1200,30 L0,30 Z' fill='%234a90c2'/%3E%3C/svg%3E")
+          repeat-x;
+        background-size: 600px 30px;
+        animation: waveMove 4s linear infinite;
+      }
+
+      @keyframes waveMove {
+        from {
+          background-position-x: 0;
+        }
+        to {
+          background-position-x: 600px;
+        }
+      }
+
+      /* Floating clouds */
+      .start-clouds {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 200px;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .cloud {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 50px;
+        animation: cloudFloat 20s linear infinite;
+      }
+
+      .cloud::before,
+      .cloud::after {
+        content: "";
+        position: absolute;
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 50%;
+      }
+
+      .cloud-1 {
+        width: 80px;
+        height: 30px;
+        top: 40px;
+        left: -100px;
+        animation-duration: 25s;
+      }
+
+      .cloud-1::before {
+        width: 40px;
+        height: 40px;
+        top: -20px;
+        left: 10px;
+      }
+
+      .cloud-1::after {
+        width: 50px;
+        height: 35px;
+        top: -15px;
+        left: 35px;
+      }
+
+      .cloud-2 {
+        width: 100px;
+        height: 35px;
+        top: 80px;
+        left: -150px;
+        animation-duration: 30s;
+        animation-delay: -10s;
+      }
+
+      .cloud-2::before {
+        width: 50px;
+        height: 50px;
+        top: -25px;
+        left: 15px;
+      }
+
+      .cloud-2::after {
+        width: 60px;
+        height: 40px;
+        top: -18px;
+        left: 45px;
+      }
+
+      @keyframes cloudFloat {
+        from {
+          transform: translateX(0);
+        }
+        to {
+          transform: translateX(calc(100vw + 200px));
+        }
+      }
+
+      .start-btn {
+        font-family: "Fredoka", sans-serif;
+        font-weight: 600;
+        font-size: clamp(1.2rem, 3.5vw, 1.6rem);
+        padding: 1.2rem 3rem;
+        background: linear-gradient(180deg, #fff8dc 0%, #f5f5dc 100%);
+        color: #222;
+        border: 4px solid #222;
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        pointer-events: auto;
+        box-shadow: 5px 5px 0 #222;
+        position: relative;
+        z-index: 3;
+        animation: buttonPulse 2s ease-in-out infinite;
+      }
+
+      @keyframes buttonPulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.03);
+        }
+      }
+
+      .start-btn:hover {
+        transform: translate(-3px, -3px) scale(1.05);
+        box-shadow: 8px 8px 0 #222;
+        background: linear-gradient(180deg, #fffaef 0%, #fff8dc 100%);
+        animation: none;
+      }
+
+      .start-btn:active {
+        transform: translate(2px, 2px);
+        box-shadow: 3px 3px 0 #222;
+      }
+
+      /* HUD */
+      #hud {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding-top: 45px;
+        display: flex;
+        justify-content: center;
+        z-index: 5;
+        pointer-events: none;
+      }
+
+      .hud-top {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .coin-display {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 5px 15px;
+        border-radius: 20px;
+        border: 2px solid #222;
+        font-family: "Fredoka", sans-serif;
+        font-weight: 600;
+        font-size: 1.2rem;
+        color: #222;
+        pointer-events: auto;
+      }
+
+      /* Push timer down on mobile */
+      @media (max-width: 768px), (pointer: coarse) {
+        #hud {
+          padding-top: 145px;
+        }
+      }
+
+      #hud.hidden {
+        display: none;
+      }
+
+      .timer {
+        font-family: "Patrick Hand", cursive;
+        font-size: clamp(2rem, 6vw, 3rem);
+        font-weight: 400;
+        color: #222;
+      }
+
+      /* Control Buttons - Mobile Only */
+      #controls {
+        position: fixed;
+        bottom: 200px;
+        left: 0;
+        right: 0;
+        display: none;
+        justify-content: center;
+        gap: 80px;
+        z-index: 5;
+        pointer-events: none;
+      }
+
+      #controls.hidden {
+        display: none !important;
+      }
+
+      .control-btn {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f5f5dc;
+        border: 4px solid #222;
+        box-shadow: 5px 5px 0 #222;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: all 0.1s ease;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .control-btn:active,
+      .control-btn.active {
+        transform: translate(2px, 2px);
+        box-shadow: 3px 3px 0 #222;
+        background: #e8e8c8;
+      }
+
+      .control-btn svg {
+        width: 60px;
+        height: 60px;
+        fill: #222;
+      }
+
+      /* Show controls only on mobile (small screens or touch devices) */
+      @media (max-width: 768px), (pointer: coarse) {
+        #controls:not(.hidden) {
+          display: flex;
+        }
+      }
+
+      /* Hide controls on desktop with mouse */
+      @media (min-width: 769px) and (pointer: fine) {
+        #controls {
+          display: none !important;
+        }
+      }
+
+      /* Game Over Screen - Hand-drawn theme */
+      #game-over {
+        background: rgba(135, 206, 235, 0.97);
+      }
+
+      #game-over h2 {
+        font-family: "Patrick Hand", cursive;
+        font-size: clamp(2rem, 8vw, 4rem);
+        color: #222;
+        margin-bottom: 0.5rem;
+      }
+
+      #game-over .final-time {
+        font-family: "Fredoka", sans-serif;
+        font-size: clamp(3rem, 12vw, 6rem);
+        font-weight: 700;
+        color: #222;
+        margin-bottom: 0.3rem;
+      }
+
+      #game-over .time-label {
+        font-family: "Patrick Hand", cursive;
+        color: #444;
+        font-size: clamp(1rem, 2.5vw, 1.2rem);
+        margin-bottom: 2rem;
+      }
+
+      .restart-btn {
+        font-family: "Fredoka", sans-serif;
+        font-weight: 600;
+        font-size: clamp(1rem, 2.5vw, 1.3rem);
+        padding: 0.8rem 2rem;
+        background: #f5f5dc;
+        color: #222;
+        border: 3px solid #222;
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        pointer-events: auto;
+        box-shadow: 3px 3px 0 #222;
+      }
+
+      .restart-btn:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 5px 5px 0 #222;
+      }
+
+      .gallery-btn {
+        font-family: "Fredoka", sans-serif;
+        font-weight: 600;
+        font-size: clamp(0.9rem, 2vw, 1.1rem);
+        padding: 0.6rem 1.5rem;
+        background: transparent;
+        color: #444;
+        border: 2px solid #444;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        pointer-events: auto;
+        margin-top: 1rem;
+      }
+
+      .gallery-btn:hover {
+        background: rgba(0, 0, 0, 0.05);
+        border-color: #222;
+        color: #222;
+      }
+
+      /* Gallery Screen */
+      #gallery {
+        background: #87ceeb;
+        pointer-events: auto;
+      }
+
+      #gallery h2 {
+        font-family: "Patrick Hand", cursive;
+        font-size: clamp(1.5rem, 5vw, 2.5rem);
+        color: #222;
+        margin-bottom: 1rem;
+      }
+
+      /* Large preview of selected car */
+      .car-preview {
+        background: #f5f5dc;
+        border: 4px solid #222;
+        border-radius: 20px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 4px 4px 0 #222;
+      }
+
+      .car-preview canvas {
+        display: block;
+        margin: 0 auto 0.5rem;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+      }
+
+      .car-preview .preview-name {
+        font-family: "Fredoka", sans-serif;
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #222;
+        text-align: center;
+      }
+
+      .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.8rem;
+        max-width: 360px;
+        width: 100%;
+        margin-bottom: 1.5rem;
+      }
+
+      .car-option {
+        background: #f5f5dc;
+        border: 3px solid #222;
+        border-radius: 12px;
+        padding: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        box-shadow: 2px 2px 0 #222;
+      }
+
+      .car-option:hover {
+        transform: translate(-1px, -1px);
+        box-shadow: 3px 3px 0 #222;
+      }
+
+      .car-option.selected {
+        background: #90ee90;
+        border-color: #228b22;
+        box-shadow: 2px 2px 0 #228b22;
+      }
+
+      .car-option.locked {
+        opacity: 0.7;
+        filter: grayscale(0.8);
+      }
+
+      .car-option canvas {
+        display: block;
+        margin-bottom: 0.3rem;
+      }
+
+      .car-option .car-name {
+        font-family: "Fredoka", sans-serif;
+        font-size: 0.75rem;
+        color: #222;
+        text-align: center;
+      }
+
+      .back-btn {
+        font-family: "Fredoka", sans-serif;
+        font-weight: 600;
+        font-size: clamp(1rem, 2.5vw, 1.2rem);
+        padding: 0.7rem 2rem;
+        background: #f5f5dc;
+        color: #222;
+        border: 3px solid #222;
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 3px 3px 0 #222;
+      }
+
+      .back-btn:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 5px 5px 0 #222;
+      }
+
+      /* Desktop keyboard hints */
+      .keyboard-hint {
+        display: none;
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .keyboard-hint {
+          display: block;
+          position: fixed;
+          bottom: 1rem;
+          left: 50%;
+          transform: translateX(-50%);
+          font-family: "Patrick Hand", cursive;
+          color: #333;
+          font-size: 1rem;
+          z-index: 5;
+        }
+      }
+
+      /* Settings Button */
+      #settings-btn {
+        position: fixed;
+        top: 45px;
+        right: 16px;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #f5f5dc;
+        border: 3px solid #222;
+        box-shadow: 3px 3px 0 #222;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 15;
+        transition: all 0.2s ease;
+      }
+
+      @media (max-width: 768px), (pointer: coarse) {
+        #settings-btn {
+          top: 120px;
+        }
+      }
+
+      #settings-btn.hidden {
+        display: none;
+      }
+
+      #settings-btn:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 5px 5px 0 #222;
+      }
+
+      #settings-btn:active {
+        transform: translate(1px, 1px);
+        box-shadow: 2px 2px 0 #222;
+      }
+
+      #settings-btn svg {
+        width: 26px;
+        height: 26px;
+        fill: #222;
+      }
+
+      /* Settings Panel */
+      #settings-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(135, 206, 235, 0.97);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+      }
+
+      #settings-panel.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .settings-content {
+        background: #f5f5dc;
+        border: 4px solid #222;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 6px 6px 0 #222;
+        max-width: 320px;
+        width: 90%;
+      }
+
+      .settings-content h2 {
+        font-family: "Patrick Hand", cursive;
+        font-size: 2rem;
+        color: #222;
+        text-align: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .settings-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.8rem 0;
+        border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+      }
+
+      .settings-row:last-of-type {
+        border-bottom: none;
+      }
+
+      .settings-label {
+        font-family: "Fredoka", sans-serif;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #222;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .settings-label svg {
+        width: 24px;
+        height: 24px;
+        fill: #222;
+      }
+
+      /* Toggle Switch */
+      .toggle-switch {
+        position: relative;
+        width: 56px;
+        height: 30px;
+      }
+
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        border: 2px solid #222;
+        border-radius: 30px;
+        transition: 0.3s;
+      }
+
+      .toggle-slider::before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: #222;
+        border-radius: 50%;
+        transition: 0.3s;
+      }
+
+      .toggle-switch input:checked + .toggle-slider {
+        background-color: #90ee90;
+      }
+
+      .toggle-switch input:checked + .toggle-slider::before {
+        transform: translateX(26px);
+      }
+
+      .settings-close-btn {
+        font-family: "Fredoka", sans-serif;
+        font-weight: 600;
+        font-size: 1.1rem;
+        padding: 0.8rem 2.5rem;
+        background: #f5f5dc;
+        color: #222;
+        border: 3px solid #222;
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 3px 3px 0 #222;
+        margin-top: 1.5rem;
+      }
+
+      .settings-close-btn:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 5px 5px 0 #222;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="timer" id="timer">0.0s</div>
+        <div class="coin-display">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="#ffd700" stroke="#b8860b" stroke-width="2"><circle cx="12" cy="12" r="10"/><text x="12" y="16" font-family="Arial" font-weight="bold" font-size="12" text-anchor="middle" fill="#b8860b" stroke="none">C</text></svg>
+          <span id="hud-coins">0</span>
         </div>
-        <div class="start-beam"></div>
-        <div class="start-pivot"></div>
       </div>
-      
-      <button class="start-btn" id="start-btn">Start the Engine</button>
     </div>
-    
-    <!-- Water at bottom -->
-    <div class="start-water">
-      <div class="start-wave"></div>
+
+    <!-- Control Buttons (Mobile Only) -->
+    <div id="controls" class="hidden">
+      <button class="control-btn" id="btn-left" aria-label="Tilt Left">
+        <svg viewBox="0 0 24 24">
+          <path
+            d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+          />
+        </svg>
+      </button>
+      <button class="control-btn" id="btn-right" aria-label="Tilt Right">
+        <svg viewBox="0 0 24 24">
+          <path
+            d="M11.5 8c2.65 0 5.05.99 6.9 2.6L22 7v9h-9l3.62-3.62c-1.39-1.16-3.16-1.88-5.12-1.88-3.54 0-6.55 2.31-7.6 5.5l-2.37-.78C2.92 11.03 6.85 8 11.5 8z"
+          />
+        </svg>
+      </button>
     </div>
-  </div>
-  
-  <!-- Game Over Screen -->
-  <div id="game-over" class="overlay hidden">
-    <h2>Splash!</h2>
-    <div class="final-time" id="final-time">0.0s</div>
-    <div class="time-label">survival time</div>
-    <button class="restart-btn" id="restart-btn">Try Again</button>
-    <button class="gallery-btn" id="gallery-btn">Choose Car</button>
-  </div>
-  
-  <!-- Gallery Screen -->
-  <div id="gallery" class="overlay hidden">
-    <h2>Choose Your Car</h2>
-    <div class="car-preview" id="car-preview">
-      <canvas id="preview-canvas" width="200" height="120"></canvas>
-      <div class="preview-name" id="preview-name">Classic</div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="overlay">
+      <!-- Floating clouds -->
+      <div class="start-clouds">
+        <div class="cloud cloud-1"></div>
+        <div class="cloud cloud-2"></div>
+      </div>
+
+      <!-- Main content -->
+      <div class="start-content">
+        <h1>Car Balance</h1>
+        <p>Keep the car balanced as long as you can</p>
+        
+        <div class="coin-display" style="margin-bottom: 1.5rem; background: rgba(255,255,255,0.9);">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="#ffd700" stroke="#b8860b" stroke-width="2"><circle cx="12" cy="12" r="10"/><text x="12" y="16" font-family="Arial" font-weight="bold" font-size="12" text-anchor="middle" fill="#b8860b" stroke="none">C</text></svg>
+          <span id="start-coins">0</span>
+        </div>
+
+        <!-- Animated illustration -->
+        <div class="start-illustration">
+          <div class="start-car">
+            <div class="start-car-body"></div>
+            <div class="start-car-wheels">
+              <div class="start-wheel"></div>
+              <div class="start-wheel"></div>
+            </div>
+          </div>
+          <div class="start-beam"></div>
+          <div class="start-pivot"></div>
+        </div>
+
+        <button class="start-btn" id="start-btn">Start the Engine</button>
+        <button class="gallery-btn" id="start-shop-btn" style="margin-top: 15px; z-index: 3; background: #fff8dc; border: 3px solid #222; box-shadow: 3px 3px 0 #222;">Garage & Shop</button>
+      </div>
+
+      <!-- Water at bottom -->
+      <div class="start-water">
+        <div class="start-wave"></div>
+      </div>
     </div>
-    <div class="gallery-grid" id="gallery-grid">
-      <!-- Car options will be populated by JavaScript -->
+
+    <!-- Game Over Screen -->
+    <div id="game-over" class="overlay hidden">
+      <h2>Splash!</h2>
+      <div class="final-time" id="final-time">0.0s</div>
+      <div class="time-label">survival time</div>
+      <button class="restart-btn" id="restart-btn">Try Again</button>
+      <button class="gallery-btn" id="gallery-btn">Choose Car</button>
     </div>
-    <button class="back-btn" id="back-btn">Back</button>
-  </div>
-  
-  <div class="keyboard-hint">Use ← → arrow keys or A/D to tilt</div>
-  
-  <script type="module" src="/src/main.ts"></script>
-</body>
+
+    <!-- Gallery Screen -->
+    <div id="gallery" class="overlay hidden">
+      <div style="display: flex; justify-content: space-between; width: 100%; max-width: 360px; align-items: center; margin-bottom: 1rem;">
+        <h2>Garage</h2>
+        <div class="coin-display">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="#ffd700" stroke="#b8860b" stroke-width="2"><circle cx="12" cy="12" r="10"/><text x="12" y="16" font-family="Arial" font-weight="bold" font-size="12" text-anchor="middle" fill="#b8860b" stroke="none">C</text></svg>
+          <span id="shop-coins">0</span>
+        </div>
+      </div>
+      <div class="car-preview" id="car-preview">
+        <canvas id="preview-canvas" width="200" height="120"></canvas>
+        <div class="preview-name" id="preview-name">Classic</div>
+        <div id="preview-price" style="text-align: center; font-family: 'Fredoka', sans-serif; font-weight: 600; color: #b8860b; margin-top: 5px;"></div>
+        <button id="buy-btn" class="start-btn" style="display: none; width: 100%; margin-top: 10px; padding: 0.5rem; font-size: 1.2rem;">Buy</button>
+      </div>
+      <div class="gallery-grid" id="gallery-grid">
+        <!-- Car options will be populated by JavaScript -->
+      </div>
+      <button class="back-btn" id="back-btn">Back</button>
+    </div>
+
+    <div class="keyboard-hint">Use ← → arrow keys or A/D to tilt</div>
+
+    <!-- Settings Button -->
+    <button id="settings-btn" class="hidden" aria-label="Settings">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+      </svg>
+    </button>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="hidden">
+      <div class="settings-content">
+        <h2>Settings</h2>
+        
+        <div class="settings-row">
+          <span class="settings-label">
+            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            Music
+          </span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-music" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <span class="settings-label">
+            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            Sound FX
+          </span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-fx" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <span class="settings-label">
+            <svg viewBox="0 0 24 24"><path d="M0 15.998c0 1.97 1.582 3.567 3.535 3.567h4.596l-.099 2.997H4.948v1.411h6.104v-1.411H7.967l.099-2.997h.004c1.891-.011 3.421-1.544 3.421-3.46v-4.436H0v4.329z"/><path d="M11.492 0c-.002 0-.01.003-.016.003H0v10.135h11.492V0zM5.746 8.152c-.853 0-1.544-.691-1.544-1.544s.691-1.544 1.544-1.544c.852 0 1.543.691 1.543 1.544s-.69 1.544-1.543 1.544zM24 .003H12.508V11.54h7.996v4.436c0 1.916 1.531 3.449 3.421 3.46h.004l.099 2.997h-3.084v1.411h6.104v-1.411h-3.085l-.099-2.997h4.596c1.954 0 3.535-1.597 3.535-3.567v-4.329H13.508V1.406h9.475v3.664H24V.003zM18.254 8.152c-.853 0-1.543-.691-1.543-1.544s.69-1.544 1.543-1.544 1.544.691 1.544 1.544-.691 1.544-1.544 1.544z"/></svg>
+            Haptics
+          </span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-haptics" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <button class="settings-close-btn" id="settings-close-btn">Done</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>

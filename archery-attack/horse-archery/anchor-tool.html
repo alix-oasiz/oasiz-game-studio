@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rider Anchor Tool</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #11131a;
+      color: #ece8de;
+      font-family: 'Sora', sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      width: 100%;
+      height: 100%;
+    }
+
+    .panel {
+      padding: 16px;
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      background: #171a23;
+      overflow-y: auto;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      letter-spacing: 0.4px;
+      color: #ffcf86;
+    }
+
+    .group {
+      margin-bottom: 16px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .group-title {
+      margin: 0 0 10px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #aeb6cc;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    input[type="file"],
+    select,
+    button {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      background: #24293a;
+      color: #f1f2f7;
+      padding: 8px;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      background: #9c6030;
+      border-color: #bd7e44;
+    }
+
+    button:hover {
+      background: #af6f35;
+    }
+
+    .marker-btn {
+      margin-bottom: 8px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid rgba(0, 0, 0, 0.4);
+      flex: 0 0 12px;
+    }
+
+    .coords {
+      font-size: 12px;
+      color: #cfd5e5;
+      margin-top: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background: #0d0f15;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 16px;
+    }
+
+    canvas {
+      display: block;
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      touch-action: none;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #aeb6cc;
+      line-height: 1.45;
+      margin-top: 6px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .row > button {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <h1>Rider Anchor Tool</h1>
+
+      <div class="group">
+        <p class="group-title">Frame</p>
+        <label for="presetSelect">Preset Frame</label>
+        <select id="presetSelect">
+          <option value="/rider_fit_horse_frame.png">horse frame</option>
+          <option value="/rider_fit_template.png">template with guides</option>
+          <option value="/horse-archer.png">horse-archer reference</option>
+        </select>
+        <div style="height: 8px;"></div>
+        <button id="loadPresetBtn" type="button">Load Preset</button>
+        <div style="height: 8px;"></div>
+        <label for="fileInput">Or Upload Image</label>
+        <input id="fileInput" type="file" accept="image/*" />
+        <div style="height: 8px;"></div>
+        <button id="loadFileBtn" type="button">Load Selected File</button>
+        <p id="statusText" class="hint">Ready.</p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Markers</p>
+        <button class="marker-btn" data-marker="saddle">
+          <span class="dot" style="background:#ff4d4d"></span>
+          Saddle Center
+        </button>
+        <div id="coords-saddle" class="coords"></div>
+
+        <button class="marker-btn" data-marker="stirrup">
+          <span class="dot" style="background:#33ccff"></span>
+          Stirrup Point
+        </button>
+        <div id="coords-stirrup" class="coords"></div>
+
+        <button class="marker-btn" data-marker="bowHand">
+          <span class="dot" style="background:#99ff66"></span>
+          Bow Hand Target
+        </button>
+        <div id="coords-bowHand" class="coords"></div>
+
+        <button class="marker-btn" data-marker="seatBox">
+          <span class="dot" style="background:#ffd74d"></span>
+          Seat Box Center
+        </button>
+        <div id="coords-seatBox" class="coords"></div>
+
+        <p class="hint">Click a marker button, then drag that marker on the canvas.</p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Save</p>
+        <div class="row">
+          <button id="saveJsonBtn">Save JSON</button>
+          <button id="savePngBtn">Save PNG</button>
+        </div>
+        <div style="height:8px;"></div>
+        <button id="resetBtn">Reset to Defaults</button>
+      </div>
+    </aside>
+
+    <main class="canvas-wrap">
+      <canvas id="editorCanvas" width="854" height="480"></canvas>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById("editorCanvas");
+      const ctx = canvas.getContext("2d");
+      const presetSelect = document.getElementById("presetSelect");
+      const fileInput = document.getElementById("fileInput");
+      const loadPresetBtn = document.getElementById("loadPresetBtn");
+      const loadFileBtn = document.getElementById("loadFileBtn");
+      const saveJsonBtn = document.getElementById("saveJsonBtn");
+      const savePngBtn = document.getElementById("savePngBtn");
+      const resetBtn = document.getElementById("resetBtn");
+      const statusText = document.getElementById("statusText");
+      const markerButtons = Array.from(document.querySelectorAll(".marker-btn"));
+
+      if (!ctx) {
+        if (statusText) statusText.textContent = "Canvas failed to initialize.";
+        return;
+      }
+
+      const markerColors = {
+        saddle: "#ff4d4d",
+        stirrup: "#33ccff",
+        bowHand: "#99ff66",
+        seatBox: "#ffd74d",
+      };
+
+      const defaultAnchors = {
+        saddle: { x: 387, y: 236 },
+        stirrup: { x: 415, y: 302 },
+        bowHand: { x: 513, y: 172 },
+        seatBox: { x: 387, y: 236 },
+      };
+
+      let anchors = JSON.parse(JSON.stringify(defaultAnchors));
+      let selectedMarker = "saddle";
+      let dragging = false;
+      let image = new Image();
+      let imageLoaded = false;
+      let sourceName = "rider_fit_horse_frame";
+
+      function log(functionName, message) {
+        console.log("[" + functionName + "]", message);
+      }
+
+      function setStatus(message) {
+        if (statusText) statusText.textContent = message;
+      }
+
+      function setSelectedMarker(markerId) {
+        selectedMarker = markerId;
+        markerButtons.forEach((button) => {
+          const id = button.dataset.marker;
+          button.style.outline = id === markerId ? "2px solid #ffffff" : "none";
+          button.style.background = id === markerId ? "#3a425c" : "#24293a";
+        });
+      }
+
+      function clampPoint(p) {
+        return {
+          x: Math.max(0, Math.min(canvas.width, p.x)),
+          y: Math.max(0, Math.min(canvas.height, p.y)),
+        };
+      }
+
+      function toCanvasPoint(event) {
+        const rect = canvas.getBoundingClientRect();
+        const sx = canvas.width / rect.width;
+        const sy = canvas.height / rect.height;
+        return clampPoint({
+          x: (event.clientX - rect.left) * sx,
+          y: (event.clientY - rect.top) * sy,
+        });
+      }
+
+      function drawCross(point, color) {
+        const size = 14;
+        const half = size / 2;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(point.x - half, point.y);
+        ctx.lineTo(point.x + half, point.y);
+        ctx.moveTo(point.x, point.y - half);
+        ctx.lineTo(point.x, point.y + half);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawSeatBox(center) {
+        const w = 95;
+        const h = 70;
+        const x = center.x - w / 2;
+        const y = center.y - h / 2;
+        ctx.strokeStyle = markerColors.seatBox;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+      }
+
+      function updateCoordinateLabels() {
+        ["saddle", "stirrup", "bowHand", "seatBox"].forEach((id) => {
+          const el = document.getElementById("coords-" + id);
+          if (!el) return;
+          const p = anchors[id];
+          const nx = p.x / canvas.width;
+          const ny = p.y / canvas.height;
+          el.textContent =
+            "x=" + Math.round(p.x) +
+            ", y=" + Math.round(p.y) +
+            " | nx=" + nx.toFixed(4) +
+            ", ny=" + ny.toFixed(4);
+        });
+      }
+
+      function redraw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (imageLoaded) {
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        } else {
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        drawSeatBox(anchors.seatBox);
+        drawCross(anchors.saddle, markerColors.saddle);
+        drawCross(anchors.stirrup, markerColors.stirrup);
+        drawCross(anchors.bowHand, markerColors.bowHand);
+        updateCoordinateLabels();
+      }
+
+      function loadImageFromUrl(url, nameHint) {
+        image = new Image();
+        image.onload = () => {
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          imageLoaded = true;
+          sourceName = nameHint;
+          redraw();
+          setStatus("Loaded: " + nameHint + " (" + canvas.width + "x" + canvas.height + ")");
+          log("loadImageFromUrl", "Loaded " + url);
+        };
+        image.onerror = () => {
+          setStatus("Could not load image. Try PNG or JPG.");
+          log("loadImageFromUrl", "Could not load " + url);
+        };
+        image.src = url;
+      }
+
+      function loadImageFromFile(file) {
+        const base = file.name.replace(/\.[^/.]+$/, "");
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result;
+          if (typeof result !== "string") {
+            setStatus("Could not read selected file.");
+            return;
+          }
+          loadImageFromUrl(result, base || "frame");
+        };
+        reader.onerror = () => setStatus("File read failed on this browser.");
+        reader.readAsDataURL(file);
+      }
+
+      function downloadBlob(filename, blob) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+
+      function saveJson() {
+        const payload = {
+          sourceImage: sourceName,
+          imageWidth: canvas.width,
+          imageHeight: canvas.height,
+          anchors: anchors,
+          normalized: {
+            saddle: { x: anchors.saddle.x / canvas.width, y: anchors.saddle.y / canvas.height },
+            stirrup: { x: anchors.stirrup.x / canvas.width, y: anchors.stirrup.y / canvas.height },
+            bowHand: { x: anchors.bowHand.x / canvas.width, y: anchors.bowHand.y / canvas.height },
+            seatBox: { x: anchors.seatBox.x / canvas.width, y: anchors.seatBox.y / canvas.height },
+          },
+          seatBoxSize: { w: 95, h: 70 },
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        downloadBlob(sourceName + "_anchors.json", blob);
+        setStatus("Saved JSON.");
+      }
+
+      function savePng() {
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          downloadBlob(sourceName + "_template.png", blob);
+          setStatus("Saved PNG.");
+        }, "image/png");
+      }
+
+      function resetAnchors() {
+        anchors = JSON.parse(JSON.stringify(defaultAnchors));
+        redraw();
+        setStatus("Reset anchors.");
+      }
+
+      function loadPreset() {
+        const url = presetSelect.value;
+        const base = (url.split("/").pop() || "frame").replace(/\.[^/.]+$/, "");
+        setStatus("Loading preset: " + base);
+        loadImageFromUrl(url, base);
+      }
+
+      function loadSelectedFile() {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          setStatus("No file selected.");
+          return;
+        }
+        setStatus("Loading: " + file.name);
+        loadImageFromFile(file);
+      }
+
+      markerButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          setSelectedMarker(button.dataset.marker);
+        });
+      });
+
+      canvas.addEventListener("pointerdown", (event) => {
+        dragging = true;
+        canvas.setPointerCapture(event.pointerId);
+        anchors[selectedMarker] = toCanvasPoint(event);
+        redraw();
+      });
+      canvas.addEventListener("pointermove", (event) => {
+        if (!dragging) return;
+        anchors[selectedMarker] = toCanvasPoint(event);
+        redraw();
+      });
+      canvas.addEventListener("pointerup", (event) => {
+        if (!dragging) return;
+        dragging = false;
+        canvas.releasePointerCapture(event.pointerId);
+      });
+      canvas.addEventListener("pointercancel", () => {
+        dragging = false;
+      });
+
+      presetSelect.addEventListener("change", loadPreset);
+      loadPresetBtn.addEventListener("click", loadPreset);
+      fileInput.addEventListener("change", loadSelectedFile);
+      fileInput.addEventListener("click", () => {
+        fileInput.value = "";
+      });
+      loadFileBtn.addEventListener("click", loadSelectedFile);
+      saveJsonBtn.addEventListener("click", saveJson);
+      savePngBtn.addEventListener("click", savePng);
+      resetBtn.addEventListener("click", resetAnchors);
+
+      setSelectedMarker("saddle");
+      setStatus("Ready. Click Load Preset.");
+      loadPreset();
+    })();
+  </script>
+</body>
+</html>

@@ -47,6 +47,12 @@ export class PlayerController {
   private shootCooldown: number = 0;
   private isShooting: boolean = false; // Track if currently shooting (for hover effect)
   private recoilHoverFrames: number = 0; // Frames of hover damping remaining after last shot
+  private wasActionPressed: boolean = false;
+  private autoFireActive: boolean = false;
+  private baseWidth: number = 30;
+  private baseHeight: number = 40;
+  private horizontalWidth: number = 38;
+  private horizontalHeight: number = 28;
   
   // Callback for haptic feedback
   private onHaptic: ((type: "light" | "medium" | "heavy" | "success" | "error") => void) | null = null;
@@ -67,8 +73,8 @@ export class PlayerController {
       y: 100,
       vx: 0,
       vy: 0,
-      width: CONFIG.PLAYER_WIDTH,
-      height: CONFIG.PLAYER_HEIGHT,
+      width: this.baseWidth,
+      height: this.baseHeight,
       hp: CONFIG.PLAYER_MAX_HP,
       maxHp: CONFIG.PLAYER_MAX_HP,
       ammo: CONFIG.PLAYER_MAX_AMMO,
@@ -86,6 +92,8 @@ export class PlayerController {
     this.bullets = [];
     this.shootCooldown = 0;
     this.recoilHoverFrames = 0;
+    this.wasActionPressed = false;
+    this.autoFireActive = false;
     console.log("[PlayerController] Reset player state");
   }
   
@@ -124,13 +132,37 @@ export class PlayerController {
   getShootCooldown(): number {
     return this.shootCooldown;
   }
+
+  addMaxHp(amount: number): void {
+    this.player.maxHp += amount;
+    this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
+  }
+
+  addMaxAmmo(amount: number): void {
+    this.player.maxAmmo += amount;
+    this.player.ammo = Math.min(this.player.maxAmmo, this.player.ammo + amount);
+  }
+
+  addAmmo(amount: number): void {
+    this.player.ammo = Math.min(this.player.maxAmmo, this.player.ammo + amount);
+  }
+
+  setHitboxSizes(baseWidth: number, baseHeight: number, horizontalWidth: number, horizontalHeight: number): void {
+    this.baseWidth = Math.max(8, Math.round(baseWidth));
+    this.baseHeight = Math.max(8, Math.round(baseHeight));
+    this.horizontalWidth = Math.max(8, Math.round(horizontalWidth));
+    this.horizontalHeight = Math.max(8, Math.round(horizontalHeight));
+    this.updateHitboxForPose();
+  }
   
   // ============= INPUT HANDLING =============
   handleInput(input: InputState): void {
     // Unified tap action: jump when grounded, shoot when airborne
-    const tapping = input.jump || input.shoot;
+    const actionPressed = input.jump || input.shoot;
+    const justPressed = actionPressed && !this.wasActionPressed;
+    let firedShotThisFrame = false;
     
-    if (tapping) {
+    if (justPressed) {
       if (this.player.grounded) {
         // Jump when grounded
         this.player.vy = CONFIG.PLAYER_JUMP_FORCE;
@@ -138,13 +170,23 @@ export class PlayerController {
         this.triggerHaptic("light");
       } else {
         // Shoot when airborne
-        this.shoot();
+        firedShotThisFrame = this.shoot();
+        if (firedShotThisFrame) {
+          this.autoFireActive = true;
+        }
       }
+    } else if (actionPressed && !this.player.grounded && this.autoFireActive) {
+      // Hold-to-fire after the player has started shooting in-air.
+      firedShotThisFrame = this.shoot();
+    }
+
+    if (!actionPressed || this.player.grounded) {
+      this.autoFireActive = false;
     }
     
     // Track shooting state for hover effect
     // Keep hover active during recoil frames even if ammo is 0
-    this.isShooting = (tapping && !this.player.grounded && this.player.ammo > 0) || this.recoilHoverFrames > 0;
+    this.isShooting = firedShotThisFrame || this.recoilHoverFrames > 0;
     
     // Tick down recoil hover
     if (this.recoilHoverFrames > 0) {
@@ -155,6 +197,8 @@ export class PlayerController {
     if (this.shootCooldown > 0) {
       this.shootCooldown--;
     }
+
+    this.wasActionPressed = actionPressed;
   }
   
   // Check if player is currently shooting (for hover effect)
@@ -174,6 +218,8 @@ export class PlayerController {
       this.player.vx = CONFIG.PLAYER_SPEED;
       this.player.facingRight = true;
     }
+
+    this.updateHitboxForPose();
     
     // Hover effect when shooting - player stays in place
     // Also hover during recoilHoverFrames so the last bullet doesn't catapult the player
@@ -201,6 +247,21 @@ export class PlayerController {
       this.player.invulnerable--;
     }
   }
+
+  private updateHitboxForPose(): void {
+    // Keep a stable hitbox across all animation frames/poses.
+    const targetWidth = this.baseWidth;
+    const targetHeight = this.baseHeight;
+    if (this.player.width === targetWidth && this.player.height === targetHeight) return;
+
+    const footY = this.player.y + this.player.height / 2;
+    this.player.width = targetWidth;
+    this.player.height = targetHeight;
+    if (this.player.grounded) {
+      // Keep feet planted when shape changes on/near platforms.
+      this.player.y = footY - this.player.height / 2;
+    }
+  }
   
   // Check if player fell below kill plane
   checkKillPlane(cameraY: number): boolean {
@@ -212,9 +273,9 @@ export class PlayerController {
   }
   
   // ============= SHOOTING =============
-  private shoot(): void {
-    if (this.shootCooldown > 0 || this.player.ammo <= 0) return;
-    if (this.player.grounded) return; // Can only shoot while airborne
+  private shoot(): boolean {
+    if (this.shootCooldown > 0 || this.player.ammo <= 0) return false;
+    if (this.player.grounded) return false; // Can only shoot while airborne
     
     this.shootCooldown = CONFIG.SHOOT_COOLDOWN;
     this.player.ammo--;
@@ -242,6 +303,8 @@ export class PlayerController {
     if (this.onShoot) {
       this.onShoot();
     }
+    
+    return true;
   }
   
   // ============= BULLET MANAGEMENT =============
@@ -276,9 +339,11 @@ export class PlayerController {
   }
   
   // ============= COMBAT =============
-  bounce(): void {
+  bounce(restoreAmmo: boolean = true): void {
     this.player.vy = CONFIG.PLAYER_BOUNCE_FORCE;
-    this.restoreAmmo();
+    if (restoreAmmo) {
+      this.restoreAmmo();
+    }
   }
   
   restoreAmmo(): void {
@@ -311,7 +376,7 @@ export class PlayerController {
   
   takeDamage(): void {
     this.player.hp--;
-    this.player.invulnerable = 60; // 1 second of invulnerability
+    this.player.invulnerable = CONFIG.PLAYER_INVULNERABLE_FRAMES;
     this.player.combo = 0;
     this.player.comboTimer = 0;
     

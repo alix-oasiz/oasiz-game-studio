@@ -1,0 +1,19 @@
+{
+  "name": "3dthreejs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@oasiz/sdk": "^1.0.1",
+    "three": "^0.175.0"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}

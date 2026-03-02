@@ -19,9 +19,44 @@
  *   bun run upload block-blast
  */
 
-import { existsSync, readdirSync, statSync } from "fs";
+import { existsSync, readdirSync, statSync, readFileSync } from "fs";
 import { join, resolve, relative, extname } from "path";
 import { $ } from "bun";
+
+// Load .env file if it exists (synchronous version using fs)
+function loadEnvSync(): void {
+  const envPath = resolve(import.meta.dir, "..", ".env");
+  if (!existsSync(envPath)) return;
+
+  try {
+    // Read .env file synchronously
+    const envText = readFileSync(envPath, "utf-8");
+    
+    // Parse .env file
+    const lines = envText.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      let value = trimmed.slice(eq + 1).trim();
+      // Remove quotes if present
+      if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      // Only set if not already in process.env (env vars take precedence)
+      if (key && typeof process.env[key] === "undefined") {
+        process.env[key] = value;
+      }
+    }
+  } catch (err) {
+    // Silently fail if .env can't be read
+  }
+}
+
+// Load .env before reading env vars
+loadEnvSync();
 
 // Configuration
 const DEFAULT_API_URL = "https://api.oasiz.ai/api/upload/game";
@@ -75,10 +110,15 @@ async function validateEnvironment(): Promise<void> {
     console.log("");
     console.log("To set up your upload token:");
     console.log("  1. Get your token from the Oasiz team");
-    console.log("  2. Add it to your shell:");
-    console.log("     export OASIZ_UPLOAD_TOKEN=your_token_here");
+    console.log("  2. Option A - Add to .env file (recommended):");
+    console.log("     Create a .env file in the project root with:");
+    console.log("     OASIZ_UPLOAD_TOKEN=your_token_here");
+    console.log("     OASIZ_EMAIL=your-email@example.com");
     console.log("");
-    console.log("Or add it to your ~/.zshrc or ~/.bashrc for persistence.");
+    console.log("  3. Option B - Set in your shell:");
+    console.log("     PowerShell: $env:OASIZ_UPLOAD_TOKEN='your_token_here'");
+    console.log("     Bash/Zsh:   export OASIZ_UPLOAD_TOKEN=your_token_here");
+    console.log("");
     process.exit(1);
   }
 
@@ -86,7 +126,12 @@ async function validateEnvironment(): Promise<void> {
     logError("OASIZ_EMAIL environment variable not set");
     console.log("");
     console.log("Set your registered Oasiz email:");
-    console.log("  export OASIZ_EMAIL=your-email@example.com");
+    console.log("  Option A - Add to .env file:");
+    console.log("    OASIZ_EMAIL=your-email@example.com");
+    console.log("");
+    console.log("  Option B - Set in your shell:");
+    console.log("    PowerShell: $env:OASIZ_EMAIL='your-email@example.com'");
+    console.log("    Bash/Zsh:   export OASIZ_EMAIL=your-email@example.com");
     console.log("");
     console.log("This email must be registered in the Oasiz platform.");
     process.exit(1);
@@ -266,7 +311,7 @@ async function collectAssets(gamePath: string): Promise<Record<string, string>> 
   const allFiles = getAllFiles(distPath);
   
   for (const filePath of allFiles) {
-    const relativePath = relative(distPath, filePath);
+    const relativePath = relative(distPath, filePath).replace(/\\/g, "/");
     
     // Skip HTML files - they're sent separately as bundleHtml
     if (relativePath.endsWith('.html')) continue;
@@ -653,8 +698,8 @@ async function readThumbnail(gamePath: string): Promise<string | undefined> {
 }
 
 async function uploadGame(payload: UploadPayload): Promise<void> {
-  const payloadSize = JSON.stringify(payload).length;
-  logInfo(`Uploading ${payload.title} to ${API_URL}... (${(payloadSize / 1024 / 1024).toFixed(1)} MB)`);
+  const requestBody = JSON.stringify(payload);
+  logInfo(`Uploading ${payload.title} to ${API_URL}... (${(requestBody.length / 1024 / 1024).toFixed(1)} MB)`);
 
   try {
     const response = await fetch(API_URL, {
@@ -663,7 +708,7 @@ async function uploadGame(payload: UploadPayload): Promise<void> {
         "Content-Type": "application/json",
         Authorization: `Bearer ${API_TOKEN}`,
       },
-      body: JSON.stringify(payload),
+      body: requestBody,
     });
 
     if (!response.ok) {

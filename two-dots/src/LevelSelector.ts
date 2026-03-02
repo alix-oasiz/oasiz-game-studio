@@ -46,32 +46,44 @@ export class LevelSelector {
   private backgroundDots: BackgroundDot[] = [];
   private maxUnlockedLevel: number = 1;
   private selectedButtonLevel: number | null = null; // Track which button is currently selected/clicked
-  
+
   // Scrolling state
   private scrollOffset: number = 0;
   private minScrollOffset: number = 0;
   private maxScrollOffset: number = 0;
   private isDragging: boolean = false;
   private lastDragY: number = 0;
-  
+
   // Animation state
   private lineAnimationProgress: number = 0; // 0 to 1
   private animationStartTime: number | null = null;
   private baseAnimationDurationPerLevel: number = 350; // ms per level for uniform speed
   private buttonRipples: ButtonRipple[] = [];
-  
+
   // Layout caching to avoid recalculating every frame
   private cachedWidth: number = 0;
   private cachedHeight: number = 0;
   private cachedIsMobile: boolean = false;
   private layoutNeedsUpdate: boolean = true;
   private baseY: number = 0; // Cached base Y for scroll calculations
-  
+
+  private cachedIsMobileForHover: boolean =
+    window.matchMedia("(pointer: coarse)").matches;
+
   // Exposed configuration variables
   public buttonSize: number | null = null; // null = auto-calculate, or set specific size
-  public fontSize: { mobile: number; desktop: number } = { mobile: 18, desktop: 22 };
-  public fontSizeLocked: { mobile: number; desktop: number } = { mobile: 10, desktop: 12 };
-  public fontSizeLockedNumber: { mobile: number; desktop: number } = { mobile: 8, desktop: 10 };
+  public fontSize: { mobile: number; desktop: number } = {
+    mobile: 18,
+    desktop: 22,
+  };
+  public fontSizeLocked: { mobile: number; desktop: number } = {
+    mobile: 10,
+    desktop: 12,
+  };
+  public fontSizeLockedNumber: { mobile: number; desktop: number } = {
+    mobile: 8,
+    desktop: 10,
+  };
 
   constructor(
     totalLevels: number = 25,
@@ -88,7 +100,7 @@ export class LevelSelector {
     fontSize?: { mobile: number; desktop: number },
     fontSizeLocked?: { mobile: number; desktop: number },
     fontSizeLockedNumber?: { mobile: number; desktop: number },
-    maxUnlockedLevel: number = 1
+    maxUnlockedLevel: number = 1,
   ) {
     this.totalLevels = totalLevels;
     this.onLevelSelected = onLevelSelected;
@@ -116,57 +128,59 @@ export class LevelSelector {
   }
 
   private updateRipples(): void {
-    for (let i = this.buttonRipples.length - 1; i >= 0; i--) {
+    let i = this.buttonRipples.length;
+    while (i--) {
       const ripple = this.buttonRipples[i];
-      // Grow the ripple
       ripple.scale += 0.04;
-      // Fade out the ripple
       ripple.alpha -= 0.025;
-      
-      // Remove ripple when fully faded
       if (ripple.alpha <= 0) {
-        this.buttonRipples.splice(i, 1);
+        this.buttonRipples[i] =
+          this.buttonRipples[this.buttonRipples.length - 1];
+        this.buttonRipples.pop();
       }
     }
   }
 
   private drawRipples(renderCtx: CanvasRenderingContext2D): void {
+    if (this.buttonRipples.length === 0) return;
     for (const ripple of this.buttonRipples) {
-      const radius = this.buttonWidth / 2 * ripple.scale;
-      
-      renderCtx.save();
+      const radius = (this.buttonWidth / 2) * ripple.scale;
       renderCtx.globalAlpha = ripple.alpha;
       renderCtx.fillStyle = this.colorHex[ripple.color];
       renderCtx.beginPath();
       renderCtx.arc(ripple.x, ripple.y, radius, 0, Math.PI * 2);
       renderCtx.fill();
-      renderCtx.restore();
     }
+    renderCtx.globalAlpha = 1;
   }
 
-  private calculateLayout(width: number, height: number, isMobile: boolean): void {
+  private calculateLayout(
+    width: number,
+    height: number,
+    isMobile: boolean,
+  ): void {
     // Check if we need a full layout recalculation (dimensions changed)
-    const needsFullRecalc = 
+    const needsFullRecalc =
       this.layoutNeedsUpdate ||
-      width !== this.cachedWidth || 
-      height !== this.cachedHeight || 
+      width !== this.cachedWidth ||
+      height !== this.cachedHeight ||
       isMobile !== this.cachedIsMobile;
-    
+
     if (needsFullRecalc) {
       this.cachedWidth = width;
       this.cachedHeight = height;
       this.cachedIsMobile = isMobile;
       this.layoutNeedsUpdate = false;
-      
+
       // Safe area offset for top (matches settings button requirements)
       const safeAreaTop = isMobile ? 120 : 45;
       const titleHeight = safeAreaTop + (isMobile ? 80 : 100); // Space for safe area + title
       const bottomPadding = isMobile ? 140 : 140; // Space for level button and bottom margin
       const sidePadding = isMobile ? 20 : 30;
-      
+
       const availableHeight = height - titleHeight - bottomPadding;
       const availableWidth = width - sidePadding * 2;
-      
+
       // Calculate button size - BIGGER for mobile for easier tapping
       let buttonSize: number;
       if (this.buttonSize !== null) {
@@ -176,25 +190,30 @@ export class LevelSelector {
         const desiredSize = isMobile ? 56 : 60;
         buttonSize = Math.min(availableWidth * 0.9, desiredSize);
       }
-      
+
       this.buttonWidth = buttonSize;
       this.buttonHeight = buttonSize;
-      
+
       // Center horizontally
       const startX = (width - this.buttonWidth) / 2;
-      
+
       // Calculate total height of all buttons
-      const totalButtonsHeight = this.totalLevels * this.buttonHeight + (this.totalLevels - 1) * this.buttonSpacing;
-      
+      const totalButtonsHeight =
+        this.totalLevels * this.buttonHeight +
+        (this.totalLevels - 1) * this.buttonSpacing;
+
       // Start Y position for buttons (level 1 at bottom of scrollable area)
       const scrollableAreaBottom = height - bottomPadding;
       this.baseY = scrollableAreaBottom - this.buttonHeight;
-      
+
       // Calculate scroll limits
       const topMargin = isMobile ? 80 : 50; // Extra margin at top for visibility
       this.minScrollOffset = 0;
-      this.maxScrollOffset = Math.max(0, totalButtonsHeight - availableHeight + topMargin);
-      
+      this.maxScrollOffset = Math.max(
+        0,
+        totalButtonsHeight - availableHeight + topMargin,
+      );
+
       // Create or update buttons only on full recalc
       if (this.buttons.length !== this.totalLevels) {
         this.buttons = [];
@@ -203,7 +222,7 @@ export class LevelSelector {
           const colorIndex = (level - 1) % this.colors.length;
           const color = this.colors[colorIndex];
           const isSelected = level === this.selectedButtonLevel;
-          
+
           this.buttons.push({
             level: level,
             x: startX,
@@ -229,13 +248,19 @@ export class LevelSelector {
         }
       }
     }
-    
+
     // Always clamp and update Y positions (cheap operation)
-    this.scrollOffset = Math.max(this.minScrollOffset, Math.min(this.maxScrollOffset, this.scrollOffset));
-    
+    this.scrollOffset = Math.max(
+      this.minScrollOffset,
+      Math.min(this.maxScrollOffset, this.scrollOffset),
+    );
+
     // Update button Y positions based on scroll
     for (let i = 0; i < this.buttons.length; i++) {
-      this.buttons[i].y = this.baseY - i * (this.buttonHeight + this.buttonSpacing) + this.scrollOffset;
+      this.buttons[i].y =
+        this.baseY -
+        i * (this.buttonHeight + this.buttonSpacing) +
+        this.scrollOffset;
     }
   }
 
@@ -266,15 +291,15 @@ export class LevelSelector {
   handleButtonClick(x: number, y: number): boolean {
     // Check if any button was clicked (circular hit detection with extra padding for easier tapping)
     const hitPadding = 12; // Extra pixels around button for easier tapping
-    
+
     for (const button of this.buttons) {
       const centerX = button.x + button.width / 2;
       const centerY = button.y + button.height / 2;
       const radius = button.width / 2 + hitPadding;
       const distance = Math.sqrt(
-        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
+        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2),
       );
-      
+
       if (distance <= radius && !button.locked) {
         // Reset previous selected button
         if (this.selectedButtonLevel !== null) {
@@ -285,12 +310,12 @@ export class LevelSelector {
             }
           }
         }
-        
+
         // Set new selected button
         this.selectedButtonLevel = button.level;
         button.clickScale = 1.2;
         button.clickStartTime = null; // No animation needed
-        
+
         this.onLevelSelected(button.level);
         return true;
       }
@@ -299,22 +324,20 @@ export class LevelSelector {
   }
 
   updateHover(x: number, y: number): void {
-    // Skip hover effects on mobile - not needed and adds overhead
-    const isMobile = window.matchMedia("(pointer: coarse)").matches;
-    if (isMobile) return;
-    
+    if (this.cachedIsMobileForHover) return;
+
     this.hoveredButton = null;
-    
+
     for (let i = 0; i < this.buttons.length; i++) {
       const button = this.buttons[i];
       const centerX = button.x + button.width / 2;
       const centerY = button.y + button.height / 2;
       const radius = button.width / 2;
       const distance = Math.sqrt(
-        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
+        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2),
       );
       const isHovered = distance <= radius && !button.locked;
-      
+
       if (isHovered) {
         this.hoveredButton = i;
         button.hoverScale = Math.min(button.hoverScale + 0.1, 1.15);
@@ -327,36 +350,40 @@ export class LevelSelector {
   render(
     renderCtx: CanvasRenderingContext2D,
     width: number,
-    height: number
+    height: number,
+    isMobileOverride?: boolean,
   ): void {
-    const isMobile = window.matchMedia("(pointer: coarse)").matches;
-    
+    const isMobile =
+      isMobileOverride ?? window.matchMedia("(pointer: coarse)").matches;
+    this.cachedIsMobileForHover = isMobile;
+
     // Safe area offset for top (matches settings button requirements)
     const safeAreaTop = isMobile ? 120 : 45;
-    
+
     // Ensure the latest unlocked level is selected (enlarged) if no button is currently selected
     if (this.selectedButtonLevel === null) {
       this.selectedButtonLevel = this.maxUnlockedLevel;
     }
-    
+
     // Calculate layout
     this.calculateLayout(width, height, isMobile);
-    
+
     // Start animation on first render
     if (this.animationStartTime === null) {
       this.animationStartTime = Date.now();
     }
-    
+
     // Calculate animation duration based on maxUnlockedLevel for uniform speed
-    const animationDuration = this.maxUnlockedLevel * this.baseAnimationDurationPerLevel;
-    
+    const animationDuration =
+      this.maxUnlockedLevel * this.baseAnimationDurationPerLevel;
+
     // Update animation progress
     const elapsed = Date.now() - this.animationStartTime;
     this.lineAnimationProgress = Math.min(elapsed / animationDuration, 1);
-    
+
     // Update ripples
     this.updateRipples();
-    
+
     // Initialize background dots if needed
     if (this.backgroundDots.length === 0) {
       const numDots = 12;
@@ -370,73 +397,81 @@ export class LevelSelector {
         });
       }
     }
-    
-    // Draw background dots (before clipping)
-    for (const bgDot of this.backgroundDots) {
-      renderCtx.save();
-      renderCtx.globalAlpha = bgDot.opacity;
-      renderCtx.fillStyle = this.colorHex[bgDot.color];
-      renderCtx.beginPath();
-      renderCtx.arc(bgDot.x, bgDot.y, bgDot.radius, 0, Math.PI * 2);
-      renderCtx.fill();
-      renderCtx.restore();
+
+    if (this.backgroundDots.length > 0) {
+      for (const bgDot of this.backgroundDots) {
+        renderCtx.globalAlpha = bgDot.opacity;
+        renderCtx.fillStyle = this.colorHex[bgDot.color];
+        renderCtx.beginPath();
+        renderCtx.arc(bgDot.x, bgDot.y, bgDot.radius, 0, Math.PI * 2);
+        renderCtx.fill();
+      }
+      renderCtx.globalAlpha = 1;
     }
-    
+
     // Draw title "Levels" with same style as start screen
     const fontSize = isMobile ? 32 : 48;
     const titleY = safeAreaTop + (isMobile ? 40 : 50);
     const shadowOffset = fontSize * 0.08;
-    
+
     renderCtx.font = `${fontSize}px 'Press Start 2P', monospace`;
     renderCtx.textAlign = "center";
-    
+
     // Draw shadow
     renderCtx.fillStyle = "rgba(0, 0, 0, 0.3)";
-    renderCtx.fillText("Levels", width / 2 + shadowOffset, titleY + shadowOffset);
-    
+    renderCtx.fillText(
+      "Levels",
+      width / 2 + shadowOffset,
+      titleY + shadowOffset,
+    );
+
     // Draw main text
     renderCtx.fillStyle = "#333333";
     renderCtx.fillText("Levels", width / 2, titleY);
-    
+
     // Define scrollable area (below title with safe area, above hint text)
     const titleHeight = safeAreaTop + (isMobile ? 80 : 100);
     const bottomPadding = isMobile ? 80 : 100;
     const scrollableTop = titleHeight;
     const scrollableBottom = height - bottomPadding;
     const scrollableHeight = scrollableBottom - scrollableTop;
-    
+
     // Save context and clip to scrollable area
     renderCtx.save();
     renderCtx.beginPath();
     renderCtx.rect(0, scrollableTop, width, scrollableHeight);
     renderCtx.clip();
-    
+
     // Draw connecting line between all circles with animation
     if (this.buttons.length > 1) {
       const firstButton = this.buttons[0];
       const firstCenterX = firstButton.x + firstButton.width / 2;
       const firstCenterY = firstButton.y + firstButton.height / 2;
       const extendedBottomY = height - (isMobile ? 20 : 30);
-      
+
       // Calculate total line length from bottom to maxUnlockedLevel (not all the way to top)
-      const maxUnlockedButton = this.buttons[Math.min(this.maxUnlockedLevel - 1, this.buttons.length - 1)];
-      const maxUnlockedCenterY = maxUnlockedButton.y + maxUnlockedButton.height / 2;
+      const maxUnlockedButton =
+        this.buttons[
+          Math.min(this.maxUnlockedLevel - 1, this.buttons.length - 1)
+        ];
+      const maxUnlockedCenterY =
+        maxUnlockedButton.y + maxUnlockedButton.height / 2;
       const totalLineLength = extendedBottomY - maxUnlockedCenterY;
-      
+
       // Calculate current animated length
       const animatedLength = totalLineLength * this.lineAnimationProgress;
       const currentY = extendedBottomY - animatedLength;
-      
+
       renderCtx.lineWidth = 3;
       renderCtx.lineCap = "round";
       renderCtx.lineJoin = "round";
-      
+
       // Draw grey line (full line from bottom to top)
       renderCtx.strokeStyle = "#CCCCCC"; // Grey color
       renderCtx.beginPath();
       renderCtx.moveTo(firstCenterX, extendedBottomY);
       renderCtx.lineTo(firstCenterX, firstCenterY);
-      
+
       for (let i = 1; i < this.buttons.length; i++) {
         const button = this.buttons[i];
         const centerX = button.x + button.width / 2;
@@ -444,27 +479,31 @@ export class LevelSelector {
         renderCtx.lineTo(centerX, centerY);
       }
       renderCtx.stroke();
-      
+
       // Draw red line (animated portion from bottom to current progress, up to maxUnlockedLevel)
       if (this.lineAnimationProgress > 0) {
         renderCtx.strokeStyle = "#e84e60"; // Red color
         renderCtx.lineWidth = 7;
         renderCtx.beginPath();
         renderCtx.moveTo(firstCenterX, extendedBottomY);
-        
+
         // Draw line segments until we reach the current animation point or maxUnlockedLevel
         let reachedEnd = false;
-        
+
         // First segment from bottom to level 1
         if (currentY <= firstCenterY) {
           renderCtx.lineTo(firstCenterX, firstCenterY);
-          
+
           // Continue through buttons up to maxUnlockedLevel
-          for (let i = 1; i < Math.min(this.maxUnlockedLevel, this.buttons.length); i++) {
+          for (
+            let i = 1;
+            i < Math.min(this.maxUnlockedLevel, this.buttons.length);
+            i++
+          ) {
             const button = this.buttons[i];
             const centerX = button.x + button.width / 2;
             const centerY = button.y + button.height / 2;
-            
+
             if (currentY <= centerY) {
               renderCtx.lineTo(centerX, centerY);
             } else {
@@ -472,14 +511,14 @@ export class LevelSelector {
               const prevButton = this.buttons[i - 1];
               const prevCenterX = prevButton.x + prevButton.width / 2;
               const prevCenterY = prevButton.y + prevButton.height / 2;
-              
+
               const segmentLength = prevCenterY - centerY;
               const remainingLength = prevCenterY - currentY;
               const t = remainingLength / segmentLength;
-              
+
               const interpolatedX = prevCenterX + (centerX - prevCenterX) * t;
               const interpolatedY = currentY;
-              
+
               renderCtx.lineTo(interpolatedX, interpolatedY);
               reachedEnd = true;
               break;
@@ -489,144 +528,117 @@ export class LevelSelector {
           // We're still in the first segment (bottom to level 1)
           renderCtx.lineTo(firstCenterX, currentY);
         }
-        
+
         renderCtx.stroke();
       }
     }
-    
+
     // Calculate which buttons have been reached by the animation and spawn ripples
     const firstButton = this.buttons[0];
     const firstCenterY = firstButton.y + firstButton.height / 2;
     const extendedBottomY = height - (isMobile ? 20 : 30);
-    const maxUnlockedButton = this.buttons[Math.min(this.maxUnlockedLevel - 1, this.buttons.length - 1)];
-    const maxUnlockedCenterY = maxUnlockedButton.y + maxUnlockedButton.height / 2;
+    const maxUnlockedButton =
+      this.buttons[
+        Math.min(this.maxUnlockedLevel - 1, this.buttons.length - 1)
+      ];
+    const maxUnlockedCenterY =
+      maxUnlockedButton.y + maxUnlockedButton.height / 2;
     const totalLineLength = extendedBottomY - maxUnlockedCenterY;
     const animatedLength = totalLineLength * this.lineAnimationProgress;
     const currentY = extendedBottomY - animatedLength;
-    
+
     // Check each button and spawn ripple when reached (only up to maxUnlockedLevel)
-    for (let i = 0; i < Math.min(this.maxUnlockedLevel, this.buttons.length); i++) {
+    for (
+      let i = 0;
+      i < Math.min(this.maxUnlockedLevel, this.buttons.length);
+      i++
+    ) {
       const button = this.buttons[i];
       const centerX = button.x + button.width / 2;
       const centerY = button.y + button.height / 2;
-      
+
       // Check if animation has reached this button
       const isReached = currentY <= centerY;
-      
+
       // If button is newly reached, spawn ripple and mark as activated
       if (isReached && !button.activated) {
         button.activated = true;
         this.spawnRipple(centerX, centerY, button.color);
       }
     }
-    
+
     // Draw ripples (behind buttons)
     this.drawRipples(renderCtx);
-    
+
     // Draw buttons (only visible buttons within clip area will show)
     for (let i = 0; i < this.buttons.length; i++) {
       const button = this.buttons[i];
-      
+
       // Skip buttons that are completely outside the visible area
-      if (button.y + button.height < scrollableTop || button.y > scrollableBottom) {
+      if (
+        button.y + button.height < scrollableTop ||
+        button.y > scrollableBottom
+      ) {
         continue;
       }
-      
+
       const isHovered = this.hoveredButton === i;
       const centerX = button.x + button.width / 2;
       const centerY = button.y + button.height / 2;
       const radius = button.width / 2;
-      
-      // Keep selected button at 1.2x scale (no animation needed)
+
       if (button.level === this.selectedButtonLevel) {
         button.clickScale = 1.2;
       } else if (button.clickScale !== 1) {
-        // Reset any non-selected buttons
         button.clickScale = 1;
       }
-      
-      renderCtx.save();
-      
-      // Apply combined hover and click scale transform
+
       const scale = button.hoverScale * button.clickScale;
-      renderCtx.translate(centerX, centerY);
-      renderCtx.scale(scale, scale);
-      renderCtx.translate(-centerX, -centerY);
-      
-      // Draw button background (white circle) - greyed out until activated
-      renderCtx.fillStyle = button.locked || !button.activated ? "#E0E0E0" : "#FFFFFF";
-      renderCtx.shadowColor = "rgba(0, 0, 0, 0.15)";
-      renderCtx.shadowBlur = isHovered ? 12 : 8;
-      renderCtx.shadowOffsetY = isHovered ? 4 : 2;
-      
+      const needsScale = scale !== 1;
+
+      if (needsScale) {
+        renderCtx.save();
+        renderCtx.translate(centerX, centerY);
+        renderCtx.scale(scale, scale);
+        renderCtx.translate(-centerX, -centerY);
+      }
+
+      renderCtx.fillStyle = "rgba(0, 0, 0, 0.08)";
+      renderCtx.beginPath();
+      renderCtx.arc(centerX, centerY + 2, radius, 0, Math.PI * 2);
+      renderCtx.fill();
+
+      renderCtx.fillStyle =
+        button.locked || !button.activated ? "#E0E0E0" : "#FFFFFF";
       renderCtx.beginPath();
       renderCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
       renderCtx.fill();
-      
-      // Draw colored outline border (greyed out until activated)
-      const outlineColor = button.locked || !button.activated ? "#CCCCCC" : this.colorHex[button.color];
+
+      const outlineColor =
+        button.locked || !button.activated
+          ? "#CCCCCC"
+          : this.colorHex[button.color];
       renderCtx.strokeStyle = outlineColor;
       renderCtx.lineWidth = isHovered ? 6 : 5;
       renderCtx.beginPath();
       renderCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
       renderCtx.stroke();
-      
-      // // Draw three stars on top of the button, following the curvature
-      // if (!button.locked) {
-      //   const starRadius = radius * 0.5; // Star size relative to button (increased from 0.12)
-      //   const starOffsetY = radius * 1.5; // Position stars further above the button (increased from 1.15)
-      
-      //   // Calculate the angle for curved positioning along the top arc
-      //   const leftAngle = -Math.PI / 2 - 0.5; // Left star angle (slightly wider spread)
-      //   const rightAngle = -Math.PI / 2 + 0.5; // Right star angle (slightly wider spread)
-        
-      //   // Star positions in A-shape: center star highest, side stars lower
-      //   const centerStarX = centerX;
-      //   const centerStarY = centerY - starOffsetY; // Center star at highest point
-        
-      //   // Side stars positioned lower (higher Y value) to form A-shape
-      //   const sideStarOffsetY = radius * 0.25; // How much lower the side stars are
-      //   const leftStarX = centerX + Math.cos(leftAngle) * radius * 1.1;
-      //   const leftStarY = centerStarY + sideStarOffsetY; // Lower than center
-        
-      //   const rightStarX = centerX + Math.cos(rightAngle) * radius * 1.1;
-      //   const rightStarY = centerStarY + sideStarOffsetY; // Lower than center
-        
-      //   // Draw stars (greyed out until activated)
-      //   renderCtx.save();
-      //   renderCtx.fillStyle = !button.activated ? "#CCCCCC" : "#FFF34D"; // Gold color when activated
-      //   renderCtx.strokeStyle = !button.activated ? "#999999" : "#FFF34D"; // Orange outline when activated
-      //   renderCtx.lineWidth = 1;
-        
-      //   // Left star
-      //   this.drawStar(renderCtx, leftStarX, leftStarY, starRadius, false);
-        
-      //   // Center star
-      //   this.drawStar(renderCtx, centerStarX, centerStarY, starRadius, false);
-        
-      //   // Right star
-      //   this.drawStar(renderCtx, rightStarX, rightStarY, starRadius, false);
-        
-      //   renderCtx.restore();
-      // }
-      
-      // Draw level number or lock icon
+
       if (button.locked) {
-        // Draw lock icon for locked levels
         this.drawLockIcon(renderCtx, centerX, centerY, radius * 1.2);
       } else {
-        // Draw level number (greyed out until activated)
         renderCtx.fillStyle = !button.activated ? "#999999" : "#333333";
         renderCtx.font = `bold ${isMobile ? this.fontSize.mobile : this.fontSize.desktop}px Arial, sans-serif`;
         renderCtx.textAlign = "center";
         renderCtx.textBaseline = "middle";
         renderCtx.fillText(button.level.toString(), centerX, centerY);
       }
-      
-      renderCtx.restore();
+
+      if (needsScale) {
+        renderCtx.restore();
+      }
     }
-    
-    // Restore context (remove clip)
+
     renderCtx.restore();
   }
 
@@ -667,18 +679,18 @@ export class LevelSelector {
     x: number,
     y: number,
     radius: number,
-    filled: boolean
+    filled: boolean,
   ): void {
     const points = 5;
     const innerRadius = radius * 0.4;
-    
+
     ctx.beginPath();
     for (let i = 0; i < points * 2; i++) {
       const angle = (i * Math.PI) / points - Math.PI / 2;
       const r = i % 2 === 0 ? radius : innerRadius;
       const px = x + Math.cos(angle) * r;
       const py = y + Math.sin(angle) * r;
-      
+
       if (i === 0) {
         ctx.moveTo(px, py);
       } else {
@@ -686,7 +698,7 @@ export class LevelSelector {
       }
     }
     ctx.closePath();
-    
+
     if (filled) {
       ctx.fill();
     } else {
@@ -698,68 +710,74 @@ export class LevelSelector {
     ctx: CanvasRenderingContext2D,
     centerX: number,
     centerY: number,
-    size: number
+    size: number,
   ): void {
     const lockWidth = size * 0.5;
     const lockHeight = size * 0.6;
     const shackleRadius = lockWidth * 0.35;
     const shackleThickness = size * 0.08;
     const bodyHeight = lockHeight * 0.55;
-    
-    ctx.save();
+
     ctx.strokeStyle = "#999999";
     ctx.fillStyle = "#999999";
     ctx.lineWidth = shackleThickness;
     ctx.lineCap = "round";
-    
-    // Draw shackle (top arc)
+
     const shackleY = centerY - lockHeight * 0.15;
     ctx.beginPath();
-    ctx.arc(
-      centerX,
-      shackleY,
-      shackleRadius,
-      Math.PI,
-      0,
-      false
-    );
+    ctx.arc(centerX, shackleY, shackleRadius, Math.PI, 0, false);
     ctx.stroke();
-    
-    // Draw lock body (rounded rectangle)
+
     const bodyY = shackleY + shackleRadius * 0.3;
     const bodyWidth = lockWidth;
     const cornerRadius = size * 0.08;
-    
+
     ctx.beginPath();
     ctx.moveTo(centerX - bodyWidth / 2 + cornerRadius, bodyY);
     ctx.lineTo(centerX + bodyWidth / 2 - cornerRadius, bodyY);
-    ctx.quadraticCurveTo(centerX + bodyWidth / 2, bodyY, centerX + bodyWidth / 2, bodyY + cornerRadius);
+    ctx.quadraticCurveTo(
+      centerX + bodyWidth / 2,
+      bodyY,
+      centerX + bodyWidth / 2,
+      bodyY + cornerRadius,
+    );
     ctx.lineTo(centerX + bodyWidth / 2, bodyY + bodyHeight - cornerRadius);
-    ctx.quadraticCurveTo(centerX + bodyWidth / 2, bodyY + bodyHeight, centerX + bodyWidth / 2 - cornerRadius, bodyY + bodyHeight);
+    ctx.quadraticCurveTo(
+      centerX + bodyWidth / 2,
+      bodyY + bodyHeight,
+      centerX + bodyWidth / 2 - cornerRadius,
+      bodyY + bodyHeight,
+    );
     ctx.lineTo(centerX - bodyWidth / 2 + cornerRadius, bodyY + bodyHeight);
-    ctx.quadraticCurveTo(centerX - bodyWidth / 2, bodyY + bodyHeight, centerX - bodyWidth / 2, bodyY + bodyHeight - cornerRadius);
+    ctx.quadraticCurveTo(
+      centerX - bodyWidth / 2,
+      bodyY + bodyHeight,
+      centerX - bodyWidth / 2,
+      bodyY + bodyHeight - cornerRadius,
+    );
     ctx.lineTo(centerX - bodyWidth / 2, bodyY + cornerRadius);
-    ctx.quadraticCurveTo(centerX - bodyWidth / 2, bodyY, centerX - bodyWidth / 2 + cornerRadius, bodyY);
+    ctx.quadraticCurveTo(
+      centerX - bodyWidth / 2,
+      bodyY,
+      centerX - bodyWidth / 2 + cornerRadius,
+      bodyY,
+    );
     ctx.closePath();
     ctx.fill();
-    
-    // Draw keyhole
+
     const keyholeY = bodyY + bodyHeight * 0.4;
     const keyholeRadius = size * 0.08;
-    
+
     ctx.fillStyle = "#E0E0E0";
     ctx.beginPath();
     ctx.arc(centerX, keyholeY, keyholeRadius, 0, Math.PI * 2);
     ctx.fill();
-    
-    // Draw keyhole slot
+
     ctx.fillRect(
       centerX - keyholeRadius * 0.3,
       keyholeY,
       keyholeRadius * 0.6,
-      bodyHeight * 0.35
+      bodyHeight * 0.35,
     );
-    
-    ctx.restore();
   }
 }

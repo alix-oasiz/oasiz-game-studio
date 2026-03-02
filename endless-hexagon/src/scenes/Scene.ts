@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { oasiz } from '@oasiz/sdk';
 
 interface Wall {
     distance: number;
@@ -148,6 +149,7 @@ export default class Scene extends Phaser.Scene {
             if (startActive) {
                 this.scoreContainer.setVisible(true);
                 this.gameState = 'SPAWNING';
+                this.loadAndPlayBgm();
             } else {
                 this.scoreContainer.setVisible(false); // Hide in Menu by default
                 this.gameState = 'MENU';
@@ -228,7 +230,7 @@ export default class Scene extends Phaser.Scene {
 
             // Expose Restart to Window
             (window as any).restartGame = () => {
-                this.scene.restart();
+                this.scene.restart({ startActive: true });
             };
             (window as any).pauseGame = () => {
                 this.scene.pause();
@@ -240,6 +242,11 @@ export default class Scene extends Phaser.Scene {
                 // If in MENU, just resume music and return (No countdown)
                 if (this.gameState === 'MENU') {
                     if ((window as any).platform?.musicEnabled && this.bgMusic && !this.bgMusic.isPlaying) this.bgMusic.resume();
+                    return;
+                }
+
+                // If game is over, don't resume gameplay
+                if (this.isGameOver) {
                     return;
                 }
 
@@ -267,6 +274,23 @@ export default class Scene extends Phaser.Scene {
                     }
                 }
             };
+
+            oasiz.onPause(() => {
+                this.scene.pause();
+                if (this.bgMusic && this.bgMusic.isPlaying) this.bgMusic.pause();
+            });
+
+            oasiz.onResume(() => {
+                this.scene.resume();
+                if (this.gameState === 'MENU') {
+                    if ((window as any).platform?.musicEnabled && this.bgMusic && !this.bgMusic.isPlaying) this.bgMusic.resume();
+                    return;
+                }
+                if (this.isResuming) return;
+                this.isGameRunning = false;
+                this.isResuming = true;
+                this.startResumeCountdown();
+            });
 
             // Signal HTML that Game is Ready
             if ((window as any).onGameReady) {
@@ -895,8 +919,9 @@ export default class Scene extends Phaser.Scene {
                     wall.onHitCenter();
                 }
 
-                // Haptic on impact
-                if ((window as any).platform?.hapticsEnabled && typeof (window as any).triggerHaptic === "function") (window as any).triggerHaptic("medium");
+                if ((window as any).platform?.hapticsEnabled) {
+                    oasiz.triggerHaptic("medium");
+                }
 
                 // Retro Pulse Effect
                 this.playPulseEffect();
@@ -1179,13 +1204,11 @@ export default class Scene extends Phaser.Scene {
         this.cameras.main.shake(500, 0.05);
         this.cameras.main.flash(500, 255, 0, 0);
 
-        // Haptic
-        if ((window as any).platform?.hapticsEnabled && typeof (window as any).triggerHaptic === "function") (window as any).triggerHaptic("error");
-
-        // Submit Score
-        if ((window as any).submitScore) {
-            (window as any).submitScore(this.score);
+        if ((window as any).platform?.hapticsEnabled) {
+            oasiz.triggerHaptic("error");
         }
+
+        oasiz.submitScore(Math.floor(this.score));
 
         // Show HTML UI
         if ((window as any).showGameOver) {

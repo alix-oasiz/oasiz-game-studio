@@ -1,3 +1,5 @@
+import { oasiz } from "@oasiz/sdk";
+
 /**
  * DUAL BLOCK DODGE
  *
@@ -22,28 +24,30 @@ const CONFIG = {
   BLOCK_EDGE_MARGIN: 0, // No margin, allow blocks to reach edges
 
   // Scrolling
-  INITIAL_SCROLL_SPEED: 4.2, // Higher base speed
-  SPEED_INCREMENT: 1.2, // Even more aggressive acceleration
-  MAX_SCROLL_SPEED: 25, // Higher speed limit
-  SPEED_RAMP_DECAY_THRESHOLD: 10, // Speed at which ramp-up starts to slow down
-  SPEED_RAMP_DECAY_RATE: 0.7, // Exponential decay factor for increment
+  INITIAL_SCROLL_SPEED: 6.5, // Even faster start
+  SPEED_INCREMENT: 1.8, // Faster ramp-up
+  MAX_SCROLL_SPEED: 25, 
+  SPEED_RAMP_DECAY_THRESHOLD: 12, 
+  SPEED_RAMP_DECAY_RATE: 0.75, 
 
   // Checkpoints
-  CHECKPOINT_OBSTACLE_INTERVAL: 10, // Less frequent level progression (every 10 obstacles)
+  CHECKPOINT_OBSTACLE_INTERVAL: 6, // Frequent level progression (every 6 obstacles)
 
   // Obstacles
-  OBSTACLE_MIN_SPACING: 320, // Increased slightly for fatter spikes
-  OBSTACLE_MAX_SPACING: 480, 
-  REGULAR_SPIKE_SPACING_MULT: 0.9, 
-  OPPOSITE_SIDE_SPACING_MULT: 1.4, // 40% more space when switching sides
+  OBSTACLE_MIN_SPACING: 285, // Closer together
+  OBSTACLE_MAX_SPACING: 340, 
+  REGULAR_SPIKE_SPACING_MULT: 1.2, // Increased to prevent spikes from clustering too close
+  OPPOSITE_SIDE_SPACING_MULT: 1.6, // Increased from 1.2 to give more time to swipe across the screen
+  ABSOLUTE_MIN_PHYSICAL_GAP: 72, // Minimum vertical pixel gap between the tip of a bottom obstacle and base of a top one
   SIDE_SPIKE_LONG_WIDTH: 0.75, // Reverted to previous length
   SIDE_SPIKE_MEDIUM_WIDTH: 0.48, // Reverted to previous length
   SIDE_SPIKE_SMALL_WIDTH: 0.25, // Reverted to previous length
-  CENTER_OBS_SMALL_WIDTH: 140,
-  CENTER_OBS_LARGE_WIDTH: 360, // Wider still (was 320)
+  CENTER_OBS_SMALL_WIDTH: 0.45,
+  CENTER_OBS_LARGE_WIDTH: 0.85,
+  CENTER_OBS_MIN_GAP: 54, // Increased from 42 to give more breathing room (Block 28px + 26px buffer)
   SPIKE_HEIGHT: 85, // Even thicker vertically ("wider" in user terms)
   CENTER_OBS_SMALL_HEIGHT: 100, // Original height for small
-  CENTER_OBS_LARGE_HEIGHT: 160, // Taller still (was 140)
+  CENTER_OBS_LARGE_HEIGHT: 180, // Taller still (was 160)
   SPIKE_TILT_REGULAR: 85, 
   SPIKE_TILT_PAIRED: 15, 
 
@@ -123,11 +127,28 @@ interface Settings {
 interface TouchState {
   leftActive: boolean;
   rightActive: boolean;
-  leftX: number;
-  rightX: number;
 }
 
 // ============= UTILITY FUNCTIONS =============
+function getObstacleUpwardReach(type: ObstacleType): number {
+  switch (type) {
+    case "center_large": return CONFIG.CENTER_OBS_LARGE_HEIGHT / 2;
+    case "center_small": return CONFIG.CENTER_OBS_SMALL_HEIGHT / 2;
+    case "spikes_both": return CONFIG.SPIKE_TILT_PAIRED;
+    case "checkpoint_line": return 0;
+    default: return CONFIG.SPIKE_TILT_REGULAR; // All other single spikes
+  }
+}
+
+function getObstacleDownwardReach(type: ObstacleType): number {
+  switch (type) {
+    case "center_large": return CONFIG.CENTER_OBS_LARGE_HEIGHT / 2;
+    case "center_small": return CONFIG.CENTER_OBS_SMALL_HEIGHT / 2;
+    case "checkpoint_line": return 0;
+    default: return CONFIG.SPIKE_HEIGHT / 2; // All spikes
+  }
+}
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
@@ -180,8 +201,6 @@ let rightTrail: TrailPoint[] = [];
 let touchState: TouchState = {
   leftActive: false,
   rightActive: false,
-  leftX: 0,
-  rightX: 0,
 };
 
 // Keyboard state
@@ -307,9 +326,7 @@ function playUIClick(): void {
 // ============= HAPTICS =============
 function triggerHaptic(type: string): void {
   if (!settings.haptics) return;
-  if (typeof (window as any).triggerHaptic === "function") {
-    (window as any).triggerHaptic(type);
-  }
+  oasiz.triggerHaptic(type as any);
 }
 
 // ============= DRAWING FUNCTIONS =============
@@ -358,6 +375,18 @@ function drawBackground(): void {
     ctx.moveTo(0, y);
     ctx.lineTo(w, y);
     ctx.stroke();
+  }
+
+  // Central divider guide (for mobile tap targets)
+  if (isMobile) {
+    ctx.strokeStyle = hexToRgba(theme.neon, 0.15);
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 10]);
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 0);
+    ctx.lineTo(w / 2, h);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset
   }
 
   // Checkpoint flash
@@ -478,6 +507,18 @@ function drawBlocks(): void {
   drawBlock(rightBlockX, blockY, CONFIG.NEON_PINK, rightTrail);
 }
 
+function getCenterObstacleWidth(type: "center_small" | "center_large"): number {
+  const ratio = type === "center_small" ? CONFIG.CENTER_OBS_SMALL_WIDTH : CONFIG.CENTER_OBS_LARGE_WIDTH;
+  const preferredWidth = w * ratio;
+  
+  if (type === "center_large") {
+    const maxWidth = w - (CONFIG.CENTER_OBS_MIN_GAP * 2);
+    return Math.min(preferredWidth, maxWidth);
+  }
+  
+  return preferredWidth;
+}
+
 function drawObstacles(): void {
   for (const obs of obstacles) {
     if (obs.y > h + 100 || obs.y < -100) continue;
@@ -500,10 +541,10 @@ function drawObstacles(): void {
         drawSideSpike(obs.y, "right", CONFIG.SIDE_SPIKE_SMALL_WIDTH, CONFIG.SPIKE_TILT_PAIRED);
         break;
       case "center_small":
-        drawCenterObstacle(obs.y, CONFIG.CENTER_OBS_SMALL_WIDTH, CONFIG.CENTER_OBS_SMALL_HEIGHT);
+        drawCenterObstacle(obs.y, getCenterObstacleWidth("center_small"), CONFIG.CENTER_OBS_SMALL_HEIGHT);
         break;
       case "center_large":
-        drawCenterObstacle(obs.y, CONFIG.CENTER_OBS_LARGE_WIDTH, CONFIG.CENTER_OBS_LARGE_HEIGHT);
+        drawCenterObstacle(obs.y, getCenterObstacleWidth("center_large"), CONFIG.CENTER_OBS_LARGE_HEIGHT);
         break;
       case "checkpoint_line":
         drawCheckpointLine(obs.y);
@@ -698,30 +739,17 @@ function calculateBlockPositions(): void {
 
   // Determine target positions based on input
   if (touchState.leftActive && touchState.rightActive) {
-    // Dual touch - blocks split
-    // Left block follows left side touch position
-    leftBlockTargetX = clamp(
-      touchState.leftX,
-      edgeMargin,
-      centerX - radius - 5
-    );
-    // Right block follows right side touch position
-    rightBlockTargetX = clamp(
-      touchState.rightX,
-      centerX + radius + 5,
-      w - edgeMargin
-    );
-  } else if (touchState.leftActive || touchState.rightActive) {
-    // Single touch - both blocks move together as a pair
-    const touchX = touchState.leftActive ? touchState.leftX : touchState.rightX;
-    
-    // Allow the pair center to move so that the outer blocks can touch the edges
-    const pairMinX = edgeMargin + halfGap;
-    const pairMaxX = w - edgeMargin - halfGap;
-    const targetX = clamp(touchX, pairMinX, pairMaxX);
-    
-    leftBlockTargetX = targetX - halfGap;
-    rightBlockTargetX = targetX + halfGap;
+    // Dual touch - blocks split to edges
+    leftBlockTargetX = edgeMargin;
+    rightBlockTargetX = w - edgeMargin;
+  } else if (touchState.leftActive) {
+    // Left touch only - both blocks move to left edge
+    leftBlockTargetX = edgeMargin;
+    rightBlockTargetX = edgeMargin + CONFIG.BLOCK_NEUTRAL_GAP;
+  } else if (touchState.rightActive) {
+    // Right touch only - both blocks move to right edge
+    leftBlockTargetX = w - edgeMargin - CONFIG.BLOCK_NEUTRAL_GAP;
+    rightBlockTargetX = w - edgeMargin;
   } else {
     // No touch - drift to center
     leftBlockTargetX = centerX - halfGap;
@@ -748,14 +776,6 @@ function calculateBlockPositions(): void {
   // Final clamping to ensure blocks stay on screen
   leftBlockTargetX = clamp(leftBlockTargetX, edgeMargin, w - edgeMargin);
   rightBlockTargetX = clamp(rightBlockTargetX, edgeMargin, w - edgeMargin);
-
-  // Ensure blocks don't overlap (safety check)
-  const minBlockGap = CONFIG.BLOCK_SIZE;
-  if (rightBlockTargetX - leftBlockTargetX < minBlockGap) {
-    const mid = (leftBlockTargetX + rightBlockTargetX) / 2;
-    leftBlockTargetX = mid - minBlockGap / 2;
-    rightBlockTargetX = mid + minBlockGap / 2;
-  }
 }
 
 function updateBlocks(): void {
@@ -916,6 +936,7 @@ function updateObstacles(): void {
   
   if (topObstacleY > spawnThreshold || obstacles.length === 0) {
     const previousSide = lastSpikeSide;
+    const actualBottomType = obstacles.length > 0 ? obstacles[obstacles.length - 1].type : "none";
     
     // Check if we should spawn a checkpoint line instead of a regular obstacle
     // We want the checkpoint line to be the LAST thing spawned in the interval
@@ -939,6 +960,22 @@ function updateObstacles(): void {
       spacing *= 1.5;
     }
     
+    // Extra space if ANY center obstacle is involved
+    const isCenterInvolved = nextType.includes("center") || 
+      (lastObstacleType !== "none" && lastObstacleType.includes("center"));
+      
+    if (isCenterInvolved) {
+      const isSpikeInvolved = 
+        nextType.includes("spike") || 
+        (lastObstacleType !== "none" && lastObstacleType.includes("spike"));
+      
+      if (isSpikeInvolved) {
+        spacing *= 2.6; // Huge gap to ensure players have time to clear the edges
+      } else {
+        spacing *= 1.8;
+      }
+    }
+    
     // Determine if this is a regular single-side spike
     let currentSide: "left" | "right" | "none" = "none";
     if (nextType === "spike_left" || nextType === "spike_long_left") currentSide = "left";
@@ -960,8 +997,20 @@ function updateObstacles(): void {
     const speedFactor = 1 - (scrollSpeed - CONFIG.INITIAL_SCROLL_SPEED) / 10;
     const actualSpacing = spacing * Math.max(0.6, speedFactor);
     
-    // Spawn above the current top obstacle (or above screen if no obstacles)
-    const spawnY = obstacles.length > 0 ? topObstacleY - actualSpacing : -50;
+    // Safety Net: Ensure absolute minimum physical gap
+    let spawnY = obstacles.length > 0 ? topObstacleY - actualSpacing : -50;
+
+    if (actualBottomType !== "none") {
+      const upwardReach = getObstacleUpwardReach(actualBottomType as ObstacleType);
+      const downwardReach = getObstacleDownwardReach(nextType);
+      
+      const physicalGap = actualSpacing - upwardReach - downwardReach;
+      
+      if (physicalGap < CONFIG.ABSOLUTE_MIN_PHYSICAL_GAP) {
+        const deficit = CONFIG.ABSOLUTE_MIN_PHYSICAL_GAP - physicalGap;
+        spawnY -= deficit;
+      }
+    }
     
     spawnObstacleAt(spawnY, nextType);
   }
@@ -1010,6 +1059,8 @@ function getObstacleHitboxes(
   const isPaired = obs.type === "spikes_both";
   const tilt = isPaired ? CONFIG.SPIKE_TILT_PAIRED : CONFIG.SPIKE_TILT_REGULAR;
 
+  const visualToHitboxBuffer = 8; // Shrink hitboxes slightly so glancing blows don't kill
+
   // Helper to create precise multi-box hitboxes for triangles/diamonds
   // This removes "ghost space" by approximating slanted shapes with multiple rectangles
   const addPreciseSpike = (startX: number, spikeWidth: number, direction: 1 | -1) => {
@@ -1041,9 +1092,9 @@ function getObstacleHitboxes(
 
       hitboxes.push({
         x: leftX,
-        y: minY,
+        y: minY + visualToHitboxBuffer,
         w: segmentW,
-        h: maxY - minY
+        h: Math.max(0, maxY - minY - visualToHitboxBuffer * 2)
       });
     }
   };
@@ -1067,9 +1118,9 @@ function getObstacleHitboxes(
 
       hitboxes.push({
         x: leftX,
-        y: obs.y - maxReach,
+        y: obs.y - maxReach + visualToHitboxBuffer,
         w: segmentW,
-        h: maxReach * 2
+        h: Math.max(0, maxReach * 2 - visualToHitboxBuffer * 2)
       });
     }
   };
@@ -1097,11 +1148,11 @@ function getObstacleHitboxes(
       break;
     }
     case "center_small": {
-      addPreciseDiamond(w / 2, CONFIG.CENTER_OBS_SMALL_WIDTH, CONFIG.CENTER_OBS_SMALL_HEIGHT);
+      addPreciseDiamond(w / 2, getCenterObstacleWidth("center_small"), CONFIG.CENTER_OBS_SMALL_HEIGHT);
       break;
     }
     case "center_large": {
-      addPreciseDiamond(w / 2, CONFIG.CENTER_OBS_LARGE_WIDTH, CONFIG.CENTER_OBS_LARGE_HEIGHT);
+      addPreciseDiamond(w / 2, getCenterObstacleWidth("center_large"), CONFIG.CENTER_OBS_LARGE_HEIGHT);
       break;
     }
   }
@@ -1235,7 +1286,6 @@ function resetGame(): void {
   
   while (spawnY > -300) {
     const type = pickObstacleType();
-    spawnObstacleAt(spawnY, type);
     
     // Calculate spacing for next obstacle
     let spacing =
@@ -1249,6 +1299,19 @@ function resetGame(): void {
       spacing *= CONFIG.REGULAR_SPIKE_SPACING_MULT;
     }
 
+    // Safety Net for Initial Spawning
+    if (obstacles.length > 0) {
+      const bottomObstacleType = obstacles[obstacles.length - 1].type;
+      const upwardReach = getObstacleUpwardReach(bottomObstacleType);
+      const downwardReach = getObstacleDownwardReach(type);
+      const physicalGap = spacing - upwardReach - downwardReach;
+      
+      if (physicalGap < CONFIG.ABSOLUTE_MIN_PHYSICAL_GAP) {
+        spacing += (CONFIG.ABSOLUTE_MIN_PHYSICAL_GAP - physicalGap);
+      }
+    }
+
+    spawnObstacleAt(spawnY, type);
     spawnY -= spacing;
   }
   
@@ -1265,10 +1328,8 @@ function gameOver(): void {
 
   // Submit score
   const finalDistance = Math.floor(distance);
-  if (typeof (window as any).submitScore === "function") {
-    (window as any).submitScore(finalDistance);
-    console.log("[gameOver] Score submitted: " + finalDistance);
-  }
+  oasiz.submitScore(finalDistance);
+  console.log("[gameOver] Score submitted: " + finalDistance);
 
   // Spawn death particles at both block positions
   spawnCollisionParticles(leftBlockX, blockY, CONFIG.NEON_CYAN);
@@ -1287,6 +1348,7 @@ function gameOver(): void {
   pauseScreen.classList.add("hidden");
   gameOverScreen.classList.remove("hidden");
   pauseBtn.classList.add("hidden");
+  settingsBtn.classList.add("hidden");
 }
 
 function startGame(): void {
@@ -1306,8 +1368,9 @@ function startGame(): void {
   gameOverScreen.classList.add("hidden");
   pauseScreen.classList.add("hidden");
 
-  // Show pause button
+  // Show buttons
   pauseBtn.classList.remove("hidden");
+  settingsBtn.classList.remove("hidden");
 
   playUIClick();
   triggerHaptic("light");
@@ -1347,6 +1410,7 @@ function showStartScreen(): void {
   gameOverScreen.classList.add("hidden");
   pauseScreen.classList.add("hidden");
   pauseBtn.classList.add("hidden");
+  settingsBtn.classList.add("hidden");
 }
 
 // ============= INPUT HANDLERS =============
@@ -1411,10 +1475,8 @@ function setupInputHandlers(): void {
 
       if (x < midX) {
         touchState.leftActive = true;
-        touchState.leftX = x;
       } else {
         touchState.rightActive = true;
-        touchState.rightX = x;
       }
     }
   }
@@ -1459,11 +1521,9 @@ function setupInputHandlers(): void {
     if (mouseX < midX) {
       touchState.leftActive = true;
       touchState.rightActive = false;
-      touchState.leftX = mouseX;
     } else {
       touchState.leftActive = false;
       touchState.rightActive = true;
-      touchState.rightX = mouseX;
     }
   }
 
@@ -1473,6 +1533,12 @@ function setupInputHandlers(): void {
   });
 
   settingsBtn.addEventListener("click", () => {
+    if (gameState === "PLAYING") {
+      gameState = "PAUSED";
+      oasiz.gameplayStop();
+      bgMusic.pause();
+    }
+    pauseScreen.classList.add("hidden");
     settingsModal.classList.remove("hidden");
     playUIClick();
     triggerHaptic("light");
@@ -1480,6 +1546,12 @@ function setupInputHandlers(): void {
 
   document.getElementById("settingsClose")!.addEventListener("click", () => {
     settingsModal.classList.add("hidden");
+    
+    // If we are in the middle of a game, return to the pause menu instead of throwing them directly into action
+    if (gameState === "PAUSED" && startScreen.classList.contains("hidden") && gameOverScreen.classList.contains("hidden")) {
+      pauseScreen.classList.remove("hidden");
+    }
+    
     playUIClick();
     triggerHaptic("light");
   });
@@ -1543,14 +1615,29 @@ function resizeCanvas(): void {
   canvas.width = w;
   canvas.height = h;
 
-  // Update block Y position
-  blockY = h * CONFIG.BLOCK_Y_POSITION;
+  // Update block Y position - higher up (closer to center) on mobile
+  const yRatio = isMobile ? 0.6 : CONFIG.BLOCK_Y_POSITION;
+  blockY = h * yRatio;
 
-  console.log("[resizeCanvas] Canvas resized to: " + w + " x " + h);
+  console.log("[resizeCanvas] Canvas resized to: " + w + " x " + h + " blockY: " + blockY.toFixed(0));
 }
 
 // ============= GAME LOOP =============
 let lastTime = 0;
+let rafId = 0;
+
+function startLoop(): void {
+  if (rafId) return;
+  lastTime = performance.now();
+  rafId = requestAnimationFrame(gameLoop);
+}
+
+function stopLoop(): void {
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+}
 
 function gameLoop(timestamp: number): void {
   const dt = timestamp - lastTime;
@@ -1620,7 +1707,7 @@ function gameLoop(timestamp: number): void {
   }
 
   ctx.restore();
-  requestAnimationFrame(gameLoop);
+  rafId = requestAnimationFrame(gameLoop);
 }
 
 // ============= INIT =============
@@ -1644,10 +1731,27 @@ function init(): void {
   rightBlockTargetX = rightBlockX;
 
   // Start game loop
-  requestAnimationFrame(gameLoop);
+  startLoop();
 
   // Show start screen
   showStartScreen();
+
+  oasiz.onPause(() => {
+    if (gameState === "PLAYING") pauseGame();
+    stopLoop();
+  });
+
+  oasiz.onResume(() => {
+    startLoop();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stopLoop();
+    } else {
+      startLoop();
+    }
+  });
 
   console.log("[init] Game initialized");
 }

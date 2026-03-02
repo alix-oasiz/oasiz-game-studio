@@ -11,6 +11,7 @@
     "format": "prettier --write 'src/**/*.{ts,tsx,css,html}'"
   },
   "dependencies": {
+    "@oasiz/sdk": "^1.0.0",
     "matter-js": "^0.20.0"
   },
   "devDependencies": {
@@ -21,4 +22,3 @@
     "vite-plugin-singlefile": "^2.0.3"
   }
 }
-

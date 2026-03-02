@@ -4,6 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="screen-orientation" content="portrait" />
+    <meta name="orientation" content="portrait" />
+    <script>
+      (function () {
+        const isMobile = window.matchMedia("(pointer: coarse)").matches;
+
+        function updatePortraitGuard() {
+          if (!isMobile) return;
+          const guard = document.getElementById("portraitGuard");
+          if (!guard) return;
+          const isLandscape = window.innerWidth > window.innerHeight;
+          guard.classList.toggle("active", isLandscape);
+        }
+
+        function lockPortrait() {
+          if (!isMobile) return;
+          try {
+            if (screen.orientation && screen.orientation.lock) {
+              screen.orientation.lock("portrait").catch(function () {});
+            } else if ((screen).lockOrientation) {
+              (screen).lockOrientation("portrait");
+            } else if ((screen).mozLockOrientation) {
+              (screen).mozLockOrientation("portrait");
+            } else if ((screen).msLockOrientation) {
+              (screen).msLockOrientation("portrait");
+            }
+          } catch (e) {}
+        }
+
+        window.addEventListener("load", function () {
+          lockPortrait();
+          updatePortraitGuard();
+        });
+        window.addEventListener("orientationchange", function () {
+          lockPortrait();
+          setTimeout(updatePortraitGuard, 60);
+        });
+        window.addEventListener("resize", updatePortraitGuard);
+      })();
+    </script>
     <title>Goal Duel</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -55,119 +95,70 @@
         display: block;
         width: 100%;
         height: 100%;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Blurred gameplay background */
+      #gameplayBg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('./assets/gamplay.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        filter: blur(8px);
+        transform: scale(1.2);
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      #portraitGuard {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 500;
+        background: rgba(4, 8, 18, 0.9);
+        pointer-events: none;
+        padding: 24px;
+      }
+
+      #portraitGuard.active {
+        display: flex;
+        pointer-events: auto;
+      }
+
+      .portraitGuardCard {
+        width: min(360px, calc(100vw - 32px));
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 16px 50px rgba(0, 0, 0, 0.45);
+        padding: 20px 18px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.95);
+      }
+
+      .portraitGuardTitle {
+        font-family: "Luckiest Guy", "Sora", sans-serif;
+        font-size: 30px;
+        letter-spacing: 0.4px;
+        margin-bottom: 8px;
+      }
+
+      .portraitGuardText {
+        font-size: 15px;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.86);
       }
 
       .hidden {
         display: none !important;
-      }
-
-      /* Debug Panel */
-      #debugPanel {
-        position: fixed;
-        bottom: 12px;
-        left: 12px;
-        width: min(400px, calc(100vw - 24px));
-        max-height: min(300px, calc(100vh - 24px));
-        background: rgba(0, 0, 0, 0.85);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        z-index: 1000;
-        display: flex;
-        flex-direction: column;
-        font-family: "Courier New", monospace;
-        font-size: 11px;
-        line-height: 1.4;
-        pointer-events: auto;
-        backdrop-filter: blur(8px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-      }
-
-      #debugHeader {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 8px 8px 0 0;
-        font-weight: 600;
-        color: rgba(255, 255, 255, 0.95);
-      }
-
-      #debugClearBtn {
-        background: rgba(255, 100, 100, 0.3);
-        border: 1px solid rgba(255, 100, 100, 0.5);
-        color: rgba(255, 255, 255, 0.9);
-        padding: 4px 10px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 10px;
-        font-weight: 600;
-        transition: background 0.2s;
-      }
-
-      #debugClearBtn:hover {
-        background: rgba(255, 100, 100, 0.5);
-      }
-
-      #debugClearBtn:active {
-        background: rgba(255, 100, 100, 0.7);
-      }
-
-      #debugContent {
-        flex: 1;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding: 8px;
-        color: rgba(255, 255, 255, 0.85);
-      }
-
-      #debugContent::-webkit-scrollbar {
-        width: 6px;
-      }
-
-      #debugContent::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 3px;
-      }
-
-      #debugContent::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 3px;
-      }
-
-      .debugLog {
-        margin-bottom: 4px;
-        padding: 2px 0;
-        word-break: break-word;
-        border-left: 2px solid transparent;
-        padding-left: 6px;
-      }
-
-      .debugLog.error {
-        border-left-color: rgba(255, 100, 100, 0.8);
-        color: rgba(255, 150, 150, 1);
-      }
-
-      .debugLog.warn {
-        border-left-color: rgba(255, 200, 100, 0.8);
-        color: rgba(255, 220, 150, 1);
-      }
-
-      .debugLog.info {
-        border-left-color: rgba(100, 200, 255, 0.8);
-        color: rgba(150, 220, 255, 1);
-      }
-
-      .debugLog.render {
-        border-left-color: rgba(100, 255, 150, 0.8);
-        color: rgba(150, 255, 200, 1);
-      }
-
-      .debugLogTimestamp {
-        color: rgba(255, 255, 255, 0.5);
-        font-size: 9px;
-        margin-right: 6px;
       }
 
       /* Header / HUD */
@@ -299,6 +290,181 @@
         }
       }
 
+      @media (orientation: portrait) {
+        #startOverlay {
+          inset: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          transform: none !important;
+        }
+
+        #gameplayBg {
+          transform: scale(1.2) !important;
+        }
+
+        #game {
+          position: relative !important;
+          top: auto !important;
+          left: auto !important;
+          width: 100% !important;
+          height: 100% !important;
+          transform: none !important;
+        }
+
+        #btnMenu,
+        #btnSettings,
+        .joystickWrap:not(.player2),
+        #settingsModal .joystickWrap:not(.player2) {
+          transform: none !important;
+        }
+      }
+
+      @media (pointer: coarse) and (orientation: portrait) {
+        #startOverlay:not(.hidden) {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+
+        #menuBg.menuBg {
+          object-fit: cover !important;
+          object-position: center center !important;
+          transform: scale(1.08) !important;
+        }
+
+        .menuStage {
+          width: min(430px, calc(100vw - 24px)) !important;
+          height: auto !important;
+          min-height: 0 !important;
+          margin: 0 auto !important;
+          display: grid !important;
+          grid-template-columns: 1fr !important;
+          grid-template-rows: auto auto !important;
+          align-items: center !important;
+          justify-items: center !important;
+          gap: 16px !important;
+          padding: calc(env(safe-area-inset-top) + 20px) 0 calc(env(safe-area-inset-bottom) + 20px) 0 !important;
+        }
+
+        .menuLeft,
+        .menuRight {
+          position: static !important;
+          top: auto !important;
+          left: auto !important;
+          transform: none !important;
+          width: 100% !important;
+          padding: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          text-align: center !important;
+        }
+
+        .menuLeft {
+          transform: translateY(-60px) !important;
+        }
+
+        .menuRight {
+          align-self: center !important;
+          padding-bottom: 0 !important;
+        }
+
+        .menuLogo {
+          width: min(86vw, 360px) !important;
+          margin: 0 auto !important;
+          transform-origin: center center !important;
+        }
+
+        .menuControls {
+          width: min(88vw, 340px) !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 10px !important;
+        }
+
+        .menuBtnWide {
+          width: min(56vw, 205px) !important;
+          margin: 0 !important;
+        }
+
+        #btnQuick {
+          position: relative !important;
+          top: -80px !important;
+          margin-top: 0 !important;
+          margin-bottom: 34px !important;
+        }
+
+        .menuIconButtons {
+          width: 100% !important;
+          display: flex !important;
+          justify-content: center !important;
+          align-items: center !important;
+          gap: 10px !important;
+        }
+
+        .menuBtnIcon {
+          width: 58px !important;
+          height: 58px !important;
+        }
+
+        /* Portrait country picker: fixed 3x3 viewport, larger flags, equal padding */
+        #countryStage .countryCard {
+          width: min(420px, calc(100vw - 24px)) !important;
+        }
+
+        #countryStage .countryInner {
+          padding: 14px !important;
+        }
+
+        #countryStage .flagGrid {
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          grid-auto-rows: 86px !important;
+          gap: 12px !important;
+          padding: 12px !important;
+          height: calc((3 * 86px) + (2 * 12px) + (2 * 12px)) !important;
+          max-height: calc((3 * 86px) + (2 * 12px) + (2 * 12px)) !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          align-content: start !important;
+        }
+
+        #countryStage .flagBtn {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: none !important;
+          aspect-ratio: 1 / 1 !important;
+          padding: 6px !important;
+          margin: 0 !important;
+        }
+
+        /* Portrait car picker: ensure full scroll range reaches final row */
+        #carStage .carCard {
+          width: min(420px, calc(100vw - 24px)) !important;
+          max-height: calc(100vh - 28px) !important;
+        }
+
+        #carStage .carInner {
+          display: flex !important;
+          flex-direction: column !important;
+          min-height: 0 !important;
+          height: 100% !important;
+          padding: 14px !important;
+        }
+
+        #carStage .carGrid {
+          flex: 1 !important;
+          min-height: 0 !important;
+          max-height: none !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+          padding: 8px 8px 26px 8px !important;
+          gap: 10px !important;
+          align-content: start !important;
+        }
+      }
+
       /* Overlays */
       .overlay {
         position: fixed;
@@ -327,12 +493,391 @@
         user-select: none;
         -webkit-user-select: none;
       }
+      
 
       .menuShade {
         position: absolute;
         inset: 0;
         background: radial-gradient(900px 700px at 25% 40%, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.62));
         pointer-events: none;
+      }
+
+      /* Rotate the entire start menu (background + logo + buttons) in portrait so
+         the scene stays landscape within a tall phone viewport. Keep aspect ratio
+         but fill the screen by swapping vw/vh and centering. Also stack the logo
+         and buttons so controls sit under the title. */
+      @media (orientation: portrait) {
+        #startOverlay {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          width: 100vh;
+          height: 100vw;
+          transform: translate(-50%, -50%) rotate(90deg);
+          transform-origin: center center;
+        }
+
+        /* Rotate gameplay background to match canvas rotation */
+        #gameplayBg {
+          transform: rotate(90deg);
+          transform-origin: center center;
+        }
+
+        /* Rotate gameplay canvas so the match itself is landscape too */
+        #game {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          /* Preserve aspect ratio: scale by height, let width follow */
+          height: 100vh;
+          width: auto;
+          transform: translate(-50%, -50%) rotate(90deg);
+          transform-origin: center center;
+        }
+
+        /* Reposition and rotate UI elements for portrait gameplay */
+        /* Break buttons out of grid layout */
+        .hudRow {
+          display: flex !important;
+          flex-direction: column !important;
+          position: relative !important;
+          width: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Home button: move to top-right (where settings was in landscape) */
+        #btnMenu {
+          position: fixed !important;
+          top: -10px !important;
+          right: -300px !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: rotate(00deg) !important;
+          justify-self: auto !important;
+          margin: 0 !important;
+          z-index: 100 !important;
+        }
+
+        /* Settings button: top-right corner */
+        #btnSettings {
+          position: fixed !important;
+          top: -10px !important;
+          right: 450px !important;
+          bottom: auto !important;
+          left: auto !important;
+          transform: rotate(0deg) !important;
+          justify-self: auto !important;
+          margin: 0 !important;
+          z-index: 100 !important;
+        }
+
+        /* Joystick: move to where turbo was (bottom-left) */
+        .joystickWrap:not(.player2) {
+          position: fixed !important;
+          bottom: 20px !important;
+          left: 20px !important;
+          right: auto !important;
+          top: auto !important;
+          transform: rotate(90deg) !important;
+        }
+
+        /* Turbo: move to where home was (top-left) */
+        .actionWrap:not(.player2) {
+          position: fixed !important;
+          top: 20px !important;
+          left: 20px !important;
+          right: auto !important;
+          bottom: auto !important;
+          transform: rotate(90deg) !important;
+        }
+
+        /* Scoreboard: position between settings and home (right side middle), rotated */
+        #hudRoot {
+          position: fixed !important;
+          top: 50% !important;
+          right: -30px !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: translateY(-50%) rotate(90deg) !important;
+          width: auto !important;
+          height: auto !important;
+          pointer-events: none !important;
+        }
+
+        /* Ensure buttons can escape hudRoot constraints */
+        #btnMenu,
+        #btnSettings {
+          position: fixed !important;
+        }
+
+        .hudRow {
+          flex-direction: column !important;
+          gap: 8px !important;
+        }
+
+        /* Rotate searching for opponent panel */
+        .searchingOverlay {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        /* Rotate settings card (not the entire modal, so joystick/turbo stay visible) */
+        #settingsModal .settingsCard {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        /* Rotate info modal */
+        #infoModal {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        /* Rotate skip replay button and position on left side */
+        .btnSkipReplay {
+          position: fixed !important;
+          left: 20px !important;
+          top: 50% !important;
+          bottom: auto !important;
+          transform: translateY(-50%) rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .btnSkipReplay:active {
+          transform: translateY(-50%) rotate(90deg) translateY(1px) scale(0.98) !important;
+        }
+
+        /* Rotate countdown overlay and text */
+        .countdownOverlay {
+          transform: rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .countdownText {
+          transform: rotate(0deg) !important;
+        }
+
+        .countdownText.countdownPulse {
+          animation: countdownPulseRotated 0.85s ease-out forwards;
+          -webkit-animation: countdownPulseRotated 0.85s ease-out forwards;
+        }
+
+        @keyframes countdownPulseRotated {
+          0% { transform: rotate(0deg) scale(0.4); opacity: 0; }
+          40% { transform: rotate(0deg) scale(1.15); opacity: 1; }
+          70% { transform: rotate(0deg) scale(0.95); }
+          100% { transform: rotate(0deg) scale(1); opacity: 1; }
+        }
+
+        @-webkit-keyframes countdownPulseRotated {
+          0% { -webkit-transform: rotate(0deg) scale(0.4); opacity: 0; }
+          40% { -webkit-transform: rotate(0deg) scale(1.15); opacity: 1; }
+          70% { -webkit-transform: rotate(0deg) scale(0.95); }
+          100% { -webkit-transform: rotate(0deg) scale(1); opacity: 1; }
+        }
+
+        /* Ensure joystick and turbo maintain their rotation and aren't affected by modal */
+        #settingsModal .joystickWrap:not(.player2) {
+          transform: rotate(0deg) !important;
+        }
+        
+        #settingsModal .actionWrap:not(.player2) {
+          transform: rotate(90deg) !important;
+        }
+
+        /* LOCAL_2P mode: disable all rotations, use normal landscape layout */
+        body.local-2p-mode #gameplayBg {
+          transform: none !important;
+        }
+
+        body.local-2p-mode #game {
+          transform: none !important;
+          position: static !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+
+        /* Restore original button positions for LOCAL_2P */
+        body.local-2p-mode #btnMenu {
+          position: static !important;
+          top: auto !important;
+          right: auto !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: none !important;
+          justify-self: start !important;
+        }
+
+        body.local-2p-mode #btnSettings {
+          position: static !important;
+          top: auto !important;
+          right: auto !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: none !important;
+          justify-self: end !important;
+        }
+
+        /* Restore original joystick position (bottom-right) - no rotation */
+        body.local-2p-mode .joystickWrap:not(.player2) {
+          position: fixed !important;
+          right: 20px !important;
+          bottom: 20px !important;
+          left: auto !important;
+          top: auto !important;
+          transform: none !important;
+          transform-origin: center center !important;
+        }
+
+        /* Also override when settings modal is open */
+        body.local-2p-mode #settingsModal .joystickWrap:not(.player2) {
+          transform: none !important;
+          transform-origin: center center !important;
+        }
+
+        /* Restore original turbo position (bottom-left) - no rotation */
+        body.local-2p-mode .actionWrap:not(.player2) {
+          position: fixed !important;
+          left: 20px !important;
+          bottom: 20px !important;
+          right: auto !important;
+          top: auto !important;
+          transform: none !important;
+          transform-origin: center center !important;
+        }
+
+        /* Also override when settings modal is open */
+        body.local-2p-mode #settingsModal .actionWrap:not(.player2) {
+          transform: none !important;
+          transform-origin: center center !important;
+        }
+
+        /* Restore original HUD position (top, full width) */
+        body.local-2p-mode #hudRoot {
+          position: fixed !important;
+          left: 0 !important;
+          right: 0 !important;
+          top: 0 !important;
+          bottom: auto !important;
+          transform: none !important;
+          width: auto !important;
+          height: auto !important;
+        }
+
+        /* Restore original HUD row layout (grid with buttons on sides, scoreboard in middle) */
+        body.local-2p-mode .hudRow {
+          display: grid !important;
+          grid-template-columns: 64px 1fr 64px !important;
+          flex-direction: row !important;
+          gap: var(--ui-hud-spacing, var(--hudGap)) !important;
+          width: var(--hudW) !important;
+          margin: 0 auto !important;
+          padding-top: 4px !important;
+          position: relative !important;
+        }
+
+        /* Show player 2 controls in LOCAL_2P mode */
+        body.local-2p-mode .joystickWrap.player2 {
+          display: block !important;
+          position: fixed !important;
+          transform: none !important;
+        }
+
+        /* Rotate player 2's turbo button 180° so it faces them */
+        body.local-2p-mode .actionWrap.player2 {
+          display: block !important;
+          position: fixed !important;
+          transform: rotate(180deg) !important;
+        }
+
+        /* Restore original skip replay button position in LOCAL_2P mode */
+        body.local-2p-mode .btnSkipReplay {
+          position: fixed !important;
+          bottom: 120px !important;
+          left: 50% !important;
+          top: auto !important;
+          transform: translateX(-50%) !important;
+        }
+
+        body.local-2p-mode .btnSkipReplay:active {
+          transform: translateX(-50%) translateY(1px) scale(0.98) !important;
+        }
+
+        /* Restore original countdown position in LOCAL_2P mode */
+        body.local-2p-mode .countdownOverlay {
+          transform: none !important;
+        }
+
+        body.local-2p-mode .countdownText {
+          transform: rotate(90deg) scale(1) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode .countdownText.countdownPulse {
+          animation: countdownPulseLocal2P 0.85s ease-out forwards !important;
+          -webkit-animation: countdownPulseLocal2P 0.85s ease-out forwards !important;
+        }
+
+        @keyframes countdownPulseLocal2P {
+          0% { transform: rotate(90deg) scale(0.4); opacity: 0; }
+          40% { transform: rotate(90deg) scale(1.15); opacity: 1; }
+          70% { transform: rotate(90deg) scale(0.95); }
+          100% { transform: rotate(90deg) scale(1); opacity: 1; }
+        }
+
+        @-webkit-keyframes countdownPulseLocal2P {
+          0% { -webkit-transform: rotate(90deg) scale(0.4); opacity: 0; }
+          40% { -webkit-transform: rotate(90deg) scale(1.15); opacity: 1; }
+          70% { -webkit-transform: rotate(90deg) scale(0.95); }
+          100% { -webkit-transform: rotate(90deg) scale(1); opacity: 1; }
+        }
+
+        body.local-2p-mode .searchingOverlay,
+        body.local-2p-mode #settingsModal .settingsCard,
+        body.local-2p-mode #infoModal {
+          transform: none !important;
+        }
+
+        .menuStage {
+          /* In the rotated scene, stack logo + buttons and center them */
+          width: min(900px, 100vw);
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 18px;
+          z-index: 2;
+        }
+
+        @media (orientation: portrait) {
+  .menuLeft {
+    position: absolute;
+    top: 20%;    /* move logo up/down */
+    left: 5%;   /* move logo left/right */
+    transform: translate(-50%, -50%);
+  }
+}
+
+        .menuRight {
+          position: absolute;
+          /* Numeric position within the rotated scene (tweak these values) */
+          top: 30%;
+          left: 90%;
+          transform: translate(-50%, -50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          width: auto;
+          padding-right: 0;
+        }
+
+        .menuControls {
+          width: min(420px, 70vw);
+          align-items: center;
+        }
       }
 
       /* "RC Car Soccer"-style menu layout (logo left, tiles right) */
@@ -367,9 +912,12 @@
         margin: 0;
         filter: drop-shadow(0 22px 50px rgba(0, 0, 0, 0.5));
         transform-origin: 20% 60%;
+        transform: translateZ(0);
         will-change: transform, filter;
+        -webkit-animation: menuLogoFloat 4.2s ease-in-out infinite;
         animation: menuLogoFloat 4.2s ease-in-out infinite;
       }
+      
 
       .menuSubtitle {
         max-width: 520px;
@@ -397,6 +945,10 @@
         gap: var(--ui-menu-button-gap, 10px);
         pointer-events: none;
       }
+      
+      .menuControls > * {
+        pointer-events: auto !important;
+      }
 
       .menuIconButtons {
         display: flex;
@@ -411,12 +963,13 @@
         background: transparent;
         padding: 0;
         cursor: pointer;
-        pointer-events: auto;
+        pointer-events: auto !important;
         position: relative;
         isolation: isolate;
         -webkit-tap-highlight-color: transparent;
         will-change: transform, filter;
         transition: transform 140ms ease, filter 180ms ease;
+        z-index: 10;
       }
 
       .menuBtnWide {
@@ -425,8 +978,11 @@
         display: grid;
         place-items: center;
         margin-right: 38px; /* nudge left (requested) */
+        transform: translateZ(0);
+        -webkit-animation: ctaPulse 1.7s ease-in-out infinite;
         animation: ctaPulse 1.7s ease-in-out infinite;
       }
+      
 
       .menuBtnWide:hover {
         animation-play-state: paused;
@@ -439,6 +995,7 @@
         display: grid;
         place-items: center;
       }
+      
 
       .menuBtnWide::before,
       .menuBtnIcon::before {
@@ -508,17 +1065,22 @@
         opacity: 0.25;
       }
 
+      @-webkit-keyframes ctaPulse {
+        0% { -webkit-transform: translateY(0) scale(1) translateZ(0); filter: brightness(1); }
+        50% { -webkit-transform: translateY(-1px) scale(1.035) translateZ(0); filter: brightness(1.03); }
+        100% { -webkit-transform: translateY(0) scale(1) translateZ(0); filter: brightness(1); }
+      }
       @keyframes ctaPulse {
         0% {
-          transform: translateY(0) scale(1);
+          transform: translateY(0) scale(1) translateZ(0);
           filter: brightness(1);
         }
         50% {
-          transform: translateY(-1px) scale(1.035);
+          transform: translateY(-1px) scale(1.035) translateZ(0);
           filter: brightness(1.03);
         }
         100% {
-          transform: translateY(0) scale(1);
+          transform: translateY(0) scale(1) translateZ(0);
           filter: brightness(1);
         }
       }
@@ -539,20 +1101,22 @@
         display: none;
       }
 
-      .countryCard {
-        width: min(760px, calc(100vw - 28px));
+      .countryCard,
+      .carCard {
+        width: min(1500px, calc(90vw - 38px))!important;
         pointer-events: auto;
         position: relative;
         border-radius: 18px;
         overflow: hidden;
         filter: drop-shadow(0 28px 80px rgba(0, 0, 0, 0.45));
-        max-height: 90vh;
+        max-height: 45vh!important;
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
         background: rgba(8, 12, 22, 0.95);
         border: 1px solid rgba(255, 255, 255, 0.15);
       }
+      
 
       .countryInner {
         position: relative;
@@ -619,6 +1183,7 @@
       .carStage.hidden {
         display: none;
       }
+      
 
       .carCard {
         width: min(760px, calc(100vw - 28px));
@@ -676,7 +1241,7 @@
       .carSkinBtn {
         width: 100%;
         aspect-ratio: 2.2 / 1.4;
-        max-width: 120px;
+        max-width: 110px;
         border: 2px solid rgba(255, 255, 255, 0.22);
         background: rgba(0, 0, 0, 0.18);
         border-radius: 18px;
@@ -684,13 +1249,18 @@
         cursor: pointer;
         box-shadow: 0 16px 30px rgba(0, 0, 0, 0.22);
         -webkit-tap-highlight-color: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .carSkinBtn img {
-        width: 100%;
-        height: 100%;
+        width: 52px !important;
+        height: auto !important;
+        max-width: 52px !important;
         object-fit: contain;
         display: block;
+        margin: 0 auto;
         pointer-events: none;
         user-select: none;
         -webkit-user-select: none;
@@ -736,7 +1306,7 @@
 
       .flagBtn {
         width: 100%;
-        max-width: 48px;
+        max-width: 40px;
         aspect-ratio: 1 / 1;
         border: none;
         background: rgba(255, 255, 255, 0.08);
@@ -773,17 +1343,22 @@
         pointer-events: none;
       }
 
+      @-webkit-keyframes menuLogoFloat {
+        0% { -webkit-transform: translateY(0) rotate(-0.2deg) scale(1) translateZ(0); }
+        50% { -webkit-transform: translateY(-6px) rotate(0.25deg) scale(1.01) translateZ(0); }
+        100% { -webkit-transform: translateY(0) rotate(-0.2deg) scale(1) translateZ(0); }
+      }
       @keyframes menuLogoFloat {
         0% {
-          transform: translateY(0) rotate(-0.2deg) scale(1);
+          transform: translateY(0) rotate(-0.2deg) scale(1) translateZ(0);
           filter: drop-shadow(0 22px 50px rgba(0, 0, 0, 0.5));
         }
         50% {
-          transform: translateY(-6px) rotate(0.25deg) scale(1.01);
+          transform: translateY(-6px) rotate(0.25deg) scale(1.01) translateZ(0);
           filter: drop-shadow(0 26px 58px rgba(0, 0, 0, 0.52));
         }
         100% {
-          transform: translateY(0) rotate(-0.2deg) scale(1);
+          transform: translateY(0) rotate(-0.2deg) scale(1) translateZ(0);
           filter: drop-shadow(0 22px 50px rgba(0, 0, 0, 0.5));
         }
       }
@@ -843,60 +1418,282 @@
           width: var(--ui-menu-icon-button-size-mobile, 90px);
           height: var(--ui-menu-icon-button-size-mobile, 90px);
         }
-
-        .countryCard,
-        .carCard {
-          width: min(560px, calc(100vw - 28px));
-          max-height: calc(100vh - 40px);
-          display: flex;
-          flex-direction: column;
+      }
+      
+      /* Mobile landscape mode - complete UI redesign */
+      @media (pointer: coarse) and (orientation: landscape) {
+        /* Menu Layout - Logo at top, buttons below in compact horizontal row */
+        .menuStage {
+          grid-template-columns: 1fr !important;
+          grid-template-rows: auto auto !important;
+          height: auto !important;
+          min-height: auto !important;
+          gap: 6px !important;
+          padding: calc(env(safe-area-inset-top) + 4px) 8px calc(env(safe-area-inset-bottom) + 4px) 8px !important;
+          position: relative !important;
+          display: grid !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          align-items: flex-start !important;
         }
 
-        .countryInner {
-          display: flex;
-          flex-direction: column;
-          flex: 1;
-          min-height: 0;
-          padding: 16px;
-          overflow: hidden;
+        .menuLeft {
+          align-items: center !important;
+          text-align: center !important;
+          padding: 0 !important;
+          gap: 4px !important;
+          justify-content: center !important;
+          grid-row: 1 !important;
         }
 
-        .flagGrid {
-          grid-template-columns: repeat(4, 1fr);
-          gap: var(--ui-flag-gap-mobile, 3px);
-          flex: 1;
-          min-height: 0;
-          margin: 0;
-          padding: 0 2px 0 0;
-          width: 100%;
-          box-sizing: border-box;
+        .menuLogo {
+          width: min(45vw, 280px) !important;
+          height: auto !important;
+          margin: 0 auto !important;
         }
 
-        .flagBtn {
-          max-width: 56px;
-          padding: var(--ui-flag-padding-mobile, 3px);
-          border-width: var(--ui-flag-border-mobile, 1.5px);
+        .menuRight {
+          align-items: center !important;
+          padding: 0 !important;
+          gap: 0 !important;
+          justify-content: center !important;
+          grid-row: 2 !important;
         }
 
-        .countryInner {
-          padding: var(--ui-panel-padding-mobile, 16px);
+        .menuControls {
+          width: 100% !important;
+          align-items: center !important;
+          gap: 6px !important;
+          flex-direction: row !important;
+          justify-content: center !important;
+          flex-wrap: wrap !important;
+        }
+
+        .menuBtnWide {
+          width: min(140px, 28vw) !important;
+          height: auto !important;
+          aspect-ratio: 2.55 / 1 !important;
+          margin: 0 !important;
+          position: relative !important;
+        }
+
+        .menuIconButtons {
+          gap: 6px !important;
         }
 
         .menuBtnIcon {
-          width: var(--ui-button-size-mobile, 90px);
-          height: var(--ui-button-size-mobile, 90px);
+          width: 48px !important;
+          height: 48px !important;
+          position: relative !important;
         }
-
+        /* Ensure panels appear above menu buttons */
+        .countryStage,
+        .carStage {
+          z-index: 10 !important;
+        }
+        
+        .countryCard,
+        .carCard {
+          z-index: 11 !important;
+          position: relative !important;
+        }
+        
+        /* Panels - Much smaller for mobile landscape */
+        .countryCard,
+        .carCard {
+          /* Slightly wider flag/skin panels on mobile */
+          width: min(500px, calc(90vw - 16px)) !important;
+          max-height: calc(100vh - 60px) !important;
+          max-width: 500vw !important;
+        }
+        
+        .countryInner,
+        .carInner {
+          padding: 12px !important;
+        }
+        
+        .countryTitle {
+          font-size: 16px !important;
+        }
+        
+        .countrySub {
+          font-size: 11px !important;
+        }
+        
+        .flagGrid {
+          gap: 3px !important;
+          padding: 4px !important;
+        }
+        
+        .flagBtn {
+          max-width: 28px !important;
+          padding: 2px !important;
+          border-width: 1.5px !important;
+        }
+        
         .carGrid {
-          grid-template-columns: repeat(2, 1fr);
-          max-height: 400px;
-          width: 100%;
-          box-sizing: border-box;
+          gap: 4px !important;
+          padding: 4px !important;
         }
-
+        
         .carSkinBtn {
-          max-width: 140px;
+          max-width: 70px !important;
+          padding: 4px !important;
         }
+        
+        /* HUD - Smaller */
+        .iconBtn {
+          width: 48px !important;
+          height: 48px !important;
+        }
+        
+        .pill {
+          font-size: 7px !important;
+          padding: 3px 5px !important;
+        }
+        
+        .pill strong {
+          font-size: 11px !important;
+        }
+        
+        .hudFlag {
+          width: 12px !important;
+          height: 12px !important;
+        }
+        
+        /* Settings Modal - Compact */
+        .settingsCard {
+          width: min(300px, calc(100vw - 20px)) !important;
+          max-height: calc(100vh - 40px) !important;
+          padding: 12px !important;
+        }
+        
+        .settingsCardContent {
+          gap: 8px !important;
+        }
+        
+        .settingsRow {
+          padding: 6px 0 !important;
+        }
+        
+        .settingsLabel {
+          font-size: 12px !important;
+        }
+        
+        /* Panels - Smaller */
+        .overlay .panel {
+          width: min(300px, calc(100vw - 20px)) !important;
+          padding: 14px !important;
+        }
+        
+        .panelTitle {
+          font-size: 16px !important;
+        }
+        
+        .panelText {
+          font-size: 11px !important;
+        }
+        
+        /* Physics/UI Panels */
+        #physicsPanel,
+        #uiPanel {
+          width: 260px !important;
+          max-width: 80vw !important;
+        }
+        
+        /* Searching overlay - Compact */
+        .searchingTitle {
+          font-size: 18px !important;
+          margin-bottom: 12px !important;
+        }
+        
+        .searchingScroller {
+          height: 100px !important;
+          gap: 20px !important;
+        }
+        
+        .scrollerLeft,
+        .scrollerRight {
+          width: 70px !important;
+          height: 70px !important;
+        }
+        
+        /* Countdown - Smaller */
+        .countdownText {
+          font-size: 60px !important;
+        }
+        
+        /* Game Over - Compact */
+        .winnerTitle {
+          font-size: 32px !important;
+        }
+        
+        .winnerFlag {
+          width: 40px !important;
+          height: 40px !important;
+        }
+        
+        .winnerCar {
+          width: 70px !important;
+        }
+        
+        .endImageBtn {
+          height: 50px !important;
+        }
+      }
+
+      .countryCard,
+      .carCard {
+        width: min(560px, calc(100vw - 28px));
+        max-height: calc(100vh - 40px);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .countryInner {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        padding: 16px;
+        overflow: hidden;
+      }
+
+      .flagGrid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--ui-flag-gap-mobile, 3px);
+        flex: 1;
+        min-height: 0;
+        margin: 0;
+        padding: 0 2px 0 0;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .flagBtn {
+        max-width: 30px;
+        padding: var(--ui-flag-padding-mobile, 3px);
+        border-width: var(--ui-flag-border-mobile, 1.5px);
+      }
+
+      .countryInner {
+        padding: var(--ui-panel-padding-mobile, 16px);
+      }
+
+      .menuBtnIcon {
+        width: var(--ui-button-size-mobile, 90px);
+        height: var(--ui-button-size-mobile, 90px);
+      }
+
+      .carGrid {
+        grid-template-columns: repeat(2, 1fr);
+        max-height: 400px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .carSkinBtn {
+        max-width: 130px;
       }
 
       .overlay .panel {
@@ -1602,6 +2399,9 @@
           max-width: 85vw;
         }
       }
+      
+      @media (pointer: coarse) {
+      }
 
       /* Mobile Controls - Default state */
       #mobileControls {
@@ -1786,6 +2586,7 @@
           display: block !important;
           visibility: visible !important;
           opacity: 1 !important;
+           transform: rotate(0deg) !important;
         }
         
         .actionWrap:not(.player2) {
@@ -1845,13 +2646,27 @@
         font-weight: 400;
         color: #fff;
         text-shadow: 0 0 40px rgba(255, 255, 255, 0.8), 0 0 80px rgba(255, 255, 255, 0.5);
-        animation: countdownPulse 0.5s ease-out;
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      .countdownText.countdownPulse {
+        animation: countdownPulse 0.85s ease-out forwards;
+        -webkit-animation: countdownPulse 0.85s ease-out forwards;
       }
 
       @keyframes countdownPulse {
-        0% { transform: scale(0.5); opacity: 0; }
-        50% { transform: scale(1.1); }
+        0% { transform: scale(0.4); opacity: 0; }
+        40% { transform: scale(1.15); opacity: 1; }
+        70% { transform: scale(0.95); }
         100% { transform: scale(1); opacity: 1; }
+      }
+
+      @-webkit-keyframes countdownPulse {
+        0% { -webkit-transform: scale(0.4); opacity: 0; }
+        40% { -webkit-transform: scale(1.15); opacity: 1; }
+        70% { -webkit-transform: scale(0.95); }
+        100% { -webkit-transform: scale(1); opacity: 1; }
       }
 
       @media (pointer: coarse) {
@@ -1936,6 +2751,7 @@
       .searchingOverlay.hidden {
         display: none;
       }
+      
 
       .searchingContent {
         width: min(600px, 90vw);
@@ -1979,7 +2795,8 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: transform 0.3s ease-out;
+        will-change: transform;
+        transform: translateZ(0);
       }
 
       .scrollerItem img {
@@ -2055,9 +2872,400 @@
           height: 60px;
         }
       }
+
+      @media (pointer: coarse) and (orientation: portrait) {
+        .searchingOverlay {
+          transform: none !important;
+          transform-origin: center center !important;
+        }
+
+        .searchingContent {
+          width: min(340px, calc(100vw - 28px));
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+        }
+
+        .searchingTitle {
+          margin-bottom: 0;
+          font-size: 22px;
+          line-height: 1.2;
+        }
+
+        .searchingScroller {
+          flex-direction: column;
+          gap: 14px;
+          height: auto;
+          min-height: 240px;
+        }
+
+        .scrollerLeft,
+        .scrollerRight {
+          width: 120px;
+          height: 120px;
+        }
+
+        .searchingResult {
+          margin-top: 8px;
+          flex-direction: column;
+          gap: 10px;
+        }
+      }
+
+      /* Final portrait gameplay pass:
+         keep controls in their same relative corners and rotate each gameplay UI element. */
+      @media (pointer: coarse) and (orientation: portrait) {
+        #hudRoot {
+          position: fixed !important;
+          left: 0 !important;
+          right: 0 !important;
+          top: calc(env(safe-area-inset-top) + 6px) !important;
+          bottom: auto !important;
+          width: auto !important;
+          height: auto !important;
+          transform: none !important;
+          z-index: 90 !important;
+        }
+
+        .hudRow {
+          width: min(100vw - 16px, 560px) !important;
+          margin: 0 auto !important;
+          display: grid !important;
+          grid-template-columns: 72px 1fr 72px !important;
+          align-items: center !important;
+          gap: 8px !important;
+        }
+
+        #btnMenu {
+          position: relative !important;
+          top: auto !important;
+          right: auto !important;
+          bottom: auto !important;
+          left: auto !important;
+          justify-self: start !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #btnSettings {
+          position: relative !important;
+          top: auto !important;
+          right: auto !important;
+          bottom: auto !important;
+          left: auto !important;
+          justify-self: end !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #btnMenu:active {
+          transform: rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        #btnSettings:active {
+          transform: rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        .hudPills {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #mobileControls {
+          position: fixed !important;
+          inset: 0 !important;
+          padding: 0 !important;
+        }
+
+        .joystickWrap:not(.player2) {
+          position: fixed !important;
+          right: calc(env(safe-area-inset-right) + 18px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          left: auto !important;
+          top: auto !important;
+          transform: rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .actionWrap:not(.player2) {
+          position: fixed !important;
+          left: calc(env(safe-area-inset-left) + 18px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          right: auto !important;
+          top: auto !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #settingsModal .actionWrap:not(.player2) {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .joystickWrap.player2 {
+          position: fixed !important;
+          left: calc(env(safe-area-inset-left) + 18px) !important;
+          top: calc(env(safe-area-inset-top) + 120px) !important;
+          right: auto !important;
+          bottom: auto !important;
+          transform: rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .actionWrap.player2 {
+          position: fixed !important;
+          right: calc(env(safe-area-inset-right) + 18px) !important;
+          top: calc(env(safe-area-inset-top) + 120px) !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #settingsModal .actionWrap.player2 {
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .btnSkipReplay {
+          left: 50% !important;
+          right: auto !important;
+          top: auto !important;
+          bottom: calc(env(safe-area-inset-bottom) + 140px) !important;
+          transform: translateX(-50%) rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .btnSkipReplay:active {
+          transform: translateX(-50%) rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        .countdownText {
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .countdownText.countdownPulse {
+          animation: countdownPulsePortrait 0.85s ease-out forwards !important;
+          -webkit-animation: countdownPulsePortrait 0.85s ease-out forwards !important;
+        }
+
+        @keyframes countdownPulsePortrait {
+          0% { transform: rotate(-90deg) scale(0.4); opacity: 0; }
+          40% { transform: rotate(-90deg) scale(1.15); opacity: 1; }
+          70% { transform: rotate(-90deg) scale(0.95); }
+          100% { transform: rotate(-90deg) scale(1); opacity: 1; }
+        }
+
+        @-webkit-keyframes countdownPulsePortrait {
+          0% { -webkit-transform: rotate(-90deg) scale(0.4); opacity: 0; }
+          40% { -webkit-transform: rotate(-90deg) scale(1.15); opacity: 1; }
+          70% { -webkit-transform: rotate(-90deg) scale(0.95); }
+          100% { -webkit-transform: rotate(-90deg) scale(1); opacity: 1; }
+        }
+
+        #settingsModal .settingsCard {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #infoModal {
+          transform: none !important;
+        }
+
+        #infoModal .panel {
+          transform: rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        /* Local 2P portrait layout: right-side HUD cluster and corner-mirrored controls */
+        body.local-2p-mode #hudRoot {
+          left: auto !important;
+          right: calc(env(safe-area-inset-right) + 56px) !important;
+          top: 50% !important;
+          bottom: auto !important;
+          width: 0 !important;
+          height: 0 !important;
+          transform: none !important;
+          transform-origin: top right !important;
+          z-index: 45 !important;
+          overflow: visible !important;
+          --local2p-hud-btn-size: 72px;
+          --local2p-pill-score-width: 68px;
+          --local2p-pill-time-width: 92px;
+          --local2p-pill-gap: 4px;
+          --local2p-hud-pills-width: calc((2 * var(--local2p-pill-score-width)) + var(--local2p-pill-time-width) + (2 * var(--local2p-pill-gap)));
+          --local2p-hud-gap: 22px;
+          --local2p-hud-row-width: calc((2 * var(--local2p-hud-btn-size)) + var(--local2p-hud-pills-width) + (2 * var(--local2p-hud-gap)));
+          --local2p-hud-row-height: var(--local2p-hud-btn-size);
+        }
+
+        body.local-2p-mode .hudRow {
+          position: absolute !important;
+          right: 0 !important;
+          top: calc(50% + ((var(--local2p-hud-row-width) - var(--local2p-hud-row-height)) / 2)) !important;
+          width: var(--local2p-hud-row-width) !important;
+          margin: 0 !important;
+          display: grid !important;
+          grid-template-columns: var(--local2p-hud-btn-size) var(--local2p-hud-pills-width) var(--local2p-hud-btn-size) !important;
+          align-items: center !important;
+          gap: var(--local2p-hud-gap) !important;
+          transform: rotate(90deg) !important;
+          transform-origin: right center !important;
+        }
+
+        body.local-2p-mode .hudPills {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+          width: var(--local2p-hud-pills-width) !important;
+          margin: 0 !important;
+          height: 44px !important;
+          display: block !important;
+          justify-self: center !important;
+        }
+
+        body.local-2p-mode .hudPills .pill {
+          position: absolute !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          margin: 0 !important;
+          white-space: nowrap !important;
+          justify-content: center !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(1),
+        body.local-2p-mode .hudPills .pill:nth-child(2) {
+          width: var(--local2p-pill-score-width) !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(3) {
+          width: var(--local2p-pill-time-width) !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(1) {
+          left: 0 !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(2) {
+          left: calc(var(--local2p-pill-score-width) + var(--local2p-pill-gap)) !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(3) {
+          left: calc((2 * var(--local2p-pill-score-width)) + (2 * var(--local2p-pill-gap))) !important;
+          right: auto !important;
+        }
+
+        body.local-2p-mode #hudYou,
+        body.local-2p-mode #hudBot,
+        body.local-2p-mode #hudTime {
+          display: inline-block !important;
+          font-variant-numeric: tabular-nums !important;
+          text-align: right !important;
+        }
+
+        body.local-2p-mode #hudYou,
+        body.local-2p-mode #hudBot {
+          min-width: 1.6ch !important;
+        }
+
+        body.local-2p-mode #hudTime {
+          min-width: 3.6ch !important;
+        }
+
+        body.local-2p-mode #btnMenu,
+        body.local-2p-mode #btnSettings {
+          position: relative !important;
+          top: auto !important;
+          right: auto !important;
+          bottom: auto !important;
+          left: auto !important;
+          justify-self: center !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #btnMenu:active,
+        body.local-2p-mode #btnSettings:active {
+          transform: rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        body.local-2p-mode #mobileControls {
+          position: fixed !important;
+          inset: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Player 1 corners: thumbstick bottom-right, turbo bottom-left */
+        body.local-2p-mode .joystickWrap:not(.player2) {
+          right: calc(env(safe-area-inset-right) + 16px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          left: auto !important;
+          top: auto !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .joystickWrap:not(.player2) {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode .actionWrap:not(.player2) {
+          left: calc(env(safe-area-inset-left) + 16px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          right: auto !important;
+          top: auto !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .actionWrap:not(.player2) {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        /* Player 2 corners: thumbstick top-left, turbo top-right */
+        body.local-2p-mode .joystickWrap.player2 {
+          left: calc(env(safe-area-inset-left) + 16px) !important;
+          top: calc(env(safe-area-inset-top) + 18px) !important;
+          right: auto !important;
+          bottom: auto !important;
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .joystickWrap.player2 {
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode .actionWrap.player2 {
+          right: calc(env(safe-area-inset-right) + 16px) !important;
+          top: calc(env(safe-area-inset-top) + 18px) !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: rotate(-180deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .actionWrap.player2 {
+          transform: rotate(-180deg) !important;
+          transform-origin: center center !important;
+        }
+      }
     </style>
   </head>
   <body>
+    <!-- Blurred background image for gameplay -->
+    <div id="gameplayBg" class="hidden"></div>
+    <div id="portraitGuard">
+      <div class="portraitGuardCard">
+        <div class="portraitGuardTitle">Rotate Device</div>
+        <div class="portraitGuardText">Goal Duel is portrait-only. Turn your phone upright to play.</div>
+      </div>
+    </div>
     <canvas id="game" aria-label="Goal Duel"></canvas>
 
     <!-- Physics Settings Side Panel -->
@@ -2341,16 +3549,7 @@
 
     <div id="fade"></div>
 
-    <!-- Debug Panel -->
-    <div id="debugPanel">
-      <div id="debugHeader">
-        <span>Debug Logs</span>
-        <button id="debugClearBtn">Clear</button>
-      </div>
-      <div id="debugContent"></div>
-    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
-

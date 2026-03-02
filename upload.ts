@@ -21,7 +21,6 @@ type PublishMeta = {
   title?: string;
   description?: string;
   category?: string;
-  gameId?: string;
 };
 
 type CliOptions = {
@@ -99,7 +98,7 @@ async function runCmd(cwd: string, cmd: string[], label: string): Promise<void> 
 }
 
 function coerceMeta(raw: unknown, gameName: string): Required<PublishMeta> {
-  const fallback: Required<PublishMeta> = { title: gameName, description: "test", category: "test", gameId: "" };
+  const fallback: Required<PublishMeta> = { title: gameName, description: "test", category: "test" };
   if (!raw || typeof raw !== "object") return fallback;
   const m = raw as PublishMeta;
   return {
@@ -107,7 +106,6 @@ function coerceMeta(raw: unknown, gameName: string): Required<PublishMeta> {
     description:
       typeof m.description === "string" && m.description.trim() ? m.description.trim() : fallback.description,
     category: typeof m.category === "string" && m.category.trim() ? m.category.trim() : fallback.category,
-    gameId: typeof m.gameId === "string" && m.gameId.trim() ? m.gameId.trim() : fallback.gameId,
   };
 }
 
@@ -209,7 +207,6 @@ async function main(): Promise<void> {
     title: meta.title,
     description: meta.description,
     category: meta.category,
-    gameId: meta.gameId || undefined,
     html,
     thumbnail, // null or { filename, mime, base64 }
   };
@@ -217,7 +214,6 @@ async function main(): Promise<void> {
   if (opts.dryRun) {
     console.log("[upload] Dry run OK.");
     console.log(`[upload] Would upload game="${payload.game}" title="${payload.title}" category="${payload.category}"`);
-    if (payload.gameId) console.log(`[upload] gameId=${payload.gameId}`);
     console.log(`[upload] HTML bytes=${Buffer.byteLength(html, "utf8")}`);
     console.log(`[upload] Thumbnail=${thumbnail ? thumbnail.filename : "none"}`);
     console.log(`[upload] API URL=${apiUrl}`);

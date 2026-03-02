@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 24 24" role="img" aria-label="Scatter powerup">
+  <defs>
+    <style>
+      .slot-box { fill: var(--slot-box, #00cc44); }
+      .slot-icon { fill: var(--slot-icon, #00ff44); }
+      .slot-accent { fill: var(--slot-accent, #ff0044); }
+      .slot-stroke { stroke: var(--slot-stroke, #ffffff); }
+    </style>
+  </defs>
+  <rect class="slot-box slot-stroke" x="-10" y="-10" width="20" height="20" rx="2.4" ry="2.4" stroke-width="1.8" />
+  <rect class="slot-icon" x="-3.6" y="-7.2" width="7.2" height="12.6" rx="1.2" ry="1.2" />
+  <rect class="slot-accent" x="-4.5" y="4.2" width="9" height="3" rx="1" ry="1" />
+  <circle class="slot-box" cx="0" cy="5.7" r="1.8"/>
+</svg>

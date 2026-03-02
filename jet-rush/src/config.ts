@@ -99,15 +99,6 @@ export interface Particle {
   vel: THREE.Vector3;
 }
 
-/* ── Window Extensions ── */
-
-declare global {
-  interface Window {
-    submitScore?: (score: number) => void;
-    triggerHaptic?: (type: HapticType) => void;
-  }
-}
-
 /* ── Constants ── */
 
 /**
@@ -125,14 +116,14 @@ export const C = {
   PLANE_HIT_HALF_W: 1.0,
 
   /** Starting forward speed (units/sec). Use case: controls early-run approachability. */
-  SPEED_INIT: 32,
+  SPEED_INIT: 57,
   /** Hard speed cap (units/sec). Use case: prevents impossible late-run pacing. */
-  SPEED_MAX: 72,
+  SPEED_MAX: 195,
   /** Speed growth factor over distance. Use case: determines how quickly difficulty ramps with progress. */
-  SPEED_RAMP: 0.35,
+  SPEED_RAMP: 1.9,
 
   /** Horizontal steering speed (units/sec). Use case: tuning responsiveness for keyboard and touch drag. */
-  LATERAL_SPEED: 10,
+  LATERAL_SPEED: 28,
   /** Lateral boundary clamp from center. Use case: keep player within designed obstacle field. */
   BOUNDARY_X: 68,
 
@@ -151,11 +142,13 @@ export const C = {
 
   /** Length/width of one ground tile. Use case: recycle floor chunks without visible seams. */
   GROUND_SIZE: 600,
-  /** Number of ground tiles in circulation. Use case: enough coverage before recycling jumps occur. */
+  /** Number of ground tile rows (Z direction). Use case: enough coverage before recycling jumps occur. */
   GROUND_SEGMENTS: 4,
+  /** Number of ground tile columns (X direction). Use case: lateral coverage for infinite horizontal movement. */
+  GROUND_COLS: 3,
 
   /** Distance between spawned obstacle rows on Z axis. Use case: denser rows = more city density. */
-  ROW_SPACING: 4,
+  ROW_SPACING: 3,
   /** How far ahead rows are generated. Use case: prevent pop-in at high speed. */
   ROW_AHEAD: 250,
   /** How far behind rows are kept before disposal. Use case: balance memory and cleanup churn. */
@@ -208,7 +201,7 @@ export const C = {
   /* ── Flyable corridor ── */
 
   /** Half-width of the carved safe corridor in world units. Use case: wider = easier to fly through. */
-  CORRIDOR_HALF_W: 9.0,
+  CORRIDOR_HALF_W: 11.0,
   /** Maximum height allowed inside the corridor. Use case: blocks under the flight path are clamped to this. */
   CORRIDOR_SAFE_H: 3.0,
   /** Low-frequency noise scale for corridor X wander. Use case: controls how gradually the safe path curves. */
@@ -220,7 +213,7 @@ export const C = {
   /** Maximum X offset for the secondary corridor. Use case: narrower than primary to add variety without making it trivial. */
   CORRIDOR2_WANDER_AMP: 16,
   /** Half-width of the secondary corridor. Use case: slightly tighter alternate path. */
-  CORRIDOR2_HALF_W: 7.0,
+  CORRIDOR2_HALF_W: 9.0,
 
   /* ── Tall-block spacing ── */
 
@@ -232,7 +225,7 @@ export const C = {
   /* ── Moving blocks ── */
 
   /** Chance a tall block becomes vertically animated. Use case: controls frequency of dynamic hazards. */
-  MOVE_CHANCE: 0.5,
+  MOVE_CHANCE: 0.7,
   /** Minimum vertical oscillation range for moving blocks. Use case: subtle movement baseline. */
   MOVE_AMP_MIN: 60.0,
   /** Maximum vertical oscillation range for moving blocks. Use case: create high-variance timing challenges. */
@@ -249,13 +242,13 @@ export const C = {
 
   /* ── Collectibles ── */
 
-  COLLECT_ATTRACT_RANGE: 16,
+  COLLECT_ATTRACT_RANGE: 7,
   COLLECT_PICKUP_RANGE: 2.0,
-  COLLECT_ATTRACT_SPEED: 60,
-  COLLECT_CHASE_SPEED: 90,
+  COLLECT_ATTRACT_SPEED: 320,
+  COLLECT_CHASE_SPEED: 0,
   COLLECT_SPAWN_INTERVAL: 45,
   COLLECT_SPAWN_CHANCE: 0.55,
-  COLLECT_SCORE_BONUS: 5,
+  COLLECT_SCORE_BONUS: 0,
   COLLECT_OFFSET_MIN: 5,
   COLLECT_OFFSET_MAX: 8,
 

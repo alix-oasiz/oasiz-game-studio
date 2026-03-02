@@ -4,6 +4,7 @@
 /* START OF COMPILED CODE */
 
 /* START-USER-IMPORTS */
+import { oasis as oasiz } from "@oasiz/sdk";
 /* END-USER-IMPORTS */
 
 export default class Level extends Phaser.Scene {
@@ -748,23 +749,50 @@ export default class Level extends Phaser.Scene {
 			this.keyThree = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
 			this.keyFour = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR);
 
-			// Settings (localStorage)
-			this.settings = this.loadSettings();
-			this.hapticsEnabled = this.settings.haptics;
+		// Settings (localStorage)
+		this.settings = this.loadSettings();
+		this.hapticsEnabled = this.settings.haptics;
 
-			// Auto-save on tab hide / close + submit score
-			document.addEventListener("visibilitychange", () => {
-				if (document.hidden) {
-					this.saveGameState();
-					if (!this.isMainMenu && !this.isGameOver && this.waveStarted) this.submitFinalScore();
-				}
-			});
-			window.addEventListener("beforeunload", () => {
+		oasiz.emitScoreConfig({
+			anchors: [
+				{ raw: 500, normalized: 100 },
+				{ raw: 2000, normalized: 300 },
+				{ raw: 6000, normalized: 600 },
+				{ raw: 15000, normalized: 950 },
+			],
+		});
+
+		// Auto-save on tab hide / close + submit score
+		document.addEventListener("visibilitychange", () => {
+			if (document.hidden) {
 				this.saveGameState();
+				oasiz.flushGameState();
 				if (!this.isMainMenu && !this.isGameOver && this.waveStarted) this.submitFinalScore();
-			});
+			}
+		});
+		window.addEventListener("beforeunload", () => {
+			this.saveGameState();
+			oasiz.flushGameState();
+			if (!this.isMainMenu && !this.isGameOver && this.waveStarted) this.submitFinalScore();
+		});
 
-			// Background music (initially stopped or low volume, started on Play)
+		oasiz.onPause(() => {
+			this.saveGameState();
+			oasiz.flushGameState();
+			if (this.bgm?.isPlaying) this.bgm.pause();
+			if (this.bossBgm?.isPlaying) this.bossBgm.pause();
+		});
+		oasiz.onResume(() => {
+			if (this.settings.music && !this.isMainMenu && !this.isGameOver) {
+				if (this.wavePhase === "boss" && this.bossBgm && !this.bossBgm.isPlaying) {
+					this.bossBgm.resume();
+				} else if (this.bgm && !this.bgm.isPlaying) {
+					this.bgm.resume();
+				}
+			}
+		});
+
+		// Background music (initially stopped or low volume, started on Play)
 			if (!this.bgm) {
 				this.bgm = this.sound.add("dungeonBgMusic", { loop: true, volume: 0.35 });
 			}
@@ -7233,9 +7261,7 @@ export default class Level extends Phaser.Scene {
 	}
 
 	private submitFinalScore(): void {
-		if (typeof (window as any).submitScore === "function") {
-			(window as any).submitScore(this.score);
-		}
+		oasiz.submitScore(Math.floor(this.score));
 	}
 
 	private spawnDamageNumber(x: number, y: number, amount: number, isCrit: boolean) {
@@ -8656,12 +8682,11 @@ export default class Level extends Phaser.Scene {
 		localStorage.setItem("tutorialCompleted", "true");
 	}
 
-	// ── Game State Caching ──────────────────────────────────────────────
-	private readonly SAVE_KEY = "dungeonLoopSave";
+	// ── Game State Persistence (via @oasiz/sdk) ────────────────────────
 
 	private saveGameState(): void {
 		if (this.isMainMenu || this.isGameOver || this.tutorialModeActive || !this.waveStarted) return;
-		const state = {
+		const state: Record<string, unknown> = {
 			activeCharacter: this.activeCharacter,
 			playerHp: this.playerHp,
 			playerMaxHp: this.playerMaxHp,
@@ -8678,12 +8703,8 @@ export default class Level extends Phaser.Scene {
 			rogueFeatureLevels: { ...this.rogueFeatureLevels },
 			savedAt: Date.now()
 		};
-		try {
-			localStorage.setItem(this.SAVE_KEY, JSON.stringify(state));
-			console.log("[saveGameState] Saved at wave", this.waveNumber);
-		} catch (err) {
-			console.error("[saveGameState]", err);
-		}
+		oasiz.saveGameState(state);
+		console.log("[saveGameState] Saved at wave", this.waveNumber);
 	}
 
 	private loadGameState(): {
@@ -8698,23 +8719,19 @@ export default class Level extends Phaser.Scene {
 		rogueFeatureLevels: Record<number, number>;
 		savedAt: number;
 	} | null {
-		try {
-			const raw = localStorage.getItem(this.SAVE_KEY);
-			if (!raw) return null;
-			const state = JSON.parse(raw);
-			// Expire saves older than 24 hours
-			if (Date.now() - (state.savedAt || 0) > 86400000) {
-				localStorage.removeItem(this.SAVE_KEY);
-				return null;
-			}
-			return state;
-		} catch {
+		const state = oasiz.loadGameState();
+		if (!state || typeof state.savedAt !== "number") return null;
+		if (Date.now() - (state.savedAt as number) > 86400000) {
+			oasiz.saveGameState({});
+			oasiz.flushGameState();
 			return null;
 		}
+		return state as any;
 	}
 
 	private clearGameSave(): void {
-		localStorage.removeItem(this.SAVE_KEY);
+		oasiz.saveGameState({});
+		oasiz.flushGameState();
 	}
 
 	private hasSavedGame(): boolean {
@@ -8860,10 +8877,7 @@ export default class Level extends Phaser.Scene {
 
 	private triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error") {
 		if (!this.hapticsEnabled) return;
-		const fn = (window as any).triggerHaptic;
-		if (typeof fn === "function") {
-			fn(type);
-		}
+		oasiz.triggerHaptic(type);
 	}
 
 	private setupDOMUI(): void {
@@ -10049,10 +10063,10 @@ export default class Level extends Phaser.Scene {
 					enemy.setData("lastBossAbilityTime", now);
 					this.triggerBossAbility(enemy, type);
 				}
-				// Slime boss: independent mini-slime spawn timer (every 6s)
+				// Slime boss: independent mini-slime spawn timer (every 10s)
 				if (type === "slime") {
 					const lastMiniSpawn = (enemy.getData("lastMiniSpawnTime") as number) || 0;
-					if (now - lastMiniSpawn >= 6000) {
+					if (now - lastMiniSpawn >= 10000) {
 						enemy.setData("lastMiniSpawnTime", now);
 						this.triggerSlimeMiniSpawn(enemy);
 					}
@@ -10152,26 +10166,62 @@ export default class Level extends Phaser.Scene {
 		} else if (type === "mummy") this.triggerMummyWarpTomb(enemy);
 	}
 
-	// Slime Boss: "Slime Rain" - drops green splatters near the player
+	// Slime Boss: "Slime Rain" - predictive splatters along player's movement path
 	private triggerSlimeRain(enemy: Phaser.Physics.Arcade.Sprite) {
 		if (!this.player || !enemy.active) return;
 		console.log("[BossAbility] Slime Rain triggered");
 		this.playFx("bossSlimeRain", { volume: 0.7 });
 
 		const baseDmg = (this.enemyConfigs["slime"]?.damage ?? 2) * this.getEnemyDamageScale() * this.getBossDamageMultiplier();
-		const count = Phaser.Math.Between(4, 6);
 		const tileSize = this.scaledTileSize || 64;
-		const spread = tileSize * 3;
+		const spread = tileSize * 1.2;
 
-		for (let i = 0; i < count; i++) {
-			const targetX = this.player.x + Phaser.Math.Between(-spread, spread);
-			const targetY = this.player.y + Phaser.Math.Between(-spread, spread);
+		const body = this.player.body as Phaser.Physics.Arcade.Body;
+		let vx = body.velocity.x;
+		let vy = body.velocity.y;
+		const speed = Math.sqrt(vx * vx + vy * vy);
 
-			// Warning shadow circle
+		// If player is nearly stationary, use facing direction
+		if (speed < 30) {
+			vx = this.playerFacingDir * 100;
+			vy = 0;
+		}
+
+		// Normalize movement direction
+		const len = Math.sqrt(vx * vx + vy * vy);
+		const dirX = vx / len;
+		const dirY = vy / len;
+		// Perpendicular for left/right placement
+		const perpX = -dirY;
+		const perpY = dirX;
+
+		const px = this.player.x;
+		const py = this.player.y;
+		const leadDist = tileSize * 2.5;
+
+		// Predicted positions: ahead, left-ahead, right-ahead, behind, and 1-2 random near predicted path
+		const positions: { x: number; y: number }[] = [
+			{ x: px + dirX * leadDist, y: py + dirY * leadDist },
+			{ x: px + dirX * leadDist * 0.7 + perpX * leadDist * 0.6, y: py + dirY * leadDist * 0.7 + perpY * leadDist * 0.6 },
+			{ x: px + dirX * leadDist * 0.7 - perpX * leadDist * 0.6, y: py + dirY * leadDist * 0.7 - perpY * leadDist * 0.6 },
+			{ x: px - dirX * leadDist * 0.5, y: py - dirY * leadDist * 0.5 },
+		];
+		const extraCount = Phaser.Math.Between(1, 2);
+		for (let i = 0; i < extraCount; i++) {
+			const base = positions[Phaser.Math.Between(0, positions.length - 1)];
+			positions.push({
+				x: base.x + Phaser.Math.Between(-spread, spread),
+				y: base.y + Phaser.Math.Between(-spread, spread)
+			});
+		}
+
+		for (const pos of positions) {
+			const targetX = pos.x;
+			const targetY = pos.y;
+
 			const shadow = this.add.ellipse(targetX, targetY, tileSize * 0.7, tileSize * 0.35, 0x000000, 0.35);
 			shadow.setDepth((this.player?.depth ?? 10) - 1);
 
-			// After 0.5s delay, the splatter lands
 			this.time.delayedCall(500, () => {
 				if (shadow.active) shadow.destroy();
 
@@ -10182,7 +10232,6 @@ export default class Level extends Phaser.Scene {
 				splat.setBlendMode(Phaser.BlendModes.ADD);
 				splat.play("fx_poison_splatter");
 
-				// Persistent AoE damage: 3 ticks over ~1s
 				const dmgTimer = this.time.addEvent({
 					delay: 350,
 					repeat: 2,
@@ -10197,7 +10246,6 @@ export default class Level extends Phaser.Scene {
 					},
 				});
 
-				// Cleanup after 1.2s
 				this.time.delayedCall(1200, () => {
 					if (dmgTimer) dmgTimer.destroy();
 					if (splat.active) splat.destroy();
@@ -10311,9 +10359,8 @@ export default class Level extends Phaser.Scene {
 
 		const baseDmg = (this.enemyConfigs["dragon"]?.damage ?? 2) * this.getEnemyDamageScale() * this.getBossDamageMultiplier() * 1.2;
 		const tileSize = this.scaledTileSize || 64;
-		const count = Phaser.Math.Between(3, 4);
-		const spread = tileSize * 3;
 		const impactRadius = tileSize * 1.0;
+		const spread = tileSize * 1.0;
 
 		// Charge-up flash on dragon
 		if (enemy.active) {
@@ -10321,18 +10368,42 @@ export default class Level extends Phaser.Scene {
 			this.time.delayedCall(400, () => { if (enemy.active) enemy.clearTint(); });
 		}
 
-		// Snapshot player position at cast time
+		const body = this.player.body as Phaser.Physics.Arcade.Body;
+		let vx = body.velocity.x;
+		let vy = body.velocity.y;
+		const speed = Math.sqrt(vx * vx + vy * vy);
+
+		if (speed < 30) {
+			vx = this.playerFacingDir * 100;
+			vy = 0;
+		}
+
+		const len = Math.sqrt(vx * vx + vy * vy);
+		const dirX = vx / len;
+		const dirY = vy / len;
+		const perpX = -dirY;
+		const perpY = dirX;
+
 		const px = this.player.x;
 		const py = this.player.y;
+		const leadDist = tileSize * 2.8;
 
-		// Spawn warning shadows near the player
+		// Predictive positions: ahead, left-ahead, right-ahead, and one random near path
+		const positions: { x: number; y: number }[] = [
+			{ x: px + dirX * leadDist, y: py + dirY * leadDist },
+			{ x: px + dirX * leadDist * 0.6 + perpX * leadDist * 0.7, y: py + dirY * leadDist * 0.6 + perpY * leadDist * 0.7 },
+			{ x: px + dirX * leadDist * 0.6 - perpX * leadDist * 0.7, y: py + dirY * leadDist * 0.6 - perpY * leadDist * 0.7 },
+		];
+		const base = positions[Phaser.Math.Between(0, 2)];
+		positions.push({
+			x: base.x + Phaser.Math.Between(-spread, spread),
+			y: base.y + Phaser.Math.Between(-spread, spread)
+		});
+
 		const targets: { x: number; y: number; shadow: Phaser.GameObjects.Ellipse }[] = [];
-		for (let i = 0; i < count; i++) {
-			const tx = px + Phaser.Math.Between(-spread, spread);
-			const ty = py + Phaser.Math.Between(-spread, spread);
-			const shadow = this.add.ellipse(tx, ty, tileSize * 1.2, tileSize * 0.6, 0xff3300, 0.55);
+		for (const pos of positions) {
+			const shadow = this.add.ellipse(pos.x, pos.y, tileSize * 1.2, tileSize * 0.6, 0xff3300, 0.55);
 			shadow.setDepth((this.player?.depth ?? 10) - 1);
-			// Pulse the warning shadow
 			this.tweens.add({
 				targets: shadow,
 				alpha: { from: 0.35, to: 0.7 },
@@ -10342,15 +10413,13 @@ export default class Level extends Phaser.Scene {
 				yoyo: true,
 				repeat: 0
 			});
-			targets.push({ x: tx, y: ty, shadow });
+			targets.push({ x: pos.x, y: pos.y, shadow });
 		}
 
-		// After 700ms delay, meteors impact
 		this.time.delayedCall(700, () => {
 			for (const t of targets) {
 				if (t.shadow.active) t.shadow.destroy();
 
-				// Explosion FX at impact point
 				const fxSize = tileSize * 2.0;
 				this.playFxSprite(
 					t.x, t.y,
@@ -10359,7 +10428,6 @@ export default class Level extends Phaser.Scene {
 					(this.player?.depth ?? 10) + 3, undefined, true
 				);
 
-				// AoE damage check
 				if (this.player?.active) {
 					const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y);
 					if (d <= impactRadius) {
@@ -10368,7 +10436,6 @@ export default class Level extends Phaser.Scene {
 					}
 				}
 			}
-			// Camera shake on impact
 			this.cameras.main.shake(200, 0.008);
 		});
 	}

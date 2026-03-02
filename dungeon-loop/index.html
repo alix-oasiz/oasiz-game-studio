@@ -219,10 +219,23 @@
         <div id="game-container"></div>
     </div>
 
+    <!-- Loading screen shown during asset preload -->
+    <div id="loading-screen"
+        class="absolute inset-0 bg-black flex flex-col items-center justify-center z-[10000] transition-opacity duration-700">
+        <h1 class="font-display text-3xl md:text-5xl text-white tracking-widest mb-8"
+            style="text-shadow: 0 0 10px #ff4500, 0 0 20px #ff4500, 0 0 40px #ff6a00;">
+            DUNGEON LOOP
+        </h1>
+        <div class="w-48 h-2 bg-white/20 rounded-full overflow-hidden">
+            <div id="loading-bar" class="h-full bg-gradient-to-r from-red-600 to-orange-500 rounded-full transition-all duration-200" style="width:0%"></div>
+        </div>
+        <p class="font-display text-xs text-white/40 mt-4 tracking-wider">LOADING</p>
+    </div>
+
     <div id="ui-layer">
-        <!-- Main Menu -->
+        <!-- Main Menu (hidden until Level scene is ready) -->
         <div id="main-menu"
-            class="absolute inset-0 bg-gradient-to-b from-black/90 via-black/50 to-black/90 flex flex-col items-center justify-center space-y-10 z-50 pointer-events-auto transition-opacity duration-1000 overflow-hidden">
+            class="hidden absolute inset-0 bg-gradient-to-b from-black/90 via-black/50 to-black/90 flex flex-col items-center justify-center space-y-10 z-50 pointer-events-auto transition-opacity duration-1000 overflow-hidden">
 
             <!-- Title with Fire Effect -->
             <div class="text-center z-10 menu-title-animated fire-title" style="opacity:0;">

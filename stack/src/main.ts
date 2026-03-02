@@ -2,6 +2,7 @@ export {};
 
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
+import { oasiz } from "@oasiz/sdk";
 
 /* Audio asset imports — Vite inlines these as data-URLs thanks to assetsInlineLimit */
 /* chime removed — perfect hits reuse the glass tap at higher pitch */
@@ -42,13 +43,6 @@ interface PerfectPulse {
   line: THREE.LineSegments;
   life: number;
   maxLife: number;
-}
-
-declare global {
-  interface Window {
-    submitScore?: (score: number) => void;
-    triggerHaptic?: (type: HapticType) => void;
-  }
 }
 
 const CONFIG = {
@@ -422,6 +416,16 @@ class StackGame {
     this.applySettingsUI();
     this.updateBackground();
     this.initDemo();
+
+    oasiz.onPause(() => {
+      this.audio.stopMusic();
+    });
+
+    oasiz.onResume(() => {
+      if (this.settings.music && this.state === "PLAYING") {
+        this.audio.startMusic();
+      }
+    });
 
     this.renderer.setAnimationLoop((time: number) => this.animate(time));
   }
@@ -1464,7 +1468,7 @@ class StackGame {
 
   private haptic(type: HapticType): void {
     if (!this.settings.haptics) return;
-    if (typeof window.triggerHaptic === "function") window.triggerHaptic(type);
+    oasiz.triggerHaptic(type);
   }
 
   private fx(
@@ -1484,7 +1488,7 @@ class StackGame {
   private submitFinalScore(): void {
     const s = Math.max(0, Math.floor(this.score));
     console.log("[submitFinalScore]", s);
-    if (typeof window.submitScore === "function") window.submitScore(s);
+    oasiz.submitScore(s);
   }
 }
 

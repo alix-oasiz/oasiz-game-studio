@@ -14,7 +14,7 @@
  * Key principles: 45° angles only, spikes on flat segments, difficulty scaling,
  * color theme switching (purple→red), geometric obstacle patterns.
  */
- 
+
 // Vite-bundled background music (looped)
 import bgmUrl from "./music/Neon Drift Systems.mp3";
 
@@ -64,7 +64,6 @@ interface Block {
   seed: number; // stable visual variety (avoid Math.random() in render)
   spikes: SpikeTri[];
 }
-
 
 interface TrailPoint {
   x: number; // world
@@ -141,7 +140,7 @@ const CONFIG = {
   PIXEL_16BIT_QUANTIZE_565: false,
   PIXEL_16BIT_DITHER: false,
   PIXEL_16BIT_SCANLINES: true,
-  PIXEL_16BIT_SCANLINE_ALPHA: 0.10,
+  PIXEL_16BIT_SCANLINE_ALPHA: 0.1,
 
   // Spikes
   SPIKE_W: 34,
@@ -195,7 +194,7 @@ const PALETTE_KEYFRAMES: Array<{
     bgBottom: [26, 8, 48],
     grid: [180, 255, 236, 0.06],
     waveGlow: [120, 255, 244, 0.55],
-    trail: [120, 255, 244, 0.30],
+    trail: [120, 255, 244, 0.3],
   },
   // Night blue -> deep teal
   {
@@ -210,7 +209,7 @@ const PALETTE_KEYFRAMES: Array<{
     bgTop: [10, 8, 30],
     bgBottom: [44, 14, 72],
     grid: [230, 190, 255, 0.055],
-    waveGlow: [255, 120, 220, 0.50],
+    waveGlow: [255, 120, 220, 0.5],
     trail: [255, 120, 220, 0.26],
   },
   // Midnight green -> blue
@@ -236,11 +235,24 @@ function smoothstep(t: number): number {
   return x * x * (3 - 2 * x);
 }
 
-function lerp4(a: [number, number, number, number], b: [number, number, number, number], t: number): [number, number, number, number] {
-  return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t), lerp(a[3], b[3], t)];
+function lerp4(
+  a: [number, number, number, number],
+  b: [number, number, number, number],
+  t: number,
+): [number, number, number, number] {
+  return [
+    lerp(a[0], b[0], t),
+    lerp(a[1], b[1], t),
+    lerp(a[2], b[2], t),
+    lerp(a[3], b[3], t),
+  ];
 }
 
-function lerp3(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
+function lerp3(
+  a: [number, number, number],
+  b: [number, number, number],
+  t: number,
+): [number, number, number] {
   return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 }
 
@@ -281,7 +293,14 @@ function pointInTri(px: number, py: number, t: SpikeTri): boolean {
   return u >= 0 && v >= 0 && u + v <= 1;
 }
 
-function pointSegDistSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+function pointSegDistSq(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
   const abx = bx - ax;
   const aby = by - ay;
   const apx = px - ax;
@@ -294,7 +313,12 @@ function pointSegDistSq(px: number, py: number, ax: number, ay: number, bx: numb
   return dist2(px, py, cx, cy);
 }
 
-function circleIntersectsTri(cx: number, cy: number, r: number, t: SpikeTri): boolean {
+function circleIntersectsTri(
+  cx: number,
+  cy: number,
+  r: number,
+  t: SpikeTri,
+): boolean {
   if (pointInTri(cx, cy, t)) return true;
   const r2 = r * r;
   if (pointSegDistSq(cx, cy, t.ax, t.ay, t.bx, t.by) <= r2) return true;
@@ -303,14 +327,25 @@ function circleIntersectsTri(cx: number, cy: number, r: number, t: SpikeTri): bo
   return false;
 }
 
-function circleIntersectsRect(cx: number, cy: number, r: number, x: number, y: number, w: number, h: number): boolean {
+function circleIntersectsRect(
+  cx: number,
+  cy: number,
+  r: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): boolean {
   // rect is top-left (x,y)
   const nx = clamp(cx, x, x + w);
   const ny = clamp(cy, y, y + h);
   return dist2(cx, cy, nx, ny) <= r * r;
 }
 
-function triggerHaptic(settings: Settings, type: "light" | "medium" | "heavy" | "success" | "error"): void {
+function triggerHaptic(
+  settings: Settings,
+  type: "light" | "medium" | "heavy" | "success" | "error",
+): void {
   if (!settings.haptics) return;
   if (typeof (window as any).triggerHaptic === "function") {
     (window as any).triggerHaptic(type);
@@ -404,7 +439,10 @@ class AudioFx {
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start();
-    gain.gain.linearRampToValueAtTime(type === "death" ? 0.11 : 0.07, ctx.currentTime + 0.01);
+    gain.gain.linearRampToValueAtTime(
+      type === "death" ? 0.11 : 0.07,
+      ctx.currentTime + 0.01,
+    );
     gain.gain.linearRampToValueAtTime(0.0, ctx.currentTime + 0.07);
     osc.stop(ctx.currentTime + 0.09);
   }
@@ -450,8 +488,8 @@ class AudioFx {
     osc.connect(og);
     og.connect(ctx.destination);
 
-    og.gain.linearRampToValueAtTime(0.10, now + 0.005);
-    og.gain.exponentialRampToValueAtTime(0.0001, now + 0.10);
+    og.gain.linearRampToValueAtTime(0.1, now + 0.005);
+    og.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
 
     src.start(now);
     src.stop(now + 0.22);
@@ -507,7 +545,7 @@ class LevelGen {
     meters: number,
     isEmpty: boolean,
     straightSteps?: number,
-    chunkWidthPx?: number
+    chunkWidthPx?: number,
   ): Chunk {
     const dx = CONFIG.SEG_DX;
     const widthPx = chunkWidthPx ?? CONFIG.CHUNK_WIDTH;
@@ -521,13 +559,19 @@ class LevelGen {
 
     // Chunks alternate between "hazard-heavy" (more spikes/obstacles) and "corridor-heavy" (more zig-zag motion)
     // so we don't get empty straight roads when spikes are sparse.
-    const hazardHeavy = !isEmpty && Math.random() < lerp(0.55, 0.70, diff);
+    const hazardHeavy = !isEmpty && Math.random() < lerp(0.55, 0.7, diff);
 
-    const maxStepChance = hazardHeavy ? lerp(0.30, 0.58, diff) : lerp(0.55, 0.92, diff);
+    const maxStepChance = hazardHeavy
+      ? lerp(0.3, 0.58, diff)
+      : lerp(0.55, 0.92, diff);
     const heightTighten = lerp(0, 1, diff);
 
     const minH = lerp(CONFIG.MAX_HEIGHT, CONFIG.MIN_HEIGHT, heightTighten);
-    const maxH = lerp(CONFIG.MAX_HEIGHT, CONFIG.MIN_HEIGHT + 110, heightTighten);
+    const maxH = lerp(
+      CONFIG.MAX_HEIGHT,
+      CONFIG.MIN_HEIGHT + 110,
+      heightTighten,
+    );
 
     const marginTop = CONFIG.WALL_MARGIN;
     const marginBot = canvasH - CONFIG.WALL_MARGIN;
@@ -569,9 +613,9 @@ class LevelGen {
         // Early game: more flat; later: more slopes and width changes
         const widenMul = hazardHeavy ? 1.0 : 1.55;
         const slopeMul = hazardHeavy ? 1.0 : 1.65;
-        const pWiden = clamp(lerp(0.10, 0.18, diff) * widenMul, 0, 0.38);
+        const pWiden = clamp(lerp(0.1, 0.18, diff) * widenMul, 0, 0.38);
         const pNarrow = clamp(lerp(0.08, 0.16, diff) * widenMul, 0, 0.34);
-        const pSlope = clamp(lerp(0.22, 0.40, diff) * slopeMul, 0, 0.70);
+        const pSlope = clamp(lerp(0.22, 0.4, diff) * slopeMul, 0, 0.7);
         if (r < pWiden) phase = "widen";
         else if (r < pWiden + pNarrow) phase = "narrow";
         else if (r < pWiden + pNarrow + pSlope) {
@@ -582,11 +626,12 @@ class LevelGen {
           } else {
             phase = Math.random() < 0.5 ? "slopeUp" : "slopeDown";
           }
-        }
-        else phase = "flat";
+        } else phase = "flat";
 
         // Short, punchy patterns; corridor-heavy chunks get longer motion phases
-        phaseLeft = hazardHeavy ? Math.floor(lerp(2, 4, diff) + Math.random() * 2) : Math.floor(lerp(3, 6, diff) + Math.random() * 2);
+        phaseLeft = hazardHeavy
+          ? Math.floor(lerp(2, 4, diff) + Math.random() * 2)
+          : Math.floor(lerp(3, 6, diff) + Math.random() * 2);
       }
       phaseLeft--;
 
@@ -623,14 +668,16 @@ class LevelGen {
       if (dyTop === 0 && dyBot === 0) straightRun++;
       else straightRun = 0;
 
-      const maxStraight = hazardHeavy ? Math.floor(lerp(2, 3, diff)) : Math.floor(lerp(1, 2, diff));
+      const maxStraight = hazardHeavy
+        ? Math.floor(lerp(2, 3, diff))
+        : Math.floor(lerp(1, 2, diff));
       if (straightRun > maxStraight) {
         // Force a gentle zig-zag or widen/narrow (still 45° only)
         const up = this.lastForcedUp ? false : true;
         this.lastForcedUp = up;
 
         // Prefer a mild slope move more often than a width change (less extreme)
-        const doWidth = Math.random() < lerp(0.25, 0.40, diff);
+        const doWidth = Math.random() < lerp(0.25, 0.4, diff);
         if (doWidth) {
           dyTop = up ? -dx : dx;
           dyBot = up ? dx : -dx;
@@ -725,7 +772,8 @@ class LevelGen {
     // "Something" means: any spikes, any block, or any wheel.
     // If we end up with nothing (or basically nothing), force a small surface spike cluster on a safe flat.
     const diff = this.difficulty01(meters);
-    const hazardCount = chunk.spikes.length + chunk.blocks.length + chunk.wheels.length;
+    const hazardCount =
+      chunk.spikes.length + chunk.blocks.length + chunk.wheels.length;
 
     // As difficulty ramps, we want most chunks to contain at least a few spikes
     // (even if there's also a block/wheel), to keep pressure consistent.
@@ -736,7 +784,8 @@ class LevelGen {
     // But if the chunk is otherwise very quiet, add a tiny surface cluster anyway.
     const shouldAddCluster =
       hazardCount === 0 ||
-      chunk.spikes.length < targetSpikes && Math.random() < lerp(0.55, 0.80, diff);
+      (chunk.spikes.length < targetSpikes &&
+        Math.random() < lerp(0.55, 0.8, diff));
     if (!shouldAddCluster) return;
 
     const placeCluster = (useTop: boolean): boolean => {
@@ -750,8 +799,12 @@ class LevelGen {
         const isFlat = Math.abs(b.y - a.y) < 0.1;
         if (!isFlat) continue;
 
-        const prevIsSlope = i > 0 ? Math.abs(path[i].y - path[i - 1].y) > 0.1 : true;
-        const nextIsSlope = i + 2 < path.length ? Math.abs(path[i + 2].y - path[i + 1].y) > 0.1 : true;
+        const prevIsSlope =
+          i > 0 ? Math.abs(path[i].y - path[i - 1].y) > 0.1 : true;
+        const nextIsSlope =
+          i + 2 < path.length
+            ? Math.abs(path[i + 2].y - path[i + 1].y) > 0.1
+            : true;
         const isCornerFlat = prevIsSlope || nextIsSlope;
         if (isCornerFlat) continue;
 
@@ -762,7 +815,10 @@ class LevelGen {
 
       const pick = candidates[Math.floor(Math.random() * candidates.length)];
       const segLen = pick.b.x - pick.a.x;
-      const maxCount = Math.max(2, Math.floor((segLen - CONFIG.SPIKE_W) / CONFIG.SPIKE_SPACING));
+      const maxCount = Math.max(
+        2,
+        Math.floor((segLen - CONFIG.SPIKE_W) / CONFIG.SPIKE_SPACING),
+      );
       if (maxCount <= 0) return false;
 
       const clusterCount = clamp(Math.floor(lerp(3, 6, diff)), 3, 6);
@@ -770,10 +826,14 @@ class LevelGen {
 
       const inset = CONFIG.SPIKE_W * 0.7;
       const centerX = (pick.a.x + pick.b.x) * 0.5;
-      const startX = centerX - ((count - 1) * CONFIG.SPIKE_SPACING) * 0.5;
+      const startX = centerX - (count - 1) * CONFIG.SPIKE_SPACING * 0.5;
 
       for (let j = 0; j < count; j++) {
-        const cx = clamp(startX + j * CONFIG.SPIKE_SPACING, pick.a.x + inset, pick.b.x - inset);
+        const cx = clamp(
+          startX + j * CONFIG.SPIKE_SPACING,
+          pick.a.x + inset,
+          pick.b.x - inset,
+        );
         chunk.spikes.push(this.makeSpike(cx, pick.a.y, useTop));
       }
       return true;
@@ -784,14 +844,23 @@ class LevelGen {
     const did1 = placeCluster(useTop);
 
     // Later-game: occasionally add a second cluster on the opposite surface for more spike presence.
-    if (did1 && diff > 0.70 && chunk.spikes.length < targetSpikes && Math.random() < 0.35) {
+    if (
+      did1 &&
+      diff > 0.7 &&
+      chunk.spikes.length < targetSpikes &&
+      Math.random() < 0.35
+    ) {
       placeCluster(!useTop);
     }
   }
 
   private difficulty01(meters: number): number {
     if (meters <= CONFIG.DIFF_START_EASY_METERS) return 0;
-    return clamp((meters - CONFIG.DIFF_START_EASY_METERS) / CONFIG.DIFF_RAMP_METERS, 0, 1);
+    return clamp(
+      (meters - CONFIG.DIFF_START_EASY_METERS) / CONFIG.DIFF_RAMP_METERS,
+      0,
+      1,
+    );
   }
 
   private pickDy(dx: number, diff: number): number {
@@ -825,8 +894,13 @@ class LevelGen {
       const inset = CONFIG.SPIKE_W * 0.7;
 
       // Choose a smaller window inside this flat segment, so it's not a full carpet.
-      const windowCount = Math.max(1, Math.floor(count * lerp(0.48, 0.78, diff)));
-      const start = Math.floor(Math.random() * Math.max(1, count - windowCount + 1));
+      const windowCount = Math.max(
+        1,
+        Math.floor(count * lerp(0.48, 0.78, diff)),
+      );
+      const start = Math.floor(
+        Math.random() * Math.max(1, count - windowCount + 1),
+      );
 
       for (let i = start; i < start + windowCount; i++) {
         if (chunk.spikes.length >= maxSpikesPerChunk) break;
@@ -843,8 +917,12 @@ class LevelGen {
       // Never place spikes on "corner flats" right next to slopes.
       // This prevents the player from dying when sliding onto a slope.
       const isFlat = Math.abs(b.y - a.y) < 0.1;
-      const prevIsSlope = i > 0 ? Math.abs(chunk.top[i].y - chunk.top[i - 1].y) > 0.1 : true;
-      const nextIsSlope = i + 2 < chunk.top.length ? Math.abs(chunk.top[i + 2].y - chunk.top[i + 1].y) > 0.1 : true;
+      const prevIsSlope =
+        i > 0 ? Math.abs(chunk.top[i].y - chunk.top[i - 1].y) > 0.1 : true;
+      const nextIsSlope =
+        i + 2 < chunk.top.length
+          ? Math.abs(chunk.top[i + 2].y - chunk.top[i + 1].y) > 0.1
+          : true;
       const isCornerFlat = prevIsSlope || nextIsSlope;
 
       if (isFlat && !isCornerFlat && Math.random() < pStrip) {
@@ -856,8 +934,14 @@ class LevelGen {
       const a = chunk.bottom[i];
       const b = chunk.bottom[i + 1];
       const isFlat = Math.abs(b.y - a.y) < 0.1;
-      const prevIsSlope = i > 0 ? Math.abs(chunk.bottom[i].y - chunk.bottom[i - 1].y) > 0.1 : true;
-      const nextIsSlope = i + 2 < chunk.bottom.length ? Math.abs(chunk.bottom[i + 2].y - chunk.bottom[i + 1].y) > 0.1 : true;
+      const prevIsSlope =
+        i > 0
+          ? Math.abs(chunk.bottom[i].y - chunk.bottom[i - 1].y) > 0.1
+          : true;
+      const nextIsSlope =
+        i + 2 < chunk.bottom.length
+          ? Math.abs(chunk.bottom[i + 2].y - chunk.bottom[i + 1].y) > 0.1
+          : true;
       const isCornerFlat = prevIsSlope || nextIsSlope;
 
       if (isFlat && !isCornerFlat && Math.random() < pStrip) {
@@ -866,26 +950,39 @@ class LevelGen {
     }
   }
 
-  private addBlocks(chunk: Chunk, meters: number, canvasH: number, minH: number): void {
+  private addBlocks(
+    chunk: Chunk,
+    meters: number,
+    canvasH: number,
+    minH: number,
+  ): void {
     const diff = this.difficulty01(meters);
     const pBlock = lerp(0.35, 0.75, diff);
 
     // Allow up to 2 blocks per chunk (well spaced) for more consistent action.
-    const maxBlocks = diff < 0.30 ? 2 : diff < 0.70 ? 2 : 3;
+    const maxBlocks = diff < 0.3 ? 2 : diff < 0.7 ? 2 : 3;
     const minSpacingX = 240;
 
     const tooClose = (x: number): boolean => {
-      for (const b of chunk.blocks) if (Math.abs(b.x - x) < minSpacingX) return true;
-      for (const w of chunk.wheels) if (Math.abs(w.x - x) < minSpacingX) return true;
+      for (const b of chunk.blocks)
+        if (Math.abs(b.x - x) < minSpacingX) return true;
+      for (const w of chunk.wheels)
+        if (Math.abs(w.x - x) < minSpacingX) return true;
       return false;
     };
 
     // Candidate lanes (left->right) so obstacles are distributed instead of clumped.
-    const placements = [0.26, 0.44, 0.62, 0.80];
-    for (let pi = 0; pi < placements.length && chunk.blocks.length < maxBlocks; pi++) {
+    const placements = [0.26, 0.44, 0.62, 0.8];
+    for (
+      let pi = 0;
+      pi < placements.length && chunk.blocks.length < maxBlocks;
+      pi++
+    ) {
       if (Math.random() > pBlock) continue;
       const jitter = (Math.random() * 2 - 1) * 0.06;
-      const x = chunk.xStart + CONFIG.CHUNK_WIDTH * clamp(placements[pi] + jitter, 0.18, 0.90);
+      const x =
+        chunk.xStart +
+        CONFIG.CHUNK_WIDTH * clamp(placements[pi] + jitter, 0.18, 0.9);
       if (tooClose(x)) continue;
 
       const c = this.corridorAtX(chunk, x);
@@ -912,10 +1009,15 @@ class LevelGen {
   }
 
   // Rolling spike wheels (static in world, visually rotating)
-  private addWheels(chunk: Chunk, meters: number, canvasH: number, minH: number): void {
+  private addWheels(
+    chunk: Chunk,
+    meters: number,
+    canvasH: number,
+    minH: number,
+  ): void {
     // Low chance early, higher chance later
     const diff = this.difficulty01(meters);
-    const pWheel = lerp(0.12, 0.30, diff);
+    const pWheel = lerp(0.12, 0.3, diff);
 
     // Wheels: max 1 early, max 2 later; keep spacing from other obstacles.
     const maxWheels = diff < 0.65 ? 1 : 2;
@@ -923,12 +1025,16 @@ class LevelGen {
     const pickX = (): number => {
       const base = Math.random() < 0.5 ? 0.45 : 0.72;
       const jitter = (Math.random() * 2 - 1) * 0.06;
-      return chunk.xStart + CONFIG.CHUNK_WIDTH * clamp(base + jitter, 0.22, 0.88);
+      return (
+        chunk.xStart + CONFIG.CHUNK_WIDTH * clamp(base + jitter, 0.22, 0.88)
+      );
     };
 
     const canPlaceAtX = (x: number): boolean => {
-      for (const b of chunk.blocks) if (Math.abs(b.x - x) < minSpacingX) return false;
-      for (const w of chunk.wheels) if (Math.abs(w.x - x) < minSpacingX) return false;
+      for (const b of chunk.blocks)
+        if (Math.abs(b.x - x) < minSpacingX) return false;
+      for (const w of chunk.wheels)
+        if (Math.abs(w.x - x) < minSpacingX) return false;
       return true;
     };
 
@@ -964,7 +1070,10 @@ class LevelGen {
     tryPlaceWheel();
   }
 
-  private corridorAtX(chunk: Chunk, x: number): { topY: number; bottomY: number } {
+  private corridorAtX(
+    chunk: Chunk,
+    x: number,
+  ): { topY: number; bottomY: number } {
     const sample = (path: Point[]): number => {
       for (let i = 0; i < path.length - 1; i++) {
         const a = path[i];
@@ -980,7 +1089,9 @@ class LevelGen {
   }
 
   private makeSpike(cx: number, baseY: number, fromTop: boolean): SpikeTri {
-    const scale = CONFIG.SPIKE_SCALE_MIN + Math.random() * (CONFIG.SPIKE_SCALE_MAX - CONFIG.SPIKE_SCALE_MIN);
+    const scale =
+      CONFIG.SPIKE_SCALE_MIN +
+      Math.random() * (CONFIG.SPIKE_SCALE_MAX - CONFIG.SPIKE_SCALE_MIN);
     const w = CONFIG.SPIKE_W * scale;
     const h = CONFIG.SPIKE_H * scale;
     if (fromTop) {
@@ -1007,7 +1118,9 @@ class LevelGen {
 }
 
 class WaveModeGame {
-  private gameContainer = document.getElementById("game-container") as HTMLElement;
+  private gameContainer = document.getElementById(
+    "game-container",
+  ) as HTMLElement;
   private canvas: HTMLCanvasElement;
   // Display canvas context (final blit target)
   private displayCtx: CanvasRenderingContext2D;
@@ -1075,22 +1188,36 @@ class WaveModeGame {
 
   // UI
   private startOverlay = document.getElementById("startOverlay") as HTMLElement;
-  private gameOverOverlay = document.getElementById("gameOverOverlay") as HTMLElement;
+  private gameOverOverlay = document.getElementById(
+    "gameOverOverlay",
+  ) as HTMLElement;
   private pauseOverlay = document.getElementById("pauseOverlay") as HTMLElement;
   private hudEl = document.getElementById("hud") as HTMLElement;
   private distanceEl = document.getElementById("distance") as HTMLElement;
   private highScoreEl = document.getElementById("highScore") as HTMLElement;
-  private finalDistanceEl = document.getElementById("finalDistance") as HTMLElement;
-  private bestDistanceEl = document.getElementById("bestDistance") as HTMLElement;
+  private finalDistanceEl = document.getElementById(
+    "finalDistance",
+  ) as HTMLElement;
+  private bestDistanceEl = document.getElementById(
+    "bestDistance",
+  ) as HTMLElement;
   private newRecordEl = document.getElementById("newRecord") as HTMLElement;
   private pauseBtn = document.getElementById("pauseBtn") as HTMLElement;
   private settingsBtn = document.getElementById("settingsBtn") as HTMLElement;
-  private settingsPanel = document.getElementById("settingsPanel") as HTMLElement;
-  private settingsBackdrop = document.getElementById("settingsBackdrop") as HTMLElement;
-  private settingsCloseBtn = document.getElementById("settingsCloseBtn") as HTMLElement;
+  private settingsPanel = document.getElementById(
+    "settingsPanel",
+  ) as HTMLElement;
+  private settingsBackdrop = document.getElementById(
+    "settingsBackdrop",
+  ) as HTMLElement;
+  private settingsCloseBtn = document.getElementById(
+    "settingsCloseBtn",
+  ) as HTMLElement;
   private toggleMusic = document.getElementById("toggleMusic") as HTMLElement;
   private toggleFx = document.getElementById("toggleFx") as HTMLElement;
-  private toggleHaptics = document.getElementById("toggleHaptics") as HTMLElement;
+  private toggleHaptics = document.getElementById(
+    "toggleHaptics",
+  ) as HTMLElement;
 
   // Settings modal pauses gameplay; remember if we should resume after closing.
   private wasPlayingBeforeSettings = false;
@@ -1130,7 +1257,6 @@ class WaveModeGame {
     return this._viewH;
   }
 
-
   private onResize(): void {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.dpr = dpr;
@@ -1149,7 +1275,8 @@ class WaveModeGame {
       this.gameContainer.style.top = "50%";
       this.gameContainer.style.width = `${window.innerHeight}px`;
       this.gameContainer.style.height = `${window.innerWidth}px`;
-      this.gameContainer.style.transform = "translate(-50%, -50%) rotate(90deg)";
+      this.gameContainer.style.transform =
+        "translate(-50%, -50%) rotate(90deg)";
       this.gameContainer.style.transformOrigin = "center center";
     } else {
       this._viewW = window.innerWidth;
@@ -1170,7 +1297,9 @@ class WaveModeGame {
 
     // Pixel-art mode renders to a smaller offscreen canvas and scales it up with nearest-neighbor.
     if (CONFIG.PIXEL_ART) {
-      this.renderScale = isMobile ? CONFIG.PIXEL_RENDER_SCALE_MOBILE : CONFIG.PIXEL_RENDER_SCALE_DESKTOP;
+      this.renderScale = isMobile
+        ? CONFIG.PIXEL_RENDER_SCALE_MOBILE
+        : CONFIG.PIXEL_RENDER_SCALE_DESKTOP;
       if (!this.renderCanvas) {
         this.renderCanvas = document.createElement("canvas");
         const rctx = this.renderCanvas.getContext("2d");
@@ -1223,7 +1352,15 @@ class WaveModeGame {
 
     // Intro: always start with a straight corridor and no obstacles for the first 100m.
     const introPx = CONFIG.INTRO_SAFE_METERS * 10; // meters are worldX/10
-    const introChunk = this.gen.nextChunk(0, this.viewW(), this.viewH(), 0, true, undefined, introPx);
+    const introChunk = this.gen.nextChunk(
+      0,
+      this.viewW(),
+      this.viewH(),
+      0,
+      true,
+      undefined,
+      introPx,
+    );
     this.chunks.push(introChunk);
 
     // Then prebuild a few normal chunks.
@@ -1270,9 +1407,9 @@ class WaveModeGame {
     const count = CONFIG.PLANET_COUNT;
     for (let i = 0; i < count; i++) {
       const p = palettes[i % palettes.length];
-      const r = lerp(h * 0.08, h * 0.20, Math.random());
+      const r = lerp(h * 0.08, h * 0.2, Math.random());
       const x = Math.random() * w;
-      const y = lerp(h * 0.10, h * 0.55, Math.random());
+      const y = lerp(h * 0.1, h * 0.55, Math.random());
       this.planets.push({
         x,
         y,
@@ -1393,7 +1530,8 @@ class WaveModeGame {
         triggerHaptic(this.settings, "light");
         if (key === "music") {
           this.audio.setMusicEnabled(this.settings.music);
-          if (this.state === "PLAYING" && this.settings.music) this.audio.startHum();
+          if (this.state === "PLAYING" && this.settings.music)
+            this.audio.startHum();
           if (!this.settings.music) this.audio.stopHum();
         }
         if (key === "fx") {
@@ -1690,7 +1828,10 @@ class WaveModeGame {
     }
   }
 
-  private animateGameOverCounters(finalMeters: number, bestMeters: number): void {
+  private animateGameOverCounters(
+    finalMeters: number,
+    bestMeters: number,
+  ): void {
     if (this.counterAnimRaf) cancelAnimationFrame(this.counterAnimRaf);
 
     const start = performance.now();
@@ -1698,7 +1839,14 @@ class WaveModeGame {
 
     // Rate-limited ticking so it feels good and never spams
     let lastTickValue = 0;
-    const step = finalMeters <= 90 ? 1 : finalMeters <= 220 ? 2 : finalMeters <= 520 ? 5 : 10;
+    const step =
+      finalMeters <= 90
+        ? 1
+        : finalMeters <= 220
+          ? 2
+          : finalMeters <= 520
+            ? 5
+            : 10;
 
     const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
     const tick = (): void => {
@@ -1714,7 +1862,10 @@ class WaveModeGame {
 
       if (this.settings.fx) {
         const v = Math.max(d, b);
-        if (v >= lastTickValue + step && v < Math.max(finalMeters, bestMeters)) {
+        if (
+          v >= lastTickValue + step &&
+          v < Math.max(finalMeters, bestMeters)
+        ) {
           lastTickValue = v;
           this.audio.tick();
         }
@@ -1760,7 +1911,11 @@ class WaveModeGame {
 
     this.meters = this.scrollX / 10;
     this.updateRuntimePalette();
-    const diff = clamp((this.meters - CONFIG.DIFF_START_EASY_METERS) / CONFIG.DIFF_RAMP_METERS, 0, 1);
+    const diff = clamp(
+      (this.meters - CONFIG.DIFF_START_EASY_METERS) / CONFIG.DIFF_RAMP_METERS,
+      0,
+      1,
+    );
     this.speedMul = lerp(CONFIG.SPEED_BASE, CONFIG.SPEED_MAX, diff);
 
     const vx = CONFIG.WAVE_SPEED_X * this.speedMul;
@@ -1783,7 +1938,8 @@ class WaveModeGame {
       const targetCamY = corridorCenter - this.viewH() * 0.5;
       const dy = targetCamY - this.camY;
       const dead = CONFIG.CAMERA_DEADZONE_PX;
-      const dyAdj = Math.abs(dy) <= dead ? 0 : (Math.abs(dy) - dead) * Math.sign(dy);
+      const dyAdj =
+        Math.abs(dy) <= dead ? 0 : (Math.abs(dy) - dead) * Math.sign(dy);
       const desired = dyAdj * CONFIG.CAMERA_SMOOTH;
       const maxStep = CONFIG.CAMERA_MAX_SPEED * dt;
       this.camY += clamp(desired, -maxStep, maxStep);
@@ -1808,14 +1964,16 @@ class WaveModeGame {
       const movingDown = !this.holding;
 
       if (worldY < minY) {
-        const topAllowsSlide = info.topFlat || (movingDown && info.topDy >= -0.1);
+        const topAllowsSlide =
+          info.topFlat || (movingDown && info.topDy >= -0.1);
         if (topAllowsSlide) {
           worldY = minY;
           this.waveWorldY = worldY;
           this.isSlidingOnSurface = true;
         }
       } else if (worldY > maxY) {
-        const bottomAllowsSlide = info.bottomFlat || (movingDown && info.bottomDy >= -0.1);
+        const bottomAllowsSlide =
+          info.bottomFlat || (movingDown && info.bottomDy >= -0.1);
         if (bottomAllowsSlide) {
           worldY = maxY;
           this.waveWorldY = worldY;
@@ -1863,7 +2021,7 @@ class WaveModeGame {
     // Keep a generous buffer so generation happens before the player reaches it.
     // Larger buffer = less likely a chunk build happens on a "tight" frame.
     const lookahead = this.viewW() * 3.0;
-    // Account for the +waveX offset in translation: player world X is scrollX + waveX, 
+    // Account for the +waveX offset in translation: player world X is scrollX + waveX,
     // but chunks are in normal world space, so we need scrollX + lookahead
     const needX = this.scrollX + lookahead;
 
@@ -1891,7 +2049,13 @@ class WaveModeGame {
       if (xStart === undefined) break;
 
       const meters = xStart / 10;
-      const c = this.gen.nextChunk(xStart, this.viewW(), this.viewH(), meters, false);
+      const c = this.gen.nextChunk(
+        xStart,
+        this.viewW(),
+        this.viewH(),
+        meters,
+        false,
+      );
       this.chunks.push(c);
 
       // Keep memory bounded
@@ -1923,7 +2087,8 @@ class WaveModeGame {
     for (const b of chunk.blocks) {
       const x0 = b.x - b.w * 0.5;
       const y0 = b.y;
-      if (circleIntersectsRect(worldX, worldY, r, x0, y0, b.w, b.h)) return true;
+      if (circleIntersectsRect(worldX, worldY, r, x0, y0, b.w, b.h))
+        return true;
     }
 
     // Spikes (including block spikes)
@@ -1933,13 +2098,19 @@ class WaveModeGame {
 
     // Rolling wheels (circular hazard)
     for (const w of chunk.wheels) {
-      if (dist2(worldX, worldY, w.x, w.y) <= (w.radius + r) * (w.radius + r)) return true;
+      if (dist2(worldX, worldY, w.x, w.y) <= (w.radius + r) * (w.radius + r))
+        return true;
     }
 
     return false;
   }
 
-  private hitPolyline(worldX: number, worldY: number, r: number, path: Point[]): boolean {
+  private hitPolyline(
+    worldX: number,
+    worldY: number,
+    r: number,
+    path: Point[],
+  ): boolean {
     const r2 = r * r;
     // only check nearby segments
     for (let i = 0; i < path.length - 1; i++) {
@@ -1953,7 +2124,10 @@ class WaveModeGame {
 
   // Sample corridor bounds (top & bottom Y) at a given world X.
   // Duplicates LevelGen.corridorAtX so we can clamp the player to slide along walls.
-  private corridorAtX(chunk: Chunk, x: number): { topY: number; bottomY: number } {
+  private corridorAtX(
+    chunk: Chunk,
+    x: number,
+  ): { topY: number; bottomY: number } {
     const sample = (path: Point[]): number => {
       for (let i = 0; i < path.length - 1; i++) {
         const a = path[i];
@@ -1970,9 +2144,18 @@ class WaveModeGame {
 
   private corridorAtXInfo(
     chunk: Chunk,
-    x: number
-  ): { topY: number; bottomY: number; topFlat: boolean; bottomFlat: boolean; topDy: number; bottomDy: number } {
-    const sample = (path: Point[]): { y: number; flat: boolean; dy: number } => {
+    x: number,
+  ): {
+    topY: number;
+    bottomY: number;
+    topFlat: boolean;
+    bottomFlat: boolean;
+    topDy: number;
+    bottomDy: number;
+  } {
+    const sample = (
+      path: Point[],
+    ): { y: number; flat: boolean; dy: number } => {
       for (let i = 0; i < path.length - 1; i++) {
         const a = path[i];
         const b = path[i + 1];
@@ -1988,7 +2171,14 @@ class WaveModeGame {
 
     const top = sample(chunk.top);
     const bot = sample(chunk.bottom);
-    return { topY: top.y, bottomY: bot.y, topFlat: top.flat, bottomFlat: bot.flat, topDy: top.dy, bottomDy: bot.dy };
+    return {
+      topY: top.y,
+      bottomY: bot.y,
+      topFlat: top.flat,
+      bottomFlat: bot.flat,
+      topDy: top.dy,
+      bottomDy: bot.dy,
+    };
   }
 
   private render(): void {
@@ -2016,7 +2206,12 @@ class WaveModeGame {
       // Integer upscale so pixels are *actually* visible and crisp (no fractional scaling blur).
       const srcW = this.renderCanvas.width;
       const srcH = this.renderCanvas.height;
-      const scale = Math.max(1, Math.floor(Math.min(this.canvas.width / srcW, this.canvas.height / srcH)));
+      const scale = Math.max(
+        1,
+        Math.floor(
+          Math.min(this.canvas.width / srcW, this.canvas.height / srcH),
+        ),
+      );
       const dstW = srcW * scale;
       const dstH = srcH * scale;
       const ox = Math.floor((this.canvas.width - dstW) * 0.5);
@@ -2111,7 +2306,7 @@ class WaveModeGame {
       const ny = dirY / len;
 
       const speed = 220 + Math.random() * 520;
-      const life = 0.35 + Math.random() * 0.30;
+      const life = 0.35 + Math.random() * 0.3;
       const size = 4 + Math.random() * 10;
       const rot = Math.random() * Math.PI * 2;
       const rotV = (Math.random() * 2 - 1) * 9.0;
@@ -2133,7 +2328,7 @@ class WaveModeGame {
 
   private updateDeathVfx(dt: number): void {
     if (this.deathShards.length > 0) {
-      const drag = Math.pow(0.10, dt); // framerate-independent drag
+      const drag = Math.pow(0.1, dt); // framerate-independent drag
       for (const s of this.deathShards) {
         s.x += s.vx * dt;
         s.y += s.vy * dt;
@@ -2149,7 +2344,8 @@ class WaveModeGame {
     if (this.state !== "PLAYING" && this.trail.length > 0) {
       const fade = Math.pow(0.86, dt * 60);
       for (const p of this.trail) p.a *= fade;
-      while (this.trail.length > 0 && this.trail[0].a < 0.02) this.trail.shift();
+      while (this.trail.length > 0 && this.trail[0].a < 0.02)
+        this.trail.shift();
     }
   }
 
@@ -2163,7 +2359,8 @@ class WaveModeGame {
     for (const s of this.deathShards) {
       const t = clamp(s.life / (s.ttl || 1), 0, 1);
       const a = t * t;
-      const glow = s.hue === "cyan" ? "rgba(0,255,255,0.85)" : "rgba(255,255,255,0.85)";
+      const glow =
+        s.hue === "cyan" ? "rgba(0,255,255,0.85)" : "rgba(255,255,255,0.85)";
       const fill =
         s.hue === "cyan"
           ? `rgba(0,255,255,${(0.18 + 0.38 * a).toFixed(3)})`
@@ -2253,7 +2450,14 @@ class WaveModeGame {
 
       // Simple terminator shade (gives depth)
       ctx.globalAlpha = p.alpha * 0.85;
-      const rg = ctx.createRadialGradient(x - p.r * 0.35, y - p.r * 0.25, p.r * 0.2, x, y, p.r * 1.05);
+      const rg = ctx.createRadialGradient(
+        x - p.r * 0.35,
+        y - p.r * 0.25,
+        p.r * 0.2,
+        x,
+        y,
+        p.r * 1.05,
+      );
       rg.addColorStop(0, "rgba(255,255,255,0.28)");
       rg.addColorStop(0.55, "rgba(255,255,255,0.06)");
       rg.addColorStop(1, "rgba(0,0,0,0.55)");
@@ -2384,7 +2588,7 @@ class WaveModeGame {
 
       const r = w.radius;
       const diskR = r * 1.55;
-      const diskRy = r * (0.42 + 0.10 * seed2);
+      const diskRy = r * (0.42 + 0.1 * seed2);
       const tilt = (seed - 0.5) * 0.9;
       const spin = time * (1.4 + seed * 1.2);
       const pulse = 0.65 + 0.35 * Math.sin(time * 2.0 + seed * 30.0);
@@ -2396,7 +2600,7 @@ class WaveModeGame {
       ctx.shadowBlur = 46;
       ctx.globalAlpha = 0.28 + 0.18 * pulse;
       ctx.strokeStyle = this.runtimePalette.trail;
-      ctx.lineWidth = Math.max(8, Math.floor(r * 0.40));
+      ctx.lineWidth = Math.max(8, Math.floor(r * 0.4));
       ctx.beginPath();
       ctx.arc(0, 0, r * 1.08, 0, Math.PI * 2);
       ctx.stroke();
@@ -2417,7 +2621,7 @@ class WaveModeGame {
       ctx.rotate(spin);
       const diskGrad = ctx.createRadialGradient(0, 0, r * 0.18, 0, 0, diskR);
       diskGrad.addColorStop(0.0, "rgba(0,0,0,0)");
-      diskGrad.addColorStop(0.30, "rgba(0,0,0,0)");
+      diskGrad.addColorStop(0.3, "rgba(0,0,0,0)");
       diskGrad.addColorStop(0.55, this.runtimePalette.trail);
       diskGrad.addColorStop(0.82, "rgba(255,255,255,0.14)");
       diskGrad.addColorStop(1.0, "rgba(0,0,0,0)");
@@ -2430,11 +2634,11 @@ class WaveModeGame {
       // Inner hot ring
       ctx.shadowColor = this.runtimePalette.waveGlow;
       ctx.shadowBlur = 20;
-      ctx.globalAlpha = 0.30 + 0.22 * pulse;
+      ctx.globalAlpha = 0.3 + 0.22 * pulse;
       ctx.strokeStyle = "rgba(255,255,255,0.22)";
-      ctx.lineWidth = Math.max(2, Math.floor(r * 0.10));
+      ctx.lineWidth = Math.max(2, Math.floor(r * 0.1));
       ctx.beginPath();
-      ctx.ellipse(0, 0, r * 1.08, r * 0.40, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, r * 1.08, r * 0.4, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
@@ -2466,7 +2670,7 @@ class WaveModeGame {
       ctx.lineWidth = 2;
       for (let i = 0; i < 3; i++) {
         const a0 = (time * 0.9 + seed * 10 + i * 2.1) % (Math.PI * 2);
-        const arcR = r * (1.20 + i * 0.18);
+        const arcR = r * (1.2 + i * 0.18);
         ctx.beginPath();
         ctx.arc(0, 0, arcR, a0, a0 + 0.9);
         ctx.stroke();
@@ -2483,10 +2687,12 @@ class WaveModeGame {
         const a = time * (1.2 + h * 2.8) + i * 0.7 + seed * 10.0;
         const rr = r * (1.05 + h * 0.95);
         const sx = Math.cos(a) * rr;
-        const sy = Math.sin(a * (1.0 + seed2 * 0.25)) * rr * (0.55 + 0.15 * seed2);
+        const sy =
+          Math.sin(a * (1.0 + seed2 * 0.25)) * rr * (0.55 + 0.15 * seed2);
         const s = 1 + Math.floor(h * 3);
-        ctx.globalAlpha = 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(a * 1.7));
-        ctx.fillStyle = i % 3 === 0 ? "rgba(255,255,255,0.9)" : this.runtimePalette.trail;
+        ctx.globalAlpha = 0.1 + 0.22 * (0.5 + 0.5 * Math.sin(a * 1.7));
+        ctx.fillStyle =
+          i % 3 === 0 ? "rgba(255,255,255,0.9)" : this.runtimePalette.trail;
         ctx.fillRect(Math.round(sx - s * 0.5), Math.round(sy - s * 0.5), s, s);
       }
       ctx.restore();
@@ -2496,7 +2702,11 @@ class WaveModeGame {
     ctx.restore();
   }
 
-  private drawWallPatternClip(path: Point[], isTop: boolean, extendY: number): void {
+  private drawWallPatternClip(
+    path: Point[],
+    isTop: boolean,
+    extendY: number,
+  ): void {
     const ctx = this.ctx;
     ctx.save();
 
@@ -2591,9 +2801,9 @@ class WaveModeGame {
     const rx = b.w * 0.5;
     const ry = b.h * 0.5;
 
-    const tip = rx * (1.06 + 0.10 * v2);
+    const tip = rx * (1.06 + 0.1 * v2);
     const fin = 0.56 + 0.12 * v1;
-    const cut = 0.44 + 0.10 * v3;
+    const cut = 0.44 + 0.1 * v3;
 
     const pathInterstellar = (): void => {
       ctx.beginPath();
@@ -2603,9 +2813,9 @@ class WaveModeGame {
       ctx.lineTo(tip, 0);
       ctx.lineTo(rx * fin, ry * cut);
       ctx.lineTo(0, ry);
-      ctx.lineTo(-rx * 0.85, ry * 0.30);
+      ctx.lineTo(-rx * 0.85, ry * 0.3);
       ctx.lineTo(-rx, 0);
-      ctx.lineTo(-rx * 0.85, -ry * 0.30);
+      ctx.lineTo(-rx * 0.85, -ry * 0.3);
       ctx.closePath();
     };
 
@@ -2623,7 +2833,7 @@ class WaveModeGame {
     ctx.stroke();
 
     ctx.shadowBlur = 20;
-    ctx.strokeStyle = rgba(255, 255, 255, 0.12 + 0.10 * pulse);
+    ctx.strokeStyle = rgba(255, 255, 255, 0.12 + 0.1 * pulse);
     ctx.lineWidth = Math.max(6, Math.floor(Math.min(rx, ry) * 0.26));
     pathInterstellar();
     ctx.stroke();
@@ -2650,7 +2860,14 @@ class WaveModeGame {
     // Nebula core
     ctx.globalCompositeOperation = "screen";
     const coreR = Math.min(rx, ry) * 0.75;
-    const neb = ctx.createRadialGradient(rx * 0.10, -ry * 0.12, coreR * 0.08, 0, 0, coreR);
+    const neb = ctx.createRadialGradient(
+      rx * 0.1,
+      -ry * 0.12,
+      coreR * 0.08,
+      0,
+      0,
+      coreR,
+    );
     neb.addColorStop(0, rgba(255, 255, 255, 0.18));
     neb.addColorStop(0.35, this.runtimePalette.trail);
     neb.addColorStop(1, "rgba(0,0,0,0)");
@@ -2663,7 +2880,7 @@ class WaveModeGame {
     ctx.shadowBlur = 10;
     const pts: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < 6; i++) {
-      const px = (hash01(seed * 100.0 + i * 12.7) - 0.5) * rx * 1.10;
+      const px = (hash01(seed * 100.0 + i * 12.7) - 0.5) * rx * 1.1;
       const py = (hash01(seed * 200.0 + i * 9.9) - 0.5) * ry * 0.95;
       pts.push({ x: px, y: py });
 
@@ -2690,7 +2907,7 @@ class WaveModeGame {
     ctx.globalAlpha = 1.0;
     ctx.shadowBlur = 22;
     ctx.shadowColor = this.runtimePalette.waveGlow;
-    ctx.fillStyle = rgba(255, 255, 255, 0.10 + 0.12 * corePulse);
+    ctx.fillStyle = rgba(255, 255, 255, 0.1 + 0.12 * corePulse);
     ctx.strokeStyle = rgba(230, 255, 248, 0.35 + 0.25 * corePulse);
     ctx.lineWidth = 2;
     const d = Math.max(10, Math.min(rx, ry) * 0.24);
@@ -2711,7 +2928,7 @@ class WaveModeGame {
     ctx.strokeStyle = this.runtimePalette.trail;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(0, 0, rx * 0.85, ry * 0.30, (v1 - 0.5) * 0.9, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, rx * 0.85, ry * 0.3, (v1 - 0.5) * 0.9, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.restore();
@@ -2745,12 +2962,12 @@ class WaveModeGame {
       ctx.save();
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      
+
       // Pulsing white outline (beats on and off)
       const time = performance.now() * 0.003;
       const pulse = 0.5 + 0.5 * Math.sin(time); // Oscillates between 0 and 1
       const outlineAlpha = pulse;
-      
+
       // Draw outline first (thicker, pulsing white)
       ctx.lineWidth = 16;
       ctx.strokeStyle = `rgba(255, 255, 255, ${outlineAlpha})`;
@@ -2763,7 +2980,7 @@ class WaveModeGame {
         else ctx.lineTo(sx, sy);
       }
       ctx.stroke();
-      
+
       // Draw main trail on top (thinner, brighter)
       ctx.lineWidth = 12;
       ctx.strokeStyle = this.runtimePalette.trail;
@@ -2780,7 +2997,11 @@ class WaveModeGame {
     }
 
     // wave triangle (screen space) - equilateral-style, visually balanced
-    if ((this.state === "DYING" || this.state === "GAME_OVER") && this.deathShards.length > 0) return;
+    if (
+      (this.state === "DYING" || this.state === "GAME_OVER") &&
+      this.deathShards.length > 0
+    )
+      return;
     const size = CONFIG.WAVE_SIZE;
     // Wave is already at waveX (centered), no adjustment needed
     const x = this.waveX;
@@ -2843,4 +3064,3 @@ class WaveModeGame {
 // Boot
 console.log("[WaveModeGame] Boot");
 new WaveModeGame();
-

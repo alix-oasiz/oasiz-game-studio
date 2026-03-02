@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
@@ -13,50 +14,64 @@
         rel="stylesheet" />
     <style type="text/tailwindcss">
         :root {
-            --accent-primary: #00f0ff;
-            --accent-secondary: #ff0055;
-            --bg-solid: #08080a;
-            --panel-bg: #131316;
-            --border-color: #2a2a30;
+            --accent-primary: #82B1FF;
+            --accent-secondary: #FF8A80;
+            --bg-solid: #FFF8E1;
+            --panel-bg: #FFFFFF;
+            --border-color: #D7CCC8;
+            --text-dark: #3E2723;
+            --shadow-dark: #5D4037;
         }
         
         body {
             background-color: var(--bg-solid);
-            color: #ffffff;
+            color: var(--text-dark);
             font-family: 'Outfit', sans-serif;
             overflow: hidden;
             -webkit-font-smoothing: antialiased;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            justify-content: center;
         }
 
-        /* Solid Panel Design */
+        #app {
+            width: 100%;
+            height: 100%;
+            max-width: 500px;
+            position: relative;
+            background-color: var(--bg-solid);
+        }
+
         .solid-panel {
             background-color: var(--panel-bg);
             border: 3px solid var(--border-color);
-            box-shadow: 14px 14px 0px 0px rgba(0,0,0,0.8); /* Deep 3D Shadow */
-            border-radius: 16px;
+            box-shadow: 0 12px 24px rgba(93,64,55,0.15), inset 0 4px 0 rgba(255,255,255,0.8), inset 0 -4px 0 rgba(0,0,0,0.05);
+            border-radius: 20px;
         }
 
-        /* Typography */
         h1, h2, h3 {
             text-transform: uppercase;
             letter-spacing: -0.02em;
         }
 
-        /* Primary Button */
         .btn-solid-primary {
             background-color: white;
-            color: black;
+            color: var(--text-dark);
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            border: 3px solid white;
+            border: 3px solid var(--border-color);
             position: relative;
             transform: translate(0, 0); 
             transition: all 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            border-radius: 12px;
-            box-shadow: 10px 10px 0px 0px var(--accent-primary); /* Thick 3D */
-            margin-bottom: 10px; 
-            margin-right: 10px;
+            border-radius: 16px;
+            box-shadow: 0 8px 0 var(--accent-secondary), 0 12px 16px rgba(255,138,128,0.3), inset 0 -4px 0 rgba(0,0,0,0.1), inset 0 3px 0 rgba(255,255,255,0.8);
+            margin-bottom: 8px; 
+            margin-right: 8px;
         }
         
         .btn-solid-primary > span {
@@ -64,49 +79,58 @@
             transform: none; 
         }
 
-        /* Remove old pseudo-element styles */
         .btn-solid-primary::after {
             content: none;
         }
 
         .btn-solid-primary:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 12px 12px 0px 0px var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 0 var(--accent-secondary), 0 14px 20px rgba(255,138,128,0.4), inset 0 -4px 0 rgba(0,0,0,0.1), inset 0 3px 0 rgba(255,255,255,0.8);
             background-color: white; 
         }
 
         .btn-solid-primary:active {
-            transform: translate(8px, 8px);
-            box-shadow: 2px 2px 0px 0px var(--accent-primary);
+            transform: translateY(6px);
+            box-shadow: 0 2px 0 var(--accent-secondary), 0 4px 8px rgba(255,138,128,0.3), inset 0 -2px 0 rgba(0,0,0,0.1), inset 0 2px 0 rgba(255,255,255,0.8);
         }
 
-        /* Secondary Button */
         .btn-solid-secondary {
             background-color: var(--panel-bg); 
-            color: white;
+            color: var(--text-dark);
             border: 3px solid var(--border-color);
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             transition: all 0.1s;
-            border-radius: 12px;
-            box-shadow: 8px 8px 0px 0px var(--border-color);
-            margin-bottom: 8px;
-            margin-right: 8px;
+            border-radius: 14px;
+            box-shadow: 0 6px 0 var(--border-color), 0 10px 14px rgba(93,64,55,0.1), inset 0 -3px 0 rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,0.8);
+            margin-bottom: 6px;
+            margin-right: 6px;
         }
 
         .btn-solid-secondary:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 10px 10px 0px 0px white;
-            border-color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 var(--accent-primary), 0 12px 18px rgba(130,177,255,0.3), inset 0 -3px 0 rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,0.8);
+            border-color: var(--accent-primary);
         }
         
         .btn-solid-secondary:active {
-            transform: translate(6px, 6px);
-            box-shadow: 2px 2px 0px 0px var(--border-color);
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--border-color), 0 4px 8px rgba(93,64,55,0.1), inset 0 -2px 0 rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,0.8);
         }
 
-        /* Settings Toggles */
+        @media (pointer: coarse) {
+            #app {
+                max-width: none !important;
+            }
+            #game-container canvas {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: none !important;
+                max-height: none !important;
+            }
+        }
+
         .setting-toggle {
             display: flex;
             flex-direction: column;
@@ -128,23 +152,37 @@
         .setting-toggle.active .icon-box {
             border-color: var(--accent-primary);
             color: var(--accent-primary);
-            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
         }
 
         .icon-box {
-            width: 3rem;
-            height: 3rem;
-            border: 2px solid var(--border-color);
+            position: relative;
+            width: 3.5rem;
+            height: 3.5rem;
+            border: 3px solid var(--border-color);
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
-            background-color: #000;
-            border-radius: 8px; /* Slightly rounded square */
-            box-shadow: 3px 3px 0px 0px rgba(255,255,255,0.1);
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 0 var(--border-color), 0 8px 12px rgba(93,64,55,0.1), inset 0 -2px 0 rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,0.8);
         }
 
-        /* Utility */
+        .icon-strikethrough {
+            position: relative;
+        }
+        .icon-strikethrough::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 5%;
+            width: 90%;
+            height: 0;
+            border-top: 2.5px solid currentColor;
+            transform: translateY(-50%) rotate(-45deg);
+            pointer-events: none;
+        }
+
         #ui-layer {
             position: absolute;
             inset: 0;
@@ -158,22 +196,117 @@
         .hidden { display: none !important; }
         
         .hud-btn {
-            background: #000;
-            border: 2px solid var(--border-color);
-            color: white;
+            background: var(--panel-bg);
+            border: 3px solid var(--border-color);
+            color: var(--text-dark);
             transition: all 0.1s;
-            border-radius: 12px;
-            box-shadow: 4px 4px 0px 0px rgba(255,255,255,0.2);
+            border-radius: 14px;
+            box-shadow: 0 6px 0 var(--border-color), 0 10px 14px rgba(93,64,55,0.15), inset 0 -3px 0 rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,0.8);
         }
         .hud-btn:hover {
             border-color: var(--accent-primary);
             color: var(--accent-primary);
-            transform: translate(-1px, -1px);
-            box-shadow: 6px 6px 0px 0px var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 var(--accent-primary), 0 12px 18px rgba(130,177,255,0.3), inset 0 -3px 0 rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,0.8);
         }
         .hud-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--border-color), 0 4px 8px rgba(93,64,55,0.1), inset 0 -2px 0 rgba(0,0,0,0.05), inset 0 2px 0 rgba(255,255,255,0.8);
+        }
+
+        .htp-anim-box {
+            position: relative;
+            width: 200px; height: 200px;
+            margin: 0 auto;
+        }
+
+        .htp-ball-halo {
+            position: absolute; bottom: 14px; left: 50%;
+            width: 80px; height: 80px; margin-left: -40px;
+            border-radius: 50%; background: radial-gradient(circle, rgba(255,138,128,0.15) 0%, transparent 70%);
+            animation: htpPulse 1.8s ease-in-out infinite;
+        }
+        .htp-ball-glow {
+            position: absolute; bottom: 20px; left: 50%;
+            width: 62px; height: 62px; margin-left: -31px;
+            border-radius: 50%; background: rgba(93,64,55,0.15);
             transform: translate(3px, 3px);
-            box-shadow: 0px 0px 0px 0px;
+        }
+        .htp-ball-shadow {
+            position: absolute; bottom: 18px; left: 50%;
+            width: 48px; height: 48px; margin-left: -24px;
+            border-radius: 50%; background: rgba(93,64,55,0.2);
+            transform: translate(3px, 4px);
+        }
+        .htp-ball {
+            position: absolute; bottom: 22px; left: 50%;
+            width: 48px; height: 48px; margin-left: -24px;
+            border-radius: 50%; background: #82B1FF;
+        }
+        .htp-ball-inner {
+            position: absolute; bottom: 26px; left: 50%;
+            width: 35px; height: 35px; margin-left: -17px;
+            border-radius: 50%; background: #BBDEFB; opacity: 0.85;
+        }
+        .htp-ball-core {
+            position: absolute; bottom: 32px; left: 50%;
+            width: 20px; height: 20px; margin-left: -10px;
+            border-radius: 50%; background: #E3F2FD; opacity: 0.7;
+        }
+        .htp-ball-spec {
+            position: absolute; bottom: 44px; left: 50%;
+            width: 8px; height: 8px; margin-left: -14px;
+            border-radius: 50%; background: rgba(255,255,255,0.8);
+        }
+
+        .htp-arc {
+            position: absolute; bottom: 22px; left: 50%;
+            width: 120px; height: 120px; margin-left: -60px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top: 3px solid rgba(255,138,128,0.7);
+            border-left: 3px solid rgba(255,138,128,0.3);
+            border-right: 3px solid rgba(255,138,128,0.3);
+            transform: rotate(-90deg);
+        }
+
+        .htp-aim-line {
+            position: absolute; bottom: 46px; left: 50%;
+            width: 6px; height: 80px; margin-left: -3px;
+            background: linear-gradient(to top, rgba(130,177,255,0.1), #FF8A80 40%, #FFF8E1 90%);
+            border-radius: 3px;
+            transform-origin: bottom center;
+            animation: htpSweep 2.2s ease-in-out infinite;
+        }
+        .htp-aim-line::after {
+            content: '';
+            position: absolute; top: -8px; left: 50%; margin-left: -7px;
+            width: 0; height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-bottom: 10px solid #FFF8E1;
+        }
+
+        .htp-tap-ring {
+            position: absolute; bottom: 22px; left: 50%;
+            width: 48px; height: 48px; margin-left: -24px;
+            border-radius: 50%; border: 2px solid rgba(130,177,255,0.5);
+            animation: htpTapRing 2.2s ease-out infinite;
+        }
+
+        @keyframes htpSweep {
+            0%   { transform: rotate(-70deg); }
+            50%  { transform: rotate(70deg); }
+            100% { transform: rotate(-70deg); }
+        }
+        @keyframes htpPulse {
+            0%,100% { transform: scale(1); opacity: 0.7; }
+            50%     { transform: scale(1.12); opacity: 1; }
+        }
+        @keyframes htpTapRing {
+            0%   { transform: scale(1); opacity: 0.6; }
+            40%  { transform: scale(2.2); opacity: 0; }
+            100% { transform: scale(2.2); opacity: 0; }
         }
     </style>
 </head>
@@ -187,82 +320,80 @@
 
             <!-- Main Menu -->
             <div id="main-menu"
-                class="pointer-events-auto w-full h-full flex flex-col items-center justify-center bg-[#08080a] z-[150]">
+                class="pointer-events-auto w-full h-full flex flex-col items-center justify-center bg-[#FFF8E1] z-[150]">
                 <!-- Background Geometric Accent -->
                 <div class="absolute inset-0 overflow-hidden opacity-20 pointer-events-none">
                     <div
-                        class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-gradient-to-br from-purple-900 to-transparent transform rotate-12">
+                        class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-gradient-to-br from-blue-200 to-transparent transform rotate-12">
                     </div>
                     <div
-                        class="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-gradient-to-tl from-blue-900 to-transparent">
+                        class="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-gradient-to-tl from-orange-200 to-transparent">
                     </div>
                 </div>
 
                 <div class="relative z-10 flex flex-col items-center gap-16">
                     <div class="flex flex-col items-center">
                         <h1
-                            class="text-7xl md:text-9xl font-black italic tracking-tighter leading-tight text-white drop-shadow-[4px_4px_0px_rgba(40,40,40,1)] p-4">
-                            NEON<br>
-                            <span class="text-[#bc13fe]">PUSH</span>
+                            class="text-7xl md:text-9xl font-black italic tracking-tighter leading-tight text-[#FF8A80] drop-shadow-[4px_4px_0px_rgba(215,204,200,1)] p-4">
+                            PUSH
                         </h1>
-                        <div class="mt-4 flex items-center gap-4">
-                            <div class="h-[2px] w-12 bg-[var(--border-color)]"></div>
-                            <span class="text-xs font-bold text-gray-500 tracking-[0.2em]">VERSION 3.0</span>
-                            <div class="h-[2px] w-12 bg-[var(--border-color)]"></div>
-                        </div>
                     </div>
 
-                    <button id="btn-start-game" class="btn-solid-primary px-16 py-6 text-2xl group">
-                        <span class="flex items-center gap-3">
-                            START GAME
-                            <span
-                                class="material-symbols-sharp text-2xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                        </span>
-                    </button>
+                    <div class="flex flex-col items-center gap-4">
+                        <button id="btn-start-game" class="btn-solid-primary px-16 py-6 text-2xl group">
+                            <span class="flex items-center gap-3">
+                                START GAME
+                                <span
+                                    class="material-symbols-sharp text-2xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                            </span>
+                        </button>
+                        <button id="btn-how-to-play" class="btn-solid-secondary px-10 py-3 text-sm hover:text-[var(--accent-primary)] hover:border-[var(--accent-primary)] transition-colors">
+                            HOW TO PLAY
+                        </button>
+                    </div>
 
                     <!-- Settings Rail -->
                     <div
-                        class="flex gap-8 p-6 bg-black border-2 border-[var(--border-color)] rounded-2xl shadow-[10px_10px_0px_0px_rgba(42,42,48,1)]">
+                        class="flex gap-8 p-6 bg-white border-2 border-[var(--border-color)] rounded-2xl shadow-[8px_8px_0px_0px_rgba(93,64,55,0.12)]">
                         <div class="setting-toggle group" data-setting="music">
                             <div class="icon-box">
                                 <span class="material-symbols-sharp" id="icon-music-main">music_note</span>
                             </div>
-                            <span class="text-[10px] font-bold text-gray-400">MUSIC</span>
+                            <span class="text-[10px] font-bold text-[#8D6E63]">MUSIC</span>
                         </div>
                         <div class="h-12 w-[1px] bg-[var(--border-color)]"></div>
                         <div class="setting-toggle group" data-setting="sfx">
                             <div class="icon-box">
                                 <span class="material-symbols-sharp" id="icon-sfx-main">volume_up</span>
                             </div>
-                            <span class="text-[10px] font-bold text-gray-400">SFX</span>
+                            <span class="text-[10px] font-bold text-[#8D6E63]">SFX</span>
                         </div>
                         <div class="h-12 w-[1px] bg-[var(--border-color)]"></div>
                         <div class="setting-toggle group" data-setting="haptic">
                             <div class="icon-box">
-                                <span class="material-symbols-sharp" id="icon-haptic-main">smartphone</span>
+                                <span class="material-symbols-sharp" id="icon-haptic-main">vibration</span>
                             </div>
-                            <span class="text-[10px] font-bold text-gray-400">HAPTIC</span>
+                            <span class="text-[10px] font-bold text-[#8D6E63]">HAPTIC</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- HUD Layer -->
-            <div id="hud" class="absolute top-6 right-6 pointer-events-auto z-50">
-                <button id="btn-pause" class="hud-btn w-14 h-14 flex items-center justify-center shadow-lg">
+            <div id="hud" class="absolute top-[120px] right-6 pointer-events-auto z-50">
+                <button id="btn-pause" class="hud-btn w-14 h-14 flex items-center justify-center">
                     <span class="material-symbols-sharp text-3xl">pause</span>
                 </button>
             </div>
 
             <!-- Pause Menu -->
             <div id="pause-menu"
-                class="hidden pointer-events-auto w-full h-full flex items-center justify-center bg-black/90 backdrop-blur-sm px-4">
+                class="hidden pointer-events-auto w-full h-full flex items-center justify-center bg-white/90 backdrop-blur-sm px-4">
                 <div class="solid-panel p-10 w-full max-w-md relative">
 
-
                     <div class="mb-10 text-center">
-                        <h2 class="text-4xl font-black italic mb-1">PAUSED</h2>
-                        <p class="text-gray-500 text-sm font-bold tracking-wider">GAME SUSPENDED</p>
+                        <h2 class="text-4xl font-black italic mb-1 text-[var(--text-dark)]">PAUSED</h2>
+                        <p class="text-[#8D6E63] text-sm font-bold tracking-wider">GAME SUSPENDED</p>
                     </div>
 
                     <div class="flex flex-col gap-4">
@@ -284,16 +415,16 @@
                     <!-- Mini Settings -->
                     <div class="mt-8 pt-8 border-t border-[var(--border-color)] flex justify-center gap-8">
                         <div class="setting-toggle" data-setting="music">
-                            <span class="material-symbols-sharp text-gray-400 text-xl group-hover:text-white"
+                            <span class="material-symbols-sharp text-[#8D6E63] text-xl group-hover:text-[var(--text-dark)]"
                                 id="icon-music">music_note</span>
                         </div>
                         <div class="setting-toggle" data-setting="sfx">
-                            <span class="material-symbols-sharp text-gray-400 text-xl group-hover:text-white"
+                            <span class="material-symbols-sharp text-[#8D6E63] text-xl group-hover:text-[var(--text-dark)]"
                                 id="icon-sfx">volume_up</span>
                         </div>
                         <div class="setting-toggle" data-setting="haptic">
-                            <span class="material-symbols-sharp text-gray-400 text-xl group-hover:text-white"
-                                id="icon-haptic">smartphone</span>
+                            <span class="material-symbols-sharp text-[#8D6E63] text-xl group-hover:text-[var(--text-dark)]"
+                                id="icon-haptic">vibration</span>
                         </div>
                     </div>
                 </div>
@@ -304,20 +435,48 @@
                 class="hidden pointer-events-auto w-full h-full flex items-center justify-center bg-[var(--accent-secondary)]/10 backdrop-blur-md px-4">
                 <div class="solid-panel p-12 w-full max-w-sm text-center relative border-[var(--accent-secondary)]">
                     <div
-                        class="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--accent-secondary)] text-white px-4 py-1 text-xs font-black tracking-widest uppercase">
+                        class="absolute -top-3 left-1/2 -translate-x-1/2 bg-[var(--accent-secondary)] text-white px-4 py-1 text-xs font-black tracking-widest uppercase rounded-md">
                         FAILED
                     </div>
 
-                    <h2 class="text-5xl font-black italic leading-none mb-2 text-white">GAME<br>OVER</h2>
+                    <h2 class="text-5xl font-black italic leading-none mb-2 text-[var(--text-dark)]">GAME<br>OVER</h2>
 
-                    <div class="my-8 py-6 border-y border-[var(--border-color)] bg-black/30">
-                        <div class="text-xs font-bold text-gray-500 tracking-widest mb-1">FINAL SCORE</div>
-                        <div id="final-score" class="text-6xl font-black text-white">0</div>
+                    <div class="my-8 py-6 border-y border-[var(--border-color)] bg-[#FFF8E1]/50">
+                        <div class="text-xs font-bold text-[#8D6E63] tracking-widest mb-1">FINAL SCORE</div>
+                        <div id="final-score" class="text-6xl font-black text-[var(--text-dark)]">0</div>
                     </div>
 
                     <button id="btn-restart-gameover"
                         class="btn-solid-primary py-5 w-full text-lg shadow-[8px_8px_0_var(--accent-secondary)] hover:shadow-[4px_4px_0_var(--accent-secondary)] hover:translate-x-1 hover:translate-y-1">
                         <span>TRY AGAIN</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- How To Play Overlay -->
+            <div id="tutorial-carousel"
+                class="hidden pointer-events-auto w-full h-full flex flex-col items-center justify-center bg-[#FFF8E1]/95 backdrop-blur-md px-6 z-[200] absolute inset-0">
+
+                <div class="w-full max-w-sm flex flex-col items-center">
+
+                    <div class="htp-anim-box">
+                        <div class="htp-arc"></div>
+                        <div class="htp-aim-line"></div>
+                        <div class="htp-ball-halo"></div>
+                        <div class="htp-ball-glow"></div>
+                        <div class="htp-ball-shadow"></div>
+                        <div class="htp-ball"></div>
+                        <div class="htp-ball-inner"></div>
+                        <div class="htp-ball-core"></div>
+                        <div class="htp-ball-spec"></div>
+                        <div class="htp-tap-ring"></div>
+                    </div>
+
+                    <h3 class="text-3xl font-black italic text-[var(--accent-primary)] mt-6 mb-3 tracking-tight">HOW TO PLAY</h3>
+                    <p class="text-[#5D4037] text-base leading-relaxed text-center px-2">TAP to launch the ball where the arrow points — time it right to aim. Dodge every obstacle on your way up or it is game over!</p>
+
+                    <button id="tut-next" class="btn-solid-primary px-14 py-5 text-xl mt-8 w-full">
+                        <span>GOT IT</span>
                     </button>
                 </div>
             </div>

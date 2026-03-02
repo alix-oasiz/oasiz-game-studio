@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Downwell</title>
+    <title>Abyssal Fall</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -112,6 +112,7 @@
             image-rendering: pixelated;
             pointer-events: none;
             overflow: hidden;
+            animation: title-shell-float 2.6s ease-in-out infinite;
         }
 
         .title-weed img {
@@ -122,11 +123,13 @@
         .title-weed.weed-left {
             left: -28px;
             bottom: -10px;
+            animation-delay: 0s;
         }
 
         .title-weed.weed-right {
             right: -28px;
             bottom: -10px;
+            animation-delay: 0.5s;
         }
 
         .title-weed.weed-right img {
@@ -137,6 +140,20 @@
             left: 50%;
             top: -40px;
             transform: translateX(-50%);
+            animation: title-shell-top-float 3.1s ease-in-out infinite;
+            animation-delay: 0.2s;
+        }
+
+        @keyframes title-shell-float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-4px) rotate(-2deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+
+        @keyframes title-shell-top-float {
+            0% { transform: translateX(-50%) translateY(0px) rotate(0deg); }
+            50% { transform: translateX(-50%) translateY(-5px) rotate(3deg); }
+            100% { transform: translateX(-50%) translateY(0px) rotate(0deg); }
         }
 
         .subtitle {
@@ -178,22 +195,30 @@
             transform: scale(0.95);
         }
 
+        #restart-btn {
+            font-size: 0.91rem;
+            padding: 21px 52px;
+        }
+
         /* Settings Button */
         #settings-btn {
             position: absolute;
             top: 45px;
-            right: 16px;
-            width: 44px;
-            height: 44px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            right: 18px;
+            width: 52px;
+            height: 52px;
+            border-radius: 10px;
+            background: rgba(8, 24, 46, 0.82);
+            border: 2px solid rgba(165, 222, 255, 0.72);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.2s ease;
             z-index: 15;
+            box-shadow:
+                0 6px 16px rgba(0, 0, 0, 0.45),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.15);
         }
 
         #settings-btn.hidden {
@@ -201,14 +226,15 @@
         }
 
         #settings-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: rotate(15deg);
+            background: rgba(12, 38, 68, 0.92);
+            transform: rotate(10deg) scale(1.04);
         }
 
         #settings-btn svg {
-            width: 20px;
-            height: 20px;
-            fill: #fff;
+            width: 24px;
+            height: 24px;
+            fill: #e8f7ff;
+            filter: drop-shadow(0 0 4px rgba(120, 220, 255, 0.55));
         }
 
         /* Game Over Screen */
@@ -242,6 +268,66 @@
             color: #0ff;
             margin-top: 16px;
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        .score-breakdown {
+            margin-top: 14px;
+            display: grid;
+            gap: 8px;
+            width: min(380px, 100%);
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .score-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            column-gap: 14px;
+            align-items: center;
+            font-size: 0.68rem;
+            color: rgba(255, 255, 255, 0.85);
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        .score-row.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .score-row .label {
+            color: rgba(255, 255, 255, 0.72);
+            white-space: nowrap;
+            text-align: left;
+            justify-self: start;
+        }
+
+        .score-row .value {
+            color: #fff;
+            min-width: 0;
+            text-align: right;
+            white-space: nowrap;
+            font-size: 0.6rem;
+            letter-spacing: 0;
+            justify-self: end;
+        }
+
+        #game-over-screen {
+            justify-content: flex-start;
+            padding-top: clamp(20px, 8vh, 72px);
+            padding-bottom: 18px;
+        }
+
+        #game-over-screen .content {
+            width: min(460px, 94vw);
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 18px 14px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }
 
         /* Settings Modal */
@@ -344,6 +430,51 @@
             display: none;
         }
 
+        #powerup-bar {
+            position: absolute;
+            top: 45px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(360px, 58vw);
+            z-index: 7;
+            pointer-events: none;
+            display: block;
+        }
+
+        #powerup-bar.hidden {
+            display: none;
+        }
+
+        #powerup-label {
+            color: #e9f8ff;
+            text-align: center;
+            font-size: 0.62rem;
+            letter-spacing: 1px;
+            text-shadow:
+                0 0 6px rgba(0, 0, 0, 0.9),
+                0 0 10px rgba(130, 230, 255, 0.45);
+            margin-bottom: 7px;
+        }
+
+        #powerup-track {
+            width: 100%;
+            height: 14px;
+            border-radius: 7px;
+            border: 1px solid rgba(170, 230, 255, 0.6);
+            background: rgba(5, 20, 38, 0.78);
+            box-shadow:
+                inset 0 1px 4px rgba(0, 0, 0, 0.45),
+                0 4px 12px rgba(0, 0, 0, 0.35);
+            overflow: hidden;
+        }
+
+        #powerup-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #00ffcc 0%, #8dfbe9 100%);
+            transition: width 0.1s linear;
+        }
+
         .hud-top {
             display: flex;
             justify-content: space-between;
@@ -355,6 +486,11 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
+            background: rgba(5, 20, 38, 0.68);
+            border: 1px solid rgba(140, 210, 255, 0.45);
+            border-radius: 8px;
+            padding: 10px 12px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
         }
 
         .hud-right {
@@ -365,15 +501,28 @@
         }
 
         #score {
-            color: #fff;
-            font-size: 1rem;
-            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+            color: #ffffff;
+            font-size: 1.08rem;
+            text-shadow:
+                0 0 6px rgba(0, 0, 0, 0.9),
+                0 0 12px rgba(255, 255, 255, 0.35);
+            letter-spacing: 1px;
         }
 
         #depth {
-            color: #0ff;
-            font-size: 0.7rem;
-            text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+            color: #85f2ff;
+            font-size: 0.74rem;
+            text-shadow:
+                0 0 5px rgba(0, 0, 0, 0.95),
+                0 0 9px rgba(0, 255, 255, 0.45);
+        }
+
+        #gems {
+            color: #ff7ad9;
+            font-size: 0.68rem;
+            text-shadow:
+                0 0 5px rgba(0, 0, 0, 0.95),
+                0 0 10px rgba(255, 122, 217, 0.48);
         }
 
         /* Vertical HP Bubble Container (left side) */
@@ -382,13 +531,17 @@
             left: 0;
             top: 50%;
             transform: translateY(-50%);
-            width: 14px;
-            height: 180px;
+            width: 28px;
+            height: 220px;
             display: flex;
             flex-direction: column;
             justify-content: space-evenly;
             align-items: center;
             z-index: 5;
+            background: rgba(5, 20, 38, 0.68);
+            border: 1px solid rgba(140, 210, 255, 0.45);
+            border-radius: 16px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
         }
 
         #hp-bar.hidden {
@@ -396,14 +549,17 @@
         }
 
         .hp-bubble {
-            width: 22px;
-            height: 22px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background: radial-gradient(circle at 35% 35%, rgba(200, 240, 255, 0.6), rgba(100, 200, 255, 0.25) 60%, rgba(60, 160, 220, 0.15));
-            border: 1.5px solid rgba(180, 230, 255, 0.6);
+            border: 1.8px solid rgba(210, 240, 255, 0.85);
             position: relative;
             transition: transform 0.3s ease, opacity 0.3s ease;
-            box-shadow: 0 0 6px rgba(100, 200, 255, 0.3), inset 0 -2px 4px rgba(60, 140, 200, 0.15);
+            box-shadow:
+                0 0 8px rgba(100, 200, 255, 0.55),
+                0 0 0 2px rgba(0, 0, 0, 0.35),
+                inset 0 -2px 4px rgba(60, 140, 200, 0.2);
         }
 
         /* Bubble shine highlight */
@@ -590,15 +746,22 @@
             }
             #settings-btn {
                 top: 120px;
+                right: 14px;
+                width: 58px;
+                height: 58px;
+            }
+            #powerup-bar {
+                top: 120px;
+                width: min(320px, 70vw);
             }
             .hud-top {
                 padding-top: 120px;
             }
             #score {
-                font-size: 0.9rem;
+                font-size: 1rem;
             }
             #depth {
-                font-size: 0.6rem;
+                font-size: 0.7rem;
             }
             #hp {
                 font-size: 0.55rem;
@@ -608,6 +771,44 @@
             }
             #combo {
                 font-size: 0.75rem;
+            }
+
+            .game-over-title {
+                font-size: 1.25rem;
+                margin-bottom: 8px;
+            }
+
+            .final-score-container {
+                margin: 8px 0;
+                width: 100%;
+            }
+
+            .final-score {
+                font-size: 1.55rem;
+            }
+
+            .final-depth {
+                font-size: 0.62rem;
+                margin-top: 10px;
+            }
+
+            .score-breakdown {
+                gap: 6px;
+            }
+
+            .score-row {
+                font-size: 0.5rem;
+                column-gap: 8px;
+            }
+
+            .score-row .value {
+                font-size: 0.48rem;
+            }
+
+            #restart-btn {
+                font-size: 0.64rem;
+                padding: 14px 26px;
+                margin-top: 8px;
             }
         }
 
@@ -620,6 +821,19 @@
                 min-width: 260px;
                 padding: 20px;
             }
+
+            .final-score {
+                font-size: 1.35rem;
+            }
+
+            .score-row {
+                font-size: 0.44rem;
+                column-gap: 6px;
+            }
+
+            .score-row .value {
+                font-size: 0.42rem;
+            }
         }
     </style>
 </head>
@@ -629,10 +843,17 @@
 
         <!-- HUD -->
         <div id="hud">
+            <div id="powerup-bar" class="hidden">
+                <div id="powerup-label">LASER!</div>
+                <div id="powerup-track">
+                    <div id="powerup-fill"></div>
+                </div>
+            </div>
             <div class="hud-top">
                 <div class="hud-left">
                     <div id="score">0</div>
                     <div id="depth">0m</div>
+                    <div id="gems">GEMS: 0</div>
                 </div>
                 <div class="hud-right">
                     <div id="hp"></div>
@@ -691,12 +912,12 @@
                     Descend into the deep ocean<br>
                     Shoot creatures below you<br>
                     Bounce on heads to combo<br>
-                    Survive as deep as you can
+                    Dive as deep as you can
                 </p>
                 <button class="btn" id="start-btn">START</button>
                 <p class="controls-hint">
                     Touch left/right to move<br>
-                    Touch center to shoot down
+                    Touch center to jump or shoot
                 </p>
             </div>
         </div>
@@ -709,6 +930,24 @@
                     <div class="final-score-label">FINAL SCORE</div>
                     <div class="final-score" id="final-score">0</div>
                     <div class="final-depth" id="final-depth">Depth: 0m</div>
+                    <div class="score-breakdown" id="score-breakdown">
+                        <div class="score-row" id="score-row-depth">
+                            <span class="label">Depth Bonus</span>
+                            <span class="value" id="score-depth">0</span>
+                        </div>
+                        <div class="score-row" id="score-row-enemies">
+                            <span class="label">Enemy Kills</span>
+                            <span class="value" id="score-enemies">0</span>
+                        </div>
+                        <div class="score-row" id="score-row-gems">
+                            <span class="label">Gems</span>
+                            <span class="value" id="score-gems">0</span>
+                        </div>
+                        <div class="score-row" id="score-row-breakables">
+                            <span class="label">Breakables</span>
+                            <span class="value" id="score-breakables">0</span>
+                        </div>
+                    </div>
                 </div>
                 <button class="btn" id="restart-btn">RESTART</button>
             </div>

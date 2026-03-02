@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <title>Drawer Wizard</title>
+</head>
+
+<body>
+    <div id="app">
+        <div id="game-container"></div>
+
+        <div id="ui-layer">
+            <button id="settings-btn" class="icon-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                    </path>
+                </svg>
+            </button>
+
+            <div id="settings-modal" class="modal hidden">
+                <div class="modal-content">
+                    <h2>SETTINGS</h2>
+                    <div class="toggle-group">
+                        <span>MUSIC</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="toggle-music" class="toggle-checkbox" checked>
+                            <label for="toggle-music" class="toggle-label"></label>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <span>FX</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="toggle-fx" class="toggle-checkbox" checked>
+                            <label for="toggle-fx" class="toggle-label"></label>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <span>HAPTICS</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="toggle-haptics" class="toggle-checkbox" checked>
+                            <label for="toggle-haptics" class="toggle-label"></label>
+                        </div>
+                    </div>
+                    <button id="close-settings" class="sharp-btn">CLOSE</button>
+                </div>
+            </div>
+
+            <div id="game-over-modal" class="modal hidden">
+                <div class="modal-content">
+                    <h1>GAME OVER</h1>
+                    <div class="score-display">SCORE<br><span id="final-score">0</span></div>
+                    <button id="restart-btn" class="sharp-btn">RESTART</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

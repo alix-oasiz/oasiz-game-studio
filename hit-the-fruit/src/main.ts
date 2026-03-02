@@ -1,5 +1,5 @@
 /**
- * FRUIT NINJA - Knife Hit Style Game
+ * HIT THE FRUIT
  * 
  * A casual web game where players throw knives at rotating fruit slices.
  * 
@@ -31,6 +31,7 @@ import lemonUrl from "../Assets/Targets/Fruit/Normal Fruit/lemon.png";
 import knifeUrl from "../Assets/Weapons/Normal Knif.png";
 import kunaiUrl from "../Assets/Weapons/kunai.png";
 import penUrl from "../Assets/Weapons/pen.png";
+import pencilUrl from "../Assets/Weapons/pencil_weapon.png";
 import brokenKnife1Url from "../Assets/Weapons/broken1.png";
 import brokenKnife2Url from "../Assets/Weapons/broken2.png";
 import brokenKunai1Url from "../Assets/Weapons/broken_kunai1.png";
@@ -38,6 +39,9 @@ import brokenKunai2Url from "../Assets/Weapons/broken_kunai2.png";
 import brokenPen1Url from "../Assets/Weapons/broken_pen1.png";
 import brokenPen2Url from "../Assets/Weapons/broken_pen2.png";
 import knifeIconUrl from "../Assets/Weapons/icon.png";
+import kunaiIconUrl from "../Assets/Weapons/kunai_icon.png";
+import penIconUrl from "../Assets/Weapons/pen_icon.png";
+import pencilIconUrl from "../Assets/Weapons/Pencil.png";
 
 // Import sound effects
 import wooshUrl from "../sfx/woosh.wav";
@@ -45,6 +49,11 @@ import stabUrl from "../sfx/stab.wav";
 import brokeUrl from "../sfx/broke.wav";
 import dullUrl from "../sfx/dull.wav";
 import successUrl from "../sfx/success.wav";
+import uiTapUrl from "../sfx/ui_tap.mp3";
+import uiConfirmUrl from "../sfx/ui_confirm.mp3";
+import timeoutUrl from "../sfx/timeout.mp3";
+import bgm1Url from "../sfx/bgm1.mp3";
+import bgm2Url from "../sfx/bgm2.mp3";
 
 // ============= CONFIGURATION =============
 const CONFIG = {
@@ -56,7 +65,7 @@ const CONFIG = {
   
   // Knives
   KNIFE_WIDTH: 8, // Angular width in degrees
-  KNIFE_THROW_SPEED: 800, // Pixels per second
+  KNIFE_THROW_SPEED: 1600, // Pixels per second
   KNIFE_THROW_DISTANCE: 400, // Max distance from bottom
   COLLISION_THRESHOLD_MULTIPLIER: 1.2, // Multiplier for collision detection
   MIN_ANGULAR_SPACING: 15, // Minimum degrees between embedded knives
@@ -91,7 +100,18 @@ const CONFIG = {
 };
 
 // ============= TYPES =============
-type GameState = "START" | "PLAYING" | "PAUSED" | "GAME_OVER" | "WIN";
+type GameState = "START" | "LEVEL_SELECT" | "PLAYING" | "PAUSED" | "GAME_OVER" | "WIN";
+
+type WeaponType = "knife" | "kunai" | "pen" | "pencil";
+
+const ECONOMY = {
+  UNLOCKS_STORAGE_KEY: "knifeHitWeaponUnlocks",
+  PRICES: {
+    kunai: 100,
+    pen: 500,
+    pencil: 1000,
+  } as const,
+} as const;
 
 interface Settings {
   music: boolean;
@@ -105,9 +125,8 @@ interface LevelConfig {
   coins: number[]; // Angles for coins (similar to embedded knives)
   rotationSpeed: number;
   rotationDirection: number; // -1 or 1
-  rotationPattern: RotationPatternType;
+  rotationPatterns: RotationPatternType[];
   knivesToThrow: number;
-  patternParams?: any; // Pattern-specific parameters
 }
 
 type RotationPatternType =
@@ -128,9 +147,13 @@ interface Knife {
   flyStartX: number;
   flyStartY: number;
   flyTime: number;
+  flyW?: number; // cached render width for flying knife (CSS px coords)
+  flyH?: number; // cached render height for flying knife (CSS px coords)
+  flyStartRot?: number; // cached start rotation (radians)
+  flyEndRot?: number; // cached end rotation (radians)
   stickBounce: number; // Animation value for stick bounce
   throwScale: number; // Animation scale when thrown (for juice)
-  throwRotation: number; // Animation rotation when thrown
+  throwRotation: number; // Rotation when flying (radians) for rendering on canvas
   isColliding: boolean; // Highlight in red when colliding
   transitionTargetX?: number; // Target X for transition (optional)
   transitionTargetY?: number; // Target Y for transition (optional)
@@ -171,9 +194,11 @@ interface BrokenKnifePiece {
 interface Coin {
   angle: number; // Angle when embedded (0-360)
   collected: boolean; // Whether coin has been collected
-  animating: boolean; // Whether coin is animating to top left
+  animating: boolean; // Whether coin is animating to coin display
   animX: number; // Current animation X
   animY: number; // Current animation Y
+  animStartX: number; // Fixed start X of animation (impact point)
+  animStartY: number; // Fixed start Y of animation (impact point)
   animProgress: number; // Animation progress (0-1)
   spawnScale: number; // Spawn animation scale (0-1)
 }
@@ -184,6 +209,12 @@ interface Fruit {
   colorIndex: number;
   image: HTMLImageElement | null;
   hitDistortion: number; // Distortion effect when hit (0-1)
+}
+
+interface StartMenuFruit {
+  image: HTMLImageElement;
+  baseAngle: number; // placement around the ring
+  hitDistortion: number; // start-menu-only distortion value (0-1)
 }
 
 // ============= SEEDED RNG =============
@@ -221,38 +252,33 @@ const ROTATION_PATTERNS: Record<RotationPatternType, RotationPattern> = {
 
   // Ramp up then ramp down (ease in/out)
   ramp_up_down: (t, baseSpeed, direction) => {
-    const cycle = 4; // 4 second cycle
+    const cycle = 2.5;
     const phase = (t % cycle) / cycle;
     let multiplier = 1;
     if (phase < 0.5) {
-      // Ramp up
-      multiplier = phase * 2; // 0 to 1
+      multiplier = phase * 2;
     } else {
-      // Ramp down
-      multiplier = 2 - phase * 2; // 1 to 0
+      multiplier = 2 - phase * 2;
     }
-    return baseSpeed * direction * (0.5 + multiplier * 0.5); // 50% to 100% speed
+    return baseSpeed * direction * (0.85 + multiplier * 0.55); // 85% to 140%
   },
 
-  // Slow CW -> smoothly reverse -> fast CCW -> loop
+  // Smooth direction reversal
   reverse_smooth: (t, baseSpeed, direction) => {
-    const cycle = 6;
+    const cycle = 5;
     const phase = (t % cycle) / cycle;
     let speed = baseSpeed;
     let dir = direction;
     
-    if (phase < 0.33) {
-      // Slow CW
-      speed = baseSpeed * 0.3;
+    if (phase < 0.3) {
+      speed = baseSpeed * 0.8;
       dir = direction;
-    } else if (phase < 0.66) {
-      // Smooth reverse (interpolate direction)
-      const reversePhase = (phase - 0.33) / 0.33;
-      speed = baseSpeed * (0.3 + reversePhase * 0.7);
+    } else if (phase < 0.6) {
+      const reversePhase = (phase - 0.3) / 0.3;
+      speed = baseSpeed * (0.8 + reversePhase * 0.5);
       dir = direction * (1 - reversePhase * 2); // 1 -> -1
     } else {
-      // Fast CCW
-      speed = baseSpeed * 1.5;
+      speed = baseSpeed * 1.4;
       dir = -direction;
     }
     return speed * dir;
@@ -260,56 +286,51 @@ const ROTATION_PATTERNS: Record<RotationPatternType, RotationPattern> = {
 
   // Constant speed with periodic pulses
   pulse: (t, baseSpeed, direction) => {
-    const pulseFreq = 2; // 2 pulses per second
+    const pulseFreq = 2;
     const pulse = Math.sin(t * Math.PI * 2 * pulseFreq);
-    const multiplier = 0.7 + pulse * 0.3; // 70% to 100%
+    const multiplier = 0.9 + pulse * 0.35; // 90% to 125%
     return baseSpeed * direction * multiplier;
   },
 
   // Alternating direction every N seconds with smooth interpolation
   alternating: (t, baseSpeed, direction) => {
-    const switchInterval = 3; // Switch every 3 seconds
+    const switchInterval = 2.5;
     const phase = (t % (switchInterval * 2)) / switchInterval;
     let dir = direction;
     
     if (phase < 0.5) {
-      // First half: original direction
       dir = direction;
     } else {
-      // Second half: reverse direction (with smooth transition)
-      const transition = (phase - 0.5) * 2; // 0 to 1
-      const smoothTransition = transition * transition * (3 - 2 * transition); // Smoothstep
+      const transition = (phase - 0.5) * 2;
+      const smoothTransition = transition * transition * (3 - 2 * transition);
       dir = direction * (1 - smoothTransition * 2); // 1 -> -1
     }
-    return baseSpeed * dir;
+    return baseSpeed * dir * 1.1; // 110% base speed during alternation
   },
 
   // "Breathing" speed: sin wave modulation around base speed
   breathing: (t, baseSpeed, direction) => {
-    const breathFreq = 0.5; // Slow breathing
+    const breathFreq = 0.6;
     const breath = Math.sin(t * Math.PI * 2 * breathFreq);
-    const multiplier = 0.6 + breath * 0.4; // 60% to 100%
+    const multiplier = 0.85 + breath * 0.35; // 85% to 120%
     return baseSpeed * direction * multiplier;
   },
 
-  // Staged pattern: segment A (slow), segment B (fast), segment C (reverse), repeat
+  // Staged pattern: segment A (medium), segment B (fast), segment C (reverse), repeat
   staged: (t, baseSpeed, direction) => {
-    const cycle = 8;
+    const cycle = 6;
     const phase = (t % cycle) / cycle;
     let speed = baseSpeed;
     let dir = direction;
     
     if (phase < 0.33) {
-      // Segment A: slow
-      speed = baseSpeed * 0.4;
+      speed = baseSpeed * 0.8;
       dir = direction;
     } else if (phase < 0.66) {
-      // Segment B: fast
-      speed = baseSpeed * 1.3;
+      speed = baseSpeed * 1.4;
       dir = direction;
     } else {
-      // Segment C: reverse
-      speed = baseSpeed * 0.8;
+      speed = baseSpeed * 1.0;
       dir = -direction;
     }
     return speed * dir;
@@ -317,12 +338,11 @@ const ROTATION_PATTERNS: Record<RotationPatternType, RotationPattern> = {
 
   // Chaotic: random-like but smooth
   chaotic: (t, baseSpeed, direction) => {
-    // Use multiple sine waves for chaotic but smooth motion
     const wave1 = Math.sin(t * 0.7);
     const wave2 = Math.sin(t * 1.3);
     const wave3 = Math.sin(t * 2.1);
     const combined = (wave1 + wave2 * 0.5 + wave3 * 0.25) / 1.75;
-    const multiplier = 0.5 + combined * 0.5; // 0% to 100%
+    const multiplier = 0.75 + combined * 0.5; // 75% to 125%
     const dirMultiplier = Math.sin(t * 0.4) > 0 ? 1 : -1;
     return baseSpeed * direction * multiplier * dirMultiplier;
   },
@@ -359,14 +379,17 @@ class LevelGenerator {
     const fruitRadius = CONFIG.MIN_FRUIT_RADIUS + 
       (CONFIG.MAX_FRUIT_RADIUS - CONFIG.MIN_FRUIT_RADIUS) * (1 - progress * 0.3);
     
-    // Embedded knives (more as difficulty increases, steeper curve for early levels)
-    // Use a curve that starts higher and ramps faster: progress^0.7 makes early levels harder
-    const embeddedKnifeProgress = Math.pow(progress, 0.7); // Steeper curve
-    const embeddedKnives = this.generateEmbeddedKnives(
-      Math.floor(CONFIG.MIN_EMBEDDED_KNIVES + 
-        (CONFIG.MAX_EMBEDDED_KNIVES - CONFIG.MIN_EMBEDDED_KNIVES) * embeddedKnifeProgress),
-      fruitRadius
-    );
+    // Embedded knives (knives already on the fruit when the round starts)
+    // Levels 1-9: 3, Levels 10-29: 4, then +1 every 15 levels after 30, max 5
+    let numEmbedded: number;
+    if (levelIndex < 10) {
+      numEmbedded = 3;
+    } else if (levelIndex < 30) {
+      numEmbedded = 4;
+    } else {
+      numEmbedded = Math.min(5, 5 + Math.floor((levelIndex - 30) / 15));
+    }
+    const embeddedKnives = this.generateEmbeddedKnives(numEmbedded, fruitRadius);
     
     // Rotation speed (faster as difficulty increases, steeper curve for early levels)
     // Use a curve that starts higher and ramps faster
@@ -377,32 +400,27 @@ class LevelGenerator {
     // Rotation direction
     const rotationDirection = this.rng.next() < 0.5 ? -1 : 1;
     
-    // Rotation pattern (more complex patterns in later levels)
-    const patternTypes: RotationPatternType[] = [
-      "constant",
-      "ramp_up_down",
-      "pulse",
-      "breathing",
-    ];
+    // Rotation patterns available at this level (all are used, switching randomly):
+    // Levels 1-14:  constant only
+    // Levels 15-29: speed-variation patterns unlocked (no reverse)
+    // Levels 30+:   reverse-rotation patterns also unlocked
+    let rotationPatterns: RotationPatternType[];
     
-    if (progress > 0.3) {
-      patternTypes.push("alternating", "reverse_smooth");
-    }
-    if (progress > 0.6) {
-      patternTypes.push("staged");
-    }
-    if (progress > 0.8) {
-      patternTypes.push("chaotic");
+    if (levelIndex < 15) {
+      rotationPatterns = ["constant"];
+    } else if (levelIndex < 30) {
+      rotationPatterns = ["constant", "ramp_up_down", "pulse", "breathing"];
+    } else {
+      rotationPatterns = ["constant", "ramp_up_down", "pulse", "breathing", "alternating", "reverse_smooth"];
+      if (levelIndex >= 50) {
+        rotationPatterns.push("staged");
+      }
+      if (levelIndex >= 70) {
+        rotationPatterns.push("chaotic");
+      }
     }
     
-    const rotationPattern = this.rng.choice(patternTypes);
-    
-    // Knives to throw (more in later levels, steeper curve for early levels)
-    const throwProgress = Math.pow(progress, 0.7); // Steeper curve
-    const knivesToThrow = Math.floor(
-      CONFIG.MIN_KNIVES_TO_THROW + 
-      (CONFIG.MAX_KNIVES_TO_THROW - CONFIG.MIN_KNIVES_TO_THROW) * throwProgress
-    );
+    const knivesToThrow = 5 + Math.floor(levelIndex / 10);
     
     // Generate coins (ensure they don't overlap with knives)
     const coinCount = Math.max(1, Math.floor(2 + progress * 3)); // 2-5 coins
@@ -414,7 +432,7 @@ class LevelGenerator {
       coins,
       rotationSpeed,
       rotationDirection,
-      rotationPattern,
+      rotationPatterns,
       knivesToThrow,
     };
   }
@@ -555,12 +573,50 @@ class KnifeHitGame {
   private ctx: CanvasRenderingContext2D;
   private state: GameState = "PLAYING";
   private settings: Settings = { music: true, fx: true, haptics: true };
+
+  // Canvas rendering (keep game coordinates in CSS pixels; render at devicePixelRatio for crispness)
+  private viewW: number = 0;
+  private viewH: number = 0;
+  private dpr: number = 1;
+  private lastTapTs: number = 0; // used to de-dupe touch + click
+
+  // Start menu (in-canvas)
+  private startMenuActive: boolean = true;
+  private startMenuTime: number = 0;
+  private startMenuRingAngle: number = 0; // degrees
+  private startMenuRingSpeed: number = 70; // deg/sec
+  private startMenuRingTargetSpeed: number = 70;
+  private startMenuScale: number = 1;
+  private startMenuAlpha: number = 1;
+  private startMenuFruits: StartMenuFruit[] = [];
+  private startIntroState: "idle" | "knives" | "done" = "idle";
+  private startIntroIndex: number = 0;
+  private startIntroKnifeT: number = 0;
+  private startIntroKnifeFrom: { x: number; y: number } = { x: 0, y: 0 };
+  private startIntroKnifeTo: { x: number; y: number } = { x: 0, y: 0 };
+  private startIntroHitHold: number = 0;
+  private startIntroHitsApplied: boolean = false;
+  private startIntroFinishTime: number = 0;
+  private shopBtnRect: { x: number; y: number; w: number; h: number } | null = null;
+
+  // Level select
+  private highestUnlockedLevel: number = 0;
+  private selectedStartLevel: number = 0;
+  private levelSelectScroll: number = 0;
+  private levelSelectBtnRects: { x: number; y: number; w: number; h: number; level: number }[] = [];
+  private levelSelectBackRect: { x: number; y: number; w: number; h: number } | null = null;
+  private levelSelectTouchStartY: number = 0;
+  private levelSelectTouchDragged: boolean = false;
+  private levelSelectTime: number = 0;
   
   // Game objects
-  private fruit: Fruit;
+  private fruit!: Fruit;
   private knives: Knife[] = [];
   private coins: Coin[] = [];
-  private totalCoins: number = 0; // Total coins collected
+  // Persistent currency balance (saved to localStorage)
+  private coinBank: number = 0;
+  // Weapon unlocks (knife always unlocked)
+  private weaponUnlocks: Record<WeaponType, boolean> = { knife: true, kunai: false, pen: false, pencil: false };
   private knivesToThrow: number = 0;
   private currentLevel: number = 0;
   private levels: LevelConfig[] = [];
@@ -570,6 +626,9 @@ class KnifeHitGame {
   private rotationTime: number = 0;
   private currentAngularVelocity: number = 0;
   private targetAngularVelocity: number = 0;
+  private activePattern: RotationPatternType = "constant";
+  private patternTimer: number = 0;
+  private patternDuration: number = 0;
   
   // Animation
   private lastTime: number = 0;
@@ -577,10 +636,17 @@ class KnifeHitGame {
   
   // Effects
   private particles: Particle[] = [];
+  private particlePool: Particle[] = [];
   private brokenKnifePieces: BrokenKnifePiece[] = [];
+  private brokenPiecePool: BrokenKnifePiece[] = [];
   private screenShake: { x: number; y: number; time: number } = { x: 0, y: 0, time: 0 };
   private screenFlash: { active: boolean; time: number; duration: number } = { active: false, time: 0, duration: 0.15 };
   private backgroundOverlay: { target: number; current: number; speed: number } = { target: 0, current: 0, speed: 2.0 }; // 0 = normal, negative = darker, positive = brighter
+  
+  // Round timer
+  private roundTimer: number = 30;
+  private roundTimerActive: boolean = false;
+  private timerDisplay!: HTMLElement;
   
   // Level transition
   private transitionActive: boolean = false;
@@ -616,6 +682,7 @@ class KnifeHitGame {
   private collisionEmbeddedKnifeIndex: number = -1; // Index of embedded knife being hit
   private collisionPoint: { x: number; y: number } | null = null;
   private gameOverActive: boolean = false;
+  private gameOverTimeout: boolean = false;
   private tapToRetryOpacity: number = 1.0;
   private tapToRetryFlicker: number = 0;
   
@@ -636,28 +703,41 @@ class KnifeHitGame {
   private brokenPen1Image: HTMLImageElement | null = null;
   private brokenPen2Image: HTMLImageElement | null = null;
   private knifeIconImage: HTMLImageElement | null = null;
-  private currentWeapon: "knife" | "kunai" | "pen" = "knife";
-  private weaponImages: { knife: HTMLImageElement | null; kunai: HTMLImageElement | null; pen: HTMLImageElement | null } = {
+  private kunaiIconImage: HTMLImageElement | null = null;
+  private penIconImage: HTMLImageElement | null = null;
+  private pencilIconImage: HTMLImageElement | null = null;
+  private currentWeapon: WeaponType = "knife";
+  private weaponImages: Record<WeaponType, HTMLImageElement | null> = {
     knife: null,
     kunai: null,
     pen: null,
+    pencil: null,
   };
   private assetsLoaded: boolean = false;
   
   // Audio
+  private bgmTracks: HTMLAudioElement[] = [];
+  private bgmIndex: number = 0;
+  private uiTapSound: HTMLAudioElement | null = null;
+  private uiConfirmSound: HTMLAudioElement | null = null;
+  private timeoutSound: HTMLAudioElement | null = null;
   private wooshSound: HTMLAudioElement | null = null;
-  private stabSound: HTMLAudioElement | null = null;
+  private stabPool: HTMLAudioElement[] = [];
+  private stabPoolIndex: number = 0;
   private brokeSound: HTMLAudioElement | null = null;
   private dullSound: HTMLAudioElement | null = null;
   private successSound: HTMLAudioElement | null = null;
   private transitionSound: HTMLAudioElement | null = null;
   private spawnSound: HTMLAudioElement | null = null;
+  private plingSound: HTMLAudioElement | null = null;
   
   // UI Elements
+  private hud: HTMLElement;
   private startScreen: HTMLElement;
   private gameOverScreen: HTMLElement;
   private winScreen: HTMLElement;
   private pauseScreen: HTMLElement;
+  private pauseBtn: HTMLElement;
   private settingsModal: HTMLElement;
   private weaponModal: HTMLElement;
   private levelDisplay: HTMLElement;
@@ -665,9 +745,21 @@ class KnifeHitGame {
   private weaponBtn: HTMLElement;
   private bottomHud: HTMLElement;
   private knifePreviewImage: HTMLImageElement;
-  private flyingKnifeSprite: HTMLImageElement;
   private knivesCount: HTMLElement;
   private knifeIconsContainer: HTMLElement;
+  private knifeIconEls: HTMLImageElement[] = [];
+  private lastKnifeIconsCount: number = -1;
+  private lastKnifeIconsWeapon: WeaponType | null = null;
+  private cachedKnifePreviewWidth: number = 0;
+  private cachedKnifePreviewHeight: number = 0;
+  private cachedKnifePreviewWeapon: WeaponType | null = null;
+  // Cached coin display rect to avoid getBoundingClientRect every frame
+  private cachedCoinDisplayX: number = 60;
+  private cachedCoinDisplayY: number = 60;
+  private coinDisplayRectDirty: boolean = true;
+  private coinSaveDirty: boolean = false;
+  // Cached isMobile value (only changes on resize)
+  private isMobile: boolean = false;
   private debugPanel: HTMLElement;
   private debugContent: HTMLElement;
   private settingsIconBtn: HTMLElement;
@@ -678,18 +770,20 @@ class KnifeHitGame {
     this.ctx = this.canvas.getContext("2d")!;
     
     // Initialize UI
+    this.hud = document.getElementById("hud")!;
     this.startScreen = document.getElementById("startScreen")!;
     this.gameOverScreen = document.getElementById("gameOverScreen")!;
     this.winScreen = document.getElementById("winScreen")!;
     this.pauseScreen = document.getElementById("pauseScreen")!;
+    this.pauseBtn = document.getElementById("pauseBtn")!;
     this.settingsModal = document.getElementById("settingsModal")!;
     this.weaponModal = document.getElementById("weaponModal")!;
     this.levelDisplay = document.getElementById("levelDisplay")!;
+    this.timerDisplay = document.getElementById("timerDisplay")!;
     this.coinDisplay = document.getElementById("coinDisplay")!;
     this.weaponBtn = document.getElementById("weaponBtn")!;
     this.bottomHud = document.getElementById("bottomHud")!;
     this.knifePreviewImage = document.getElementById("knifePreviewImage") as HTMLImageElement;
-    this.flyingKnifeSprite = document.getElementById("flyingKnifeSprite") as HTMLImageElement;
     this.knivesCount = document.getElementById("knivesCount")!;
     this.knifeIconsContainer = document.getElementById("knifeIconsContainer")!;
     this.debugPanel = document.getElementById("debugPanel")!;
@@ -712,22 +806,45 @@ class KnifeHitGame {
     
     // Load settings
     this.loadSettings();
+    // Load progression (coins + unlocks) and sync UI
+    this.loadProgression();
+    this.refreshWeaponShopUI();
+    this.updateLevelDisplay();
+
+    // Pre-create bottom knife icons to avoid DOM churn during throws
+    this.initKnifeIconStrip();
     
     // Start game loop
     this.gameLoop(0);
   }
 
+  private initKnifeIconStrip(): void {
+    this.knifeIconEls = [];
+    this.knifeIconsContainer.innerHTML = "";
+    const max = CONFIG.MAX_KNIVES_TO_THROW;
+    for (let i = 0; i < max; i++) {
+      const icon = document.createElement("img");
+      icon.className = "knife-icon-bottom";
+      icon.alt = "Knife icon";
+      icon.style.display = "none";
+      // Stagger base delay once (kept for optional animation)
+      icon.style.animationDelay = `${i * 0.05}s`;
+      this.knifeIconsContainer.appendChild(icon);
+      this.knifeIconEls.push(icon);
+    }
+  }
+
   private loadAssets(): void {
     let loadedCount = 0;
-    const totalAssets = 18; // 2 backgrounds + 6 fruits + 3 weapons + 6 broken variants + 1 knife icon
+    const totalAssets = 20; // + kunai/pen icons
     
     const checkAllLoaded = () => {
       loadedCount++;
       if (loadedCount === totalAssets) {
         this.assetsLoaded = true;
         console.log("[KnifeHitGame] All assets loaded");
-        // Start game immediately after assets load
-        this.startGame();
+        // Enter start menu after assets load
+        this.enterStartMenu();
       }
     };
     
@@ -828,7 +945,14 @@ class KnifeHitGame {
       checkAllLoaded();
     };
     
-    // Set initial weapon image based on current selection
+    this.weaponImages.pencil = new Image();
+    this.weaponImages.pencil.src = pencilUrl;
+    this.weaponImages.pencil.onload = checkAllLoaded;
+    this.weaponImages.pencil.onerror = () => {
+      console.warn("[KnifeHitGame] Failed to load pencil");
+      checkAllLoaded();
+    };
+
     this.updateWeaponImage();
     
     // Load broken knife sprites (for normal knife)
@@ -890,15 +1014,56 @@ class KnifeHitGame {
       console.warn("[KnifeHitGame] Failed to load knife icon");
       checkAllLoaded();
     };
+
+    // Load kunai icon
+    this.kunaiIconImage = new Image();
+    this.kunaiIconImage.src = kunaiIconUrl;
+    this.kunaiIconImage.onload = checkAllLoaded;
+    this.kunaiIconImage.onerror = () => {
+      console.warn("[KnifeHitGame] Failed to load kunai icon");
+      checkAllLoaded();
+    };
+
+    // Load pen icon
+    this.penIconImage = new Image();
+    this.penIconImage.src = penIconUrl;
+    this.penIconImage.onload = checkAllLoaded;
+    this.penIconImage.onerror = () => {
+      console.warn("[KnifeHitGame] Failed to load pen icon");
+      checkAllLoaded();
+    };
+
+    this.pencilIconImage = new Image();
+    this.pencilIconImage.src = pencilIconUrl;
+    this.pencilIconImage.onload = checkAllLoaded;
+    this.pencilIconImage.onerror = () => {
+      console.warn("[KnifeHitGame] Failed to load pencil icon");
+      checkAllLoaded();
+    };
     
-    // Load audio files (all at same volume level)
+    // Load audio files
+    this.uiTapSound = new Audio(uiTapUrl);
+    this.uiTapSound.preload = "auto";
+    this.uiTapSound.volume = 1.0;
+
+    this.uiConfirmSound = new Audio(uiConfirmUrl);
+    this.uiConfirmSound.preload = "auto";
+    this.uiConfirmSound.volume = 1.0;
+
+    this.timeoutSound = new Audio(timeoutUrl);
+    this.timeoutSound.preload = "auto";
+    this.timeoutSound.volume = 1.0;
+
     this.wooshSound = new Audio(wooshUrl);
     this.wooshSound.preload = "auto";
     this.wooshSound.volume = 0.5; // 50% volume
     
-    this.stabSound = new Audio(stabUrl);
-    this.stabSound.preload = "auto";
-    this.stabSound.volume = 1.0;
+    for (let i = 0; i < 4; i++) {
+      const s = new Audio(stabUrl);
+      s.preload = "auto";
+      s.volume = 1.0;
+      this.stabPool.push(s);
+    }
     
     this.brokeSound = new Audio(brokeUrl);
     this.brokeSound.preload = "auto";
@@ -912,12 +1077,42 @@ class KnifeHitGame {
     this.successSound.preload = "auto";
     this.successSound.volume = 1.0;
     
+    // Background music tracks (alternate between them)
+    for (const url of [bgm1Url, bgm2Url]) {
+      const track = new Audio(url);
+      track.preload = "auto";
+      track.volume = 0.22;
+      track.loop = false;
+      track.addEventListener("ended", () => this.playNextBgm());
+      this.bgmTracks.push(track);
+    }
+
     // Create transition and spawn sounds using Web Audio API
     this.transitionSound = this.createTransitionSound();
     this.spawnSound = this.createSpawnSound();
     this.plingSound = this.createPlingSound();
   }
   
+  private playNextBgm(): void {
+    this.bgmIndex = (this.bgmIndex + 1) % this.bgmTracks.length;
+    this.startBgm();
+  }
+
+  private startBgm(): void {
+    if (!this.settings.music) return;
+    const track = this.bgmTracks[this.bgmIndex];
+    if (!track) return;
+    track.currentTime = 0;
+    track.play().catch(() => {});
+  }
+
+  private stopBgm(): void {
+    for (const track of this.bgmTracks) {
+      track.pause();
+      track.currentTime = 0;
+    }
+  }
+
   private createTransitionSound(): HTMLAudioElement {
     // Create a simple transition sound using a data URL
     // This is a placeholder - in production, you'd use a generated audio file
@@ -1026,84 +1221,147 @@ class KnifeHitGame {
     // Start button
     document.getElementById("startButton")!.addEventListener("click", () => {
       this.triggerHaptic("light");
-      this.startGame();
+      this.playUiConfirm();
+      if (this.state === "START") this.startStartMenuIntro();
     });
     
     // Restart button
     document.getElementById("restartButton")!.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.restart();
     });
     
     // Menu buttons
     document.getElementById("menuButton")!.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.showMenu();
     });
     document.getElementById("menuButtonWin")!.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.showMenu();
     });
     document.getElementById("menuButtonPause")!.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.showMenu();
     });
     
     // Next level button
     document.getElementById("nextLevelButton")!.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.nextLevel();
     });
     
+    // Pause button
+    this.pauseBtn.addEventListener("click", () => {
+      this.triggerHaptic("light");
+      this.playUiTap();
+      this.pause();
+    });
+
+    // Resume button (in pause modal)
+    document.getElementById("resumeButton")!.addEventListener("click", () => {
+      this.triggerHaptic("light");
+      this.playUiTap();
+      this.resume();
+    });
+
     // Settings (top right button)
     this.settingsBtn.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.showSettings();
     });
     
     // Settings (HUD icon)
     this.settingsIconBtn.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.showSettings();
     });
     document.getElementById("closeSettings")!.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.hideSettings();
     });
     
     // Weapon selection button
     this.weaponBtn.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.showWeaponModal();
     });
     
     // Weapon selection modal
     document.getElementById("closeWeaponModal")!.addEventListener("click", () => {
       this.triggerHaptic("light");
+      this.playUiTap();
       this.hideWeaponModal();
     });
     
     document.getElementById("selectKnife")!.addEventListener("click", () => {
       this.triggerHaptic("light");
-      this.selectWeapon("knife");
+      this.playUiConfirm();
+      this.handleWeaponOptionClick("knife");
     });
     
     document.getElementById("selectKunai")!.addEventListener("click", () => {
       this.triggerHaptic("light");
-      this.selectWeapon("kunai");
+      this.playUiConfirm();
+      this.handleWeaponOptionClick("kunai");
     });
     
     document.getElementById("selectPen")!.addEventListener("click", () => {
       this.triggerHaptic("light");
-      this.selectWeapon("pen");
+      this.playUiConfirm();
+      this.handleWeaponOptionClick("pen");
+    });
+
+    document.getElementById("selectPencil")!.addEventListener("click", () => {
+      this.triggerHaptic("light");
+      this.playUiConfirm();
+      this.handleWeaponOptionClick("pencil");
     });
     
     // Input
     this.canvas.addEventListener("click", (e) => this.handleInput(e));
     this.canvas.addEventListener("touchstart", (e) => {
       e.preventDefault();
+      if (this.state === "LEVEL_SELECT") {
+        const touch = e.touches[0];
+        this.levelSelectTouchStartY = touch.clientY;
+        this.levelSelectTouchDragged = false;
+        return;
+      }
       this.handleInput(e);
     });
+    this.canvas.addEventListener("touchmove", (e) => {
+      if (this.state !== "LEVEL_SELECT") return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const dy = this.levelSelectTouchStartY - touch.clientY;
+      if (Math.abs(dy) > 8) {
+        this.levelSelectTouchDragged = true;
+      }
+      this.levelSelectScroll += dy;
+      this.levelSelectTouchStartY = touch.clientY;
+    }, { passive: false } as any);
+    this.canvas.addEventListener("touchend", (e) => {
+      if (this.state !== "LEVEL_SELECT") return;
+      if (!this.levelSelectTouchDragged) {
+        this.handleInput(e);
+      }
+      this.levelSelectTouchDragged = false;
+    });
+    this.canvas.addEventListener("wheel", (e) => {
+      if (this.state !== "LEVEL_SELECT") return;
+      e.preventDefault();
+      this.levelSelectScroll += e.deltaY;
+    }, { passive: false } as any);
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space") {
         e.preventDefault();
@@ -1117,11 +1375,57 @@ class KnifeHitGame {
         // Debug: Restart
         this.restart();
       } else if (e.code === "KeyD") {
-        // Debug: Toggle debug panel
         this.debugMode = !this.debugMode;
         this.debugPanel.classList.toggle("visible", this.debugMode);
+      } else if (e.code === "Escape" && this.state === "LEVEL_SELECT") {
+        this.enterStartMenu();
       }
     });
+  }
+
+  private safeStorageGet(key: string): string | null {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (e) {
+      console.warn("[KnifeHitGame] localStorage.getItem failed:", key, e);
+      return null;
+    }
+  }
+
+  private safeStorageSet(key: string, value: string): void {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn("[KnifeHitGame] localStorage.setItem failed:", key, e);
+    }
+  }
+
+  private bindTap(el: HTMLElement, handler: () => void): void {
+    const wrapped = (ev: Event) => {
+      // Prevent canvas touch handler from interfering in some WebViews
+      if (typeof (ev as any).preventDefault === "function") (ev as any).preventDefault();
+      if (typeof (ev as any).stopPropagation === "function") (ev as any).stopPropagation();
+
+      // De-dupe touch + click double fire
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      if (now - this.lastTapTs < 250) return;
+      this.lastTapTs = now;
+
+      handler();
+    };
+
+    if (typeof (window as any).PointerEvent !== "undefined") {
+      el.addEventListener("pointerup", wrapped as any, { passive: false } as any);
+    } else {
+      el.addEventListener("touchend", wrapped as any, { passive: false } as any);
+      el.addEventListener("click", wrapped as any);
+    }
+  }
+
+  private syncSettingsToggleUI(): void {
+    document.getElementById("musicToggle")?.classList.toggle("active", this.settings.music);
+    document.getElementById("fxToggle")?.classList.toggle("active", this.settings.fx);
+    document.getElementById("hapticsToggle")?.classList.toggle("active", this.settings.haptics);
   }
 
   private setupSettings(): void {
@@ -1129,46 +1433,191 @@ class KnifeHitGame {
     const fxToggle = document.getElementById("fxToggle")!;
     const hapticsToggle = document.getElementById("hapticsToggle")!;
     
-    musicToggle.addEventListener("click", () => {
+    this.bindTap(musicToggle, () => {
       this.settings.music = !this.settings.music;
       musicToggle.classList.toggle("active", this.settings.music);
       this.saveSettings();
+      if (this.settings.music) {
+        this.startBgm();
+      } else if (!this.settings.music) {
+        this.stopBgm();
+      }
     });
     
-    fxToggle.addEventListener("click", () => {
+    this.bindTap(fxToggle, () => {
       this.settings.fx = !this.settings.fx;
       fxToggle.classList.toggle("active", this.settings.fx);
       this.saveSettings();
     });
     
-    hapticsToggle.addEventListener("click", () => {
+    this.bindTap(hapticsToggle, () => {
       this.settings.haptics = !this.settings.haptics;
       hapticsToggle.classList.toggle("active", this.settings.haptics);
       this.saveSettings();
     });
     
     // Initialize toggle states
-    musicToggle.classList.toggle("active", this.settings.music);
-    fxToggle.classList.toggle("active", this.settings.fx);
-    hapticsToggle.classList.toggle("active", this.settings.haptics);
+    this.syncSettingsToggleUI();
   }
 
   private loadSettings(): void {
-    const saved = localStorage.getItem("knifeHitSettings");
+    const saved = this.safeStorageGet("knifeHitSettings");
     if (saved) {
-      this.settings = { ...this.settings, ...JSON.parse(saved) };
+      try {
+        this.settings = { ...this.settings, ...JSON.parse(saved) };
+      } catch {
+        // ignore invalid JSON
+      }
     }
     
     // Load weapon preference
-    const weaponSaved = localStorage.getItem("knifeHitWeapon");
-    if (weaponSaved && (weaponSaved === "knife" || weaponSaved === "kunai" || weaponSaved === "pen")) {
-      this.currentWeapon = weaponSaved as "knife" | "kunai" | "pen";
+    const weaponSaved = this.safeStorageGet("knifeHitWeapon");
+    if (weaponSaved && (weaponSaved === "knife" || weaponSaved === "kunai" || weaponSaved === "pen" || weaponSaved === "pencil")) {
+      this.currentWeapon = weaponSaved as WeaponType;
     }
     this.updateWeaponImage();
+
+    // Sync settings toggle UI after loading
+    this.syncSettingsToggleUI();
   }
   
   private saveWeapon(): void {
-    localStorage.setItem("knifeHitWeapon", this.currentWeapon);
+    this.safeStorageSet("knifeHitWeapon", this.currentWeapon);
+  }
+
+  private loadTotalCoins(): number {
+    try {
+      return parseInt(this.safeStorageGet("knifeHitCoins") || "0", 10) || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private saveTotalCoins(): void {
+    this.safeStorageSet("knifeHitCoins", String(this.coinBank));
+  }
+
+  private loadHighestLevel(): number {
+    try {
+      return parseInt(this.safeStorageGet("knifeHitHighestLevel") || "0", 10) || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private saveHighestLevel(): void {
+    this.safeStorageSet("knifeHitHighestLevel", String(this.highestUnlockedLevel));
+  }
+
+  private loadProgression(): void {
+    this.coinBank = this.loadTotalCoins();
+    this.highestUnlockedLevel = this.loadHighestLevel();
+
+    // Load unlocks
+    const rawUnlocks = this.safeStorageGet(ECONOMY.UNLOCKS_STORAGE_KEY);
+    if (rawUnlocks) {
+      try {
+        const obj = JSON.parse(rawUnlocks) as Partial<Record<WeaponType, boolean>>;
+        this.weaponUnlocks = {
+          knife: true,
+          kunai: Boolean(obj.kunai),
+          pen: Boolean(obj.pen),
+          pencil: Boolean(obj.pencil),
+        };
+      } catch {
+        this.weaponUnlocks = { knife: true, kunai: false, pen: false, pencil: false };
+      }
+    } else {
+      this.weaponUnlocks = { knife: true, kunai: false, pen: false, pencil: false };
+    }
+
+    // If the saved weapon is locked, force fallback to knife
+    if (!this.weaponUnlocks[this.currentWeapon]) {
+      this.currentWeapon = "knife";
+      this.saveWeapon();
+      this.updateWeaponImage();
+    }
+  }
+
+  private saveProgression(): void {
+    this.safeStorageSet(
+      ECONOMY.UNLOCKS_STORAGE_KEY,
+      JSON.stringify({ kunai: this.weaponUnlocks.kunai, pen: this.weaponUnlocks.pen, pencil: this.weaponUnlocks.pencil })
+    );
+  }
+
+  private addCoins(amount: number): void {
+    const n = Math.max(0, Math.floor(amount));
+    if (n <= 0) return;
+    this.coinBank = Math.max(0, Math.floor(this.coinBank + n));
+    this.coinSaveDirty = true;
+    requestAnimationFrame(() => {
+      this.updateLevelDisplay();
+      this.refreshWeaponShopUI();
+    });
+  }
+
+  private flushCoinSave(): void {
+    if (!this.coinSaveDirty) return;
+    this.saveTotalCoins();
+    this.coinSaveDirty = false;
+  }
+
+  private canAfford(cost: number): boolean {
+    const c = Math.max(0, Math.floor(cost));
+    return this.coinBank >= c;
+  }
+
+  private trySpendCoins(cost: number): boolean {
+    const c = Math.max(0, Math.floor(cost));
+    if (c <= 0) return true;
+    if (this.coinBank < c) return false;
+    this.coinBank = Math.max(0, Math.floor(this.coinBank - c));
+    this.saveTotalCoins();
+    this.updateLevelDisplay();
+    this.refreshWeaponShopUI();
+    return true;
+  }
+
+  private getWeaponPrice(weapon: WeaponType): number {
+    if (weapon === "knife") return 0;
+    if (weapon === "kunai") return ECONOMY.PRICES.kunai;
+    if (weapon === "pen") return ECONOMY.PRICES.pen;
+    return ECONOMY.PRICES.pencil;
+  }
+
+  private refreshWeaponShopUI(): void {
+    if (!this.weaponModal.classList.contains("visible")) return;
+
+    const elBalance = document.getElementById("weaponBalance");
+    if (elBalance) elBalance.textContent = `Balance: ${this.coinBank}`;
+
+    const weapons: WeaponType[] = ["knife", "kunai", "pen", "pencil"];
+    const btnIds: Record<WeaponType, string> = { knife: "selectKnife", kunai: "selectKunai", pen: "selectPen", pencil: "selectPencil" };
+    const subIds: Record<WeaponType, string> = { knife: "weaponSubKnife", kunai: "weaponSubKunai", pen: "weaponSubPen", pencil: "weaponSubPencil" };
+    for (const w of weapons) {
+      const btnId = btnIds[w];
+      const subId = subIds[w];
+
+      const btn = document.getElementById(btnId);
+      const sub = document.getElementById(subId);
+      if (!btn) continue;
+
+      const unlocked = Boolean(this.weaponUnlocks[w]);
+      btn.classList.toggle("locked", !unlocked);
+      btn.classList.toggle("active", this.currentWeapon === w);
+
+      if (sub) {
+        if (w === "knife" || unlocked) {
+          sub.textContent = "Owned";
+          sub.classList.remove("can-afford");
+        } else {
+          const price = this.getWeaponPrice(w);
+          sub.textContent = `${price} coins`;
+          sub.classList.toggle("can-afford", this.canAfford(price));
+        }
+      }
+    }
   }
   
   private updateWeaponImage(): void {
@@ -1194,21 +1643,43 @@ class KnifeHitGame {
     if (previewPen && this.weaponImages.pen) {
       previewPen.src = this.weaponImages.pen.src;
     }
+    const previewPencil = document.getElementById("weaponPreviewPencil") as HTMLImageElement;
+    if (previewPencil && this.weaponImages.pencil) {
+      previewPencil.src = this.weaponImages.pencil.src;
+    }
     
     // Update active state in modal
     document.getElementById("selectKnife")?.classList.toggle("active", this.currentWeapon === "knife");
     document.getElementById("selectKunai")?.classList.toggle("active", this.currentWeapon === "kunai");
     document.getElementById("selectPen")?.classList.toggle("active", this.currentWeapon === "pen");
+    document.getElementById("selectPencil")?.classList.toggle("active", this.currentWeapon === "pencil");
   }
 
   private saveSettings(): void {
-    localStorage.setItem("knifeHitSettings", JSON.stringify(this.settings));
+    this.safeStorageSet("knifeHitSettings", JSON.stringify(this.settings));
   }
 
   private resizeCanvas(): void {
     const container = this.canvas.parentElement!;
-    this.canvas.width = container.clientWidth;
-    this.canvas.height = container.clientHeight;
+    const cssW = Math.max(1, Math.floor(container.clientWidth));
+    const cssH = Math.max(1, Math.floor(container.clientHeight));
+
+    this.viewW = cssW;
+    this.viewH = cssH;
+    // Cap DPR at 2 to keep canvas resolution manageable on high-DPR devices (e.g. iPhone DPR=3)
+    this.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+    this.canvas.width = Math.floor(cssW * this.dpr);
+    this.canvas.height = Math.floor(cssH * this.dpr);
+
+    // Ensure the canvas displays at CSS pixel size
+    this.canvas.style.width = `${cssW}px`;
+    this.canvas.style.height = `${cssH}px`;
+
+    // Cache isMobile (expensive matchMedia call)
+    this.isMobile = window.matchMedia("(pointer: coarse)").matches;
+    // Mark coin display rect as stale after resize
+    this.coinDisplayRectDirty = true;
   }
 
   private handleInput(e: MouseEvent | TouchEvent): void {
@@ -1223,8 +1694,65 @@ class KnifeHitGame {
     } else if (this.state === "GAME_OVER" && this.gameOverActive) {
       // Tap to retry
       this.restart();
+    } else if (this.state === "LEVEL_SELECT") {
+      if (this.levelSelectTouchDragged) return;
+      let px: number, py: number;
+      if (e instanceof TouchEvent && e.changedTouches.length > 0) {
+        const rect = this.canvas.getBoundingClientRect();
+        px = e.changedTouches[0].clientX - rect.left;
+        py = e.changedTouches[0].clientY - rect.top;
+      } else if (e instanceof MouseEvent) {
+        const rect = this.canvas.getBoundingClientRect();
+        px = e.clientX - rect.left;
+        py = e.clientY - rect.top;
+      } else {
+        return;
+      }
+
+      // Back button
+      const bb = this.levelSelectBackRect;
+      if (bb && px >= bb.x && px <= bb.x + bb.w && py >= bb.y && py <= bb.y + bb.h) {
+        this.triggerHaptic("light");
+        this.playUiTap();
+        this.enterStartMenu();
+        return;
+      }
+
+      // Level buttons
+      for (const btn of this.levelSelectBtnRects) {
+        if (px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+          this.triggerHaptic("light");
+          this.playUiConfirm();
+          this.selectedStartLevel = btn.level;
+          this.startGame();
+          return;
+        }
+      }
     } else if (this.state === "START") {
-      this.startGame();
+      if (this.shopBtnRect) {
+        let px: number, py: number;
+        if (e instanceof TouchEvent && e.changedTouches.length > 0) {
+          const rect = this.canvas.getBoundingClientRect();
+          px = e.changedTouches[0].clientX - rect.left;
+          py = e.changedTouches[0].clientY - rect.top;
+        } else if (e instanceof MouseEvent) {
+          const rect = this.canvas.getBoundingClientRect();
+          px = e.clientX - rect.left;
+          py = e.clientY - rect.top;
+        } else {
+          this.startStartMenuIntro();
+          return;
+        }
+        const sb = this.shopBtnRect;
+        if (px >= sb.x && px <= sb.x + sb.w && py >= sb.y && py <= sb.y + sb.h) {
+          this.triggerHaptic("light");
+          this.playUiTap();
+          this.showWeaponModal();
+          return;
+        }
+      }
+      this.playUiConfirm();
+      this.startStartMenuIntro();
     }
   }
 
@@ -1233,60 +1761,46 @@ class KnifeHitGame {
     if (this.knivesToThrow <= 0) return;
     if (this.knives.some(k => k.isFlying)) return; // Only one knife flying at a time
     
-    // Get the preview knife position from bottom HUD
-    const previewRect = this.knifePreviewImage.getBoundingClientRect();
-    const containerRect = this.canvas.getBoundingClientRect();
-    const previewX = previewRect.left + previewRect.width / 2;
-    const previewY = previewRect.top + previewRect.height / 2;
-    
+    // Derive throw origin from the actual knifePreviewImage element position so
+    // the knife visually launches from the UI knife on both desktop and mobile.
+    let canvasX = this.viewW * 0.5;
+    let canvasY = this.viewH * 0.9;
+    if (this.knifePreviewImage && this.knifePreviewImage.offsetParent !== null) {
+      const rect = this.knifePreviewImage.getBoundingClientRect();
+      const canvasRect = this.canvas.getBoundingClientRect();
+      // Center of the preview image in canvas-local CSS pixels
+      canvasX = rect.left - canvasRect.left + rect.width / 2;
+      canvasY = rect.top - canvasRect.top + rect.height / 2;
+    }
+
     // Get fruit center position
-    const fruitCenterX = this.canvas.width * CONFIG.FRUIT_CENTER_X;
-    const fruitCenterY = this.canvas.height * CONFIG.FRUIT_CENTER_Y;
-    const fruitScreenX = containerRect.left + (fruitCenterX / this.canvas.width) * containerRect.width;
-    const fruitScreenY = containerRect.top + (fruitCenterY / this.canvas.height) * containerRect.height;
-    
-    // Make the preview knife itself fly
-    if (this.knifeImage && this.assetsLoaded) {
+    const fruitCenterX = this.viewW * CONFIG.FRUIT_CENTER_X;
+    const fruitCenterY = this.viewH * CONFIG.FRUIT_CENTER_Y;
+
+    // Cache flying knife render size + start/end rotations (for canvas render)
+    let flyW: number | undefined;
+    let flyH: number | undefined;
+    let flyStartRot: number | undefined;
+    let flyEndRot: number | undefined;
+
+    if (this.knifeImage && this.assetsLoaded && this.fruit) {
       const imageWidth = this.knifeImage.naturalWidth || this.knifeImage.width;
       const imageHeight = this.knifeImage.naturalHeight || this.knifeImage.height;
       const aspectRatio = imageWidth / imageHeight;
-      // Use same size as embedded knives (radius * 0.6)
-      const fruitRadius = this.fruit ? this.fruit.radius : 120;
-      const baseSize = fruitRadius * 0.6;
-      let width: number;
-      let height: number;
-      
+      const baseSize = this.fruit.radius * 0.6;
+
       if (aspectRatio > 1) {
-        width = baseSize;
-        height = baseSize / aspectRatio;
+        flyW = baseSize;
+        flyH = baseSize / aspectRatio;
       } else {
-        height = baseSize;
-        width = baseSize * aspectRatio;
+        flyH = baseSize;
+        flyW = baseSize * aspectRatio;
       }
-      
-      // Use separate flying knife sprite instead of preview image
-      // Store base size for scaling with camera zoom
-      this.flyingKnifeSprite.src = this.knifeImage.src;
-      this.flyingKnifeSprite.setAttribute("data-base-width", width.toString());
-      this.flyingKnifeSprite.setAttribute("data-base-height", height.toString());
-      
-      // Initial size (will be scaled with camera zoom in update loop)
-      this.flyingKnifeSprite.style.left = `${previewX - width / 2}px`;
-      this.flyingKnifeSprite.style.top = `${previewY - height / 2}px`;
-      this.flyingKnifeSprite.style.width = `${width}px`;
-      this.flyingKnifeSprite.style.height = `${height}px`;
-      this.flyingKnifeSprite.style.display = "block";
-      this.flyingKnifeSprite.style.opacity = "1";
-      
-      // Set initial rotation based on image orientation (reuse variables already declared above)
+
       const isHorizontal = aspectRatio > 1;
-      const rotationDeg = isHorizontal ? 0 : 90; // If already horizontal, no rotation needed
-      this.flyingKnifeSprite.style.transform = `rotate(${rotationDeg}deg)`;
+      flyStartRot = isHorizontal ? 0 : Math.PI / 2;
+      flyEndRot = Math.atan2(fruitCenterY - canvasY, fruitCenterX - canvasX) + Math.PI / 2;
     }
-    
-    // Convert to canvas coordinates for game logic
-    const canvasX = ((previewX - containerRect.left) / containerRect.width) * this.canvas.width;
-    const canvasY = ((previewY - containerRect.top) / containerRect.height) * this.canvas.height;
     
     const knife: Knife = {
       angle: 0, // Will be set when it sticks
@@ -1296,9 +1810,13 @@ class KnifeHitGame {
       flyStartX: canvasX,
       flyStartY: canvasY,
       flyTime: 0,
+      flyW,
+      flyH,
+      flyStartRot,
+      flyEndRot,
       stickBounce: 0,
       throwScale: 1.0, // No scale animation
-      throwRotation: 0, // No rotation animation
+      throwRotation: flyStartRot || 0,
       isColliding: false,
     };
     
@@ -1313,8 +1831,6 @@ class KnifeHitGame {
       this.cameraTargetZoom = 2.0; // Zoom in 2x
       
       // Target camera to where knife will hit the fruit (fruit center)
-      const fruitCenterX = this.canvas.width * CONFIG.FRUIT_CENTER_X;
-      const fruitCenterY = this.canvas.height * CONFIG.FRUIT_CENTER_Y;
       // Don't offset camera - just zoom to fruit center
       this.cameraTargetX = 0;
       this.cameraTargetY = 0;
@@ -1324,27 +1840,139 @@ class KnifeHitGame {
     // Show preview even if it's the last knife (before it was thrown)
     this.updateKnivesRemaining();
     this.triggerHaptic("light");
-    
-    // Play woosh sound when throwing knife
-    if (this.settings.fx && this.wooshSound) {
-      this.wooshSound.currentTime = 0;
-      this.wooshSound.play().catch(() => {
-        // Ignore audio play errors (e.g., user hasn't interacted yet)
-      });
-    }
+  }
+
+  private enterLevelSelect(): void {
+    this.state = "LEVEL_SELECT";
+    this.levelSelectScroll = 0;
+    this.levelSelectBtnRects = [];
+    this.levelSelectBackRect = null;
+    this.levelSelectTouchDragged = false;
+    this.levelSelectTime = 0;
   }
 
   private startGame(): void {
-    this.currentLevel = 0;
+    this.refreshWeaponShopUI();
+
+    this.currentLevel = this.selectedStartLevel;
     this.loadLevel(this.currentLevel);
     this.state = "PLAYING";
     this.startScreen.classList.add("hidden");
     this.gameOverScreen.classList.add("hidden");
     this.winScreen.classList.add("hidden");
     this.pauseScreen.classList.add("hidden");
-    this.settingsIconBtn.classList.remove("hidden");
-    this.settingsBtn.classList.remove("hidden");
-    this.updateKnivesRemaining(); // Show bottom HUD
+    // Keep gameplay UI hidden until the first transition completes (we animate it in)
+    this.hud.classList.add("hidden");
+    this.settingsIconBtn.classList.add("hidden");
+    this.settingsBtn.classList.add("hidden");
+    this.bottomHud.classList.add("hidden");
+  }
+
+  private enterStartMenu(): void {
+    this.flushCoinSave();
+    this.startBgm();
+
+    if (this.viewW <= 0 || this.viewH <= 0) this.resizeCanvas();
+
+    this.state = "START";
+    this.startMenuActive = true;
+    this.startMenuTime = 0;
+    this.startMenuRingAngle = 0;
+    this.startMenuRingSpeed = 70;
+    this.startMenuRingTargetSpeed = 70;
+    this.startMenuScale = 1;
+    this.startMenuAlpha = 1;
+    this.startIntroState = "idle";
+    this.startIntroIndex = 0;
+    this.startIntroKnifeT = 0;
+    this.startIntroHitHold = 0;
+    this.startIntroHitsApplied = false;
+    this.startIntroFinishTime = 0;
+    this.particles = [];
+
+    this.updateLevelDisplay();
+    this.refreshWeaponShopUI();
+
+    // Hide gameplay UI on start screen
+    this.gameOverScreen.classList.add("hidden");
+    this.winScreen.classList.add("hidden");
+    this.pauseScreen.classList.add("hidden");
+    this.hud.classList.add("hidden");
+    this.settingsIconBtn.classList.add("hidden");
+    this.settingsBtn.classList.add("hidden");
+    this.pauseBtn.classList.add("hidden");
+    this.bottomHud.classList.add("hidden");
+    // Keep legacy overlay hidden; start menu is rendered on canvas
+    this.startScreen.classList.add("hidden");
+
+    // Build fruit ring (use loaded fruit images, filtered)
+    const imgs = [
+      this.avocadoImage,
+      this.orangeImage,
+      this.grapeImage,
+      this.watermelonImage,
+      this.kiwiImage,
+      this.lemonImage,
+    ].filter((i): i is HTMLImageElement => Boolean(i));
+
+    const count = imgs.length;
+    this.startMenuFruits = [];
+    for (let i = 0; i < count; i++) {
+      this.startMenuFruits.push({
+        image: imgs[i],
+        baseAngle: (360 / count) * i,
+        hitDistortion: 0,
+      });
+    }
+
+    // Reset camera
+    this.cameraZoom = 1.0;
+    this.cameraTargetZoom = 1.0;
+    this.cameraX = 0;
+    this.cameraY = 0;
+    this.cameraTargetX = 0;
+    this.cameraTargetY = 0;
+    this.transitionActive = false;
+    this.celebrationActive = false;
+    this.gameOverActive = false;
+    this.gameOverTimeout = false;
+    this.screenFlash.active = false;
+    this.backgroundOverlay.target = 0;
+    this.backgroundOverlay.current = 0;
+  }
+
+  private startStartMenuIntro(): void {
+    if (!this.startMenuActive) return;
+    if (this.startIntroState !== "idle") return;
+    if (!this.assetsLoaded) return;
+
+    this.triggerHaptic("light");
+
+    // Stop ring immediately when intro starts
+    this.startMenuRingSpeed = 0;
+    this.startMenuRingTargetSpeed = 0;
+    this.startIntroState = "knives";
+    this.startIntroIndex = 0;
+    this.startIntroKnifeT = 0;
+    this.startIntroHitHold = 0;
+    this.startIntroHitsApplied = false;
+    this.startIntroFinishTime = 0;
+
+    // Knives launch from the middle
+    const centerX = this.viewW * 0.5;
+    const centerY = this.viewH * 0.52;
+    this.startIntroKnifeFrom = { x: centerX, y: centerY };
+  }
+
+  private getStartMenuFruitPos(index: number, centerX: number, centerY: number): { x: number; y: number } {
+    const ringR = Math.min(this.viewW, this.viewH) * 0.22;
+    const f = this.startMenuFruits[index % Math.max(1, this.startMenuFruits.length)];
+    const angleDeg = f.baseAngle + this.startMenuRingAngle;
+    const angleRad = ((angleDeg - 90) * Math.PI) / 180;
+    return {
+      x: centerX + Math.cos(angleRad) * ringR,
+      y: centerY + Math.sin(angleRad) * ringR,
+    };
   }
 
   private loadLevel(levelIndex: number): void {
@@ -1378,8 +2006,8 @@ class KnifeHitGame {
     
     // Create embedded knives - initially set as flying from sides
     // Use same logic as gameplay knife throw
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.viewW;
+    const h = this.viewH;
     const fruitCenterX = w * CONFIG.FRUIT_CENTER_X;
     const fruitCenterY = h * CONFIG.FRUIT_CENTER_Y;
     
@@ -1431,6 +2059,8 @@ class KnifeHitGame {
         animating: false,
         animX: 0,
         animY: 0,
+        animStartX: 0,
+        animStartY: 0,
         animProgress: 0,
         spawnScale: 0, // Start at 0 for zoom-in animation
       };
@@ -1440,13 +2070,20 @@ class KnifeHitGame {
     this.rotationTime = 0;
     this.currentAngularVelocity = 0;
     this.targetAngularVelocity = 0;
+    this.activePattern = level.rotationPatterns[0];
+    this.patternTimer = 0;
+    this.patternDuration = 3 + Math.random() * 4;
     
+    this.roundTimer = 30;
+    this.roundTimerActive = true;
+    this.updateTimerDisplay();
     this.updateLevelDisplay();
     
     // Reset collision prediction and game over state
     this.collisionPredicted = false;
     this.collisionPoint = null;
     this.gameOverActive = false;
+    this.gameOverTimeout = false;
     // Clear broken knife pieces
     this.brokenKnifePieces = [];
     // Reset background overlay
@@ -1463,8 +2100,10 @@ class KnifeHitGame {
     this.embeddedKnivesFlying = true;
     
     // Hide UI during transition
+    this.hud.classList.add("hidden");
     this.settingsIconBtn.classList.add("hidden");
     this.settingsBtn.classList.add("hidden");
+    this.pauseBtn.classList.add("hidden");
     this.bottomHud.classList.add("hidden");
   }
 
@@ -1478,8 +2117,19 @@ class KnifeHitGame {
     this.cameraTargetY = 0;
     this.slowMoActive = false;
     
+    // Clear all splash effects instantly when transitioning to next level
+    // Release particles back to pool before clearing
+    for (const particle of this.particles) {
+      this.particlePool.push(particle);
+    }
+    this.particles = [];
+    
     if (this.currentLevel < this.levels.length - 1) {
       this.currentLevel++;
+      if (this.currentLevel > this.highestUnlockedLevel) {
+        this.highestUnlockedLevel = this.currentLevel;
+        this.saveHighestLevel();
+      }
       this.loadLevel(this.currentLevel);
       this.state = "PLAYING";
       this.winScreen.classList.add("hidden");
@@ -1493,8 +2143,6 @@ class KnifeHitGame {
   }
 
   private restart(): void {
-    // Reset coin count on restart
-    this.totalCoins = 0;
     // Instantly reset camera zoom before transition
     this.cameraZoom = 1.0;
     this.cameraTargetZoom = 1.0;
@@ -1504,7 +2152,13 @@ class KnifeHitGame {
     this.cameraTargetY = 0;
     this.slowMoActive = false;
     
-    this.currentLevel = 0;
+    // Clear all splash effects instantly when restarting
+    // Release particles back to pool before clearing
+    for (const particle of this.particles) {
+      this.particlePool.push(particle);
+    }
+    this.particles = [];
+    
     this.loadLevel(this.currentLevel);
     this.state = "PLAYING";
     this.gameOverScreen.classList.add("hidden");
@@ -1512,6 +2166,7 @@ class KnifeHitGame {
     this.startScreen.classList.add("hidden");
     // Reset game over state
     this.gameOverActive = false;
+    this.gameOverTimeout = false;
     this.collisionPredicted = false;
     this.collisionPoint = null;
     
@@ -1525,12 +2180,17 @@ class KnifeHitGame {
     // Reset background overlay
     this.backgroundOverlay.target = 0;
     this.backgroundOverlay.current = 0;
+
+    // Sync HUD / shop
+    this.updateLevelDisplay();
+    this.refreshWeaponShopUI();
   }
 
   private pause(): void {
     if (this.state === "PLAYING") {
+      this.flushCoinSave();
       this.state = "PAUSED";
-      // Only show pause screen if settings or weapon modal are not visible
+      this.pauseBtn.classList.add("hidden");
       if (
         !this.settingsModal.classList.contains("visible") &&
         !this.weaponModal.classList.contains("visible")
@@ -1544,19 +2204,13 @@ class KnifeHitGame {
     if (this.state === "PAUSED") {
       this.state = "PLAYING";
       this.pauseScreen.classList.add("hidden");
+      this.pauseBtn.classList.remove("hidden");
     }
   }
 
   private showMenu(): void {
-    this.state = "START";
-    this.startScreen.classList.remove("hidden");
-    this.gameOverScreen.classList.add("hidden");
-    this.winScreen.classList.add("hidden");
-    this.pauseScreen.classList.add("hidden");
-    this.settingsIconBtn.classList.add("hidden");
-    this.settingsBtn.classList.add("hidden");
-    this.bottomHud.classList.add("hidden"); // Hide bottom HUD on menu
-    
+    // Return to the in-canvas start menu (do not show legacy overlay)
+    this.enterStartMenu();
   }
 
   private showSettings(): void {
@@ -1583,6 +2237,7 @@ class KnifeHitGame {
   private showWeaponModal(): void {
     this.weaponModal.offsetHeight; // Force reflow
     this.weaponModal.classList.add("visible");
+    this.refreshWeaponShopUI();
     // Hide pause screen if it's showing
     this.pauseScreen.classList.add("hidden");
     if (this.state === "PLAYING") {
@@ -1600,17 +2255,57 @@ class KnifeHitGame {
     }, 300);
   }
   
-  private selectWeapon(weapon: "knife" | "kunai" | "pen"): void {
+  private equipWeapon(weapon: WeaponType): void {
     this.currentWeapon = weapon;
     this.updateWeaponImage();
     this.saveWeapon();
+    this.refreshWeaponShopUI();
+    this.updateKnivesRemaining();
     this.hideWeaponModal();
+  }
+
+  private handleWeaponOptionClick(weapon: WeaponType): void {
+    if (weapon === "knife") {
+      this.equipWeapon("knife");
+      return;
+    }
+
+    if (this.weaponUnlocks[weapon]) {
+      this.equipWeapon(weapon);
+      return;
+    }
+
+    // Attempt purchase
+    const price = this.getWeaponPrice(weapon);
+    if (!this.canAfford(price)) {
+      this.triggerHaptic("error");
+      return;
+    }
+
+    if (this.trySpendCoins(price)) {
+      this.weaponUnlocks[weapon] = true;
+      this.saveProgression();
+      this.triggerHaptic("success");
+      this.equipWeapon(weapon);
+    }
   }
 
   private updateLevelDisplay(): void {
     this.levelDisplay.textContent = `Level ${this.currentLevel + 1}/${CONFIG.TOTAL_LEVELS}`;
-    // Update coins display with total collected coins
-    this.coinDisplay.textContent = this.totalCoins.toString();
+    this.coinDisplay.textContent = this.coinBank.toString();
+  }
+
+  private updateTimerDisplay(): void {
+    const secs = Math.max(0, Math.ceil(this.roundTimer));
+    const mins = Math.floor(secs / 60);
+    const remainder = secs % 60;
+    this.timerDisplay.textContent = `${mins}:${String(remainder).padStart(2, "0")}`;
+
+    if (this.roundTimer <= 5 && this.roundTimerActive) {
+      this.timerDisplay.classList.add("urgent");
+    } else {
+      this.timerDisplay.classList.remove("urgent");
+    }
   }
 
   private updateKnivesRemaining(): void {
@@ -1620,54 +2315,41 @@ class KnifeHitGame {
     if ((this.state === "PLAYING" || this.state === "PAUSED") && hasKnivesToShow) {
       this.bottomHud.classList.remove("hidden");
       
-      // Update knife preview image with proper aspect ratio
+      // Update knife preview image - only recalculate size when weapon changes (cache layout reads)
       if (this.knifeImage && this.assetsLoaded) {
-        const imageWidth = this.knifeImage.naturalWidth || this.knifeImage.width;
-        const imageHeight = this.knifeImage.naturalHeight || this.knifeImage.height;
-        const aspectRatio = imageWidth / imageHeight;
-        
-        // Auto-size based on available space in bottom HUD
-        // Use viewport-based sizing that fits within the bottom area
-        const containerHeight = window.innerHeight;
-        const availableHeight = containerHeight * 0.25; // Use 25% of viewport height for bottom HUD
-        const maxKnifeHeight = availableHeight * 0.4; // Knife takes 40% of available space
-        const maxKnifeWidth = window.innerWidth * 0.15; // Max 15% of viewport width
-        
-        let width: number;
-        let height: number;
-        
-        if (aspectRatio > 1) {
-          // Wider than tall
-          width = Math.min(maxKnifeWidth, maxKnifeHeight * aspectRatio);
-          height = width / aspectRatio;
-        } else {
-          // Taller than wide
-          height = Math.min(maxKnifeHeight, maxKnifeWidth / aspectRatio);
-          width = height * aspectRatio;
-        }
-        
-        this.knifePreviewImage.src = this.knifeImage.src;
-        this.knifePreviewImage.style.width = `${width}px`;
-        this.knifePreviewImage.style.height = `${height}px`;
-        this.knifePreviewImage.style.display = "block";
-        // Set rotation to 90° (laying flat/horizontal) when at bottom
-        // Check image orientation: if image is wider than tall, it's already horizontal
-        // If it's taller than wide, we need to rotate it 90° to make it horizontal
-        const isHorizontal = aspectRatio > 1;
-        const rotationDeg = isHorizontal ? 0 : 90; // If already horizontal, no rotation needed
-        
-        // Force transform to be applied immediately and on image load
-        this.knifePreviewImage.style.transform = `rotate(${rotationDeg}deg)`;
-        
-        // Ensure it's set after image loads (in case image is cached and onload doesn't fire)
-        const setRotation = () => {
+        if (this.cachedKnifePreviewWeapon !== this.currentWeapon) {
+          // Only read layout values when weapon changes, not on every throw
+          const imageWidth = this.knifeImage.naturalWidth || this.knifeImage.width;
+          const imageHeight = this.knifeImage.naturalHeight || this.knifeImage.height;
+          const aspectRatio = imageWidth / imageHeight;
+
+          const containerHeight = this.viewH || window.innerHeight;
+          const availableHeight = containerHeight * 0.25;
+          const maxKnifeHeight = availableHeight * 0.42;
+          const maxKnifeWidth = (this.viewW || window.innerWidth) * 0.18;
+
+          let width: number;
+          let height: number;
+
+          if (aspectRatio > 1) {
+            width = Math.min(maxKnifeWidth, maxKnifeHeight * aspectRatio);
+            height = width / aspectRatio;
+          } else {
+            height = Math.min(maxKnifeHeight, maxKnifeWidth / aspectRatio);
+            width = height * aspectRatio;
+          }
+
+          this.cachedKnifePreviewWidth = width;
+          this.cachedKnifePreviewHeight = height;
+          this.cachedKnifePreviewWeapon = this.currentWeapon;
+
+          this.knifePreviewImage.src = this.knifeImage.src;
+          this.knifePreviewImage.style.width = `${width}px`;
+          this.knifePreviewImage.style.height = `${height}px`;
+          const rotationDeg = aspectRatio > 1 ? 0 : 90;
           this.knifePreviewImage.style.transform = `rotate(${rotationDeg}deg)`;
-        };
-        this.knifePreviewImage.onload = setRotation;
-        // Also set it immediately in case image is already loaded
-        if (this.knifePreviewImage.complete) {
-          setRotation();
         }
+        this.knifePreviewImage.style.display = "block";
       } else {
         this.knifePreviewImage.style.display = "none";
       }
@@ -1676,18 +2358,48 @@ class KnifeHitGame {
       const displayCount = this.knivesToThrow > 0 ? this.knivesToThrow : 0;
       this.knivesCount.textContent = displayCount.toString();
       
-      // Update knife icons below knife preview
-      this.knifeIconsContainer.innerHTML = "";
-      if (this.knifeIconImage && this.assetsLoaded) {
-        for (let i = 0; i < this.knivesToThrow; i++) {
-          const icon = document.createElement("img");
-          icon.className = "knife-icon-bottom";
-          icon.src = this.knifeIconImage.src;
-          icon.alt = "Knife icon";
-          // Stagger the animation for each icon
-          icon.style.animationDelay = `${i * 0.05}s`;
-          this.knifeIconsContainer.appendChild(icon);
+      // Update knife icons below knife preview (use actual weapon image)
+      if (this.knifeImage && this.assetsLoaded) {
+        const alt = this.currentWeapon.charAt(0).toUpperCase() + this.currentWeapon.slice(1) + " icon";
+
+        // Update src if weapon changed
+        if (this.lastKnifeIconsWeapon !== this.currentWeapon) {
+          for (const el of this.knifeIconEls) {
+            el.src = this.knifeImage.src;
+            el.alt = alt;
+          }
+          this.lastKnifeIconsWeapon = this.currentWeapon;
         }
+
+        // Update visibility only if count changed
+        if (this.lastKnifeIconsCount !== this.knivesToThrow) {
+          for (let i = 0; i < this.knifeIconEls.length; i++) {
+            const el = this.knifeIconEls[i];
+            const shouldShow = i < this.knivesToThrow;
+            if (shouldShow) {
+              if (el.style.display === "none") {
+                // Show icon: use class-swap animation instead of forced reflow
+                // Remove animate class, then re-add on next frame to trigger animation
+                el.classList.remove("animate");
+                el.style.display = "block";
+                // Schedule animation class add on next frame - avoids layout reflow in game loop
+                requestAnimationFrame(() => { el.classList.add("animate"); });
+              }
+            } else {
+              el.style.display = "none";
+              el.classList.remove("animate");
+            }
+          }
+          this.lastKnifeIconsCount = this.knivesToThrow;
+        }
+      } else {
+        // Hide all if assets not ready
+        for (const el of this.knifeIconEls) {
+          el.style.display = "none";
+          el.classList.remove("animate");
+        }
+        this.lastKnifeIconsCount = -1;
+        this.lastKnifeIconsWeapon = null;
       }
     } else {
       this.bottomHud.classList.add("hidden");
@@ -1696,8 +2408,20 @@ class KnifeHitGame {
 
   private triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error"): void {
     if (this.settings.haptics && typeof (window as any).triggerHaptic === "function") {
-      (window as any).triggerHaptic(type);
+      setTimeout(() => (window as any).triggerHaptic(type), 0);
     }
+  }
+
+  private playUiTap(): void {
+    if (!this.settings.fx || !this.uiTapSound) return;
+    this.uiTapSound.currentTime = 0;
+    this.uiTapSound.play().catch(() => {});
+  }
+
+  private playUiConfirm(): void {
+    if (!this.settings.fx || !this.uiConfirmSound) return;
+    this.uiConfirmSound.currentTime = 0;
+    this.uiConfirmSound.play().catch(() => {});
   }
 
   private update(dt: number): void {
@@ -1708,7 +2432,45 @@ class KnifeHitGame {
       return;
     }
     
+    // Start menu animation
+    if (this.state === "START") {
+      this.updateStartMenu(dt);
+      return;
+    }
+
+    if (this.state === "LEVEL_SELECT") {
+      this.levelSelectTime += dt;
+      return;
+    }
+
     if (this.state !== "PLAYING" && this.state !== "WIN" && this.state !== "GAME_OVER") return;
+    
+    // Round timer countdown (paused during transitions)
+    if (this.roundTimerActive && this.state === "PLAYING" && !this.transitionActive) {
+      this.roundTimer -= dt;
+      this.updateTimerDisplay();
+      if (this.roundTimer <= 0) {
+        this.roundTimer = 0;
+        this.roundTimerActive = false;
+        this.updateTimerDisplay();
+        this.flushCoinSave();
+        this.gameOverActive = true;
+        this.gameOverTimeout = true;
+        this.state = "GAME_OVER";
+        this.pauseBtn.classList.add("hidden");
+        this.backgroundOverlay.target = -0.5;
+        this.triggerHaptic("error");
+        if (this.settings.fx && this.timeoutSound) {
+          this.timeoutSound.currentTime = 0;
+          this.timeoutSound.play().catch(() => {});
+        }
+        requestAnimationFrame(() => {
+          this.updateLevelDisplay();
+          this.refreshWeaponShopUI();
+        });
+        return;
+      }
+    }
     
     // Apply slow motion time scale
     let actualDt = dt;
@@ -1742,10 +2504,19 @@ class KnifeHitGame {
     
     // Only update rotation if not in transition
     if (!this.transitionActive) {
-      this.rotationTime += actualDt; // Use actualDt for rotation
+      this.rotationTime += actualDt;
+      this.patternTimer += actualDt;
       
-      // Calculate target angular velocity from pattern
-      const pattern = ROTATION_PATTERNS[level.rotationPattern];
+      // Switch to a random pattern when the current one expires
+      if (this.patternTimer >= this.patternDuration && level.rotationPatterns.length > 1) {
+        const available = level.rotationPatterns.filter(p => p !== this.activePattern);
+        this.activePattern = available[Math.floor(Math.random() * available.length)];
+        this.patternTimer = 0;
+        this.patternDuration = 3 + Math.random() * 4; // 3-7 seconds per pattern
+      }
+      
+      // Calculate target angular velocity from active pattern
+      const pattern = ROTATION_PATTERNS[this.activePattern];
       this.targetAngularVelocity = pattern(
         this.rotationTime,
         level.rotationSpeed,
@@ -1757,7 +2528,7 @@ class KnifeHitGame {
         this.currentAngularVelocity,
         this.targetAngularVelocity,
         dt,
-        120 // Max acceleration
+        180 // Snappier transitions between patterns
       );
       
       // Update fruit rotation (keep spinning even during celebration)
@@ -1800,8 +2571,8 @@ class KnifeHitGame {
         knife.flyTime += dt; // Use real dt - slow motion is visual only (camera zoom)
         
         // Calculate trajectory from start position to fruit center
-        const fruitCenterX = this.canvas.width * CONFIG.FRUIT_CENTER_X;
-        const fruitCenterY = this.canvas.height * CONFIG.FRUIT_CENTER_Y;
+        const fruitCenterX = this.viewW * CONFIG.FRUIT_CENTER_X;
+        const fruitCenterY = this.viewH * CONFIG.FRUIT_CENTER_Y;
         const dx = fruitCenterX - knife.flyStartX;
         const dy = fruitCenterY - knife.flyStartY;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1813,60 +2584,17 @@ class KnifeHitGame {
         
         // No throw animation effects (removed scale and wobble)
         knife.throwScale = 1.0;
-        knife.throwRotation = 0;
-        
-        // Update flying knife sprite position and scale with camera zoom
-        if (this.flyingKnifeSprite.style.display === "block") {
-          const containerRect = this.canvas.getBoundingClientRect();
-          const screenX = containerRect.left + (knife.flyX / this.canvas.width) * containerRect.width;
-          const screenY = containerRect.top + (knife.flyY / this.canvas.height) * containerRect.height;
-          
-          // Get base size from data attributes (set when knife is thrown)
-          const baseWidth = parseFloat(this.flyingKnifeSprite.getAttribute("data-base-width") || "180");
-          const baseHeight = parseFloat(this.flyingKnifeSprite.getAttribute("data-base-height") || "180");
-          
-          // Scale sprite size with camera zoom so it stays big when zoomed in
-          const spriteWidth = baseWidth * this.cameraZoom;
-          const spriteHeight = baseHeight * this.cameraZoom;
-          
-          this.flyingKnifeSprite.style.left = `${screenX - spriteWidth / 2}px`;
-          this.flyingKnifeSprite.style.top = `${screenY - spriteHeight / 2}px`;
-          this.flyingKnifeSprite.style.width = `${spriteWidth}px`;
-          this.flyingKnifeSprite.style.height = `${spriteHeight}px`;
-          
-          // Slerp rotation from 90° (laying flat, pointing up) to angle pointing toward fruit
-          // Calculate target angle based on trajectory direction (from start to fruit)
-          const trajectoryDx = fruitCenterX - knife.flyStartX;
-          const trajectoryDy = fruitCenterY - knife.flyStartY;
-          const targetAngleRad = Math.atan2(trajectoryDy, trajectoryDx);
-          const targetAngleDeg = targetAngleRad * (180 / Math.PI);
-          
-          // CSS rotation: 0° = right, 90° = down, 180° = left, 270° = up
-          // Determine starting angle based on image orientation (same as initial rotation)
-          if (!this.knifeImage) return;
-          const imageWidth = this.knifeImage.naturalWidth || this.knifeImage.width;
-          const imageHeight = this.knifeImage.naturalHeight || this.knifeImage.height;
-          const aspectRatio = imageWidth / imageHeight;
-          const isHorizontal = aspectRatio > 1;
-          const baseStartAngle = isHorizontal ? 0 : 90; // If already horizontal, start at 0°
-          
-          // We want: start laying flat, end at angle pointing along trajectory
-          const startAngle = baseStartAngle; // Start laying flat
-          const endAngle = targetAngleDeg + 90; // Target angle in CSS coordinates
-          
-          // Normalize angle difference for shortest path
-          let angleDiff = endAngle - startAngle;
-          if (angleDiff > 180) angleDiff -= 360;
-          if (angleDiff < -180) angleDiff += 360;
-          
-          // Smooth interpolation from start to end
-          // Use progress with easing for smooth rotation
-          const rotationProgress = Math.min(1, progress * 1.2); // Rotate slightly faster than movement
-          const easedT = 1 - Math.pow(1 - rotationProgress, 3); // Cubic ease-out
-          const currentAngle = startAngle + angleDiff * easedT;
-          
-          this.flyingKnifeSprite.style.transform = `rotate(${currentAngle}deg)`;
-        }
+
+        // Smoothly rotate from a flat start orientation to pointing toward the fruit
+        const rotationProgress = Math.min(1, progress * 1.2);
+        const easedT = 1 - Math.pow(1 - rotationProgress, 3);
+        const startRot = knife.flyStartRot ?? 0;
+        const endRot = knife.flyEndRot ?? (Math.atan2(dy, dx) + Math.PI / 2);
+        let diff = endRot - startRot;
+        // shortest path wrap
+        if (diff > Math.PI) diff -= Math.PI * 2;
+        if (diff < -Math.PI) diff += Math.PI * 2;
+        knife.throwRotation = startRot + diff * easedT;
         
         // Predictive collision detection - check if collision will happen soon
         const currentDx = fruitCenterX - knife.flyX;
@@ -1957,21 +2685,18 @@ class KnifeHitGame {
               coin.animating = true;
               coin.animX = impactX;
               coin.animY = impactY;
+              coin.animStartX = impactX;
+              coin.animStartY = impactY;
               coin.animProgress = 0;
               
-              // Increment coin count
-              this.totalCoins++;
-              this.updateLevelDisplay();
+              // Add to persistent coin bank
+              this.addCoins(1);
               
               // Trigger haptic feedback
               if (this.settings.haptics) {
                 this.triggerHaptic("light");
               }
               
-              // Play pling sound effect
-              if (this.settings.fx && this.plingSound) {
-                this.playGeneratedSound(this.plingSound);
-              }
               
               // Don't check for knife collision if coin was hit
               break;
@@ -1996,7 +2721,6 @@ class KnifeHitGame {
           
           if (collision) {
             // Knife breaks into pieces and falls
-            this.flyingKnifeSprite.style.display = "none";
             
             // Get exact position of the knife when it breaks
             const knifeX = knife.flyX;
@@ -2043,18 +2767,20 @@ class KnifeHitGame {
               this.cameraTargetY = 0;
             }
             
-            // Start game over sequence (no modal)
+            this.flushCoinSave();
             this.gameOverActive = true;
             this.state = "GAME_OVER";
+            this.roundTimerActive = false;
+            this.pauseBtn.classList.add("hidden");
             // Darken background smoothly
             this.backgroundOverlay.target = -0.5; // Darken to 50%
             this.triggerHaptic("error");
             
-            // Submit score on game over (level reached)
-            console.log("[KnifeHitGame] Submitting final score:", this.currentLevel);
-            if (typeof (window as any).submitScore === "function") {
-              (window as any).submitScore(this.currentLevel); // Submit level reached (0-indexed)
-            }
+            // Defer non-critical DOM updates to avoid blocking the impact frame
+            requestAnimationFrame(() => {
+              this.updateLevelDisplay();
+              this.refreshWeaponShopUI();
+            });
             
             // Break out of the loop since the knife is removed and game is over
             break;
@@ -2064,10 +2790,11 @@ class KnifeHitGame {
             knife.isFlying = false;
             knife.stickBounce = 1;
             
-            // Play stab sound when knife hits fruit
-            if (this.settings.fx && this.stabSound) {
-              this.stabSound.currentTime = 0;
-              this.stabSound.play().catch(() => {});
+            if (this.settings.fx && this.stabPool.length > 0) {
+              const snd = this.stabPool[this.stabPoolIndex];
+              this.stabPoolIndex = (this.stabPoolIndex + 1) % this.stabPool.length;
+              snd.currentTime = 0;
+              snd.play().catch(() => {});
             }
             
             // Fruit distortion effect
@@ -2108,21 +2835,19 @@ class KnifeHitGame {
               this.screenShake.y = (Math.random() - 0.5) * 10;
             }
             
-            // Hide flying sprite
-            this.flyingKnifeSprite.style.display = "none";
-            
-            // Update preview if more knives
+            // Update preview if more knives - defer to next frame to avoid DOM work during impact
             if (this.knivesToThrow > 0) {
-              this.updateKnivesRemaining();
+              requestAnimationFrame(() => { this.updateKnivesRemaining(); });
             }
             
             this.triggerHaptic("medium");
             
             // Check win - no modal, just keep playing
             if (this.knivesToThrow === 0 && !this.knives.some(k => k.isFlying)) {
-              this.state = "WIN"; // Keep state as WIN but don't show modal
+              this.state = "WIN";
+              this.roundTimerActive = false;
               // Brighten background smoothly
-              this.backgroundOverlay.target = 0.3; // Brighten by 30%
+              this.backgroundOverlay.target = 0.3;
               this.triggerHaptic("success");
               
               // Play success sound when clearing level
@@ -2131,7 +2856,7 @@ class KnifeHitGame {
                 this.successSound.play().catch(() => {});
               }
               
-              if (typeof (window as any).submitScore === "function") {
+              if (this.currentLevel >= this.highestUnlockedLevel && typeof (window as any).submitScore === "function") {
                 (window as any).submitScore(this.currentLevel + 1);
               }
             }
@@ -2183,11 +2908,110 @@ class KnifeHitGame {
       this.updateDebugInfo(level);
     }
   }
+
+  private updateStartMenu(dt: number): void {
+    this.startMenuTime += dt;
+
+    // Smooth ring speed to target
+    this.startMenuRingSpeed += (this.startMenuRingTargetSpeed - this.startMenuRingSpeed) * dt * 3;
+    this.startMenuRingAngle = normalizeAngle(this.startMenuRingAngle + this.startMenuRingSpeed * dt);
+
+    // Decay per-fruit hit distortion
+    for (const f of this.startMenuFruits) {
+      if (f.hitDistortion > 0) f.hitDistortion = Math.max(0, f.hitDistortion - dt * 3);
+    }
+
+    if (this.startIntroState === "knives") {
+      const centerX = this.viewW * 0.5;
+      const centerY = this.viewH * 0.52;
+
+      if (this.startIntroHitHold > 0) {
+        this.startIntroHitHold = Math.max(0, this.startIntroHitHold - dt);
+        if (this.startIntroHitHold === 0) {
+          // Wait for VFX to finish before transitioning
+        }
+      } else {
+        // Knives flight (all at once)
+        const duration = 0.22;
+        this.startIntroKnifeT += dt / duration;
+
+        if (this.startIntroKnifeT >= 1) {
+          this.startIntroKnifeT = 1;
+
+          if (!this.startIntroHitsApplied) {
+            this.startIntroHitsApplied = true;
+            this.startIntroFinishTime = 0;
+
+            // Impact: wiggle fruits + spawn juice VFX on each fruit
+            for (let i = 0; i < this.startMenuFruits.length; i++) {
+              const f = this.startMenuFruits[i];
+              f.hitDistortion = 1.0;
+
+              const pos = this.getStartMenuFruitPos(i, centerX, centerY);
+              const color = this.getJuiceColorForImage(f.image);
+              this.createSplashEffect(pos.x, pos.y, 0, 0, color);
+              this.createDropParticles(pos.x, pos.y, 0, 0, color);
+            }
+
+            // Tiny flash and sound/haptic (once)
+            this.screenFlash.active = true;
+            this.screenFlash.time = 0;
+            this.screenFlash.duration = 0.08;
+
+            if (this.settings.fx && this.stabPool.length > 0) {
+              const snd = this.stabPool[this.stabPoolIndex];
+              this.stabPoolIndex = (this.stabPoolIndex + 1) % this.stabPool.length;
+              snd.currentTime = 0;
+              snd.play().catch(() => {});
+            }
+            this.triggerHaptic("medium");
+
+            // Hold briefly so the player sees the splashes + wiggle before we start checking completion
+            this.startIntroHitHold = 0.18;
+          }
+        }
+      }
+
+      // After impacts are applied, wait until particles finish (or a max timeout)
+      if (this.startIntroHitsApplied) {
+        this.startIntroFinishTime += dt;
+        const particlesDone = this.particles.length === 0;
+        const ready = particlesDone && this.startIntroFinishTime >= 0.25;
+        const safety = this.startIntroFinishTime >= 1.6;
+
+        if (ready || safety) {
+          this.startMenuActive = false;
+          this.startIntroState = "done";
+          this.shopBtnRect = null;
+          this.enterLevelSelect();
+          return;
+        }
+      }
+    }
+
+    // Update VFX particles during start menu too
+    this.updateParticles(dt);
+
+    // Update screen flash timer during start menu too
+    if (this.screenFlash.active) {
+      this.screenFlash.time += dt;
+      if (this.screenFlash.time >= this.screenFlash.duration) {
+        this.screenFlash.active = false;
+        this.screenFlash.time = 0;
+      }
+    }
+  }
   
-  private createSplashEffect(x: number, y: number, offsetX: number = 0, offsetY: number = 0): void {
+  private createSplashEffect(
+    x: number,
+    y: number,
+    offsetX: number = 0,
+    offsetY: number = 0,
+    colorOverride?: string
+  ): void {
     // Create juice splash particles that burst outward
     const particleCount = 20; // More particles for juicier effect
-    const fruitColor = this.getFruitJuiceColor(); // Get color based on current fruit
+    const fruitColor = colorOverride || this.getFruitJuiceColor(); // Get color based on current fruit
     // Apply offset to spawn position
     const spawnX = x + offsetX;
     const spawnY = y + offsetY;
@@ -2195,25 +3019,31 @@ class KnifeHitGame {
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2;
       const speed = 100 + Math.random() * 60; // Faster for more impact
-      const particle: Particle = {
-        x: spawnX,
-        y: spawnY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.5 + Math.random() * 0.4,
-        maxLife: 0.5 + Math.random() * 0.4,
-        size: 4 + Math.random() * 5, // Bigger drops
-        color: fruitColor,
-        type: "splash",
-      };
+      const maxLife = 0.5 + Math.random() * 0.4;
+      const particle = (this.particlePool.pop() || ({} as Particle)) as Particle;
+      particle.x = spawnX;
+      particle.y = spawnY;
+      particle.vx = Math.cos(angle) * speed;
+      particle.vy = Math.sin(angle) * speed;
+      particle.life = maxLife;
+      particle.maxLife = maxLife;
+      particle.size = 4 + Math.random() * 5;
+      particle.color = fruitColor;
+      particle.type = "splash";
       this.particles.push(particle);
     }
   }
   
-  private createBigExplosion(x: number, y: number, offsetX: number = 0, offsetY: number = 0): void {
+  private createBigExplosion(
+    x: number,
+    y: number,
+    offsetX: number = 0,
+    offsetY: number = 0,
+    colorOverride?: string
+  ): void {
     // Create massive juice explosion with many particles
     const particleCount = 50; // More particles for bigger explosion
-    const fruitColor = this.getFruitJuiceColor(); // Get color based on current fruit
+    const fruitColor = colorOverride || this.getFruitJuiceColor(); // Get color based on current fruit
     // Apply offset to spawn position
     const spawnX = x + offsetX;
     const spawnY = y + offsetY;
@@ -2221,41 +3051,41 @@ class KnifeHitGame {
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2;
       const speed = 180 + Math.random() * 120; // Faster for more impact
-      const particle: Particle = {
-        x: spawnX,
-        y: spawnY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 0.7 + Math.random() * 0.5,
-        maxLife: 0.7 + Math.random() * 0.5,
-        size: 5 + Math.random() * 7, // Bigger juice drops
-        color: fruitColor,
-        type: "splash",
-      };
+      const maxLife = 0.7 + Math.random() * 0.5;
+      const particle = (this.particlePool.pop() || ({} as Particle)) as Particle;
+      particle.x = spawnX;
+      particle.y = spawnY;
+      particle.vx = Math.cos(angle) * speed;
+      particle.vy = Math.sin(angle) * speed;
+      particle.life = maxLife;
+      particle.maxLife = maxLife;
+      particle.size = 5 + Math.random() * 7;
+      particle.color = fruitColor;
+      particle.type = "splash";
       this.particles.push(particle);
     }
     
     // Also create juice drop particles
     for (let i = 0; i < 10; i++) { // Reduced from 20 to 10
-      const particle: Particle = {
-        x: spawnX,
-        y: spawnY, // Use offset position
-        vx: (Math.random() - 0.5) * 60,
-        vy: 100 + Math.random() * 100,
-        life: 1.2 + Math.random() * 0.6,
-        maxLife: 1.2 + Math.random() * 0.6,
-        size: 4 + Math.random() * 5, // Bigger drops
-        color: fruitColor,
-        type: "drop",
-      };
+      const maxLife = 1.2 + Math.random() * 0.6;
+      const particle = (this.particlePool.pop() || ({} as Particle)) as Particle;
+      particle.x = spawnX;
+      particle.y = spawnY;
+      particle.vx = (Math.random() - 0.5) * 60;
+      particle.vy = 100 + Math.random() * 100;
+      particle.life = maxLife;
+      particle.maxLife = maxLife;
+      particle.size = 4 + Math.random() * 5;
+      particle.color = fruitColor;
+      particle.type = "drop";
       this.particles.push(particle);
     }
   }
   
   private updateTransition(dt: number): void {
     this.transitionTime += dt;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.viewW;
+    const h = this.viewH;
     const fruitCenterX = w * CONFIG.FRUIT_CENTER_X;
     const fruitCenterY = h * CONFIG.FRUIT_CENTER_Y;
     
@@ -2346,10 +3176,9 @@ class KnifeHitGame {
         this.embeddedKnivesFlying = false;
         this.fruitWiggleTime = 0;
         
-        // Show UI and start rotation
-        this.settingsIconBtn.classList.remove("hidden");
-        this.settingsBtn.classList.remove("hidden");
+        // Show UI and start rotation (animate UI spawn after knives count is ready)
         this.updateKnivesRemaining();
+        this.showGameplayUI(true);
         
         // Start fruit rotation
         const level = this.levels[this.currentLevel];
@@ -2357,8 +3186,39 @@ class KnifeHitGame {
       }
     }
   }
+
+  private showGameplayUI(animate: boolean): void {
+    // Show top HUD (weapon/coins/level + settings icon)
+    this.hud.classList.remove("hidden");
+    this.settingsIconBtn.classList.remove("hidden");
+    this.settingsBtn.classList.remove("hidden");
+    this.pauseBtn.classList.remove("hidden");
+
+    this.coinDisplayRectDirty = true;
+
+    // Bottom HUD is shown via updateKnivesRemaining()
+
+    if (animate) {
+      const els: HTMLElement[] = [this.hud, this.settingsIconBtn, this.settingsBtn];
+      for (const el of els) this.animateUIIn(el);
+      // bottomHud may be shown by updateKnivesRemaining; animate if present
+      if (!this.bottomHud.classList.contains("hidden")) this.animateUIIn(this.bottomHud);
+    }
+  }
+
+  private animateUIIn(el: HTMLElement): void {
+    // Restart animation
+    el.classList.remove("ui-spawn");
+    // Force reflow
+    void el.offsetHeight;
+    el.classList.add("ui-spawn");
+    // Clean up class after animation
+    window.setTimeout(() => el.classList.remove("ui-spawn"), 450);
+  }
   
   private startCelebration(): void {
+    this.flushCoinSave();
+    this.pauseBtn.classList.add("hidden");
     this.celebrationActive = true;
     this.celebrationTime = 0;
     this.encouragementX = -500;
@@ -2377,54 +3237,81 @@ class KnifeHitGame {
     this.encouragementText = messages[Math.floor(Math.random() * messages.length)];
   }
   
-  private createDropParticles(x: number, y: number, offsetX: number = 0, offsetY: number = 0): void {
+  private createDropParticles(
+    x: number,
+    y: number,
+    offsetX: number = 0,
+    offsetY: number = 0,
+    colorOverride?: string
+  ): void {
     // Create juice drops that fall down
     const particleCount = 6; // Reduced from 12 to 6
-    const fruitColor = this.getFruitJuiceColor(); // Get color based on current fruit
+    const fruitColor = colorOverride || this.getFruitJuiceColor(); // Get color based on current fruit
     // Apply offset to spawn position
     const spawnX = x + offsetX;
     const spawnY = y + offsetY;
     
     for (let i = 0; i < particleCount; i++) {
-      const particle: Particle = {
-        x: spawnX,
-        y: spawnY, // Use offset position
-        vx: (Math.random() - 0.5) * 40,
-        vy: 60 + Math.random() * 70,
-        life: 0.8 + Math.random() * 0.5,
-        maxLife: 0.8 + Math.random() * 0.5,
-        size: 3 + Math.random() * 4, // Bigger drops
-        color: fruitColor,
-        type: "drop",
-      };
+      const maxLife = 0.8 + Math.random() * 0.5;
+      const particle = (this.particlePool.pop() || ({} as Particle)) as Particle;
+      particle.x = spawnX;
+      particle.y = spawnY;
+      particle.vx = (Math.random() - 0.5) * 40;
+      particle.vy = 60 + Math.random() * 70;
+      particle.life = maxLife;
+      particle.maxLife = maxLife;
+      particle.size = 3 + Math.random() * 4;
+      particle.color = fruitColor;
+      particle.type = "drop";
       this.particles.push(particle);
     }
   }
   
   private getFruitJuiceColor(): string {
-    // Get juice color based on current fruit type
-    if (!this.fruit) {
-      // Default orange/yellow if fruit not loaded
-      return `hsl(${30 + Math.random() * 20}, 85%, ${55 + Math.random() * 15}%)`;
+    if (!this.fruit || !this.fruit.image) {
+      // Default: warm juice tone
+      const h = 30 + Math.random() * 15;
+      const s = 80 + Math.random() * 10;
+      const l = 50 + Math.random() * 10;
+      return `hsl(${h}, ${s}%, ${l}%)`;
     }
-    
-    // Get fruit color index to determine juice color
-    const fruitColors = [
-      { h: 30, s: 85, l: 60 },  // Orange (avocado - greenish, but use orange for juice)
-      { h: 25, s: 90, l: 55 },  // Orange (orange)
-      { h: 280, s: 70, l: 50 }, // Purple (grape)
-      { h: 120, s: 80, l: 50 }, // Green (watermelon - red inside, but green rind)
-      { h: 60, s: 75, l: 55 },  // Yellow-green (kiwi)
-      { h: 50, s: 90, l: 60 },  // Yellow (lemon)
-    ];
-    
-    const baseColor = fruitColors[this.fruit.colorIndex % fruitColors.length];
-    // Add some variation for more natural look
-    const h = baseColor.h + (Math.random() - 0.5) * 10;
-    const s = baseColor.s + (Math.random() - 0.5) * 15;
-    const l = baseColor.l + (Math.random() - 0.5) * 20;
-    
-    return `hsl(${h}, ${Math.max(60, Math.min(100, s))}%, ${Math.max(40, Math.min(80, l))}%)`;
+
+    // Detect fruit by sprite identity (based on filenames: avocado/grape/kiwi/lemon/orange/watermelon)
+    const img = this.fruit.image;
+    return this.getJuiceColorForImage(img);
+  }
+
+  private getJuiceColorForImage(img: HTMLImageElement | null): string {
+    if (!img) {
+      const h = 30 + Math.random() * 15;
+      const s = 80 + Math.random() * 10;
+      const l = 50 + Math.random() * 10;
+      return `hsl(${h}, ${s}%, ${l}%)`;
+    }
+
+    // Base palette per fruit type (picked to match the real fruit flesh/juice)
+    let base: { h: number; s: number; l: number } = { h: 30, s: 85, l: 55 }; // fallback
+
+    if (img === this.avocadoImage) {
+      base = { h: 95, s: 55, l: 45 }; // avocado green
+    } else if (img === this.grapeImage) {
+      base = { h: 285, s: 60, l: 45 }; // grape purple
+    } else if (img === this.kiwiImage) {
+      base = { h: 75, s: 70, l: 50 }; // kiwi lime-green
+    } else if (img === this.lemonImage) {
+      base = { h: 50, s: 92, l: 58 }; // lemon yellow
+    } else if (img === this.orangeImage) {
+      base = { h: 28, s: 92, l: 55 }; // orange orange
+    } else if (img === this.watermelonImage) {
+      base = { h: 350, s: 85, l: 55 }; // watermelon red/pink
+    }
+
+    // Add small variation at spawn-time (this is called only when creating VFX, not per-frame)
+    const h = base.h + (Math.random() - 0.5) * 8;
+    const s = Math.max(55, Math.min(100, base.s + (Math.random() - 0.5) * 10));
+    const l = Math.max(35, Math.min(75, base.l + (Math.random() - 0.5) * 12));
+
+    return `hsl(${h}, ${s}%, ${l}%)`;
   }
   
   private updateParticles(dt: number): void {
@@ -2449,7 +3336,11 @@ class KnifeHitGame {
       
       // Remove dead particles
       if (p.life <= 0) {
-        this.particles.splice(i, 1);
+        // swap-pop to avoid O(n) splice and reduce GC
+        const last = this.particles[this.particles.length - 1];
+        this.particles[i] = last;
+        this.particles.pop();
+        this.particlePool.push(p);
       }
     }
   }
@@ -2462,7 +3353,7 @@ class KnifeHitGame {
       `Knives to Throw: ${this.knivesToThrow}`,
       `Rotation Speed: ${level.rotationSpeed.toFixed(1)}°/s`,
       `Direction: ${level.rotationDirection > 0 ? "CW" : "CCW"}`,
-      `Pattern: ${level.rotationPattern}`,
+      `Pattern: ${this.activePattern} (${level.rotationPatterns.length} available)`,
       `Current Vel: ${this.currentAngularVelocity.toFixed(1)}°/s`,
       `Rotation Angle: ${this.fruit.rotationAngle.toFixed(1)}°`,
     ];
@@ -2470,8 +3361,14 @@ class KnifeHitGame {
   }
 
   private render(): void {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.viewW;
+    const h = this.viewH;
+
+    // Render at devicePixelRatio but keep coordinates in CSS pixels
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.ctx.imageSmoothingEnabled = true;
+    // Some WebViews only support this via "any"
+    (this.ctx as any).imageSmoothingQuality = "high";
     
     // Apply camera zoom and position
     const fruitCenterX = w * CONFIG.FRUIT_CENTER_X;
@@ -2516,9 +3413,17 @@ class KnifeHitGame {
       this.ctx.restore();
     }
     
-    // Allow rendering during transition
+    // Allow rendering during transition / start menu
     const isTransitioning = this.transitionActive;
-    if (!isTransitioning && this.state !== "PLAYING" && this.state !== "PAUSED" && this.state !== "WIN" && this.state !== "GAME_OVER") {
+    if (
+      !isTransitioning &&
+      this.state !== "PLAYING" &&
+      this.state !== "PAUSED" &&
+      this.state !== "WIN" &&
+      this.state !== "GAME_OVER" &&
+      this.state !== "START" &&
+      this.state !== "LEVEL_SELECT"
+    ) {
       this.ctx.restore();
       return;
     }
@@ -2526,6 +3431,30 @@ class KnifeHitGame {
     if (!this.assetsLoaded) {
       this.ctx.restore();
       return; // Wait for assets to load
+    }
+
+    // Level select rendering (in-canvas) -- draw outside camera transform
+    if (this.state === "LEVEL_SELECT") {
+      this.ctx.restore();
+      this.drawLevelSelect(w, h);
+      return;
+    }
+
+    // Start menu rendering (in-canvas)
+    if (!isTransitioning && this.state === "START") {
+      this.drawStartMenu(w, h);
+      this.ctx.restore();
+
+      // Draw screen flash on top
+      if (this.screenFlash.active) {
+        const flashAlpha = 1.0 - (this.screenFlash.time / this.screenFlash.duration);
+        this.ctx.save();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.globalAlpha = flashAlpha * 0.8;
+        this.ctx.fillRect(0, 0, w, h);
+        this.ctx.restore();
+      }
+      return;
     }
     
     // During bg_slide phase, don't draw fruit or knives yet
@@ -2621,9 +3550,8 @@ class KnifeHitGame {
     // Draw particles
     this.drawParticles();
     
-    // Draw flying knives (on top of everything) - only player's knife
-    // Transition knives are now embedded and drawn with zoom scale above
-    // Player's knife uses HTML sprite (flyingKnifeSprite), handled in update loop
+    // Draw flying knives (on top of everything)
+    this.drawFlyingKnives();
     
     // Draw broken knife pieces (on top of everything, after flying knives)
     this.drawBrokenKnifePieces();
@@ -2652,8 +3580,8 @@ class KnifeHitGame {
   }
   
   private drawCelebrationUI(): void {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.viewW;
+    const h = this.viewH;
     
     // Draw encouragement text from left side
     this.ctx.save();
@@ -2687,23 +3615,468 @@ class KnifeHitGame {
     this.ctx.restore();
   }
 
-  private drawGameOverUI(): void {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    
+  private drawStartMenu(w: number, h: number): void {
+    // Darken background (start menu only)
     this.ctx.save();
-    this.ctx.font = `bold ${Math.min(w * 0.05, 40)}px Fredoka One`;
-    this.ctx.fillStyle = "#ffffff";
-    this.ctx.textAlign = "right";
+    this.ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+    this.ctx.fillRect(0, 0, w, h);
+    // Subtle vignette for depth
+    const vg = this.ctx.createRadialGradient(w * 0.5, h * 0.52, Math.min(w, h) * 0.2, w * 0.5, h * 0.52, Math.min(w, h) * 0.8);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.35)");
+    this.ctx.fillStyle = vg;
+    this.ctx.fillRect(0, 0, w, h);
+    this.ctx.restore();
+
+    const cx = w * 0.5;
+    const cy = h * 0.52;
+    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+
+    // Global scale/alpha for zoom-out
+    this.ctx.save();
+    this.ctx.globalAlpha = this.startMenuAlpha;
+    this.ctx.translate(cx, cy);
+    this.ctx.scale(this.startMenuScale, this.startMenuScale);
+    this.ctx.translate(-cx, -cy);
+
+    // Title (bouncing)
+    const titleBounce = Math.sin(this.startMenuTime * 3.2) * 10;
+    this.ctx.save();
+    this.ctx.font = `bold ${Math.min(w * 0.11, 72)}px Fredoka One`;
+    this.ctx.textAlign = "center";
     this.ctx.textBaseline = "middle";
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    this.ctx.lineWidth = 6;
+    // Lower title a bit on mobile to feel less cramped with platform top overlays
+    const titleBaseY = isMobile ? Math.max(120, h * 0.19) : Math.max(90, h * 0.16);
+    const titleY = titleBaseY + titleBounce;
+    this.ctx.strokeText("Hit The Fruit", cx, titleY);
+    this.ctx.fillText("Hit The Fruit", cx, titleY);
+    this.ctx.restore();
+
+    // Ring
+    const ringR = Math.min(w, h) * 0.22;
+    const fruitSize = Math.min(w, h) * (isMobile ? 0.17 : 0.145);
+    const fruitRadius = fruitSize * 0.46;
+
+    // Soft ring glow
+    this.ctx.save();
+    const ringGrad = this.ctx.createRadialGradient(cx, cy, ringR * 0.55, cx, cy, ringR * 1.15);
+    ringGrad.addColorStop(0, "rgba(255,255,255,0)");
+    ringGrad.addColorStop(0.55, "rgba(255,255,255,0.08)");
+    ringGrad.addColorStop(1, "rgba(255,255,255,0)");
+    this.ctx.fillStyle = ringGrad;
+    this.ctx.beginPath();
+    this.ctx.arc(cx, cy, ringR * 1.15, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.restore();
+
+    // Knife intro (all knives from center at once), drawn BEHIND fruits for a "stab" look
+    if (this.startIntroState === "knives") {
+      const t = Math.max(0, Math.min(1, this.startIntroKnifeT));
+      const eased = 1 - Math.pow(1 - t, 3);
+
+      if (this.knifeImage) {
+        const iw = this.knifeImage.naturalWidth || this.knifeImage.width;
+        const ih = this.knifeImage.naturalHeight || this.knifeImage.height;
+        const ar = iw / ih;
+        const base = Math.min(w, h) * 0.11;
+        const kW = ar > 1 ? base : base * ar;
+        const kH = ar > 1 ? base / ar : base;
+        const kLen = Math.max(kW, kH);
+
+        for (let i = 0; i < this.startMenuFruits.length; i++) {
+          const toCenter = this.getStartMenuFruitPos(i, cx, cy);
+          const dx = toCenter.x - this.startIntroKnifeFrom.x;
+          const dy = toCenter.y - this.startIntroKnifeFrom.y;
+          const dLen = Math.max(0.00001, Math.hypot(dx, dy));
+          const ux = dx / dLen;
+          const uy = dy / dLen;
+
+          // Stop at the fruit edge (closest edge to the throw origin), not inside
+          const edgeX = toCenter.x - ux * fruitRadius;
+          const edgeY = toCenter.y - uy * fruitRadius;
+          // Pull slightly outward (towards origin) so it doesn't look embedded
+          const finalX = edgeX - ux * (kLen * 0.12);
+          const finalY = edgeY - uy * (kLen * 0.12);
+
+          const x = this.startIntroKnifeFrom.x + (finalX - this.startIntroKnifeFrom.x) * eased;
+          const y = this.startIntroKnifeFrom.y + (finalY - this.startIntroKnifeFrom.y) * eased;
+
+          const angle = Math.atan2(uy, ux);
+          this.ctx.save();
+          this.ctx.translate(x, y);
+          this.ctx.rotate(angle + Math.PI / 2);
+          this.ctx.drawImage(this.knifeImage, -kW / 2, -kH / 2, kW, kH);
+          this.ctx.restore();
+        }
+      }
+    }
+
+    // Fruits on ring (drawn on top of knives)
+    for (const f of this.startMenuFruits) {
+      const angleDeg = f.baseAngle + this.startMenuRingAngle;
+      const angleRad = ((angleDeg - 90) * Math.PI) / 180;
+      const x = cx + Math.cos(angleRad) * ringR;
+      const y = cy + Math.sin(angleRad) * ringR;
+
+      // Hit distortion: squash/stretch + tiny nudge (match gameplay)
+      const d = f.hitDistortion;
+      const pulse = Math.sin(d * Math.PI * 6);
+      const sx = 1.0 + pulse * 0.08 * d;
+      const sy = 1.0 - pulse * 0.08 * d;
+      const ox = Math.sin(d * Math.PI * 8) * 2 * d;
+      const oy = Math.cos(d * Math.PI * 8) * 2 * d;
+
+      this.ctx.save();
+      this.ctx.translate(x + ox, y + oy);
+      this.ctx.scale(sx, sy);
+      this.ctx.drawImage(f.image, -fruitSize / 2, -fruitSize / 2, fruitSize, fruitSize);
+      this.ctx.restore();
+    }
+
+    // Center text (no background)
+    const pulse = 0.5 + Math.sin(this.startMenuTime * 2.5) * 0.5;
+    this.ctx.save();
+    this.ctx.globalAlpha = this.startMenuAlpha * (0.75 + pulse * 0.25);
+    this.ctx.font = `bold ${Math.min(w * 0.035, 22)}px Fredoka One`;
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    this.ctx.lineWidth = 5;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    const label = window.matchMedia("(pointer: coarse)").matches ? "Tap to Start" : "Click to Start";
+    this.ctx.strokeText(label, cx, cy);
+    this.ctx.fillText(label, cx, cy);
+    this.ctx.restore();
+
+    // Shop button at bottom
+    const shopBtnW = Math.min(w * 0.42, 180);
+    const shopBtnH = Math.min(h * 0.06, 48);
+    const shopBtnX = cx - shopBtnW / 2;
+    const shopBtnY = h * 0.82 - shopBtnH / 2;
+    const shopR = shopBtnH * 0.35;
+
+    this.ctx.save();
+    this.ctx.globalAlpha = this.startMenuAlpha * 0.92;
+    this.ctx.fillStyle = "rgba(60, 30, 10, 0.65)";
+    this.roundRect(shopBtnX, shopBtnY, shopBtnW, shopBtnH, shopR);
+    this.ctx.fill();
+    this.ctx.strokeStyle = "rgba(255, 200, 80, 0.6)";
+    this.ctx.lineWidth = 2;
+    this.roundRect(shopBtnX, shopBtnY, shopBtnW, shopBtnH, shopR);
+    this.ctx.stroke();
+
+    const shopFontSize = Math.min(shopBtnH * 0.48, 20);
+    this.ctx.font = `bold ${shopFontSize}px Fredoka One`;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillStyle = "#FFD54F";
+    this.ctx.fillText("Shop", cx, shopBtnY + shopBtnH / 2);
+    this.ctx.restore();
+
+    this.shopBtnRect = {
+      x: shopBtnX / this.startMenuScale + cx * (1 - 1 / this.startMenuScale),
+      y: shopBtnY / this.startMenuScale + cy * (1 - 1 / this.startMenuScale),
+      w: shopBtnW / this.startMenuScale,
+      h: shopBtnH / this.startMenuScale,
+    };
+
+    // Coin balance below shop button
+    this.ctx.save();
+    this.ctx.globalAlpha = this.startMenuAlpha * 0.85;
+    const balFontSize = Math.min(shopBtnH * 0.38, 16);
+    this.ctx.font = `bold ${balFontSize}px Fredoka One`;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    const coinRadius = balFontSize * 0.45;
+    const coinText = String(this.coinBank);
+    const textW = this.ctx.measureText(coinText).width;
+    const totalW = coinRadius * 2 + 6 + textW;
+    const balCx = cx;
+    const balCy = shopBtnY + shopBtnH + balFontSize * 1.2;
+
+    this.ctx.fillStyle = "#FFD54F";
+    this.ctx.beginPath();
+    this.ctx.arc(balCx - totalW / 2 + coinRadius, balCy, coinRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.fillStyle = "#A67C00";
+    this.ctx.font = `bold ${coinRadius * 1.1}px Fredoka One`;
+    this.ctx.fillText("$", balCx - totalW / 2 + coinRadius, balCy + 1);
+
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.font = `bold ${balFontSize}px Fredoka One`;
+    this.ctx.fillText(coinText, balCx - totalW / 2 + coinRadius * 2 + 6 + textW / 2, balCy);
+    this.ctx.restore();
+
+    // Start-menu particles (juice splashes)
+    this.drawParticles();
+
+    this.ctx.restore();
+  }
+
+  private drawLevelSelect(w: number, h: number): void {
+    const ctx = this.ctx;
+    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+
+    // Dark background + vignette (same as start menu)
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, w, h);
+    const vg = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.min(w, h) * 0.15, w * 0.5, h * 0.5, Math.min(w, h) * 0.85);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.4)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+
+    // Layout constants
+    const topSafe = isMobile ? 120 : 45;
+    const titleFontSize = Math.min(w * 0.07, 40);
+    const titleY = topSafe + titleFontSize * 0.8;
+
+    // Title
+    ctx.save();
+    ctx.font = `bold ${titleFontSize}px Fredoka One`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 4;
+    ctx.strokeText("Select Level", w * 0.5, titleY);
+    ctx.fillText("Select Level", w * 0.5, titleY);
+    ctx.restore();
+
+    // Back button (top-left)
+    const backBtnSize = Math.min(w * 0.1, 44);
+    const backBtnX = isMobile ? 16 : 16;
+    const backBtnY = topSafe;
+    const backR = backBtnSize * 0.25;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(60, 30, 10, 0.65)";
+    this.roundRect(backBtnX, backBtnY, backBtnSize, backBtnSize, backR);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 200, 80, 0.6)";
+    ctx.lineWidth = 2;
+    this.roundRect(backBtnX, backBtnY, backBtnSize, backBtnSize, backR);
+    ctx.stroke();
+
+    // Arrow icon
+    ctx.fillStyle = "#FFD54F";
+    ctx.font = `bold ${backBtnSize * 0.5}px Fredoka One`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("<", backBtnX + backBtnSize / 2, backBtnY + backBtnSize / 2);
+    ctx.restore();
+
+    this.levelSelectBackRect = { x: backBtnX, y: backBtnY, w: backBtnSize, h: backBtnSize };
+
+    // Grid layout
+    const cols = isMobile ? 5 : 10;
+    const rows = Math.ceil(CONFIG.TOTAL_LEVELS / cols);
+    const gridTop = titleY + titleFontSize * 1.1;
+    const gridPadX = w * 0.04;
+    const gap = Math.min(w * 0.02, 8);
+    const availW = w - gridPadX * 2;
+    const cellSize = Math.min((availW - gap * (cols - 1)) / cols, isMobile ? 60 : 56);
+    const gridW = cols * cellSize + (cols - 1) * gap;
+    const gridLeft = (w - gridW) / 2;
+    const gridH = rows * cellSize + (rows - 1) * gap;
+    const bottomPad = isMobile ? 140 : 40;
+    const viewH = h - gridTop - bottomPad;
+
+    // Clamp scroll
+    const maxScroll = Math.max(0, gridH - viewH);
+    this.levelSelectScroll = Math.max(0, Math.min(this.levelSelectScroll, maxScroll));
+
+    // Clip grid area
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, gridTop, w, viewH);
+    ctx.clip();
+
+    this.levelSelectBtnRects = [];
+    const r = cellSize * 0.2;
+
+    for (let i = 0; i < CONFIG.TOTAL_LEVELS; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = gridLeft + col * (cellSize + gap);
+      const cy = gridTop + row * (cellSize + gap) - this.levelSelectScroll;
+
+      // Skip if off-screen
+      if (cy + cellSize < gridTop - 10 || cy > gridTop + viewH + 10) continue;
+
+      const unlocked = i <= this.highestUnlockedLevel;
+      const isHighest = i === this.highestUnlockedLevel;
+
+      ctx.save();
+
+      if (unlocked) {
+        // Unlocked cell
+        if (isHighest) {
+          // Glow for current frontier level
+          ctx.fillStyle = "rgba(255, 200, 80, 0.12)";
+          this.roundRect(cx - 3, cy - 3, cellSize + 6, cellSize + 6, r + 3);
+          ctx.fill();
+        }
+
+        ctx.fillStyle = "rgba(60, 30, 10, 0.65)";
+        this.roundRect(cx, cy, cellSize, cellSize, r);
+        ctx.fill();
+
+        ctx.strokeStyle = isHighest ? "rgba(255, 213, 79, 0.9)" : "rgba(255, 200, 80, 0.6)";
+        ctx.lineWidth = isHighest ? 2.5 : 1.5;
+        this.roundRect(cx, cy, cellSize, cellSize, r);
+        ctx.stroke();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = `bold ${cellSize * 0.36}px Fredoka One`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(i + 1), cx + cellSize / 2, cy + cellSize / 2);
+      } else {
+        // Locked cell
+        ctx.fillStyle = "rgba(30, 15, 5, 0.4)";
+        this.roundRect(cx, cy, cellSize, cellSize, r);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255, 200, 80, 0.15)";
+        ctx.lineWidth = 1;
+        this.roundRect(cx, cy, cellSize, cellSize, r);
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(255,255,255,0.2)";
+        ctx.font = `bold ${cellSize * 0.36}px Fredoka One`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(i + 1), cx + cellSize / 2, cy + cellSize / 2);
+      }
+
+      ctx.restore();
+
+      if (unlocked) {
+        this.levelSelectBtnRects.push({ x: cx, y: cy, w: cellSize, h: cellSize, level: i });
+      }
+    }
+
+    ctx.restore();
+
+    // Scroll indicators
+    if (maxScroll > 0) {
+      if (this.levelSelectScroll > 5) {
+        const grad = ctx.createLinearGradient(0, gridTop, 0, gridTop + 30);
+        grad.addColorStop(0, "rgba(0,0,0,0.5)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, gridTop, w, 30);
+      }
+      if (this.levelSelectScroll < maxScroll - 5) {
+        const grad = ctx.createLinearGradient(0, gridTop + viewH - 30, 0, gridTop + viewH);
+        grad.addColorStop(0, "rgba(0,0,0,0)");
+        grad.addColorStop(1, "rgba(0,0,0,0.5)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, gridTop + viewH - 30, w, 30);
+      }
+    }
+
+    // Floating fruit parade at bottom
+    const fruitImgs = [
+      this.avocadoImage,
+      this.orangeImage,
+      this.grapeImage,
+      this.watermelonImage,
+      this.kiwiImage,
+      this.lemonImage,
+    ].filter((img): img is HTMLImageElement => Boolean(img));
+
+    if (fruitImgs.length > 0) {
+      const paradeCount = 10;
+      const fruitSize = isMobile ? 36 : 42;
+      const paradeY = h - (isMobile ? 60 : 40);
+      const t = this.levelSelectTime;
+
+      for (let i = 0; i < paradeCount; i++) {
+        const img = fruitImgs[i % fruitImgs.length];
+        const spacing = w / paradeCount;
+        const baseX = spacing * i + spacing * 0.5;
+        const drift = ((baseX + t * 18 * (0.6 + (i % 3) * 0.2)) % (w + fruitSize * 2)) - fruitSize;
+        const bob = Math.sin(t * 2.4 + i * 1.7) * 8;
+        const rot = Math.sin(t * 1.3 + i * 2.1) * 0.25;
+        const scale = 0.85 + Math.sin(t * 1.8 + i * 0.9) * 0.1;
+        const alpha = 0.45 + Math.sin(t * 1.5 + i * 1.2) * 0.15;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(drift, paradeY + bob);
+        ctx.rotate(rot);
+        ctx.drawImage(img, -fruitSize * scale * 0.5, -fruitSize * scale * 0.5, fruitSize * scale, fruitSize * scale);
+        ctx.restore();
+      }
+    }
+  }
+
+  private roundRect(x: number, y: number, w: number, h: number, r: number): void {
+    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + rr, y);
+    this.ctx.arcTo(x + w, y, x + w, y + h, rr);
+    this.ctx.arcTo(x + w, y + h, x, y + h, rr);
+    this.ctx.arcTo(x, y + h, x, y, rr);
+    this.ctx.arcTo(x, y, x + w, y, rr);
+    this.ctx.closePath();
+  }
+
+  private drawGameOverUI(): void {
+    const w = this.viewW;
+    const h = this.viewH;
+    const ctx = this.ctx;
     
-    // Draw "Tap to Retry" on the right side
+    // Draw "TIMEOUT" banner if lost by timer
+    if (this.gameOverTimeout) {
+      ctx.save();
+      const fontSize = Math.min(w * 0.14, 80);
+      ctx.font = `bold ${fontSize}px Fredoka One`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      const cx = w / 2;
+      const cy = h * 0.35;
+      const t = this.tapToRetryFlicker;
+      const pulse = 1.0 + Math.sin(t * 2.5) * 0.04;
+      const shake = Math.sin(t * 12) * 2;
+
+      ctx.save();
+      ctx.translate(cx + shake, cy);
+      ctx.scale(pulse, pulse);
+
+      // Fill gradient
+      const grad = ctx.createLinearGradient(0, -fontSize / 2, 0, fontSize / 2);
+      grad.addColorStop(0, "#ff6644");
+      grad.addColorStop(0.5, "#ff2211");
+      grad.addColorStop(1, "#cc0000");
+      ctx.fillStyle = grad;
+      ctx.fillText("TIMEOUT", 0, 0);
+
+      ctx.restore();
+      ctx.restore();
+    }
+
+    // Draw "Tap to Retry"
+    ctx.save();
+    ctx.font = `bold ${Math.min(w * 0.05, 40)}px Fredoka One`;
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    
     const tapX = w * 0.9;
     const tapY = h * 0.7;
     
-    this.ctx.globalAlpha = this.tapToRetryOpacity;
-    this.ctx.fillText("← Tap to Retry", tapX, tapY);
-    this.ctx.restore();
+    ctx.globalAlpha = this.tapToRetryOpacity;
+    ctx.fillText("← Tap to Retry", tapX, tapY);
+    ctx.restore();
   }
 
   private drawFruit(centerX: number, centerY: number, fruit: Fruit): void {
@@ -3000,18 +4373,21 @@ class KnifeHitGame {
     } else if (this.currentWeapon === "pen") {
       sprite1 = this.brokenPen1Image;
       sprite2 = this.brokenPen2Image;
+    } else if (this.currentWeapon === "pencil") {
+      sprite1 = this.brokenPen1Image;
+      sprite2 = this.brokenPen2Image;
     }
 
     if (!sprite1 || !sprite2) return;
 
-    // Spawn exactly 2 broken pieces at the exact same position
-    // Tune base scale per weapon to keep visual balance
     const baseScale =
       this.currentWeapon === "knife"
-        ? 1.0 // original knife size (baseline)
+        ? 1.0
         : this.currentWeapon === "kunai"
-        ? 0.9 // slightly smaller than knife
-        : 0.1; // pen: much smaller, so it feels light and shard-like
+        ? 0.9
+        : this.currentWeapon === "pencil"
+        ? 0.12
+        : 0.1;
 
     for (let i = 0; i < 2; i++) {
       const spriteIndex = i + 1; // 1 or 2
@@ -3020,19 +4396,18 @@ class KnifeHitGame {
       const direction = i === 0 ? -1 : 1; // Left (-1) or Right (1)
       const speed = 80 + Math.random() * 40; // Horizontal speed
       
-      const piece: BrokenKnifePiece = {
-        x, // Exact same position
-        y, // Exact same position
-        vx: direction * speed, // Different horizontal directions
-        vy: 50 + Math.random() * 50, // Downward velocity
-        rotation: rotation + (Math.random() - 0.5) * 0.5, // Slight rotation variation
-        rotationSpeed: (Math.random() - 0.5) * 8, // Random rotation speed
-        scale: baseScale, // Weapon-specific base scale
-        life: 2.0, // Pieces last 2 seconds
-        maxLife: 2.0,
-        spriteIndex: spriteIndex, // Which broken sprite to use (1 or 2)
-        image: spriteIndex === 1 ? sprite1 : sprite2,
-      };
+      const piece = (this.brokenPiecePool.pop() || ({} as BrokenKnifePiece)) as BrokenKnifePiece;
+      piece.x = x;
+      piece.y = y;
+      piece.vx = direction * speed;
+      piece.vy = 50 + Math.random() * 50;
+      piece.rotation = rotation + (Math.random() - 0.5) * 0.5;
+      piece.rotationSpeed = (Math.random() - 0.5) * 8;
+      piece.scale = baseScale;
+      piece.life = 2.0;
+      piece.maxLife = 2.0;
+      piece.spriteIndex = spriteIndex;
+      piece.image = spriteIndex === 1 ? sprite1 : sprite2;
       
       this.brokenKnifePieces.push(piece);
     }
@@ -3061,14 +4436,29 @@ class KnifeHitGame {
       
       // Remove dead pieces
       if (piece.life <= 0) {
-        this.brokenKnifePieces.splice(i, 1);
+        const last = this.brokenKnifePieces[this.brokenKnifePieces.length - 1];
+        this.brokenKnifePieces[i] = last;
+        this.brokenKnifePieces.pop();
+        this.brokenPiecePool.push(piece);
       }
     }
   }
   
+  private updateCoinDisplayCache(): void {
+    if (!this.coinDisplay) return;
+    const coinRect = this.coinDisplay.getBoundingClientRect();
+    const canvasRect = this.canvas.getBoundingClientRect();
+    this.cachedCoinDisplayX = coinRect.left - canvasRect.left + coinRect.width / 2;
+    this.cachedCoinDisplayY = coinRect.top - canvasRect.top + coinRect.height / 2;
+    this.coinDisplayRectDirty = false;
+  }
+
   private updateCoinAnimations(dt: number): void {
-    const targetX = 60; // Top left corner X (with padding)
-    const targetY = 60; // Top left corner Y (with padding)
+    if (this.coinDisplayRectDirty) {
+      this.updateCoinDisplayCache();
+    }
+    const targetX = this.cachedCoinDisplayX;
+    const targetY = this.cachedCoinDisplayY;
     
     for (const coin of this.coins) {
       if (coin.animating) {
@@ -3084,11 +4474,9 @@ class KnifeHitGame {
         const t = coin.animProgress;
         const eased = 1 - Math.pow(1 - t, 3);
         
-        // Interpolate position
-        const startX = coin.animX;
-        const startY = coin.animY;
-        coin.animX = startX + (targetX - startX) * eased;
-        coin.animY = startY + (targetY - startY) * eased;
+        // Interpolate from fixed start position to target (avoids compounding drift)
+        coin.animX = coin.animStartX + (targetX - coin.animStartX) * eased;
+        coin.animY = coin.animStartY + (targetY - coin.animStartY) * eased;
       }
     }
   }
@@ -3096,12 +4484,9 @@ class KnifeHitGame {
   private drawCoins(centerX: number, centerY: number): void {
     if (!this.fruit) return;
     
-    const targetX = 60; // Top left corner X
-    const targetY = 60; // Top left corner Y
-    
     for (const coin of this.coins) {
       if (coin.collected && coin.animating) {
-        // Draw coin animating to top left
+        // Draw coin animating to coin display — fade out as it approaches
         this.drawCoin(coin.animX, coin.animY, 1.0 - coin.animProgress, 1.0);
       } else if (!coin.collected) {
         // Draw coin spinning with fruit
@@ -3155,6 +4540,27 @@ class KnifeHitGame {
     this.ctx.fillText("$", x, y);
     
     this.ctx.restore();
+  }
+
+  private drawFlyingKnives(): void {
+    if (!this.knifeImage || !this.fruit) return;
+
+    const imageWidth = this.knifeImage.naturalWidth || this.knifeImage.width;
+    const imageHeight = this.knifeImage.naturalHeight || this.knifeImage.height;
+    const aspectRatio = imageWidth / imageHeight;
+
+    for (const knife of this.knives) {
+      if (!knife.isFlying) continue;
+
+      const w = knife.flyW ?? (aspectRatio > 1 ? this.fruit.radius * 0.6 : (this.fruit.radius * 0.6) * aspectRatio);
+      const h = knife.flyH ?? (aspectRatio > 1 ? (this.fruit.radius * 0.6) / aspectRatio : this.fruit.radius * 0.6);
+
+      this.ctx.save();
+      this.ctx.translate(knife.flyX, knife.flyY);
+      this.ctx.rotate(knife.throwRotation);
+      this.ctx.drawImage(this.knifeImage, -w / 2, -h / 2, w, h);
+      this.ctx.restore();
+    }
   }
   
   private drawBrokenKnifePieces(): void {

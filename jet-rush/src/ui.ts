@@ -1,6 +1,7 @@
 import type { Settings, HapticType, GameState } from "./config";
 import { AudioManager } from "./audio";
 import { $ } from "./utils";
+import { oasiz } from "@oasiz/sdk";
 
 export interface UIElements {
   startScr: HTMLElement;
@@ -15,6 +16,12 @@ export interface UIElements {
   orbDisplay: HTMLElement;
   startOrbTotal: HTMLElement;
   finalOrbs: HTMLElement;
+  tutorial: HTMLElement;
+  stealthBtn: HTMLElement;
+  stealthFill: HTMLElement;
+  pauseBtn: HTMLElement;
+  quitBtn: HTMLElement;
+  startBottomRow: HTMLElement;
 }
 
 /** Caches all UI DOM elements. */
@@ -32,30 +39,33 @@ export function cacheUI(): UIElements {
     orbDisplay: $("orbDisplay"),
     startOrbTotal: $("startOrbTotal"),
     finalOrbs: $("finalOrbs"),
+    tutorial: $("tutorialOverlay"),
+    stealthBtn: $("stealthBtn"),
+    stealthFill: $("stealthFill"),
+    pauseBtn: $("pauseBtn"),
+    quitBtn: $("quitBtn"),
+    startBottomRow: $("startBottomRow"),
   };
 }
 
 /* ── Settings ── */
 
 export function loadSettings(): Settings {
-  try {
-    const raw = localStorage.getItem("jetRush_set");
-    if (raw) {
-      const p = JSON.parse(raw);
-      return {
-        music: p.music ?? true,
-        fx: p.fx ?? true,
-        haptics: p.haptics ?? true,
-      };
-    }
-  } catch (_) {
-    console.log("[loadSettings]", "Parse error, using defaults");
+  const state = oasiz.loadGameState();
+  const s = state.settings as Record<string, unknown> | undefined;
+  if (s) {
+    return {
+      music: typeof s.music === "boolean" ? s.music : true,
+      fx: typeof s.fx === "boolean" ? s.fx : true,
+      haptics: typeof s.haptics === "boolean" ? s.haptics : true,
+    };
   }
   return { music: true, fx: true, haptics: true };
 }
 
 export function saveSettings(settings: Settings): void {
-  localStorage.setItem("jetRush_set", JSON.stringify(settings));
+  const state = oasiz.loadGameState();
+  oasiz.saveGameState({ ...state, settings });
 }
 
 export function applySettingsUI(settings: Settings): void {
@@ -152,9 +162,13 @@ export function showPlaying(ui: UIElements): void {
   ui.startScr.classList.add("hidden");
   ui.overScr.classList.add("hidden");
   ui.modal.classList.add("hidden");
+  ui.startBottomRow.classList.add("hidden");
   ui.setBtn.classList.remove("hidden");
   ui.hud.classList.remove("hidden");
   ui.hudOrbs.classList.remove("hidden");
+  ui.stealthBtn.classList.remove("hidden");
+  ui.tutorial.classList.remove("hidden");
+  ui.pauseBtn.classList.remove("hidden");
   ui.scoreTxt.textContent = "0";
   ui.orbDisplay.textContent = "0";
 }
@@ -169,6 +183,10 @@ export function showGameOver(
   ui.hudOrbs.classList.add("hidden");
   ui.mobCtrl.classList.add("hidden");
   ui.modal.classList.add("hidden");
+  ui.stealthBtn.classList.add("hidden");
+  ui.tutorial.classList.add("hidden");
+  ui.pauseBtn.classList.add("hidden");
+  ui.startBottomRow.classList.add("hidden");
   ui.finalTxt.textContent = String(score);
   ui.finalOrbs.textContent = String(orbsThisRun);
   ui.overScr.classList.remove("hidden");
@@ -176,4 +194,19 @@ export function showGameOver(
 
 export function updateStartOrbTotal(ui: UIElements, total: number): void {
   ui.startOrbTotal.textContent = String(total)+" Orbs";
+}
+
+export function showStartScreen(ui: UIElements, total: number): void {
+  ui.startScr.classList.remove("hidden");
+  ui.startBottomRow.classList.remove("hidden");
+  ui.overScr.classList.add("hidden");
+  ui.modal.classList.add("hidden");
+  ui.setBtn.classList.add("hidden");
+  ui.hud.classList.add("hidden");
+  ui.hudOrbs.classList.add("hidden");
+  ui.mobCtrl.classList.add("hidden");
+  ui.stealthBtn.classList.add("hidden");
+  ui.tutorial.classList.add("hidden");
+  ui.pauseBtn.classList.add("hidden");
+  updateStartOrbTotal(ui, total);
 }

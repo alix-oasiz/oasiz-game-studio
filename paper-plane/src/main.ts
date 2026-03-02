@@ -5,6 +5,11 @@
  * Features event-driven architecture with object pooling for performance.
  */
 
+import { oasiz } from "@oasiz/sdk";
+import bgmNormal1Url from "../sfx/normal-1.mp3";
+import bgmNormal2Url from "../sfx/normal-2.mp3";
+import bgmBossUrl from "../sfx/boss.mp3";
+
 // ============= CONFIGURATION =============
 const CONFIG = {
   // Player
@@ -31,7 +36,7 @@ const CONFIG = {
   SPAWN_INTERVAL_MIN: 350,
 
   // Boss
-  BOSS_HEALTH: 60,
+  BOSS_HEALTH: 400,
   BOSS_RADIUS: 120,
   BOSS_THROW_INTERVAL: 3000, // ms between asteroid throws
   BOSS_ASTEROID_HEALTH: 10,
@@ -65,7 +70,14 @@ const CONFIG = {
 };
 
 // ============= TYPES =============
-type GameState = "START" | "PLAYING" | "UPGRADE" | "PAUSED" | "GAME_OVER" | "BOSS" | "ABILITY_CHOICE";
+type GameState =
+  | "START"
+  | "PLAYING"
+  | "UPGRADE"
+  | "PAUSED"
+  | "GAME_OVER"
+  | "BOSS"
+  | "ABILITY_CHOICE";
 type PlaneType = "dart" | "glider" | "bomber";
 type AsteroidSize = "large" | "medium" | "small";
 type ItemCategory = "stat" | "bullet" | "buddy" | "shield" | "special";
@@ -93,11 +105,12 @@ const ABILITY_TIERS: Ability[][] = [
     {
       id: "shield_1",
       name: "Paper Shield",
-      description: "Crumpled paper protection! Become invincible for 5 seconds.",
+      description:
+        "Crumpled paper protection! Become invincible for 5 seconds.",
       icon: "shield",
       charges: 1,
       tier: 1,
-      duration: 5
+      duration: 5,
     },
     {
       id: "blast_1",
@@ -105,7 +118,7 @@ const ABILITY_TIERS: Ability[][] = [
       description: "Rub it out! Destroy all asteroids on screen.",
       icon: "blast",
       charges: 1,
-      tier: 1
+      tier: 1,
     },
     {
       id: "turbo_1",
@@ -115,8 +128,8 @@ const ABILITY_TIERS: Ability[][] = [
       charges: 1,
       tier: 1,
       duration: 8,
-      power: 2
-    }
+      power: 2,
+    },
   ],
   // Tier 2 (Boss 2) - Enhanced abilities
   [
@@ -127,7 +140,7 @@ const ABILITY_TIERS: Ability[][] = [
       icon: "shield",
       charges: 2,
       tier: 2,
-      duration: 8
+      duration: 8,
     },
     {
       id: "blast_2",
@@ -136,7 +149,7 @@ const ABILITY_TIERS: Ability[][] = [
       icon: "blast",
       charges: 1,
       tier: 2,
-      power: 20
+      power: 20,
     },
     {
       id: "turbo_2",
@@ -146,8 +159,8 @@ const ABILITY_TIERS: Ability[][] = [
       charges: 1,
       tier: 2,
       duration: 10,
-      power: 3
-    }
+      power: 3,
+    },
   ],
   // Tier 3 (Boss 3) - Powerful abilities
   [
@@ -158,7 +171,7 @@ const ABILITY_TIERS: Ability[][] = [
       icon: "shield",
       charges: 2,
       tier: 3,
-      duration: 10
+      duration: 10,
     },
     {
       id: "blast_3",
@@ -167,18 +180,19 @@ const ABILITY_TIERS: Ability[][] = [
       icon: "blast",
       charges: 1,
       tier: 3,
-      power: 40
+      power: 40,
     },
     {
       id: "turbo_3",
       name: "Graphite Rush",
-      description: "Pure graphite! 4x fire rate + extra bullets for 12 seconds.",
+      description:
+        "Pure graphite! 4x fire rate + extra bullets for 12 seconds.",
       icon: "turbo",
       charges: 1,
       tier: 3,
       duration: 12,
-      power: 4
-    }
+      power: 4,
+    },
   ],
   // Tier 4 (Boss 4) - Epic abilities
   [
@@ -189,16 +203,17 @@ const ABILITY_TIERS: Ability[][] = [
       icon: "shield",
       charges: 2,
       tier: 4,
-      duration: 12
+      duration: 12,
     },
     {
       id: "blast_4",
       name: "Black Hole",
-      description: "Gravitational pull! Pulls in and destroys all + 60 boss damage.",
+      description:
+        "Gravitational pull! Pulls in and destroys all + 60 boss damage.",
       icon: "blast",
       charges: 1,
       tier: 4,
-      power: 60
+      power: 60,
     },
     {
       id: "turbo_4",
@@ -208,8 +223,8 @@ const ABILITY_TIERS: Ability[][] = [
       charges: 1,
       tier: 4,
       duration: 15,
-      power: 5
-    }
+      power: 5,
+    },
   ],
   // Tier 5 (Boss 5) - Legendary abilities
   [
@@ -220,16 +235,17 @@ const ABILITY_TIERS: Ability[][] = [
       icon: "shield",
       charges: 3,
       tier: 5,
-      duration: 15
+      duration: 15,
     },
     {
       id: "blast_5",
       name: "Eraser Apocalypse",
-      description: "Total annihilation! Screen-wide destruction + 80 boss damage.",
+      description:
+        "Total annihilation! Screen-wide destruction + 80 boss damage.",
       icon: "blast",
       charges: 1,
       tier: 5,
-      power: 80
+      power: 80,
     },
     {
       id: "turbo_5",
@@ -239,28 +255,30 @@ const ABILITY_TIERS: Ability[][] = [
       charges: 1,
       tier: 5,
       duration: 20,
-      power: 6
-    }
+      power: 6,
+    },
   ],
   // Tier 6 (Boss 6) - Mythic abilities
   [
     {
       id: "shield_6",
       name: "Paper God",
-      description: "Divine protection! 20 seconds invincibility + triple damage.",
+      description:
+        "Divine protection! 20 seconds invincibility + triple damage.",
       icon: "shield",
       charges: 3,
       tier: 6,
-      duration: 20
+      duration: 20,
     },
     {
       id: "blast_6",
       name: "Reality Eraser",
-      description: "Erase reality! Freeze time + destroy everything + 100 boss damage.",
+      description:
+        "Erase reality! Freeze time + destroy everything + 100 boss damage.",
       icon: "blast",
       charges: 1,
       tier: 6,
-      power: 100
+      power: 100,
     },
     {
       id: "turbo_6",
@@ -270,9 +288,9 @@ const ABILITY_TIERS: Ability[][] = [
       charges: 1,
       tier: 6,
       duration: 25,
-      power: 8
-    }
-  ]
+      power: 8,
+    },
+  ],
 ];
 
 // Legacy compatibility - default to tier 1 abilities
@@ -339,7 +357,13 @@ interface Asteroid {
   isBossAsteroid?: boolean; // Special asteroids thrown by boss
 }
 
-type BossType = "eraser" | "paperweight" | "inkblot" | "rubberband" | "stapler" | "scissors";
+type BossType =
+  | "eraser"
+  | "paperweight"
+  | "inkblot"
+  | "rubberband"
+  | "stapler"
+  | "scissors";
 
 interface BossConfig {
   name: string;
@@ -363,7 +387,7 @@ const BOSS_CONFIGS: Record<BossType, BossConfig> = {
     attackDelay: 400,
     movePattern: "sway",
     color: "#f5b5c8",
-    accentColor: "#d4869c"
+    accentColor: "#d4869c",
   },
   paperweight: {
     name: "Paperweight",
@@ -374,7 +398,7 @@ const BOSS_CONFIGS: Record<BossType, BossConfig> = {
     attackDelay: 200,
     movePattern: "static",
     color: "#8b8b8b",
-    accentColor: "#5a5a5a"
+    accentColor: "#5a5a5a",
   },
   inkblot: {
     name: "Ink Blot",
@@ -385,7 +409,7 @@ const BOSS_CONFIGS: Record<BossType, BossConfig> = {
     attackDelay: 600,
     movePattern: "chase",
     color: "#2a2a4a",
-    accentColor: "#1a1a2a"
+    accentColor: "#1a1a2a",
   },
   rubberband: {
     name: "Rubber Band Ball",
@@ -396,7 +420,7 @@ const BOSS_CONFIGS: Record<BossType, BossConfig> = {
     attackDelay: 300,
     movePattern: "bounce",
     color: "#c4a574",
-    accentColor: "#8b6914"
+    accentColor: "#8b6914",
   },
   stapler: {
     name: "The Stapler",
@@ -407,7 +431,7 @@ const BOSS_CONFIGS: Record<BossType, BossConfig> = {
     attackDelay: 120,
     movePattern: "zigzag",
     color: "#4a4a4a",
-    accentColor: "#ff4444"
+    accentColor: "#ff4444",
   },
   scissors: {
     name: "Scissors",
@@ -418,16 +442,30 @@ const BOSS_CONFIGS: Record<BossType, BossConfig> = {
     attackDelay: 500,
     movePattern: "circle",
     color: "#c0c0c0",
-    accentColor: "#ff6600"
-  }
+    accentColor: "#ff6600",
+  },
 };
 
-const BOSS_ORDER: BossType[] = ["eraser", "paperweight", "inkblot", "rubberband", "stapler", "scissors"];
+const BOSS_ORDER: BossType[] = [
+  "eraser",
+  "paperweight",
+  "inkblot",
+  "rubberband",
+  "stapler",
+  "scissors",
+];
 
 // Boss projectile types (different from regular asteroids)
 interface BossProjectile {
   id: number;
-  type: "eraser_chunk" | "rock" | "ink_blob" | "rubber_band" | "staple" | "blade";
+  type:
+    | "eraser_chunk"
+    | "rock"
+    | "ink_blob"
+    | "rubber_band"
+    | "staple"
+    | "blade"
+    | "seismic_wave";
   x: number;
   y: number;
   vx: number;
@@ -442,6 +480,8 @@ interface BossProjectile {
   // Type-specific properties
   stretchPhase?: number; // For rubber bands
   bladeAngle?: number; // For scissors
+  arcAngle?: number; // Travel direction for seismic waves
+  arcSpan?: number; // Width of the arc in radians
 }
 
 interface Boss {
@@ -473,7 +513,12 @@ interface Boss {
 
 interface BossMinion {
   id: number;
-  type: "eraser_grunt" | "ink_spider" | "staple_sentry" | "blade_drone" | "stick_man";
+  type:
+    | "eraser_grunt"
+    | "ink_spider"
+    | "staple_sentry"
+    | "blade_drone"
+    | "stick_man";
   x: number;
   y: number;
   vx: number;
@@ -498,6 +543,9 @@ interface BossAreaEffect {
   maxLife: number;
   active: boolean;
   color: string;
+  aimAngle?: number; // For directional shockwaves
+  arcWidth?: number; // Half-width of damage arc in radians
+  hasDamaged?: boolean; // Prevent multi-hit per shockwave
 }
 
 interface Particle {
@@ -727,8 +775,13 @@ class AudioManager {
   private musicGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private initialized = false;
-  private bgMusic: HTMLAudioElement | null = null;
-  private bgMusicLoaded = false;
+  private normalTracks: HTMLAudioElement[] = [];
+  private bossTrack: HTMLAudioElement | null = null;
+  private currentNormalIndex = 0;
+  private normalTracksLoaded = 0;
+  private bossTrackLoaded = false;
+  private isBossMusic = false;
+  private musicActive = false;
   settings: Settings;
 
   constructor(settings: Settings) {
@@ -753,7 +806,7 @@ class AudioManager {
       this.musicGain.connect(this.masterGain);
 
       this.sfxGain = this.ctx.createGain();
-      this.sfxGain.gain.value = 0.5;
+      this.sfxGain.gain.value = 1.0;
       this.sfxGain.connect(this.masterGain);
 
       this.initialized = true;
@@ -767,51 +820,149 @@ class AudioManager {
   }
 
   private loadBgMusic(): void {
-    if (this.bgMusic) return;
+    if (this.normalTracks.length > 0) return;
     try {
-      this.bgMusic = new Audio("/music.ogg");
-      this.bgMusic.loop = true;
-      this.bgMusic.volume = 0.25;
-      this.bgMusic.preload = "auto";
-      this.bgMusic.addEventListener("canplaythrough", () => {
-        this.bgMusicLoaded = true;
-        console.log("[AudioManager] Background music loaded");
-      });
-      this.bgMusic.addEventListener("error", (e) => {
-        console.warn("[AudioManager] Failed to load background music:", e);
+      const normalUrls = [bgmNormal1Url, bgmNormal2Url];
+      for (let i = 0; i < normalUrls.length; i++) {
+        const track = new Audio(normalUrls[i]);
+        track.loop = true;
+        track.volume = 0.06;
+        track.preload = "auto";
+        track.addEventListener(
+          "canplaythrough",
+          () => {
+            this.normalTracksLoaded++;
+            console.log("[AudioManager] Normal track " + (i + 1) + " loaded");
+          },
+          { once: true },
+        );
+        track.addEventListener("error", (e) => {
+          console.warn(
+            "[AudioManager] Failed to load normal track " + (i + 1) + ":",
+            e,
+          );
+        });
+        this.normalTracks.push(track);
+      }
+
+      this.bossTrack = new Audio(bgmBossUrl);
+      this.bossTrack.loop = true;
+      this.bossTrack.volume = 0.075;
+      this.bossTrack.preload = "auto";
+      this.bossTrack.addEventListener(
+        "canplaythrough",
+        () => {
+          this.bossTrackLoaded = true;
+          console.log("[AudioManager] Boss track loaded");
+        },
+        { once: true },
+      );
+      this.bossTrack.addEventListener("error", (e) => {
+        console.warn("[AudioManager] Failed to load boss track:", e);
       });
     } catch (e) {
-      console.warn("[AudioManager] Error creating bgMusic element:", e);
+      console.warn("[AudioManager] Error loading music:", e);
     }
   }
 
+  private getCurrentNormalTrack(): HTMLAudioElement | null {
+    if (this.normalTracks.length === 0) return null;
+    return this.normalTracks[
+      this.currentNormalIndex % this.normalTracks.length
+    ];
+  }
+
   startMusic(): void {
-    if (!this.bgMusic || !this.settings.music) return;
-    this.bgMusic.currentTime = 0;
-    this.bgMusic.volume = 0.25;
-    this.bgMusic.play().catch((e) => {
+    this.musicActive = true;
+    this.isBossMusic = false;
+    if (!this.settings.music) return;
+    const track = this.getCurrentNormalTrack();
+    if (!track) return;
+    track.currentTime = 0;
+    track.volume = 0.06;
+    track.play().catch((e) => {
       console.warn("[AudioManager.startMusic] Playback failed:", e);
     });
-    console.log("[AudioManager] Music started");
+    console.log(
+      "[AudioManager] Normal music started (track " +
+        (this.currentNormalIndex + 1) +
+        ")",
+    );
   }
 
   stopMusic(): void {
-    if (!this.bgMusic) return;
-    this.bgMusic.pause();
-    this.bgMusic.currentTime = 0;
-    console.log("[AudioManager] Music stopped");
+    this.musicActive = false;
+    for (const track of this.normalTracks) {
+      track.pause();
+      track.currentTime = 0;
+    }
+    if (this.bossTrack) {
+      this.bossTrack.pause();
+      this.bossTrack.currentTime = 0;
+    }
+    this.isBossMusic = false;
+    console.log("[AudioManager] All music stopped");
+  }
+
+  switchToBossMusic(): void {
+    if (this.isBossMusic) return;
+    console.log("[AudioManager] Switching to boss music");
+    for (const track of this.normalTracks) {
+      track.pause();
+    }
+    this.isBossMusic = true;
+    if (!this.bossTrack || !this.settings.music) return;
+    this.bossTrack.currentTime = 0;
+    this.bossTrack.volume = 0.075;
+    this.bossTrack.play().catch((e) => {
+      console.warn("[AudioManager.switchToBossMusic] Playback failed:", e);
+    });
+  }
+
+  switchToNormalMusic(): void {
+    if (!this.isBossMusic) return;
+    console.log("[AudioManager] Switching back to normal music");
+    if (this.bossTrack) {
+      this.bossTrack.pause();
+      this.bossTrack.currentTime = 0;
+    }
+    this.isBossMusic = false;
+    this.currentNormalIndex =
+      (this.currentNormalIndex + 1) % this.normalTracks.length;
+    if (!this.settings.music) return;
+    const track = this.getCurrentNormalTrack();
+    if (!track) return;
+    track.currentTime = 0;
+    track.volume = 0.06;
+    track.play().catch((e) => {
+      console.warn("[AudioManager.switchToNormalMusic] Playback failed:", e);
+    });
+    console.log(
+      "[AudioManager] Now playing normal track " +
+        (this.currentNormalIndex + 1),
+    );
   }
 
   updateMusicState(): void {
-    if (!this.bgMusic) return;
+    if (!this.musicActive) return;
     if (this.settings.music) {
-      // If music setting is on and audio is paused, resume it
-      if (this.bgMusic.paused && this.bgMusicLoaded) {
-        this.bgMusic.play().catch(() => {});
+      if (this.isBossMusic) {
+        if (this.bossTrack && this.bossTrack.paused && this.bossTrackLoaded) {
+          this.bossTrack.play().catch(() => {});
+        }
+      } else {
+        const track = this.getCurrentNormalTrack();
+        if (track && track.paused && this.normalTracksLoaded > 0) {
+          track.play().catch(() => {});
+        }
       }
     } else {
-      // If music setting is off, pause
-      this.bgMusic.pause();
+      for (const track of this.normalTracks) {
+        track.pause();
+      }
+      if (this.bossTrack) {
+        this.bossTrack.pause();
+      }
     }
   }
 
@@ -820,17 +971,17 @@ class AudioManager {
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
-    
+
     // Even softer, lower-pitched sine wave
     osc.type = "sine";
     osc.frequency.setValueAtTime(600, now);
     osc.frequency.exponentialRampToValueAtTime(200, now + 0.06);
-    
+
     // Slower attack and decay for a "poof" rather than a "blip"
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(0.05, now + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
-    
+
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(now);
@@ -968,14 +1119,7 @@ class AudioManager {
 
   triggerHaptic(type: string): void {
     if (!this.settings.haptics) return;
-    if (
-      typeof (window as unknown as { triggerHaptic: (t: string) => void })
-        .triggerHaptic === "function"
-    ) {
-      (
-        window as unknown as { triggerHaptic: (t: string) => void }
-      ).triggerHaptic(type);
-    }
+    oasiz.triggerHaptic(type as "light" | "medium" | "heavy" | "success" | "error");
   }
 }
 
@@ -1066,17 +1210,20 @@ class ParticleSystem {
         ctx.fillStyle = p.color;
         ctx.beginPath();
         const s = p.size * (0.5 + p.life * 0.5);
-        ctx.moveTo(-s, -s/2);
-        ctx.lineTo(s, -s/3);
-        ctx.lineTo(s/2, s);
-        ctx.lineTo(-s, s/2);
+        ctx.moveTo(-s, -s / 2);
+        ctx.lineTo(s, -s / 3);
+        ctx.lineTo(s / 2, s);
+        ctx.lineTo(-s, s / 2);
         ctx.closePath();
         ctx.fill();
-        
+
         // Add a "crease" line
         ctx.strokeStyle = "rgba(0,0,0,0.1)";
         ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-s, 0);
+        ctx.lineTo(s, 0);
+        ctx.stroke();
       } else if (p.type === "spark" || p.type === "explosion") {
         // Pencil dust/shavings
         ctx.fillStyle = p.color;
@@ -1139,25 +1286,25 @@ class FloatingTextSystem {
     for (const t of this.texts) {
       ctx.save();
       ctx.globalAlpha = t.life;
-      
+
       // Visual Juice: Scale and Bounce
       const bounce = easeOutBack(Math.min(1, (1 - t.life) * 4));
       const scale = t.life > 0.8 ? bounce : t.life / 0.8;
-      
+
       ctx.translate(t.x, t.y);
       ctx.scale(scale, scale);
-      
+
       ctx.font = "bold " + t.size + "px 'Caveat', cursive";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      
+
       // Shadow
       ctx.fillStyle = "rgba(45, 45, 45, 0.2)";
       ctx.fillText(t.text, 2, 2);
-      
+
       ctx.fillStyle = t.color;
       ctx.fillText(t.text, 0, 0);
-      
+
       ctx.restore();
     }
   }
@@ -1182,9 +1329,9 @@ const BASE_STATS: PlayerStats = {
 
 // ============= UPGRADE TREE =============
 interface UpgradeTree {
-  fireRate: number;  // 0-5
+  fireRate: number; // 0-5
   multiShot: number; // 0-5
-  turrets: number;   // 0-5
+  turrets: number; // 0-5
 }
 
 interface UpgradeLevelConfig {
@@ -1205,11 +1352,11 @@ const UPGRADE_CONFIG: Record<keyof UpgradeTree, UpgradePathConfig> = {
     icon: "F",
     levels: [
       { name: "Quick Draw", desc: "+15% fire rate", value: 1.15 },
-      { name: "Rapid Fire", desc: "+30% fire rate", value: 1.30 },
-      { name: "Machine Gun", desc: "+50% fire rate", value: 1.50 },
+      { name: "Rapid Fire", desc: "+30% fire rate", value: 1.3 },
+      { name: "Machine Gun", desc: "+50% fire rate", value: 1.5 },
       { name: "Bullet Storm", desc: "+75% fire rate", value: 1.75 },
-      { name: "Lead Rain", desc: "+100% fire rate", value: 2.00 },
-    ]
+      { name: "Lead Rain", desc: "+100% fire rate", value: 2.0 },
+    ],
   },
   multiShot: {
     name: "Multi-Shot",
@@ -1220,7 +1367,7 @@ const UPGRADE_CONFIG: Record<keyof UpgradeTree, UpgradePathConfig> = {
       { name: "Quad Shot", desc: "4 bullets", value: 4 },
       { name: "Penta Burst", desc: "5 bullets", value: 5 },
       { name: "Full Spread", desc: "7 bullets", value: 7 },
-    ]
+    ],
   },
   turrets: {
     name: "Turret Buddy",
@@ -1231,10 +1378,9 @@ const UPGRADE_CONFIG: Record<keyof UpgradeTree, UpgradePathConfig> = {
       { name: "Helper III", desc: "3 turrets", value: 3 },
       { name: "Helper IV", desc: "4 turrets", value: 4 },
       { name: "Helper V", desc: "5 turrets", value: 5 },
-    ]
-  }
+    ],
+  },
 };
-
 
 // ============= DEMO ANIMATION TYPES =============
 interface DemoBullet {
@@ -1398,7 +1544,14 @@ class PaperPlaneGame {
   playerScaleX: number = 1;
   playerScaleY: number = 1;
   juiceTimer: number = 0;
-  bgDoodles: {x: number, y: number, text: string, scale: number, rotation: number, speed: number}[] = [];
+  bgDoodles: {
+    x: number;
+    y: number;
+    text: string;
+    scale: number;
+    rotation: number;
+    speed: number;
+  }[] = [];
 
   constructor() {
     console.log("[PaperPlaneGame] Initializing");
@@ -1423,7 +1576,9 @@ class PaperPlaneGame {
     this.isMobile = window.matchMedia("(pointer: coarse)").matches;
 
     // Initialize demo canvas
-    this.demoCanvas = document.getElementById("demoCanvas") as HTMLCanvasElement;
+    this.demoCanvas = document.getElementById(
+      "demoCanvas",
+    ) as HTMLCanvasElement;
     if (this.demoCanvas) {
       this.demoCtx = this.demoCanvas.getContext("2d");
       this.initDemoAnimation();
@@ -1500,6 +1655,16 @@ class PaperPlaneGame {
       CONFIG.ASTEROID_POOL_SIZE,
     );
 
+    // SDK: lifecycle hooks for background/foreground
+    oasiz.onPause(() => {
+      if (this.gameState === "PLAYING" || this.gameState === "BOSS") {
+        this.pauseGame();
+      }
+    });
+    oasiz.onResume(() => {
+      // Don't auto-resume; player resumes manually from pause screen
+    });
+
     // Setup events
     this.setupEventListeners();
     this.setupGameEvents();
@@ -1542,7 +1707,10 @@ class PaperPlaneGame {
 
     this.canvas.addEventListener("touchmove", (e) => {
       e.preventDefault();
-      if (this.isDragging && (this.gameState === "PLAYING" || this.gameState === "BOSS")) {
+      if (
+        this.isDragging &&
+        (this.gameState === "PLAYING" || this.gameState === "BOSS")
+      ) {
         this.touchX = this.getRelativeX(e.touches[0].clientX);
         this.touchY = this.getRelativeY(e.touches[0].clientY);
       }
@@ -1560,7 +1728,10 @@ class PaperPlaneGame {
 
     // Mouse (desktop) - plane follows cursor automatically, no clicking needed
     this.canvas.addEventListener("mousemove", (e) => {
-      if ((this.gameState === "PLAYING" || this.gameState === "BOSS") && !this.isMobile) {
+      if (
+        (this.gameState === "PLAYING" || this.gameState === "BOSS") &&
+        !this.isMobile
+      ) {
         this.mouseX = this.getRelativeX(e.clientX);
         this.mouseY = this.getRelativeY(e.clientY);
       }
@@ -1632,10 +1803,12 @@ class PaperPlaneGame {
       this.showGalleryScreen();
     });
 
-    document.getElementById("backFromGalleryBtn")?.addEventListener("click", () => {
-      this.audio.triggerHaptic("light");
-      this.hideGalleryScreen();
-    });
+    document
+      .getElementById("backFromGalleryBtn")
+      ?.addEventListener("click", () => {
+        this.audio.triggerHaptic("light");
+        this.hideGalleryScreen();
+      });
 
     // Plane selection
     document.querySelectorAll(".plane-card").forEach((card) => {
@@ -1648,27 +1821,31 @@ class PaperPlaneGame {
     });
 
     // Upgrade cards (upgrade tree selection)
-    document.querySelectorAll("#upgradeScreen .upgrade-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        if (this.gameState !== "UPGRADE") return;
-        const treeKey = card.getAttribute("data-item-id");
-        if (!treeKey) return;
-        if (card.classList.contains("maxed")) return; // Can't select maxed upgrades
-        this.audio.triggerHaptic("medium");
-        this.selectItem(treeKey);
+    document
+      .querySelectorAll("#upgradeScreen .upgrade-card")
+      .forEach((card) => {
+        card.addEventListener("click", () => {
+          if (this.gameState !== "UPGRADE") return;
+          const treeKey = card.getAttribute("data-item-id");
+          if (!treeKey) return;
+          if (card.classList.contains("maxed")) return; // Can't select maxed upgrades
+          this.audio.triggerHaptic("medium");
+          this.selectItem(treeKey);
+        });
       });
-    });
 
     // Ability cards (ability selection after boss)
-    document.querySelectorAll("#abilityScreen .ability-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        if (this.gameState !== "ABILITY_CHOICE") return;
-        const abilityId = card.getAttribute("data-ability-id");
-        if (!abilityId) return;
-        this.audio.triggerHaptic("medium");
-        this.selectAbility(abilityId);
+    document
+      .querySelectorAll("#abilityScreen .ability-card")
+      .forEach((card) => {
+        card.addEventListener("click", () => {
+          if (this.gameState !== "ABILITY_CHOICE") return;
+          const abilityId = card.getAttribute("data-ability-id");
+          if (!abilityId) return;
+          this.audio.triggerHaptic("medium");
+          this.selectAbility(abilityId);
+        });
       });
-    });
   }
 
   setupSettingToggle(elementId: string, settingKey: keyof Settings): void {
@@ -1697,6 +1874,7 @@ class PaperPlaneGame {
       console.log("[Event] ASTEROID_DESTROYED", asteroid.size, "coins:", coins);
 
       this.coins += coins;
+      this.score += coins * 10;
       this.audio.playDestroy(asteroid.size);
       this.audio.playCoin();
       this.audio.triggerHaptic(asteroid.size === "large" ? "heavy" : "medium");
@@ -1733,8 +1911,15 @@ class PaperPlaneGame {
       if (this.gameState === "BOSS") return;
       this.destroyedCount++;
       this.updateProgressBar();
-      if (this.destroyedCount >= this.getAsteroidsForNextUpgrade() && this.gameState === "PLAYING") {
-        console.log("[Game] Triggering upgrade after", this.destroyedCount, "asteroids destroyed");
+      if (
+        this.destroyedCount >= this.getAsteroidsForNextUpgrade() &&
+        this.gameState === "PLAYING"
+      ) {
+        console.log(
+          "[Game] Triggering upgrade after",
+          this.destroyedCount,
+          "asteroids destroyed",
+        );
         this.showUpgradeScreen();
       }
     });
@@ -1762,12 +1947,12 @@ class PaperPlaneGame {
 
     this.eventBus.on("PLAYER_HIT", () => {
       if (this.isInvincible) return; // Ignore hits during invincibility
-      
+
       this.lives--;
       console.log("[Event] PLAYER_HIT - Lives remaining:", this.lives);
-      
+
       if (this.lives <= 0) {
-      this.gameOver();
+        this.gameOver();
       } else {
         // Trigger damage effect
         this.triggerDamageEffect();
@@ -1778,7 +1963,6 @@ class PaperPlaneGame {
       console.log("[Event] UPGRADE_ROUND_START");
       this.showUpgradeScreen();
     });
-
   }
 
   selectPlane(type: PlaneType): void {
@@ -1850,14 +2034,14 @@ class PaperPlaneGame {
     this.difficultyLevel = 0;
     this.healthBonus = 0;
     this.speedMultiplier = 1;
-    
+
     // Generate background doodles for juice
     this.generateDoodles();
 
     // Reset upgrade tree...
     this.upgrades = { fireRate: 0, multiShot: 0, turrets: 0 };
     this.currentStats = { ...BASE_STATS };
-    
+
     this.maxLives = BASE_STATS.maxLives;
     this.lives = this.maxLives;
     this.damageTimer = 0;
@@ -1874,7 +2058,7 @@ class PaperPlaneGame {
     this.permanentStatBoost = 0;
     this.currentlyActiveAbility = null;
     this.abilityChoices = [];
-    
+
     this.updateAbilityUI();
 
     this.updateLivesDisplay();
@@ -1944,7 +2128,7 @@ class PaperPlaneGame {
   }
 
   pauseGame(): void {
-    if (this.gameState !== "PLAYING") return;
+    if (this.gameState !== "PLAYING" && this.gameState !== "BOSS") return;
     console.log("[pauseGame]");
     this.gameState = "PAUSED";
     document.getElementById("pauseScreen")?.classList.remove("hidden");
@@ -1970,17 +2154,10 @@ class PaperPlaneGame {
     this.audio.stopMusic();
     this.audio.triggerHaptic("error");
 
-    // Submit total points score
     const finalScore = Math.floor(this.score);
-    if (
-      typeof (window as unknown as { submitScore: (s: number) => void })
-        .submitScore === "function"
-    ) {
-      (window as unknown as { submitScore: (s: number) => void }).submitScore(
-        finalScore,
-      );
-      console.log("[gameOver] Score submitted:", finalScore);
-    }
+    oasiz.submitScore(finalScore);
+    oasiz.flushGameState();
+    console.log("[gameOver] Score submitted:", finalScore);
 
     // Update game over screen
     const mins = Math.floor(this.survivalTime / 60000);
@@ -1990,9 +2167,12 @@ class PaperPlaneGame {
     document.getElementById("finalCoins")!.textContent = finalScore.toString();
 
     // Update upgrade summary
-    const totalLevels = this.upgrades.fireRate + this.upgrades.multiShot + this.upgrades.turrets;
-    document.getElementById("summaryItems")!.textContent = totalLevels.toString();
-    document.getElementById("summaryCursed")!.textContent = this.bossesDefeated.toString();
+    const totalLevels =
+      this.upgrades.fireRate + this.upgrades.multiShot + this.upgrades.turrets;
+    document.getElementById("summaryItems")!.textContent =
+      totalLevels.toString();
+    document.getElementById("summaryCursed")!.textContent =
+      this.bossesDefeated.toString();
 
     // Show screen
     document.getElementById("hud")?.classList.add("hidden");
@@ -2010,15 +2190,15 @@ class PaperPlaneGame {
     // Render upgrade tree cards with new design
     const trees: (keyof UpgradeTree)[] = ["fireRate", "multiShot", "turrets"];
     const cards = document.querySelectorAll("#upgradeScreen .upgrade-card");
-    
+
     cards.forEach((card, index) => {
       const treeKey = trees[index];
       if (!treeKey) return;
-      
+
       const config = UPGRADE_CONFIG[treeKey];
       const currentLevel = this.upgrades[treeKey];
       const isMaxed = currentLevel >= 5;
-      
+
       card.classList.toggle("maxed", isMaxed);
       card.setAttribute("data-item-id", treeKey);
 
@@ -2052,16 +2232,21 @@ class PaperPlaneGame {
     if (!UPGRADE_CONFIG[treeKey]) return;
     this.applyUpgrade(treeKey);
   }
-  
+
   applyUpgrade(tree: keyof UpgradeTree): void {
     if (this.upgrades[tree] >= 5) {
       console.log("[applyUpgrade] Tree already maxed:", tree);
       return;
     }
-    
+
     this.upgrades[tree]++;
-    console.log("[applyUpgrade] Upgraded", tree, "to level", this.upgrades[tree]);
-    
+    console.log(
+      "[applyUpgrade] Upgraded",
+      tree,
+      "to level",
+      this.upgrades[tree],
+    );
+
     this.audio.playUpgrade();
     this.audio.triggerHaptic("success");
 
@@ -2073,10 +2258,16 @@ class PaperPlaneGame {
 
     // Trigger boss every 2 upgrades (up to 6 bosses total)
     // Boss appears after upgrades: 2, 4, 6, 8, 10, 12
-    const shouldSpawnBoss = this.totalUpgrades % 2 === 0 && this.bossesDefeated < 6;
-    
+    const shouldSpawnBoss =
+      this.totalUpgrades % 2 === 0 && this.bossesDefeated < 6;
+
     if (shouldSpawnBoss) {
-      console.log("[applyUpgrade] Triggering boss fight #" + (this.bossesDefeated + 1) + " after upgrade " + this.totalUpgrades);
+      console.log(
+        "[applyUpgrade] Triggering boss fight #" +
+          (this.bossesDefeated + 1) +
+          " after upgrade " +
+          this.totalUpgrades,
+      );
       this.startBossFight();
     } else {
       this.gameState = "PLAYING";
@@ -2086,10 +2277,17 @@ class PaperPlaneGame {
 
   startBossFight(): void {
     const bossNumber = this.bossesDefeated + 1;
-    const bossType = BOSS_ORDER[Math.min(this.bossesDefeated, BOSS_ORDER.length - 1)];
+    const bossType =
+      BOSS_ORDER[Math.min(this.bossesDefeated, BOSS_ORDER.length - 1)];
     const bossConfig = BOSS_CONFIGS[bossType];
-    console.log("[startBossFight] Boss fight #" + bossNumber + " (" + bossConfig.name + ") starting!");
-    
+    console.log(
+      "[startBossFight] Boss fight #" +
+        bossNumber +
+        " (" +
+        bossConfig.name +
+        ") starting!",
+    );
+
     // Clear existing asteroids and boss projectiles for a clean arena
     for (const asteroid of this.asteroids) {
       asteroid.active = false;
@@ -2099,22 +2297,28 @@ class PaperPlaneGame {
     this.bossProjectiles = [];
     this.bossMinions = [];
     this.bossAreaEffects = [];
-    
+
     // Show announcement with boss name
     this.bossAnnouncementTimer = 2.5;
     const announcement = document.getElementById("bossAnnouncement");
     const bossText = announcement?.querySelector(".boss-text");
     if (bossText) {
-      bossText.innerHTML = bossConfig.name + "<br><span style=\"font-size: 0.5em; font-weight: 400;\">" + bossConfig.subtitle + "</span>";
+      bossText.innerHTML =
+        bossConfig.name +
+        '<br><span style="font-size: 0.5em; font-weight: 400;">' +
+        bossConfig.subtitle +
+        "</span>";
     }
     if (announcement) {
       announcement.classList.add("active");
     }
-    
+
     // Scale boss difficulty - base health * config multiplier * progression
     const progressionMult = 1 + (bossNumber - 1) * 0.3;
-    const bossHealth = Math.floor(CONFIG.BOSS_HEALTH * bossConfig.healthMult * progressionMult);
-    
+    const bossHealth = Math.floor(
+      CONFIG.BOSS_HEALTH * bossConfig.healthMult * progressionMult,
+    );
+
     // Create the boss with wave-based attack system
     this.boss = {
       type: bossType,
@@ -2140,12 +2344,14 @@ class PaperPlaneGame {
       isSpecial: false,
       phase: 0,
     };
-    
+
     this.gameState = "BOSS";
-    
+
+    this.audio.switchToBossMusic();
+
     // Intense entrance sequence: initial heavy impact
     this.audio.triggerHaptic("heavy");
-    
+
     // Follow-up pulses for "thud-thud-thud" effect
     setTimeout(() => this.audio.triggerHaptic("heavy"), 150);
     setTimeout(() => this.audio.triggerHaptic("heavy"), 300);
@@ -2166,7 +2372,9 @@ class PaperPlaneGame {
     const secs = Math.floor((this.survivalTime % 60000) / 1000);
     document.getElementById("timeDisplay")!.textContent =
       mins + ":" + secs.toString().padStart(2, "0");
-    document.getElementById("coinDisplay")!.textContent = Math.floor(this.score).toString();
+    document.getElementById("coinDisplay")!.textContent = Math.floor(
+      this.score,
+    ).toString();
     // NOTE: Don't call updateAbilityUI() here - it runs every frame and restarts CSS animations
   }
 
@@ -2183,7 +2391,7 @@ class PaperPlaneGame {
     const progress = Math.min(this.destroyedCount / required, 1);
     const progressFill = document.getElementById("progressFill");
     if (progressFill) {
-      progressFill.style.width = (progress * 100) + "%";
+      progressFill.style.width = progress * 100 + "%";
     }
     const progressText = document.getElementById("progressText");
     if (progressText) {
@@ -2192,73 +2400,86 @@ class PaperPlaneGame {
   }
 
   recalculateStats(): void {
-    console.log("[recalculateStats] Recalculating from upgrade tree:", this.upgrades);
-    
+    console.log(
+      "[recalculateStats] Recalculating from upgrade tree:",
+      this.upgrades,
+    );
+
     // Fire rate multiplier from upgrade tree
-    const fireRateMult = this.upgrades.fireRate > 0
-      ? UPGRADE_CONFIG.fireRate.levels[this.upgrades.fireRate - 1].value
-      : 1;
-    
+    const fireRateMult =
+      this.upgrades.fireRate > 0
+        ? UPGRADE_CONFIG.fireRate.levels[this.upgrades.fireRate - 1].value
+        : 1;
+
     // Shot count from upgrade tree
-    const shots = this.upgrades.multiShot > 0
-      ? UPGRADE_CONFIG.multiShot.levels[this.upgrades.multiShot - 1].value
-      : 1;
-    
+    const shots =
+      this.upgrades.multiShot > 0
+        ? UPGRADE_CONFIG.multiShot.levels[this.upgrades.multiShot - 1].value
+        : 1;
+
     // Apply ability buffs (turbo abilities)
     let abilityFireRateMult = 1;
     let abilityMoveSpeedMult = 1;
     let abilityDamageMult = 1;
     let abilityExtraShots = 0;
-    
+
     // Check if turbo ability is active
-    const isTurboActive = this.currentlyActiveAbility && 
-      (this.currentlyActiveAbility.id.startsWith("turbo") || this.currentlyActiveAbility.id === "turbo") && 
+    const isTurboActive =
+      this.currentlyActiveAbility &&
+      (this.currentlyActiveAbility.id.startsWith("turbo") ||
+        this.currentlyActiveAbility.id === "turbo") &&
       this.abilityDuration > 0;
-    
+
     if (isTurboActive && this.currentlyActiveAbility) {
       // Use tiered power: tier 1=2x, tier 2=3x, tier 3=4x, etc.
       const power = this.currentlyActiveAbility.power || 1;
       const tier = this.currentlyActiveAbility.tier;
       abilityFireRateMult = power;
       abilityMoveSpeedMult = 1 + (power - 1) * 0.25; // 1.25x, 1.5x, 1.75x, 2x, 2.25x, 2.75x
-      
+
       // Tier 3+ adds extra bullets
       if (tier >= 3) {
         abilityExtraShots = Math.floor((tier - 2) / 2); // +0, +0, +1, +1, +2, +2
       }
-      
+
       // Tier 4+ explosive bullets (damage multiplier)
       if (tier >= 4) {
         abilityDamageMult = 1.5 + (tier - 4) * 0.25;
       }
     }
-    
+
     // Apply permanent stat boost from Tier 6 Eternal Ink
     const permanentMult = 1 + this.permanentStatBoost;
 
     this.currentStats = {
       damage: BASE_STATS.damage * abilityDamageMult * permanentMult,
-      fireRateMs: BASE_STATS.fireRateMs / (fireRateMult * abilityFireRateMult * permanentMult),
+      fireRateMs:
+        BASE_STATS.fireRateMs /
+        (fireRateMult * abilityFireRateMult * permanentMult),
       bulletSpeed: BASE_STATS.bulletSpeed * permanentMult,
       moveSpeed: BASE_STATS.moveSpeed * abilityMoveSpeedMult * permanentMult,
       pierce: BASE_STATS.pierce,
       shots: shots + abilityExtraShots,
-      spread: (shots + abilityExtraShots) > 1 ? 8 + (shots + abilityExtraShots - 2) * 4 : 0,
+      spread:
+        shots + abilityExtraShots > 1
+          ? 8 + (shots + abilityExtraShots - 2) * 4
+          : 0,
       maxLives: this.maxLives,
       bulletSize: BASE_STATS.bulletSize,
     };
-    
+
     // Rebuild turrets based on upgrade
     this.rebuildTurrets();
-      }
+  }
 
   rebuildTurrets(): void {
-    const turretCount = this.upgrades.turrets > 0
-      ? UPGRADE_CONFIG.turrets.levels[this.upgrades.turrets - 1].value
-      : 0;
-    
+    const turretCount =
+      this.upgrades.turrets > 0
+        ? UPGRADE_CONFIG.turrets.levels[this.upgrades.turrets - 1].value
+        : 0;
+
     console.log("[rebuildTurrets] Building", turretCount, "turrets");
-    
+
     this.drones = [];
     for (let i = 0; i < turretCount; i++) {
       this.drones.push({
@@ -2290,9 +2511,8 @@ class PaperPlaneGame {
       const config = UPGRADE_CONFIG[tree];
       chip.textContent = config.name + " Lv" + level;
       inventory.appendChild(chip);
+    }
   }
-  }
-
 
   updateOrbitals(dt: number): void {
     // Orbitals are not used in the simple upgrade system
@@ -2341,7 +2561,7 @@ class PaperPlaneGame {
   getAbilityIconSvg(type: string): string {
     const color = "currentColor";
     const strokeWidth = 2;
-    
+
     if (type === "shield") {
       return `<svg viewBox="0 0 24 24" class="ability-svg">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>
@@ -2359,7 +2579,9 @@ class PaperPlaneGame {
   }
 
   showAbilityScreen(tier: number = 1): void {
-    console.log("[showAbilityScreen] Showing tier " + tier + " ability selection");
+    console.log(
+      "[showAbilityScreen] Showing tier " + tier + " ability selection",
+    );
     this.gameState = "ABILITY_CHOICE";
     this.audio.triggerHaptic("success");
 
@@ -2369,23 +2591,39 @@ class PaperPlaneGame {
 
     // Update the title based on tier
     const titleEl = document.querySelector("#abilityScreen .ability-title");
-    const subtitleEl = document.querySelector("#abilityScreen .ability-subtitle");
-    
-    const tierNames = ["", "BOSS DEFEATED!", "ELITE BOSS DEFEATED!", "CHAMPION DEFEATED!", 
-                       "LEGENDARY BOSS DEFEATED!", "MYTHIC BOSS DEFEATED!", "FINAL BOSS DEFEATED!"];
-    const tierSubtitles = ["", "Choose your Ultimate Ability", "Choose an Enhanced Power", 
-                           "Choose a Powerful Upgrade", "Choose an Epic Ability",
-                           "Choose a Legendary Power", "Choose your Final Blessing"];
-    
+    const subtitleEl = document.querySelector(
+      "#abilityScreen .ability-subtitle",
+    );
+
+    const tierNames = [
+      "",
+      "BOSS DEFEATED!",
+      "ELITE BOSS DEFEATED!",
+      "CHAMPION DEFEATED!",
+      "LEGENDARY BOSS DEFEATED!",
+      "MYTHIC BOSS DEFEATED!",
+      "FINAL BOSS DEFEATED!",
+    ];
+    const tierSubtitles = [
+      "",
+      "Choose your Ultimate Ability",
+      "Choose an Enhanced Power",
+      "Choose a Powerful Upgrade",
+      "Choose an Epic Ability",
+      "Choose a Legendary Power",
+      "Choose your Final Blessing",
+    ];
+
     if (titleEl) titleEl.textContent = tierNames[tier] || "BOSS DEFEATED!";
-    if (subtitleEl) subtitleEl.textContent = tierSubtitles[tier] || "Choose your reward";
+    if (subtitleEl)
+      subtitleEl.textContent = tierSubtitles[tier] || "Choose your reward";
 
     const cards = document.querySelectorAll("#abilityScreen .ability-card");
 
     cards.forEach((card, index) => {
       const ability = this.abilityChoices[index];
       if (!ability) return;
-      
+
       card.setAttribute("data-ability-id", ability.id);
       card.setAttribute("data-tier", tier.toString());
 
@@ -2396,8 +2634,11 @@ class PaperPlaneGame {
 
       if (nameEl) nameEl.textContent = ability.name;
       if (descEl) descEl.textContent = ability.description;
-      if (iconContainer) iconContainer.innerHTML = this.getAbilityIconSvg(ability.icon);
-      if (chargesEl) chargesEl.textContent = ability.charges + " USE" + (ability.charges > 1 ? "S" : "");
+      if (iconContainer)
+        iconContainer.innerHTML = this.getAbilityIconSvg(ability.icon);
+      if (chargesEl)
+        chargesEl.textContent =
+          ability.charges + " USE" + (ability.charges > 1 ? "S" : "");
     });
 
     document.getElementById("abilityScreen")?.classList.remove("hidden");
@@ -2405,75 +2646,84 @@ class PaperPlaneGame {
 
   selectAbility(abilityId: string): void {
     console.log("[selectAbility]", abilityId);
-    
+
     // Find ability in the current choices (tiered abilities)
     const ability = this.abilityChoices.find((a) => a.id === abilityId);
     if (!ability) return;
 
     // Check if we already have this ability ID to stack charges
-    const existing = this.activeAbilities.find(a => a.id === ability.id);
-    
+    const existing = this.activeAbilities.find((a) => a.id === ability.id);
+
     if (existing) {
       existing.charges += ability.charges;
-      console.log("[selectAbility] Added " + ability.charges + " charges to existing slot, total: " + existing.charges);
-      
+      console.log(
+        "[selectAbility] Added " +
+          ability.charges +
+          " charges to existing slot, total: " +
+          existing.charges,
+      );
+
       this.floatingText.add(
         this.playerX,
         this.playerY - 80,
         "+" + ability.charges + " CHARGES!",
         "#44ff44",
-        2
+        2,
       );
     } else {
       // Add as a new stackable ability
       const newAbility: StoredAbility = {
         ...ability,
-        instanceId: Date.now() + Math.random()
+        instanceId: Date.now() + Math.random(),
       };
       this.activeAbilities.push(newAbility);
-      
+
       this.floatingText.add(
         this.playerX,
         this.playerY - 80,
         ability.name.toUpperCase() + "!",
         "#ff4444",
-        2
+        2,
       );
     }
-    
+
     this.audio.playUpgrade();
     this.audio.triggerHaptic("success");
 
     document.getElementById("abilityScreen")?.classList.add("hidden");
 
-      this.gameState = "PLAYING";
+    this.gameState = "PLAYING";
     this.destroyedCount = 0; // Reset for next upgrade round
-      this.updateProgressBar();
+    this.updateProgressBar();
     this.updateAbilityUI();
   }
 
   triggerAbility(instanceId?: number): void {
-    if (this.activeAbilities.length === 0 || this.gameState !== "PLAYING" && this.gameState !== "BOSS") return;
+    if (
+      this.activeAbilities.length === 0 ||
+      (this.gameState !== "PLAYING" && this.gameState !== "BOSS")
+    )
+      return;
 
     // Find the ability to trigger
-    const index = instanceId 
-      ? this.activeAbilities.findIndex(a => a.instanceId === instanceId)
+    const index = instanceId
+      ? this.activeAbilities.findIndex((a) => a.instanceId === instanceId)
       : 0; // Default to first one if no ID provided
-    
+
     if (index === -1) return;
-    
+
     const ability = this.activeAbilities[index];
     if (ability.charges <= 0) return;
 
     // If a timed ability is already active, don't allow triggering another of same type
     // (Actually, maybe we do allow stacking duration? Let's keep it simple for now)
-    
+
     console.log("[triggerAbility]", ability.id, "tier:", ability.tier);
     ability.charges--;
-    
+
     // If charges run out, we'll remove it after duration ends if it's a timed one,
     // or immediately if it's an instant one like blast.
-    
+
     this.audio.triggerHaptic("heavy");
     this.triggerScreenShake(12 + ability.tier * 2);
 
@@ -2483,7 +2733,7 @@ class PaperPlaneGame {
       if (id.startsWith("blast") || id === "destruction") return "blast";
       return "turbo";
     };
-    
+
     const abilityType = getAbilityType(ability.id);
     const tier = ability.tier;
     const power = ability.power || 1;
@@ -2491,50 +2741,104 @@ class PaperPlaneGame {
 
     // Get ability name for display
     const abilityNames: Record<string, string> = {
-      "shield": ["Paper Shield", "Reinforced Paper", "Steel Origami", "Diamond Fold", "Origami Fortress", "Paper God"][tier - 1] || "Shield",
-      "blast": ["Eraser Blast", "Eraser Storm", "Nuclear Eraser", "Black Hole", "Eraser Apocalypse", "Reality Eraser"][tier - 1] || "Blast",
-      "turbo": ["Ink Overdrive", "Pencil Fury", "Graphite Rush", "Ink Explosion", "Rainbow Ink", "Eternal Ink"][tier - 1] || "Overdrive"
+      shield:
+        [
+          "Paper Shield",
+          "Reinforced Paper",
+          "Steel Origami",
+          "Diamond Fold",
+          "Origami Fortress",
+          "Paper God",
+        ][tier - 1] || "Shield",
+      blast:
+        [
+          "Eraser Blast",
+          "Eraser Storm",
+          "Nuclear Eraser",
+          "Black Hole",
+          "Eraser Apocalypse",
+          "Reality Eraser",
+        ][tier - 1] || "Blast",
+      turbo:
+        [
+          "Ink Overdrive",
+          "Pencil Fury",
+          "Graphite Rush",
+          "Ink Explosion",
+          "Rainbow Ink",
+          "Eternal Ink",
+        ][tier - 1] || "Overdrive",
     };
-    
-    this.floatingText.add(this.playerX, this.playerY - 100, abilityNames[abilityType].toUpperCase() + "!", "#ff4444", 2.5);
+
+    this.floatingText.add(
+      this.playerX,
+      this.playerY - 100,
+      abilityNames[abilityType].toUpperCase() + "!",
+      "#ff4444",
+      2.5,
+    );
 
     if (abilityType === "shield") {
       this.isInvincible = true;
       this.abilityDuration = duration;
       this.damageTimer = duration;
       this.currentlyActiveAbility = ability;
-      
+
       if (tier >= 3) {
-        this.floatingText.add(this.playerX, this.playerY - 60, "REFLECT ON!", "#44ff44", 1.5);
+        this.floatingText.add(
+          this.playerX,
+          this.playerY - 60,
+          "REFLECT ON!",
+          "#44ff44",
+          1.5,
+        );
       }
     } else if (abilityType === "blast") {
       let destroyedCount = 0;
-      this.asteroids.forEach(a => {
+      this.asteroids.forEach((a) => {
         if (a.active) {
-          this.particles.emit(a.x, a.y, CONFIG.PENCIL_DARK, 10 + tier * 3, "explosion");
+          this.particles.emit(
+            a.x,
+            a.y,
+            CONFIG.PENCIL_DARK,
+            10 + tier * 3,
+            "explosion",
+          );
           a.active = false;
           this.score += 50 + tier * 25;
           destroyedCount++;
         }
       });
-      
+
       if (this.boss && this.boss.active && power > 1) {
         const bossDamage = power;
         this.boss.health -= bossDamage;
-        this.floatingText.add(this.boss.x, this.boss.y, "-" + bossDamage + " BOSS!", "#ff6644", 2);
-        this.particles.emit(this.boss.x, this.boss.y, "#ff4444", 15 + tier * 5, "explosion");
-        
+        this.floatingText.add(
+          this.boss.x,
+          this.boss.y,
+          "-" + bossDamage + " BOSS!",
+          "#ff6644",
+          2,
+        );
+        this.particles.emit(
+          this.boss.x,
+          this.boss.y,
+          "#ff4444",
+          15 + tier * 5,
+          "explosion",
+        );
+
         if (this.boss.health <= 0) {
           this.defeatBoss();
         }
       }
-      
+
       if (tier >= 6) {
         this.triggerScreenShake(25);
       }
-      
+
       this.audio.playExplosion();
-      
+
       // If no charges left, remove it
       if (ability.charges <= 0) {
         this.activeAbilities.splice(index, 1);
@@ -2542,12 +2846,18 @@ class PaperPlaneGame {
     } else if (abilityType === "turbo") {
       this.abilityDuration = duration;
       this.currentlyActiveAbility = ability;
-      
+
       if (tier >= 6 && this.permanentStatBoost < 0.25) {
         this.permanentStatBoost += 0.25;
-        this.floatingText.add(this.playerX, this.playerY - 60, "+25% PERMANENT!", "#ffcc00", 2);
+        this.floatingText.add(
+          this.playerX,
+          this.playerY - 60,
+          "+25% PERMANENT!",
+          "#ffcc00",
+          2,
+        );
       }
-      
+
       this.recalculateStats();
     }
 
@@ -2556,28 +2866,34 @@ class PaperPlaneGame {
 
   deactivateAbility(): void {
     if (!this.currentlyActiveAbility) return;
-    
+
     console.log("[deactivateAbility]", this.currentlyActiveAbility.id);
-    
+
     const id = this.currentlyActiveAbility.id;
-    const abilityType = (id.startsWith("shield") || id === "invincibility") ? "shield" :
-                       (id.startsWith("blast") || id === "destruction") ? "blast" : "turbo";
-    
+    const abilityType =
+      id.startsWith("shield") || id === "invincibility"
+        ? "shield"
+        : id.startsWith("blast") || id === "destruction"
+          ? "blast"
+          : "turbo";
+
     if (abilityType === "shield") {
       this.isInvincible = false;
       this.damageTimer = 0;
     } else if (abilityType === "turbo") {
       this.recalculateStats();
     }
-    
+
     // If no charges left, remove it from activeAbilities
     if (this.currentlyActiveAbility.charges <= 0) {
-      const index = this.activeAbilities.findIndex(a => a.instanceId === this.currentlyActiveAbility!.instanceId);
+      const index = this.activeAbilities.findIndex(
+        (a) => a.instanceId === this.currentlyActiveAbility!.instanceId,
+      );
       if (index !== -1) {
         this.activeAbilities.splice(index, 1);
       }
     }
-    
+
     this.currentlyActiveAbility = null;
     this.abilityDuration = 0;
     this.updateAbilityUI();
@@ -2586,13 +2902,13 @@ class PaperPlaneGame {
   updateAbilities(dt: number): void {
     if (this.abilityDuration > 0) {
       this.abilityDuration -= dt;
-      
+
       // Update timer display without recreating DOM
       const timerEl = document.querySelector(".ability-slot.active .timer");
       if (timerEl) {
         timerEl.textContent = Math.ceil(this.abilityDuration) + "s";
       }
-      
+
       if (this.abilityDuration <= 0) {
         this.deactivateAbility();
       }
@@ -2608,20 +2924,26 @@ class PaperPlaneGame {
     this.activeAbilities.forEach((ability) => {
       const slot = document.createElement("div");
       slot.className = "ability-slot";
-      
-      const isActive = this.currentlyActiveAbility?.instanceId === ability.instanceId;
+
+      const isActive =
+        this.currentlyActiveAbility?.instanceId === ability.instanceId;
       if (isActive) slot.classList.add("active");
-      
-      const isCooldown = ability.charges <= 0 && (!isActive || this.abilityDuration <= 0);
+
+      const isCooldown =
+        ability.charges <= 0 && (!isActive || this.abilityDuration <= 0);
       if (isCooldown) slot.classList.add("cooldown");
 
-      const iconType = ability.id.startsWith("shield") ? "shield" :
-                      ability.id.startsWith("blast") ? "blast" : "turbo";
-      
-      const timerHtml = isActive && this.abilityDuration > 0 
-        ? `<div class="timer">${Math.ceil(this.abilityDuration)}s</div>` 
-        : "";
-      
+      const iconType = ability.id.startsWith("shield")
+        ? "shield"
+        : ability.id.startsWith("blast")
+          ? "blast"
+          : "turbo";
+
+      const timerHtml =
+        isActive && this.abilityDuration > 0
+          ? `<div class="timer">${Math.ceil(this.abilityDuration)}s</div>`
+          : "";
+
       slot.innerHTML = `
         <div class="icon">${this.getAbilityIconSvg(iconType)}</div>
         <div class="label">${ability.name.split(" ")[0]}</div>
@@ -2642,7 +2964,7 @@ class PaperPlaneGame {
   updateLivesDisplay(): void {
     const livesContainer = document.getElementById("livesDisplay");
     if (!livesContainer) return;
-    
+
     livesContainer.innerHTML = "";
     for (let i = 0; i < this.maxLives; i++) {
       const heart = document.createElement("span");
@@ -2654,12 +2976,12 @@ class PaperPlaneGame {
 
   triggerDamageEffect(): void {
     console.log("[triggerDamageEffect] Starting damage animation");
-    
+
     // Start invincibility period
     this.isInvincible = true;
     this.damageTimer = 1.5;
     this.damageFlashTimer = 0;
-    
+
     // Show damage overlay
     const overlay = document.getElementById("damageOverlay");
     if (overlay) {
@@ -2668,13 +2990,13 @@ class PaperPlaneGame {
         overlay.classList.remove("active");
       }, 300);
     }
-    
+
     // Update lives display
     this.updateLivesDisplay();
-    
+
     // Haptic feedback
     this.audio.triggerHaptic("error");
-    
+
     // Screen shake
     this.triggerScreenShake(8);
 
@@ -2683,10 +3005,10 @@ class PaperPlaneGame {
 
   updateDamageState(dt: number): void {
     if (!this.isInvincible) return;
-    
+
     this.damageTimer -= dt;
     this.damageFlashTimer += dt * 12; // Controls blink speed
-    
+
     if (this.damageTimer <= 0) {
       this.isInvincible = false;
       this.damageTimer = 0;
@@ -2719,7 +3041,12 @@ class PaperPlaneGame {
       this.targetY = this.mouseY - offsetY;
     }
     // Mobile: plane follows finger when dragging
-    else if (this.isMobile && this.isDragging && this.touchX !== null && this.touchY !== null) {
+    else if (
+      this.isMobile &&
+      this.isDragging &&
+      this.touchX !== null &&
+      this.touchY !== null
+    ) {
       // Larger offset for touch so finger doesn't cover plane
       const offsetY = 80;
       this.targetX = this.touchX;
@@ -2781,7 +3108,7 @@ class PaperPlaneGame {
       this.playerY += this.playerVelocityY;
     } else {
       // Dart and Bomber - responsive follow
-      const lerpFactor = (this.mouseX !== null || this.isDragging) ? 0.25 : 0.3;
+      const lerpFactor = this.mouseX !== null || this.isDragging ? 0.25 : 0.3;
       this.playerX = lerp(this.playerX, this.targetX, lerpFactor);
       this.playerY = lerp(this.playerY, this.targetY, lerpFactor);
     }
@@ -2869,7 +3196,7 @@ class PaperPlaneGame {
     fromDrone: boolean = false,
   ): Bullet {
     const origin = this.getShotOrigin();
-      const bullet = this.bulletPool.acquire();
+    const bullet = this.bulletPool.acquire();
     bullet.x = origin.x;
     bullet.y = origin.y;
     bullet.vx = Math.cos(angle) * stats.bulletSpeed;
@@ -2878,7 +3205,7 @@ class PaperPlaneGame {
     bullet.pierceRemaining = stats.pierce;
     bullet.explosive = false;
     bullet.chainLightning = false;
-      bullet.active = true;
+    bullet.active = true;
     bullet.fromDrone = fromDrone;
     bullet.age = 0;
     bullet.maxAge = 3.2;
@@ -2901,7 +3228,7 @@ class PaperPlaneGame {
     bullet.jitterOffset = randomRange(-1.5, 1.5);
     bullet.prismSplit = false;
 
-      this.bullets.push(bullet);
+    this.bullets.push(bullet);
     return bullet;
   }
 
@@ -3013,7 +3340,6 @@ class PaperPlaneGame {
     return nearest;
   }
 
-
   handleAsteroidDestroyed(asteroid: Asteroid, sourceBullet?: Bullet): void {
     if (!asteroid.active) return;
     asteroid.active = false;
@@ -3054,7 +3380,7 @@ class PaperPlaneGame {
       // Higher base ratios for larger asteroids, increased slightly after each boss
       const bossBonus = this.bossesDefeated * 0.05;
       const largeRatio = Math.min(0.55, 0.2 + timeMinutes * 0.05 + bossBonus);
-      const mediumRatio = Math.min(0.40, 0.35 + timeMinutes * 0.02);
+      const mediumRatio = Math.min(0.4, 0.35 + timeMinutes * 0.02);
       const roll = Math.random();
       if (roll < largeRatio) size = "large";
       else if (roll < largeRatio + mediumRatio) size = "medium";
@@ -3137,18 +3463,30 @@ class PaperPlaneGame {
         // Pick a new target position near the player
         const wanderRadius = CONFIG.DRONE_ORBIT_RADIUS * 0.8;
         const angle = Math.random() * Math.PI * 2;
-        drone.targetX = this.playerX + Math.cos(angle) * (20 + Math.random() * wanderRadius);
-        drone.targetY = this.playerY + Math.sin(angle) * (20 + Math.random() * wanderRadius);
+        drone.targetX =
+          this.playerX + Math.cos(angle) * (20 + Math.random() * wanderRadius);
+        drone.targetY =
+          this.playerY + Math.sin(angle) * (20 + Math.random() * wanderRadius);
         drone.wanderTimer = 400 + Math.random() * 600;
       }
 
       // Keep target anchored relative to player movement
-      const distToPlayer = distance(drone.targetX, drone.targetY, this.playerX, this.playerY);
+      const distToPlayer = distance(
+        drone.targetX,
+        drone.targetY,
+        this.playerX,
+        this.playerY,
+      );
       if (distToPlayer > maxDistFromPlayer) {
         // Pull target back toward player
-        const pullAngle = Math.atan2(this.playerY - drone.targetY, this.playerX - drone.targetX);
-        drone.targetX += Math.cos(pullAngle) * (distToPlayer - maxDistFromPlayer);
-        drone.targetY += Math.sin(pullAngle) * (distToPlayer - maxDistFromPlayer);
+        const pullAngle = Math.atan2(
+          this.playerY - drone.targetY,
+          this.playerX - drone.targetX,
+        );
+        drone.targetX +=
+          Math.cos(pullAngle) * (distToPlayer - maxDistFromPlayer);
+        drone.targetY +=
+          Math.sin(pullAngle) * (distToPlayer - maxDistFromPlayer);
       }
 
       // Smoothly move toward target
@@ -3156,13 +3494,24 @@ class PaperPlaneGame {
       drone.y = lerp(drone.y, drone.targetY, 0.08);
 
       // Ensure drone stays close to player (hard constraint)
-      const actualDistToPlayer = distance(drone.x, drone.y, this.playerX, this.playerY);
+      const actualDistToPlayer = distance(
+        drone.x,
+        drone.y,
+        this.playerX,
+        this.playerY,
+      );
       if (actualDistToPlayer > maxDistFromPlayer) {
-        const pullAngle = Math.atan2(this.playerY - drone.y, this.playerX - drone.x);
+        const pullAngle = Math.atan2(
+          this.playerY - drone.y,
+          this.playerX - drone.x,
+        );
         drone.x = this.playerX - Math.cos(pullAngle) * maxDistFromPlayer;
         drone.y = this.playerY - Math.sin(pullAngle) * maxDistFromPlayer;
       } else if (actualDistToPlayer < minDistFromPlayer) {
-        const pushAngle = Math.atan2(drone.y - this.playerY, drone.x - this.playerX);
+        const pushAngle = Math.atan2(
+          drone.y - this.playerY,
+          drone.x - this.playerX,
+        );
         drone.x = this.playerX + Math.cos(pushAngle) * minDistFromPlayer;
         drone.y = this.playerY + Math.sin(pushAngle) * minDistFromPlayer;
       }
@@ -3170,21 +3519,21 @@ class PaperPlaneGame {
       // Find target to face (always, not just when firing)
       // Target can be an asteroid OR the boss
       let target: { x: number; y: number; health: number } | null = null;
-        let bestScore = -Infinity;
+      let bestScore = -Infinity;
 
       // Check asteroids
-        for (const a of this.asteroids) {
+      for (const a of this.asteroids) {
         const dist = distance(drone.x, drone.y, a.x, a.y);
-          // Prefer closer targets, but smart targeting prefers high health
-          let score = -dist;
-          if (smartTarget && a.health >= 4) score += 200;
-          if (canIntercept && a.y > this.playerY - 100) score += 300; // Prioritize close threats
+        // Prefer closer targets, but smart targeting prefers high health
+        let score = -dist;
+        if (smartTarget && a.health >= 4) score += 200;
+        if (canIntercept && a.y > this.playerY - 100) score += 300; // Prioritize close threats
 
-          if (score > bestScore) {
-            bestScore = score;
-            target = a;
-          }
+        if (score > bestScore) {
+          bestScore = score;
+          target = a;
         }
+      }
 
       // Check boss - prioritize boss when in boss fight
       if (this.boss && this.boss.active && this.gameState === "BOSS") {
@@ -3194,11 +3543,11 @@ class PaperPlaneGame {
         if (bossScore > bestScore) {
           bestScore = bossScore;
           target = this.boss;
-          }
         }
+      }
 
       // Rotate to face target (or default to facing up)
-        if (target) {
+      if (target) {
         const targetAngle = Math.atan2(target.y - drone.y, target.x - drone.x);
         // Smoothly rotate toward target
         let angleDiff = targetAngle - drone.facingAngle;
@@ -3217,17 +3566,19 @@ class PaperPlaneGame {
       // Fire at asteroids
       drone.fireTimer -= dt * 1000;
       if (drone.fireTimer <= 0 && target) {
-          const bullet = this.bulletPool.acquire();
+        const bullet = this.bulletPool.acquire();
         bullet.x = drone.x;
         bullet.y = drone.y;
-        bullet.vx = Math.cos(drone.facingAngle) * this.currentStats.bulletSpeed * 0.8;
-        bullet.vy = Math.sin(drone.facingAngle) * this.currentStats.bulletSpeed * 0.8;
-          bullet.damage = droneDamage;
-          bullet.pierceRemaining = dronePierce;
-          bullet.explosive = false;
+        bullet.vx =
+          Math.cos(drone.facingAngle) * this.currentStats.bulletSpeed * 0.8;
+        bullet.vy =
+          Math.sin(drone.facingAngle) * this.currentStats.bulletSpeed * 0.8;
+        bullet.damage = droneDamage;
+        bullet.pierceRemaining = dronePierce;
+        bullet.explosive = false;
         bullet.chainLightning = false;
-          bullet.active = true;
-          bullet.fromDrone = true;
+        bullet.active = true;
+        bullet.fromDrone = true;
         bullet.age = 0;
         bullet.maxAge = 2.2;
         bullet.size = this.currentStats.bulletSize * 0.8;
@@ -3249,7 +3600,7 @@ class PaperPlaneGame {
         bullet.jitterOffset = randomRange(-1, 1);
         bullet.prismSplit = false;
 
-          this.bullets.push(bullet);
+        this.bullets.push(bullet);
         drone.fireTimer = fireInterval;
       } else if (drone.fireTimer <= 0) {
         // No target, still reset timer
@@ -3450,8 +3801,12 @@ class PaperPlaneGame {
       if (Math.abs(this.boss.y - this.boss.targetY) < 2) {
         this.boss.y = this.boss.targetY;
         this.boss.entering = false;
-        console.log("[updateBoss] " + config.name + " finished entering, starting attacks");
-        
+        console.log(
+          "[updateBoss] " +
+            config.name +
+            " finished entering, starting attacks",
+        );
+
         // Final landing "thud" haptics
         this.audio.triggerHaptic("heavy");
         setTimeout(() => this.audio.triggerHaptic("heavy"), 100);
@@ -3467,10 +3822,10 @@ class PaperPlaneGame {
       inkblot: 0.8,
       rubberband: 0.5,
       stapler: 0.2,
-      scissors: 0.4
+      scissors: 0.4,
     };
     this.boss.rotation += dt * rotationSpeeds[this.boss.type];
-    
+
     // Pulse animation
     this.boss.pulsePhase += dt * 2;
     this.boss.movePhase += dt;
@@ -3494,7 +3849,10 @@ class PaperPlaneGame {
       this.boss.waveTimer -= dt * 1000;
       if (this.boss.waveTimer <= 0) {
         // Every 3rd wave is a special move
-        if (this.boss.totalAttacks > 0 && Math.floor(this.boss.totalAttacks / config.attacksPerWave) % 3 === 0) {
+        if (
+          this.boss.totalAttacks > 0 &&
+          Math.floor(this.boss.totalAttacks / config.attacksPerWave) % 3 === 0
+        ) {
           this.triggerSpecialAbility();
         } else {
           // Start new wave
@@ -3512,22 +3870,35 @@ class PaperPlaneGame {
     this.boss.isSpecial = true;
     this.boss.specialTimer = 3000; // Most specials last 3 seconds
     this.boss.phase = 0;
-    
+
     const config = BOSS_CONFIGS[this.boss.type];
-    this.floatingText.add(this.boss.x, this.boss.y - 100, "ULTIMATE: " + this.getSpecialName().toUpperCase(), "#ff0000", 3);
+    this.floatingText.add(
+      this.boss.x,
+      this.boss.y - 100,
+      "ULTIMATE: " + this.getSpecialName().toUpperCase(),
+      "#ff0000",
+      3,
+    );
     this.audio.triggerHaptic("heavy");
   }
 
   getSpecialName(): string {
     if (!this.boss) return "";
     switch (this.boss.type) {
-      case "eraser": return "Doodle Summon";
-      case "paperweight": return "Seismic Slam";
-      case "inkblot": return "Ink Teleport";
-      case "rubberband": return "The Great Snap";
-      case "stapler": return "Staple Rain";
-      case "scissors": return "Mega Shred";
-      default: return "Overdrive";
+      case "eraser":
+        return "Doodle Summon";
+      case "paperweight":
+        return "Seismic Slam";
+      case "inkblot":
+        return "Ink Teleport";
+      case "rubberband":
+        return "The Great Snap";
+      case "stapler":
+        return "Staple Rain";
+      case "scissors":
+        return "Mega Shred";
+      default:
+        return "Overdrive";
     }
   }
 
@@ -3545,44 +3916,86 @@ class PaperPlaneGame {
           this.spawnBossMinion("stick_man", this.boss.x, this.boss.y, {
             vx: (Math.random() - 0.5) * 10,
             vy: 2 + Math.random() * 2,
-            health: 2
+            health: 2,
           });
         }
         break;
 
-      case "paperweight":
-        // Periodic shockwaves
-        if (Math.floor(this.boss.phase * 5) > Math.floor((this.boss.phase - dt) * 5)) {
+      case "paperweight": {
+        // Periodic shockwaves aimed at the player
+        if (
+          Math.floor(this.boss.phase * 5) >
+          Math.floor((this.boss.phase - dt) * 5)
+        ) {
+          const aimAngle = Math.atan2(
+            this.playerY - this.boss.y,
+            this.playerX - this.boss.x,
+          );
           this.spawnBossAreaEffect("shockwave", this.boss.x, this.boss.y, {
-            radius: 300,
-            life: 1,
-            color: "rgba(100,100,100,0.5)"
+            radius: 500,
+            life: 1.2,
+            color: "rgba(100,100,100,0.5)",
+            aimAngle: aimAngle,
+            arcWidth: Math.PI * 0.4,
           });
           this.triggerScreenShake(5);
+
+          // Spawn small seismic waves in random directions
+          const waveCount = 2 + Math.floor(this.boss.phase * 2);
+          for (let w = 0; w < waveCount; w++) {
+            const dir = Math.random() * Math.PI * 2;
+            const speed = 3 + Math.random() * 2;
+            const proj = this.spawnBossProjectile("seismic_wave", {
+              vx: Math.cos(dir) * speed,
+              vy: Math.sin(dir) * speed,
+              size: 40,
+              color: "rgba(140,120,100,0.8)",
+              rotationSpeed: 0,
+            });
+            if (proj) {
+              proj.arcAngle = dir;
+              proj.arcSpan = Math.PI * 0.35;
+            }
+          }
         }
         break;
+      }
 
       case "inkblot":
         // Teleport logic
-        if (this.boss.specialTimer < 1500 && this.boss.specialTimer + dt * 1000 >= 1500) {
+        if (
+          this.boss.specialTimer < 1500 &&
+          this.boss.specialTimer + dt * 1000 >= 1500
+        ) {
           // Halfway through, teleport
-          this.particles.emit(this.boss.x, this.boss.y, BOSS_CONFIGS.inkblot.color, 20, "explosion");
+          this.particles.emit(
+            this.boss.x,
+            this.boss.y,
+            BOSS_CONFIGS.inkblot.color,
+            20,
+            "explosion",
+          );
           this.boss.x = Math.random() * (this.w - 100) + 50;
           this.boss.y = Math.random() * 200 + 100;
           // Leave spiders
           for (let i = 0; i < 4; i++) {
-            this.spawnBossMinion("ink_spider", this.boss.x, this.boss.y, { health: 1 });
+            this.spawnBossMinion("ink_spider", this.boss.x, this.boss.y, {
+              health: 1,
+            });
           }
         }
         break;
 
       case "rubberband":
         // Tether effect
-        if (Math.floor(this.boss.phase * 10) > Math.floor((this.boss.phase - dt) * 10)) {
+        if (
+          Math.floor(this.boss.phase * 10) >
+          Math.floor((this.boss.phase - dt) * 10)
+        ) {
           this.spawnBossAreaEffect("gravity_well", this.boss.x, this.boss.y, {
             radius: 400,
             life: 0.2,
-            color: "rgba(196,165,116,0.3)"
+            color: "rgba(196,165,116,0.3)",
           });
         }
         break;
@@ -3595,7 +4008,7 @@ class PaperPlaneGame {
             vy: 6,
             size: 8,
             color: "#c0c0c0",
-            rotationSpeed: 0
+            rotationSpeed: 0,
           });
           // Place projectile at random top position
           const proj = this.bossProjectiles[this.bossProjectiles.length - 1];
@@ -3630,8 +4043,24 @@ class PaperPlaneGame {
         proj.stretchPhase += dt * 8;
       }
 
-      // Remove if off screen
-      if (proj.y > this.h + 50 || proj.y < -100 || proj.x < -50 || proj.x > this.w + 50) {
+      // Remove if off screen (seismic waves get larger margin and max age)
+      if (proj.type === "seismic_wave") {
+        const margin = 200;
+        if (
+          proj.age > 6 ||
+          proj.y > this.h + margin ||
+          proj.y < -margin ||
+          proj.x < -margin ||
+          proj.x > this.w + margin
+        ) {
+          proj.active = false;
+        }
+      } else if (
+        proj.y > this.h + 50 ||
+        proj.y < -100 ||
+        proj.x < -50 ||
+        proj.x > this.w + 50
+      ) {
         proj.active = false;
       }
     }
@@ -3645,6 +4074,39 @@ class PaperPlaneGame {
 
     for (const proj of this.bossProjectiles) {
       if (!proj.active) continue;
+
+      if (
+        proj.type === "seismic_wave" &&
+        proj.arcAngle !== undefined &&
+        proj.arcSpan !== undefined
+      ) {
+        const dist = distance(proj.x, proj.y, this.playerX, this.playerY);
+        const waveR = proj.size + proj.age * 20;
+        const ringThickness = 20;
+        if (Math.abs(dist - waveR) < ringThickness) {
+          const playerAngle = Math.atan2(
+            this.playerY - proj.y,
+            this.playerX - proj.x,
+          );
+          let angleDiff = playerAngle - proj.arcAngle;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          if (Math.abs(angleDiff) < proj.arcSpan) {
+            proj.active = false;
+            this.eventBus.emit("PLAYER_HIT");
+            this.particles.emit(
+              this.playerX,
+              this.playerY,
+              proj.color,
+              8,
+              "spark",
+            );
+            this.audio.triggerHaptic("heavy");
+            return;
+          }
+        }
+        continue;
+      }
 
       const dist = distance(proj.x, proj.y, this.playerX, this.playerY);
       if (dist < playerRadius + proj.size) {
@@ -3690,7 +4152,7 @@ class PaperPlaneGame {
             m.vx = (Math.random() - 0.5) * 4;
             m.vy = (Math.random() - 0.5) * 4;
             m.timer = 1000 + Math.random() * 2000;
-            
+
             // Spray small ink dots
             for (let j = 0; j < 4; j++) {
               const angle = Math.random() * Math.PI * 2;
@@ -3699,7 +4161,7 @@ class PaperPlaneGame {
                 vy: Math.sin(angle) * 2,
                 size: 6,
                 color: BOSS_CONFIGS.inkblot.color,
-                rotationSpeed: 0
+                rotationSpeed: 0,
               });
             }
           }
@@ -3715,7 +4177,7 @@ class PaperPlaneGame {
               vy: Math.sin(m.angle) * speed,
               size: 8,
               color: "#c0c0c0",
-              rotationSpeed: 0
+              rotationSpeed: 0,
             });
             m.timer = 800;
           }
@@ -3752,7 +4214,12 @@ class PaperPlaneGame {
       m.y += m.vy * dt * 60;
 
       // Wrap on screen for some minions or remove
-      if (m.y > this.h + 100 || m.y < -200 || m.x < -100 || m.x > this.w + 100) {
+      if (
+        m.y > this.h + 100 ||
+        m.y < -200 ||
+        m.x < -100 ||
+        m.x > this.w + 100
+      ) {
         m.active = false;
       }
     }
@@ -3770,7 +4237,7 @@ class PaperPlaneGame {
 
       // Check player interaction with area effects
       const dist = distance(this.playerX, this.playerY, ef.x, ef.y);
-      
+
       switch (ef.type) {
         case "ink_puddle":
           if (dist < ef.radius) {
@@ -3788,11 +4255,50 @@ class PaperPlaneGame {
           break;
         case "paper_cut":
           // Check line collision
-          if (ef.x2 !== undefined && ef.y2 !== undefined && this.damageTimer <= 0 && !this.isInvincible) {
-            const d = this.distToSegment(this.playerX, this.playerY, ef.x, ef.y, ef.x2, ef.y2);
+          if (
+            ef.x2 !== undefined &&
+            ef.y2 !== undefined &&
+            this.damageTimer <= 0 &&
+            !this.isInvincible
+          ) {
+            const d = this.distToSegment(
+              this.playerX,
+              this.playerY,
+              ef.x,
+              ef.y,
+              ef.x2,
+              ef.y2,
+            );
             if (d < 15) {
               this.eventBus.emit("PLAYER_HIT");
               this.audio.triggerHaptic("error");
+            }
+          }
+          break;
+        case "shockwave":
+          if (
+            !ef.hasDamaged &&
+            this.damageTimer <= 0 &&
+            !this.isInvincible &&
+            ef.aimAngle !== undefined &&
+            ef.arcWidth !== undefined
+          ) {
+            const shockRadius = (1 - ef.life / ef.maxLife) * ef.radius;
+            const ringThickness = 30;
+            if (Math.abs(dist - shockRadius) < ringThickness) {
+              const playerAngle = Math.atan2(
+                this.playerY - ef.y,
+                this.playerX - ef.x,
+              );
+              let angleDiff = playerAngle - ef.aimAngle;
+              while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+              while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+              if (Math.abs(angleDiff) < ef.arcWidth) {
+                ef.hasDamaged = true;
+                this.eventBus.emit("PLAYER_HIT");
+                this.audio.triggerHaptic("heavy");
+                this.triggerScreenShake(6);
+              }
             }
           }
           break;
@@ -3800,7 +4306,14 @@ class PaperPlaneGame {
     }
   }
 
-  distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  distToSegment(
+    px: number,
+    py: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+  ): number {
     const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
     if (l2 === 0) return distance(px, py, x1, y1);
     let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
@@ -3823,7 +4336,7 @@ class PaperPlaneGame {
           bullet.active = false;
           this.bulletPool.release(bullet);
           this.bullets.splice(i, 1);
-          
+
           if (m.health <= 0) {
             m.active = false;
             this.particles.emit(m.x, m.y, CONFIG.PENCIL_DARK, 10, "explosion");
@@ -3863,7 +4376,8 @@ class PaperPlaneGame {
 
       case "sway":
         // Gentle side-to-side
-        const swayTarget = this.w / 2 + Math.sin(this.boss.movePhase * 0.8) * 120;
+        const swayTarget =
+          this.w / 2 + Math.sin(this.boss.movePhase * 0.8) * 120;
         this.boss.x = lerp(this.boss.x, swayTarget, 0.03);
         break;
 
@@ -3901,8 +4415,12 @@ class PaperPlaneGame {
         // Circular motion
         const circleRadius = 100;
         const circleSpeed = 1.5;
-        this.boss.x = this.w / 2 + Math.cos(this.boss.movePhase * circleSpeed) * circleRadius;
-        this.boss.y = this.boss.targetY + Math.sin(this.boss.movePhase * circleSpeed) * (circleRadius * 0.5);
+        this.boss.x =
+          this.w / 2 +
+          Math.cos(this.boss.movePhase * circleSpeed) * circleRadius;
+        this.boss.y =
+          this.boss.targetY +
+          Math.sin(this.boss.movePhase * circleSpeed) * (circleRadius * 0.5);
         break;
     }
   }
@@ -3947,9 +4465,15 @@ class PaperPlaneGame {
       this.spawnBossMinion("eraser_grunt", this.boss.x, this.boss.y, {
         vx: (Math.random() - 0.5) * 4,
         vy: 2,
-        health: 3
+        health: 3,
       });
-      this.floatingText.add(this.boss.x, this.boss.y - 20, "ERASER GRUNT!", "#f5b5c8", 1.5);
+      this.floatingText.add(
+        this.boss.x,
+        this.boss.y - 20,
+        "ERASER GRUNT!",
+        "#f5b5c8",
+        1.5,
+      );
     }
 
     const dx = this.playerX - this.boss.x;
@@ -3965,7 +4489,7 @@ class PaperPlaneGame {
       vy: Math.sin(spreadAngle) * speed,
       size: 18 + Math.random() * 8,
       color: BOSS_CONFIGS.eraser.color,
-      rotationSpeed: (Math.random() - 0.5) * 0.15
+      rotationSpeed: (Math.random() - 0.5) * 0.15,
     });
   }
 
@@ -3979,9 +4503,15 @@ class PaperPlaneGame {
       this.spawnBossAreaEffect("gravity_well", this.playerX, this.playerY, {
         radius: 120,
         life: 4,
-        color: "rgba(0,0,0,0.5)"
+        color: "rgba(0,0,0,0.5)",
       });
-      this.floatingText.add(this.playerX, this.playerY - 40, "GRAVITY WELL!", "#8b8b8b", 1.5);
+      this.floatingText.add(
+        this.playerX,
+        this.playerY - 40,
+        "GRAVITY WELL!",
+        "#8b8b8b",
+        1.5,
+      );
     }
 
     // Rocks fall mostly down with slight aim at player
@@ -3992,8 +4522,25 @@ class PaperPlaneGame {
       vy: 2.5 + Math.random() * 1,
       size: 22 + Math.random() * 10,
       color: BOSS_CONFIGS.paperweight.color,
-      rotationSpeed: (Math.random() - 0.5) * 0.08
+      rotationSpeed: (Math.random() - 0.5) * 0.08,
     });
+
+    // Every 3rd attack, send a small seismic wave in a random direction
+    if (this.boss.totalAttacks % 3 === 0) {
+      const dir = Math.random() * Math.PI * 2;
+      const speed = 2.5 + Math.random() * 1.5;
+      const wave = this.spawnBossProjectile("seismic_wave", {
+        vx: Math.cos(dir) * speed,
+        vy: Math.sin(dir) * speed,
+        size: 35,
+        color: "rgba(140,120,100,0.7)",
+        rotationSpeed: 0,
+      });
+      if (wave) {
+        wave.arcAngle = dir;
+        wave.arcSpan = Math.PI * 0.3;
+      }
+    }
   }
 
   // ===== INK BLOT ATTACK =====
@@ -4007,14 +4554,26 @@ class PaperPlaneGame {
         this.spawnBossAreaEffect("ink_puddle", this.playerX, this.playerY, {
           radius: 80,
           life: 5,
-          color: BOSS_CONFIGS.inkblot.color
+          color: BOSS_CONFIGS.inkblot.color,
         });
-        this.floatingText.add(this.playerX, this.playerY - 20, "INK PUDDLE!", "#2a2a4a", 1.5);
+        this.floatingText.add(
+          this.playerX,
+          this.playerY - 20,
+          "INK PUDDLE!",
+          "#2a2a4a",
+          1.5,
+        );
       } else {
         this.spawnBossMinion("ink_spider", this.boss.x, this.boss.y, {
-          health: 2
+          health: 2,
         });
-        this.floatingText.add(this.boss.x, this.boss.y - 20, "INK SPIDER!", "#2a2a4a", 1.5);
+        this.floatingText.add(
+          this.boss.x,
+          this.boss.y - 20,
+          "INK SPIDER!",
+          "#2a2a4a",
+          1.5,
+        );
       }
     }
 
@@ -4031,7 +4590,7 @@ class PaperPlaneGame {
         vy: Math.sin(angle) * speed,
         size: 12 + Math.random() * 6,
         color: BOSS_CONFIGS.inkblot.color,
-        rotationSpeed: 0
+        rotationSpeed: 0,
       });
     }
   }
@@ -4043,7 +4602,7 @@ class PaperPlaneGame {
 
     // Special ability: extra asteroids on every 4th attack
     if (this.boss.totalAttacks % 4 === 0) {
-        this.bossThrowAsteroid();
+      this.bossThrowAsteroid();
       this.bossThrowAsteroid();
     }
 
@@ -4061,7 +4620,7 @@ class PaperPlaneGame {
       vy: Math.sin(finalAngle) * speed,
       size: 20,
       color: BOSS_CONFIGS.rubberband.color,
-      rotationSpeed: 0.1
+      rotationSpeed: 0.1,
     });
     if (proj) {
       proj.stretchPhase = 0;
@@ -4075,11 +4634,22 @@ class PaperPlaneGame {
 
     // Special ability: staple sentry every 10th attack (it fires a lot of staples)
     if (this.boss.totalAttacks % 10 === 0) {
-      this.spawnBossMinion("staple_sentry", this.boss.x + (Math.random() - 0.5) * 200, 100, {
-        health: 10,
-        angle: Math.random() * Math.PI * 2
-      });
-      this.floatingText.add(this.boss.x, this.boss.y - 20, "STAPLE SENTRY!", "#4a4a4a", 1.5);
+      this.spawnBossMinion(
+        "staple_sentry",
+        this.boss.x + (Math.random() - 0.5) * 200,
+        100,
+        {
+          health: 10,
+          angle: Math.random() * Math.PI * 2,
+        },
+      );
+      this.floatingText.add(
+        this.boss.x,
+        this.boss.y - 20,
+        "STAPLE SENTRY!",
+        "#4a4a4a",
+        1.5,
+      );
     }
 
     const dx = this.playerX - this.boss.x;
@@ -4096,7 +4666,7 @@ class PaperPlaneGame {
       vy: Math.sin(angle) * speed,
       size: 8,
       color: "#c0c0c0",
-      rotationSpeed: 0
+      rotationSpeed: 0,
     });
   }
 
@@ -4109,9 +4679,15 @@ class PaperPlaneGame {
     if (this.boss.totalAttacks % 4 === 0) {
       if (Math.random() > 0.5) {
         this.spawnBossMinion("blade_drone", this.boss.x, this.boss.y, {
-          health: 5
+          health: 5,
         });
-        this.floatingText.add(this.boss.x, this.boss.y - 20, "BLADE DRONE!", "#c0c0c0", 1.5);
+        this.floatingText.add(
+          this.boss.x,
+          this.boss.y - 20,
+          "BLADE DRONE!",
+          "#c0c0c0",
+          1.5,
+        );
       } else {
         // Diagonal cut across screen
         const x1 = Math.random() > 0.5 ? 0 : this.w;
@@ -4122,9 +4698,15 @@ class PaperPlaneGame {
           x2: x2,
           y2: y2,
           life: 3,
-          color: "#ff6600"
+          color: "#ff6600",
         });
-        this.floatingText.add(this.w / 2, this.h / 2, "PAPER CUT!", "#ff6600", 2);
+        this.floatingText.add(
+          this.w / 2,
+          this.h / 2,
+          "PAPER CUT!",
+          "#ff6600",
+          2,
+        );
       }
     }
 
@@ -4142,7 +4724,7 @@ class PaperPlaneGame {
       vy: Math.sin(leftAngle) * speed,
       size: 25,
       color: BOSS_CONFIGS.scissors.color,
-      rotationSpeed: 0.12
+      rotationSpeed: 0.12,
     });
     if (leftBlade) leftBlade.bladeAngle = leftAngle;
 
@@ -4151,7 +4733,7 @@ class PaperPlaneGame {
       vy: Math.sin(rightAngle) * speed,
       size: 25,
       color: BOSS_CONFIGS.scissors.color,
-      rotationSpeed: -0.12
+      rotationSpeed: -0.12,
     });
     if (rightBlade) rightBlade.bladeAngle = rightAngle;
   }
@@ -4166,7 +4748,7 @@ class PaperPlaneGame {
       vy?: number;
       health?: number;
       angle?: number;
-    } = {}
+    } = {},
   ): BossMinion {
     const minion: BossMinion = {
       id: ++this.bossMinionIdCounter,
@@ -4179,7 +4761,7 @@ class PaperPlaneGame {
       maxHealth: options.health ?? 5,
       active: true,
       timer: 0,
-      angle: options.angle ?? 0
+      angle: options.angle ?? 0,
     };
     this.bossMinions.push(minion);
     return minion;
@@ -4196,7 +4778,9 @@ class PaperPlaneGame {
       radius?: number;
       life?: number;
       color?: string;
-    } = {}
+      aimAngle?: number;
+      arcWidth?: number;
+    } = {},
   ): BossAreaEffect {
     const effect: BossAreaEffect = {
       id: ++this.bossAreaEffectIdCounter,
@@ -4209,7 +4793,10 @@ class PaperPlaneGame {
       life: options.life ?? 3,
       maxLife: options.life ?? 3,
       active: true,
-      color: options.color ?? "rgba(0,0,0,0.2)"
+      color: options.color ?? "rgba(0,0,0,0.2)",
+      aimAngle: options.aimAngle,
+      arcWidth: options.arcWidth,
+      hasDamaged: false,
     };
     this.bossAreaEffects.push(effect);
     return effect;
@@ -4224,7 +4811,7 @@ class PaperPlaneGame {
       size: number;
       color: string;
       rotationSpeed: number;
-    }
+    },
   ): BossProjectile | null {
     if (!this.boss) return null;
 
@@ -4241,7 +4828,7 @@ class PaperPlaneGame {
       damage: 1,
       active: true,
       age: 0,
-      color: options.color
+      color: options.color,
     };
 
     this.bossProjectiles.push(proj);
@@ -4257,10 +4844,7 @@ class PaperPlaneGame {
     const dist = Math.sqrt(dx * dx + dy * dy);
     const speed = 3;
 
-    this.spawnBossAsteroid(
-      (dx / dist) * speed,
-      (dy / dist) * speed
-    );
+    this.spawnBossAsteroid((dx / dist) * speed, (dy / dist) * speed);
   }
 
   spawnBossAsteroid(vx: number, vy: number): void {
@@ -4304,7 +4888,13 @@ class PaperPlaneGame {
           ctx.strokeStyle = BOSS_CONFIGS.eraser.accentColor;
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.roundRect(-proj.size/2, -proj.size/3, proj.size, proj.size * 0.6, 4);
+          ctx.roundRect(
+            -proj.size / 2,
+            -proj.size / 3,
+            proj.size,
+            proj.size * 0.6,
+            4,
+          );
           ctx.fill();
           ctx.stroke();
           break;
@@ -4345,7 +4935,15 @@ class PaperPlaneGame {
           ctx.fill();
           // Ink drip
           ctx.beginPath();
-          ctx.ellipse(0, proj.size, proj.size * 0.3, proj.size * 0.5, 0, 0, Math.PI * 2);
+          ctx.ellipse(
+            0,
+            proj.size,
+            proj.size * 0.3,
+            proj.size * 0.5,
+            0,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
           break;
 
@@ -4356,13 +4954,29 @@ class PaperPlaneGame {
           ctx.lineWidth = 4;
           ctx.lineCap = "round";
           ctx.beginPath();
-          ctx.ellipse(0, 0, proj.size * stretch, proj.size / stretch, 0, 0, Math.PI * 2);
+          ctx.ellipse(
+            0,
+            0,
+            proj.size * stretch,
+            proj.size / stretch,
+            0,
+            0,
+            Math.PI * 2,
+          );
           ctx.stroke();
           // Inner band
           ctx.strokeStyle = BOSS_CONFIGS.rubberband.accentColor;
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.ellipse(0, 0, proj.size * stretch * 0.7, proj.size / stretch * 0.7, 0, 0, Math.PI * 2);
+          ctx.ellipse(
+            0,
+            0,
+            proj.size * stretch * 0.7,
+            (proj.size / stretch) * 0.7,
+            0,
+            0,
+            Math.PI * 2,
+          );
           ctx.stroke();
           break;
 
@@ -4372,10 +4986,10 @@ class PaperPlaneGame {
           ctx.lineWidth = 3;
           ctx.lineCap = "square";
           ctx.beginPath();
-          ctx.moveTo(-proj.size, -proj.size/2);
-          ctx.lineTo(-proj.size, proj.size/2);
-          ctx.lineTo(proj.size, proj.size/2);
-          ctx.lineTo(proj.size, -proj.size/2);
+          ctx.moveTo(-proj.size, -proj.size / 2);
+          ctx.lineTo(-proj.size, proj.size / 2);
+          ctx.lineTo(proj.size, proj.size / 2);
+          ctx.lineTo(proj.size, -proj.size / 2);
           ctx.stroke();
           break;
 
@@ -4400,6 +5014,41 @@ class PaperPlaneGame {
           ctx.lineTo(proj.size * 0.5, -proj.size * 0.1);
           ctx.stroke();
           break;
+
+        case "seismic_wave": {
+          ctx.restore();
+          ctx.save();
+          ctx.translate(proj.x, proj.y);
+
+          const waveDir = proj.arcAngle ?? 0;
+          const span = proj.arcSpan ?? Math.PI * 0.3;
+          const waveR = proj.size + proj.age * 20;
+
+          // Outer danger arc
+          ctx.strokeStyle = "rgba(180, 100, 60, 0.8)";
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.arc(0, 0, waveR, waveDir - span, waveDir + span);
+          ctx.stroke();
+
+          // Inner glow
+          ctx.strokeStyle = "rgba(255, 180, 80, 0.4)";
+          ctx.lineWidth = 12;
+          ctx.beginPath();
+          ctx.arc(0, 0, waveR, waveDir - span, waveDir + span);
+          ctx.stroke();
+
+          // Trailing arc (fading)
+          const trailR = Math.max(0, waveR - 15);
+          if (trailR > 0) {
+            ctx.strokeStyle = "rgba(140, 120, 100, 0.3)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, trailR, waveDir - span * 0.8, waveDir + span * 0.8);
+            ctx.stroke();
+          }
+          break;
+        }
       }
 
       ctx.restore();
@@ -4482,7 +5131,7 @@ class PaperPlaneGame {
           ctx.strokeStyle = CONFIG.PENCIL_DARK;
           ctx.lineWidth = 2;
           const legSwing = Math.sin(m.phase || 0) * 10;
-          
+
           // Head
           ctx.beginPath();
           ctx.arc(0, -25, 6, 0, Math.PI * 2);
@@ -4502,9 +5151,9 @@ class PaperPlaneGame {
           // Arms
           ctx.beginPath();
           ctx.moveTo(0, -15);
-          ctx.lineTo(-10, -10 + legSwing/2);
+          ctx.lineTo(-10, -10 + legSwing / 2);
           ctx.moveTo(0, -15);
-          ctx.lineTo(10, -10 - legSwing/2);
+          ctx.lineTo(10, -10 - legSwing / 2);
           ctx.stroke();
           break;
       }
@@ -4517,7 +5166,7 @@ class PaperPlaneGame {
     for (const ef of this.bossAreaEffects) {
       if (!ef.active) continue;
       ctx.save();
-      
+
       const opacity = Math.min(1, ef.life / 0.5) * 0.4;
       ctx.globalAlpha = opacity;
 
@@ -4529,14 +5178,22 @@ class PaperPlaneGame {
           for (let j = 0; j < 12; j++) {
             const a = (j / 12) * Math.PI * 2;
             const r = ef.radius * (0.8 + Math.sin(j * 1.7) * 0.2);
-            if (j === 0) ctx.moveTo(ef.x + Math.cos(a) * r, ef.y + Math.sin(a) * r);
+            if (j === 0)
+              ctx.moveTo(ef.x + Math.cos(a) * r, ef.y + Math.sin(a) * r);
             else ctx.lineTo(ef.x + Math.cos(a) * r, ef.y + Math.sin(a) * r);
           }
           ctx.closePath();
           ctx.fill();
           break;
         case "gravity_well":
-          const gradient = ctx.createRadialGradient(ef.x, ef.y, 0, ef.x, ef.y, ef.radius);
+          const gradient = ctx.createRadialGradient(
+            ef.x,
+            ef.y,
+            0,
+            ef.x,
+            ef.y,
+            ef.radius,
+          );
           gradient.addColorStop(0, "rgba(0,0,0,0.8)");
           gradient.addColorStop(1, "transparent");
           ctx.fillStyle = gradient;
@@ -4548,7 +5205,13 @@ class PaperPlaneGame {
           ctx.lineWidth = 1;
           for (let j = 0; j < 3; j++) {
             ctx.beginPath();
-            ctx.arc(ef.x, ef.y, ef.radius * (0.3 + j * 0.2), this.survivalTime * 0.005 + j, this.survivalTime * 0.005 + j + 2);
+            ctx.arc(
+              ef.x,
+              ef.y,
+              ef.radius * (0.3 + j * 0.2),
+              this.survivalTime * 0.005 + j,
+              this.survivalTime * 0.005 + j + 2,
+            );
             ctx.stroke();
           }
           break;
@@ -4575,14 +5238,47 @@ class PaperPlaneGame {
           }
           break;
 
-        case "shockwave":
-          ctx.strokeStyle = ef.color;
-          ctx.lineWidth = 3;
-          const shockRadius = (1 - ef.life / ef.maxLife) * ef.radius;
-          ctx.beginPath();
-          ctx.arc(ef.x, ef.y, shockRadius, 0, Math.PI * 2);
-          ctx.stroke();
+        case "shockwave": {
+          const shockR = (1 - ef.life / ef.maxLife) * ef.radius;
+          const fadeAlpha = Math.min(1, ef.life / (ef.maxLife * 0.3));
+
+          if (ef.aimAngle !== undefined && ef.arcWidth !== undefined) {
+            const startDanger = ef.aimAngle - ef.arcWidth;
+            const endDanger = ef.aimAngle + ef.arcWidth;
+
+            // Danger arc -- thick, bright, red-tinted
+            ctx.globalAlpha = fadeAlpha * 0.9;
+            ctx.strokeStyle = "rgba(255, 80, 60, 0.85)";
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.arc(ef.x, ef.y, shockR, startDanger, endDanger);
+            ctx.stroke();
+
+            // Inner glow on danger arc
+            ctx.globalAlpha = fadeAlpha * 0.4;
+            ctx.strokeStyle = "rgba(255, 200, 100, 0.6)";
+            ctx.lineWidth = 16;
+            ctx.beginPath();
+            ctx.arc(ef.x, ef.y, shockR, startDanger, endDanger);
+            ctx.stroke();
+
+            // Safe arc -- thin, faint
+            ctx.globalAlpha = fadeAlpha * 0.2;
+            ctx.strokeStyle = ef.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(ef.x, ef.y, shockR, endDanger, startDanger);
+            ctx.stroke();
+          } else {
+            ctx.globalAlpha = fadeAlpha;
+            ctx.strokeStyle = ef.color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(ef.x, ef.y, shockR, 0, Math.PI * 2);
+            ctx.stroke();
+          }
           break;
+        }
       }
       ctx.restore();
     }
@@ -4608,18 +5304,15 @@ class PaperPlaneGame {
         this.boss.health -= damage;
 
         // Visual feedback
-        this.particles.emit(
-          bullet.x,
-          bullet.y,
-          CONFIG.PENCIL_DARK,
-          5,
-          "spark"
-        );
+        this.particles.emit(bullet.x, bullet.y, CONFIG.PENCIL_DARK, 5, "spark");
 
         this.audio.playHit();
         this.triggerScreenShake(2);
 
-        console.log("[checkBossCollisions] Boss hit! Health:", this.boss.health);
+        console.log(
+          "[checkBossCollisions] Boss hit! Health:",
+          this.boss.health,
+        );
 
         if (this.boss.health <= 0) {
           this.defeatBoss();
@@ -4629,27 +5322,57 @@ class PaperPlaneGame {
   }
 
   defeatBoss(): void {
-    if (!this.boss) return;
+    if (!this.boss || this.boss.defeated) return;
 
     const bossNumber = this.bossesDefeated + 1;
     console.log("[defeatBoss] Boss #" + bossNumber + " defeated!");
 
     // Big explosion - scales with boss number
-    this.particles.emit(this.boss.x, this.boss.y, CONFIG.PENCIL_DARK, 30 + bossNumber * 5, "explosion");
-    this.particles.emit(this.boss.x, this.boss.y, "#ff6644", 20 + bossNumber * 3, "spark");
-    this.particles.emit(this.boss.x, this.boss.y, CONFIG.PAPER_BG, 25 + bossNumber * 4, "paper");
+    this.particles.emit(
+      this.boss.x,
+      this.boss.y,
+      CONFIG.PENCIL_DARK,
+      30 + bossNumber * 5,
+      "explosion",
+    );
+    this.particles.emit(
+      this.boss.x,
+      this.boss.y,
+      "#ff6644",
+      20 + bossNumber * 3,
+      "spark",
+    );
+    this.particles.emit(
+      this.boss.x,
+      this.boss.y,
+      CONFIG.PAPER_BG,
+      25 + bossNumber * 4,
+      "paper",
+    );
 
     // Award massive bonus coins and points - scales significantly with boss number
     const bonusCoins = 250 * bossNumber;
     const scoreBonus = 10000 * bossNumber;
-    
+
     this.coins += bonusCoins;
-    this.score += scoreBonus + (bonusCoins * 10);
-    
+    this.score += scoreBonus + bonusCoins * 10;
+
     // Impactful visual feedback for points
-    this.floatingText.add(this.boss.x - 40, this.boss.y, "+" + bonusCoins + " COINS", "#ffd700", 30);
-    this.floatingText.add(this.boss.x + 40, this.boss.y - 30, "+" + scoreBonus + " POINTS", "#ff4444", 40);
-    
+    this.floatingText.add(
+      this.boss.x - 40,
+      this.boss.y,
+      "+" + bonusCoins + " COINS",
+      "#ffd700",
+      30,
+    );
+    this.floatingText.add(
+      this.boss.x + 40,
+      this.boss.y - 30,
+      "+" + scoreBonus + " POINTS",
+      "#ff4444",
+      40,
+    );
+
     // Extra visual celebration for massive points
     for (let i = 0; i < 5; i++) {
       setTimeout(() => {
@@ -4659,7 +5382,7 @@ class PaperPlaneGame {
           this.boss.y + (Math.random() - 0.5) * 200,
           "JACKPOT!",
           "#ffcc00",
-          25
+          25,
         );
       }, i * 200);
     }
@@ -4671,20 +5394,27 @@ class PaperPlaneGame {
     this.bossesDefeated++;
 
     // Clear boss asteroids and projectiles
-    this.asteroids.forEach(a => {
+    this.asteroids.forEach((a) => {
       if (a.isBossAsteroid) a.active = false;
     });
     this.bossProjectiles = [];
 
     // Show victory and resume playing
     this.audio.playUpgrade();
+    this.audio.switchToNormalMusic();
     this.audio.triggerHaptic("success");
     this.triggerScreenShake(15);
 
     // Resume normal gameplay after a short delay
     setTimeout(() => {
       // Show ability selection after EVERY boss (tier = boss number)
-      console.log("[defeatBoss] Boss #" + bossNumber + " - showing tier " + bossNumber + " ability selection");
+      console.log(
+        "[defeatBoss] Boss #" +
+          bossNumber +
+          " - showing tier " +
+          bossNumber +
+          " ability selection",
+      );
       this.showAbilityScreen(bossNumber);
     }, 1500);
   }
@@ -4694,9 +5424,31 @@ class PaperPlaneGame {
   generateDoodles(): void {
     this.bgDoodles = [];
     const doodleTypes = [
-      "!", "??", "*", "+", "=", "hello!", "PE", "maths...", "???", "( )", 
-      "Paper Plane", "BOOM!", "A+", "100%", "Nice!", "Cool", "X", "O", "V", 
-      "POWER", "FLY", "CLOUD", "Doodle", "Paper", "Ink"
+      "!",
+      "??",
+      "*",
+      "+",
+      "=",
+      "hello!",
+      "PE",
+      "maths...",
+      "???",
+      "( )",
+      "Paper Plane",
+      "BOOM!",
+      "A+",
+      "100%",
+      "Nice!",
+      "Cool",
+      "X",
+      "O",
+      "V",
+      "POWER",
+      "FLY",
+      "CLOUD",
+      "Doodle",
+      "Paper",
+      "Ink",
     ];
     for (let i = 0; i < 25; i++) {
       this.bgDoodles.push({
@@ -4705,7 +5457,7 @@ class PaperPlaneGame {
         text: doodleTypes[Math.floor(Math.random() * doodleTypes.length)],
         scale: 0.4 + Math.random() * 1.6,
         rotation: (Math.random() - 0.5) * 0.8,
-        speed: 15 + Math.random() * 45
+        speed: 15 + Math.random() * 45,
       });
     }
   }
@@ -4718,30 +5470,45 @@ class PaperPlaneGame {
     ctx.fillRect(0, 0, this.w, this.h);
 
     // Scrolling grid lines
-    this.bgOffset = (this.bgOffset + CONFIG.BACKGROUND_SCROLL_SPEED * 0.016) % CONFIG.GRID_SIZE;
+    this.bgOffset =
+      (this.bgOffset + CONFIG.BACKGROUND_SCROLL_SPEED * 0.016) %
+      CONFIG.GRID_SIZE;
 
     ctx.strokeStyle = CONFIG.GRID_LINE;
     ctx.lineWidth = 1;
 
     // Vertical lines
     for (let x = 0; x < this.w; x += CONFIG.GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, this.h); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, this.h);
+      ctx.stroke();
     }
 
     // Horizontal lines (scrolling)
-    for (let y = this.bgOffset; y < this.h + CONFIG.GRID_SIZE; y += CONFIG.GRID_SIZE) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(this.w, y); ctx.stroke();
+    for (
+      let y = this.bgOffset;
+      y < this.h + CONFIG.GRID_SIZE;
+      y += CONFIG.GRID_SIZE
+    ) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(this.w, y);
+      ctx.stroke();
     }
 
     // Left margin line (notebook style)
     ctx.strokeStyle = "#ffaaaa";
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(60, 0); ctx.lineTo(60, this.h); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(60, 0);
+    ctx.lineTo(60, this.h);
+    ctx.stroke();
 
     // Draw background doodles (parallax)
     ctx.fillStyle = "rgba(45, 45, 45, 0.08)";
     ctx.font = "bold 24px 'Caveat', cursive";
-    this.bgDoodles.forEach(d => {
+    this.bgDoodles.forEach((d) => {
       d.y += d.speed * 0.016;
       if (d.y > this.h + 50) {
         d.y = -50;
@@ -4811,11 +5578,17 @@ class PaperPlaneGame {
       ctx.moveTo(0, -32);
       ctx.lineTo(0, 18);
       ctx.stroke();
-      
+
       // Wing details
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(-10, 5); ctx.lineTo(-18, 20); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(10, 5); ctx.lineTo(18, 20); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-10, 5);
+      ctx.lineTo(-18, 20);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(10, 5);
+      ctx.lineTo(18, 20);
+      ctx.stroke();
     } else if (this.selectedPlane === "glider") {
       // Wide-winged glider
       ctx.beginPath();
@@ -4903,7 +5676,7 @@ class PaperPlaneGame {
 
       if (b.shape === "note") {
         ctx.fillStyle = "#3b2f2f";
-      ctx.strokeStyle = CONFIG.PENCIL_DARK;
+        ctx.strokeStyle = CONFIG.PENCIL_DARK;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.ellipse(0, 6, 5 * b.size, 4 * b.size, 0.2, 0, Math.PI * 2);
@@ -4976,12 +5749,12 @@ class PaperPlaneGame {
       } else {
         // Pencil line bullet
         ctx.strokeStyle = b.color;
-      ctx.lineWidth = b.fromDrone ? 2 : 3;
-      ctx.lineCap = "round";
-      ctx.beginPath();
+        ctx.lineWidth = b.fromDrone ? 2 : 3;
+        ctx.lineCap = "round";
+        ctx.beginPath();
         ctx.moveTo(b.jitterOffset * 0.5, -10 * b.size);
         ctx.lineTo(-b.jitterOffset * 0.5, 10 * b.size);
-      ctx.stroke();
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -5023,12 +5796,12 @@ class PaperPlaneGame {
         }
       }
       ctx.closePath();
-      
+
       // Shadow
       ctx.shadowColor = "rgba(0,0,0,0.05)";
       ctx.shadowBlur = 5;
       ctx.shadowOffsetY = 8;
-      
+
       ctx.fill();
       ctx.stroke();
 
@@ -5047,7 +5820,7 @@ class PaperPlaneGame {
 
       // Health number
       ctx.rotate(-a.rotation); // Unrotate for text
-      ctx.font = "bold " + (config.radius * 0.7) + "px 'Caveat', cursive";
+      ctx.font = "bold " + config.radius * 0.7 + "px 'Caveat', cursive";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "rgba(45, 45, 45, 0.8)";
@@ -5362,7 +6135,8 @@ class PaperPlaneGame {
       const bossSpawnMult = Math.pow(0.95, this.bossesDefeated);
       const spawnInterval = Math.max(
         CONFIG.SPAWN_INTERVAL_MIN * bossSpawnMult,
-        (CONFIG.SPAWN_INTERVAL_START - this.survivalTime * 0.02) * bossSpawnMult,
+        (CONFIG.SPAWN_INTERVAL_START - this.survivalTime * 0.02) *
+          bossSpawnMult,
       );
       this.spawnTimer -= dt * 1000;
       if (this.spawnTimer <= 0) {
@@ -5435,7 +6209,7 @@ class PaperPlaneGame {
         this.drawBossProjectiles();
         this.drawBossMinions();
         if (this.boss && this.boss.active) {
-        this.drawBoss();
+          this.drawBoss();
         }
       }
     }
@@ -5482,7 +6256,7 @@ class PaperPlaneGame {
 
     // Draw health bar above boss (not rotated)
     this.drawBossHealthBar(x, y - radius - 25);
-    
+
     // Draw boss name
     ctx.save();
     ctx.font = "bold 14px " + CONFIG.FONT_FAMILY;
@@ -5492,44 +6266,52 @@ class PaperPlaneGame {
     ctx.restore();
   }
 
-  drawEraserBoss(ctx: CanvasRenderingContext2D, radius: number, config: BossConfig): void {
+  drawEraserBoss(
+    ctx: CanvasRenderingContext2D,
+    radius: number,
+    config: BossConfig,
+  ): void {
     ctx.rotate(this.boss!.rotation * 0.3);
-    
+
     // Pink eraser body - rounded rectangle shape
     const w = radius * 1.8;
     const h = radius * 0.9;
-    
+
     ctx.beginPath();
-    ctx.roundRect(-w/2, -h/2, w, h, 15);
+    ctx.roundRect(-w / 2, -h / 2, w, h, 15);
     ctx.fillStyle = config.color;
     ctx.fill();
     ctx.strokeStyle = config.accentColor;
     ctx.lineWidth = 3;
     ctx.stroke();
-    
+
     // Blue band on side
     ctx.fillStyle = "#5588cc";
     ctx.beginPath();
-    ctx.roundRect(-w/2, -h/2, w * 0.2, h, [15, 0, 0, 15]);
+    ctx.roundRect(-w / 2, -h / 2, w * 0.2, h, [15, 0, 0, 15]);
     ctx.fill();
 
     // Eraser shavings/residue
     ctx.strokeStyle = CONFIG.PENCIL_MEDIUM;
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 5; i++) {
-      const sx = -w/4 + i * 15;
+      const sx = -w / 4 + i * 15;
       const sy = -5 + Math.sin(i * 2 + this.boss!.pulsePhase) * 3;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(sx + 8, sy + 4);
       ctx.stroke();
     }
-    
+
     // Angry eyes
     this.drawBossEyes(ctx, -15, -5, 15, 5);
   }
 
-  drawPaperweightBoss(ctx: CanvasRenderingContext2D, radius: number, config: BossConfig): void {
+  drawPaperweightBoss(
+    ctx: CanvasRenderingContext2D,
+    radius: number,
+    config: BossConfig,
+  ): void {
     // Heavy stone dome shape
     ctx.beginPath();
     ctx.ellipse(0, 10, radius * 1.1, radius * 0.7, 0, 0, Math.PI * 2);
@@ -5538,32 +6320,41 @@ class PaperPlaneGame {
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 4;
     ctx.stroke();
-    
+
     // Top dome
     ctx.beginPath();
     ctx.ellipse(0, -15, radius * 0.8, radius * 0.6, 0, Math.PI, Math.PI * 2);
     ctx.fillStyle = "#9a9a9a";
     ctx.fill();
     ctx.stroke();
-    
+
     // Stone texture cracks
     ctx.strokeStyle = config.accentColor;
     ctx.lineWidth = 2;
-    const cracks = [[-30, 0, -10, 20], [20, -10, 35, 15], [-15, 25, 15, 35], [0, -25, 10, -5]];
+    const cracks = [
+      [-30, 0, -10, 20],
+      [20, -10, 35, 15],
+      [-15, 25, 15, 35],
+      [0, -25, 10, -5],
+    ];
     for (const [x1, y1, x2, y2] of cracks) {
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.stroke();
     }
-    
+
     // Angry eyes
     this.drawBossEyes(ctx, -20, -5, 20, -5);
   }
 
-  drawInkblotBoss(ctx: CanvasRenderingContext2D, radius: number, config: BossConfig): void {
+  drawInkblotBoss(
+    ctx: CanvasRenderingContext2D,
+    radius: number,
+    config: BossConfig,
+  ): void {
     ctx.rotate(this.boss!.rotation);
-    
+
     // Amorphous ink blob with wobble
     ctx.beginPath();
     const points = 20;
@@ -5579,17 +6370,25 @@ class PaperPlaneGame {
     ctx.closePath();
     ctx.fillStyle = config.color;
     ctx.fill();
-    
+
     // Ink drips
     ctx.fillStyle = config.accentColor;
     for (let i = 0; i < 4; i++) {
       const dripX = -40 + i * 25;
       const dripY = radius * 0.5 + Math.sin(this.boss!.pulsePhase + i) * 10;
       ctx.beginPath();
-      ctx.ellipse(dripX, dripY, 8, 15 + Math.sin(this.boss!.pulsePhase + i * 2) * 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        dripX,
+        dripY,
+        8,
+        15 + Math.sin(this.boss!.pulsePhase + i * 2) * 5,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
     }
-    
+
     // Glowing eyes
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
@@ -5603,64 +6402,80 @@ class PaperPlaneGame {
     ctx.fill();
   }
 
-  drawRubberbandBoss(ctx: CanvasRenderingContext2D, radius: number, config: BossConfig): void {
+  drawRubberbandBoss(
+    ctx: CanvasRenderingContext2D,
+    radius: number,
+    config: BossConfig,
+  ): void {
     ctx.rotate(this.boss!.rotation);
-    
+
     // Ball made of rubber bands
     const bandCount = 12;
     for (let layer = 0; layer < 3; layer++) {
       ctx.strokeStyle = layer % 2 === 0 ? config.color : config.accentColor;
       ctx.lineWidth = 6 - layer;
-      
+
       for (let i = 0; i < bandCount; i++) {
         const angle = (i / bandCount) * Math.PI + layer * 0.3;
         ctx.beginPath();
-        ctx.ellipse(0, 0, radius * (0.9 - layer * 0.15), radius * (0.6 - layer * 0.1), angle, 0, Math.PI * 2);
-    ctx.stroke();
+        ctx.ellipse(
+          0,
+          0,
+          radius * (0.9 - layer * 0.15),
+          radius * (0.6 - layer * 0.1),
+          angle,
+          0,
+          Math.PI * 2,
+        );
+        ctx.stroke();
       }
     }
-    
+
     // Center core
     ctx.beginPath();
     ctx.arc(0, 0, 25, 0, Math.PI * 2);
     ctx.fillStyle = "#654321";
     ctx.fill();
-    
+
     // Angry eyes on core
     this.drawBossEyes(ctx, -8, -5, 8, -5, 0.5);
   }
 
-  drawStaplerBoss(ctx: CanvasRenderingContext2D, radius: number, config: BossConfig): void {
+  drawStaplerBoss(
+    ctx: CanvasRenderingContext2D,
+    radius: number,
+    config: BossConfig,
+  ): void {
     // Stapler body
     const w = radius * 2;
     const h = radius * 0.6;
-    
+
     // Base
     ctx.fillStyle = config.color;
-      ctx.beginPath();
-    ctx.roundRect(-w/2, 0, w, h, 5);
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, 0, w, h, 5);
     ctx.fill();
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 3;
-      ctx.stroke();
-      
+    ctx.stroke();
+
     // Top lever (animated)
     const leverAngle = Math.sin(this.boss!.pulsePhase * 2) * 0.15;
     ctx.save();
     ctx.rotate(leverAngle);
     ctx.fillStyle = config.accentColor;
-      ctx.beginPath();
-    ctx.roundRect(-w/2 + 10, -h * 0.8, w - 20, h * 0.7, 5);
+    ctx.beginPath();
+    ctx.roundRect(-w / 2 + 10, -h * 0.8, w - 20, h * 0.7, 5);
     ctx.fill();
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 2;
-      ctx.stroke();
+    ctx.stroke();
     ctx.restore();
-    
+
     // Staple output
     ctx.fillStyle = "#c0c0c0";
     ctx.fillRect(-10, h - 5, 20, 10);
-    
+
     // Eyes on top
     ctx.save();
     ctx.rotate(leverAngle);
@@ -5668,10 +6483,14 @@ class PaperPlaneGame {
     ctx.restore();
   }
 
-  drawScissorsBoss(ctx: CanvasRenderingContext2D, radius: number, config: BossConfig): void {
+  drawScissorsBoss(
+    ctx: CanvasRenderingContext2D,
+    radius: number,
+    config: BossConfig,
+  ): void {
     // Animated scissor blades
     const openAngle = 0.3 + Math.abs(Math.sin(this.boss!.pulsePhase * 2)) * 0.4;
-    
+
     // Left blade
     ctx.save();
     ctx.rotate(-openAngle);
@@ -5686,16 +6505,16 @@ class PaperPlaneGame {
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 2;
     ctx.stroke();
-    
+
     // Blade edge highlight
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1;
-      ctx.beginPath();
+    ctx.beginPath();
     ctx.moveTo(-10, -5);
     ctx.lineTo(-radius * 1.4, -25);
-      ctx.stroke();
+    ctx.stroke();
     ctx.restore();
-    
+
     // Right blade
     ctx.save();
     ctx.rotate(openAngle);
@@ -5710,7 +6529,7 @@ class PaperPlaneGame {
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 2;
     ctx.stroke();
-    
+
     // Blade edge highlight
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1;
@@ -5728,7 +6547,7 @@ class PaperPlaneGame {
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 3;
     ctx.stroke();
-    
+
     // Handle rings
     ctx.strokeStyle = config.accentColor;
     ctx.lineWidth = 8;
@@ -5738,7 +6557,7 @@ class PaperPlaneGame {
     ctx.beginPath();
     ctx.ellipse(radius * 0.3, radius * 0.7, 25, 30, 0.3, 0, Math.PI * 2);
     ctx.stroke();
-    
+
     // Eye on pivot
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
@@ -5750,10 +6569,17 @@ class PaperPlaneGame {
     ctx.fill();
   }
 
-  drawBossEyes(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, scale: number = 1): void {
+  drawBossEyes(
+    ctx: CanvasRenderingContext2D,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    scale: number = 1,
+  ): void {
     const eyeSize = 10 * scale;
     const pupilSize = 5 * scale;
-    
+
     // Left eye
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
@@ -5762,16 +6588,22 @@ class PaperPlaneGame {
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 2;
     ctx.stroke();
-    
+
     // Left pupil (follows player direction)
     const dx = this.playerX - this.boss!.x;
     const dy = this.playerY - this.boss!.y;
     const angle = Math.atan2(dy, dx);
     ctx.fillStyle = "#000000";
     ctx.beginPath();
-    ctx.arc(x1 + Math.cos(angle) * 3, y1 + Math.sin(angle) * 2, pupilSize, 0, Math.PI * 2);
+    ctx.arc(
+      x1 + Math.cos(angle) * 3,
+      y1 + Math.sin(angle) * 2,
+      pupilSize,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
-    
+
     // Right eye
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
@@ -5780,13 +6612,19 @@ class PaperPlaneGame {
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 2;
     ctx.stroke();
-    
+
     // Right pupil
     ctx.fillStyle = "#000000";
     ctx.beginPath();
-    ctx.arc(x2 + Math.cos(angle) * 3, y2 + Math.sin(angle) * 2, pupilSize, 0, Math.PI * 2);
+    ctx.arc(
+      x2 + Math.cos(angle) * 3,
+      y2 + Math.sin(angle) * 2,
+      pupilSize,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
-    
+
     // Angry eyebrows
     ctx.strokeStyle = CONFIG.PENCIL_DARK;
     ctx.lineWidth = 3;
@@ -5813,7 +6651,12 @@ class PaperPlaneGame {
     ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
 
     // Health fill
-    const healthColor = healthPercent > 0.5 ? "#44cc44" : healthPercent > 0.25 ? "#cccc44" : "#cc4444";
+    const healthColor =
+      healthPercent > 0.5
+        ? "#44cc44"
+        : healthPercent > 0.25
+          ? "#cccc44"
+          : "#cc4444";
     ctx.fillStyle = healthColor;
     ctx.fillRect(x - barWidth / 2, y, barWidth * healthPercent, barHeight);
 
@@ -5826,7 +6669,11 @@ class PaperPlaneGame {
     ctx.fillStyle = CONFIG.PENCIL_DARK;
     ctx.font = "bold 10px " + CONFIG.FONT_FAMILY;
     ctx.textAlign = "center";
-    ctx.fillText(this.boss.health + "/" + this.boss.maxHealth, x, y + barHeight + 12);
+    ctx.fillText(
+      this.boss.health + "/" + this.boss.maxHealth,
+      x,
+      y + barHeight + 12,
+    );
   }
 }
 

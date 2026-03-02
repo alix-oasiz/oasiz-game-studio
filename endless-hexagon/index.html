@@ -13,7 +13,7 @@
             font-style: normal;
             font-weight: 400;
             font-display: swap;
-            src: url(/fonts/PressStart2P.ttf) format('truetype');
+            src: url('./fonts/PressStart2P.ttf') format('truetype');
         }
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
@@ -30,37 +30,52 @@
             position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 50;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             transition: opacity 700ms ease, visibility 700ms ease;
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15) 0%, transparent 60%);
         }
         #main-menu.menu-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
         .menu-title-wrap { margin-bottom: 6rem; margin-top: -6rem; text-align: center; animation: float 4s ease-in-out infinite; }
-        .menu-title { font-family: 'Press Start 2P', monospace, cursive; font-size: 3rem; line-height: 1.2; color: #facc15; letter-spacing: 0.1em; filter: drop-shadow(4px 4px 0 #000); margin-bottom: 1rem; }
-        @media (min-width: 768px) { .menu-title { font-size: 4.5rem; } }
-        .menu-subtitle { font-family: 'Press Start 2P', monospace, cursive; font-size: 0.65rem; color: #94a3b8; letter-spacing: 0.4em; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        
+        .menu-title { 
+            font-family: 'Press Start 2P', monospace, cursive; 
+            font-size: 3rem; line-height: 1.2; 
+            color: #ffffff;
+            text-shadow: 5px 5px 0 #000, -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000;
+            letter-spacing: 0.1em; 
+            margin-bottom: 1rem; 
+        }
+        @media (min-width: 768px) { .menu-title { font-size: 4.5rem; text-shadow: 8px 8px 0 #000, -4px -4px 0 #000, 4px -4px 0 #000, -4px 4px 0 #000, 4px 4px 0 #000; } }
+        .menu-subtitle { font-family: 'Press Start 2P', monospace, cursive; font-size: 0.65rem; color: #ffffff; text-shadow: 2px 2px 0 #000; letter-spacing: 0.4em; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @media (min-width: 768px) { .menu-subtitle { font-size: 0.8rem; } }
 
         /* ===== PLAY BUTTON ===== */
         #play-btn {
             position: relative; padding: 1.25rem 3.5rem;
-            background-color: #facc15; color: #0f172a;
+            background-color: #ffffff; color: #000000;
             font-family: 'Press Start 2P', monospace, cursive; font-size: 1.25rem;
-            border: 4px solid #000; cursor: pointer;
+            border: 4px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000; 
+            border-bottom-width: 8px; border-right-width: 8px;
+            cursor: pointer;
             transition: all 100ms ease;
-            box-shadow: 0 6px 0 0 #a16207;
         }
-        #play-btn:not(.loading):hover { background-color: #fde047; transform: translateY(-2px); box-shadow: 0 8px 0 0 #a16207; }
-        #play-btn:not(.loading):active { transform: translateY(4px); box-shadow: none; }
+        #play-btn:not(.loading):hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 10px; border-right-width: 10px; }
+        #play-btn:not(.loading):active { transform: translate(4px, 4px); border-bottom-width: 4px; border-right-width: 4px; }
         #play-btn.loading { opacity: 0.5; cursor: wait; }
 
         /* ===== SETTINGS GEAR ===== */
         #settings-btn {
             position: absolute; top: 45px; right: 1.25rem; z-index: 50;
             width: 3rem; height: 3rem;
-            background-color: rgba(15, 23, 42, 0.7); color: #facc15;
+            background-color: #ffffff; color: #000000;
             display: flex; align-items: center; justify-content: center;
-            border: 3px solid #facc15; cursor: pointer;
-            transition: background-color 150ms ease;
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
+            cursor: pointer;
+            transition: all 100ms ease;
         }
-        #settings-btn:hover { background-color: rgba(250, 204, 21, 0.15); }
+        #settings-btn:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #settings-btn:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
         @media (pointer: coarse) { #settings-btn { top: 120px; } }
         #settings-btn svg { width: 22px; height: 22px; fill: currentColor; }
 
@@ -68,17 +83,20 @@
         .modal-overlay {
             position: absolute; top: 0; right: 0; bottom: 0; left: 0;
             background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
             display: flex; align-items: center; justify-content: center;
         }
         #game-over-modal { z-index: 40; }
         #settings-modal { z-index: 50; }
 
-        /* ===== MODAL CARD (Dark Retro) ===== */
+        /* ===== MODAL CARD (Colorful Retro) ===== */
         .modal-card {
             width: 90%; max-width: 24rem;
-            background-color: rgba(15, 23, 42, 0.97);
+            background-color: #2f2f2f;
             padding: 2rem 1.5rem;
-            border: 4px solid #facc15;
+            border: 4px solid #ffffff;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 12px; border-right-width: 12px;
             position: relative;
         }
 
@@ -86,21 +104,21 @@
         .go-header { margin-bottom: 1.5rem; text-align: center; }
         .go-header h1 {
             font-family: 'Press Start 2P', monospace, cursive;
-            font-size: 1.5rem; color: #ef4444;
-            filter: drop-shadow(3px 3px 0 #000);
+            font-size: 1.5rem; color: #EF5350;
             margin-bottom: 0.75rem;
+            text-shadow: 3px 3px 0 #000;
         }
         @media (min-width: 768px) { .go-header h1 { font-size: 2rem; } }
-        .go-divider { height: 3px; width: 100%; background: linear-gradient(90deg, transparent, #facc15, transparent); }
+        .go-divider { height: 4px; width: 100%; background: linear-gradient(90deg, transparent, #ffffff, transparent); }
         .go-scores { text-align: center; margin: 1.5rem 0 2rem; }
         .go-scores .label {
             font-family: 'Press Start 2P', monospace, cursive;
-            color: #94a3b8; font-size: 0.6rem; letter-spacing: 0.2em; margin-bottom: 0.75rem;
+            color: #888888; font-size: 0.6rem; letter-spacing: 0.2em; margin-bottom: 0.75rem;
         }
         #final-score {
             font-family: 'Press Start 2P', monospace, cursive;
-            font-size: 2.5rem; line-height: 1; color: #facc15;
-            filter: drop-shadow(3px 3px 0 #000);
+            font-size: 2.5rem; line-height: 1; color: #F9A825;
+            text-shadow: 3px 3px 0 #000;
         }
         @media (min-width: 768px) { #final-score { font-size: 3rem; } }
 
@@ -110,89 +128,99 @@
             width: 100%; padding: 0.9rem;
             font-family: 'Press Start 2P', monospace, cursive;
             font-size: 0.7rem; letter-spacing: 0.1em;
-            border: 3px solid #000; cursor: pointer;
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
+            cursor: pointer;
             transition: all 100ms ease;
+            color: #000000;
         }
         #restart-btn {
-            background-color: #facc15; color: #0f172a;
-            box-shadow: 0 4px 0 0 #a16207;
+            background-color: #ffffff;
         }
-        #restart-btn:hover { background-color: #fde047; transform: translateY(-2px); box-shadow: 0 6px 0 0 #a16207; }
-        #restart-btn:active { transform: translateY(3px); box-shadow: none; }
+        #restart-btn:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #restart-btn:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
+        
         #go-settings-btn {
-            background-color: #1e293b; color: #94a3b8;
-            border-color: #334155;
-            box-shadow: 0 4px 0 0 #0f172a;
+            background-color: #888888; border-color: #2f2f2f; color: #ffffff;
         }
-        #go-settings-btn:hover { background-color: #334155; color: #e2e8f0; transform: translateY(-2px); box-shadow: 0 6px 0 0 #0f172a; }
-        #go-settings-btn:active { transform: translateY(3px); box-shadow: none; }
+        #go-settings-btn:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #go-settings-btn:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
 
         /* ===== SETTINGS MODAL ===== */
         .settings-header { margin-bottom: 1.5rem; text-align: center; }
         .settings-header h2 {
             font-family: 'Press Start 2P', monospace, cursive;
-            font-size: 1.1rem; color: #facc15;
-            filter: drop-shadow(2px 2px 0 #000);
+            font-size: 1.1rem; color: #ffffff;
             margin-bottom: 0.75rem;
+            text-shadow: 2px 2px 0 #000;
         }
-        .settings-divider { height: 3px; width: 6rem; background: linear-gradient(90deg, transparent, #facc15, transparent); margin: 0 auto; }
+        .settings-divider { height: 4px; width: 6rem; background: linear-gradient(90deg, transparent, #ffffff, transparent); margin: 0 auto; }
 
         .settings-list { display: flex; flex-direction: column; gap: 1rem; }
         .settings-row {
             display: flex; align-items: center; justify-content: space-between;
             padding: 0.75rem 1rem;
-            background-color: rgba(30, 41, 59, 0.8);
-            border: 2px solid #334155;
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
         }
         .settings-row-left { display: flex; align-items: center; gap: 0.75rem; }
-        .settings-row-left svg { width: 20px; height: 20px; fill: #facc15; }
+        .settings-row-left svg { width: 20px; height: 20px; fill: #ffffff; filter: drop-shadow(2px 2px 0 #000); }
         .settings-row-left .setting-label {
             font-family: 'Press Start 2P', monospace, cursive;
-            font-size: 0.55rem; color: #e2e8f0;
+            font-size: 0.55rem; color: #ffffff;
+            text-shadow: 1px 1px 0 #000;
         }
 
         /* ===== PIXEL TOGGLE ===== */
         .pixel-toggle {
             width: 56px; height: 28px;
-            background-color: #334155; border: 3px solid #475569;
+            background-color: #888888; border: 3px solid #2f2f2f;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 5px; border-right-width: 5px;
             cursor: pointer; position: relative;
-            transition: all 200ms ease;
+            transition: all 150ms ease;
             display: flex; align-items: center;
         }
         .pixel-toggle.active {
-            background-color: #facc15; border-color: #a16207;
+            background-color: #66BB6A; border-color: #1B5E20;
         }
         .pixel-toggle .toggle-knob {
             width: 18px; height: 18px;
-            background-color: #64748b;
+            background-color: #2f2f2f;
             position: absolute; left: 3px;
-            transition: all 200ms ease;
+            transition: all 150ms ease;
         }
         .pixel-toggle.active .toggle-knob {
             left: calc(100% - 21px);
-            background-color: #0f172a;
+            background-color: #ffffff;
         }
         .pixel-toggle .toggle-label {
             font-family: 'Press Start 2P', monospace, cursive;
             font-size: 0.35rem; color: #94a3b8;
             position: absolute; width: 100%; text-align: center;
             pointer-events: none; letter-spacing: 0.05em;
+            display: none;
         }
-        .pixel-toggle.active .toggle-label { color: #0f172a; }
+        .pixel-toggle.active .toggle-label { color: #ffffff; }
 
         /* ===== CLOSE BUTTON ===== */
         .settings-close-wrap { margin-top: 1.5rem; }
         #close-settings {
             width: 100%; padding: 0.75rem;
-            background-color: #1e293b; color: #94a3b8;
+            background-color: #ffffff; color: #000000;
             font-family: 'Press Start 2P', monospace, cursive;
             font-size: 0.6rem; letter-spacing: 0.1em;
-            border: 3px solid #334155; cursor: pointer;
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
+            cursor: pointer;
             transition: all 100ms ease;
-            box-shadow: 0 4px 0 0 #0f172a;
         }
-        #close-settings:hover { background-color: #334155; color: #e2e8f0; transform: translateY(-2px); box-shadow: 0 6px 0 0 #0f172a; }
-        #close-settings:active { transform: translateY(3px); box-shadow: none; }
+        #close-settings:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #close-settings:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
 
         /* ===== ANIMATIONS ===== */
         @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
@@ -276,140 +304,6 @@
             </div>
         </div>
     </div>
-    <script>
-        window.platform = {
-            musicEnabled: localStorage.getItem('musicEnabled') !== 'false',
-            fxEnabled: localStorage.getItem('fxEnabled') !== 'false',
-            hapticsEnabled: localStorage.getItem('hapticsEnabled') !== 'false',
-        };
-
-        var settingsBtn = document.getElementById('settings-btn');
-        var settingsModal = document.getElementById('settings-modal');
-        var closeSettingsBtn = document.getElementById('close-settings');
-        var gameOverModal = document.getElementById('game-over-modal');
-        var finalScoreEl = document.getElementById('final-score');
-        var restartBtn = document.getElementById('restart-btn');
-        var goSettingsBtn = document.getElementById('go-settings-btn');
-        var mainMenu = document.getElementById('main-menu');
-        var playBtn = document.getElementById('play-btn');
-        var musicToggle = document.getElementById('music-toggle');
-        var fxToggle = document.getElementById('fx-toggle');
-        var hapticsToggle = document.getElementById('haptics-toggle');
-
-        // --- Pixel Toggle Helper ---
-        function setToggleState(el, active) {
-            if (active) {
-                el.classList.add('active');
-                el.querySelector('.toggle-label').textContent = 'ON';
-            } else {
-                el.classList.remove('active');
-                el.querySelector('.toggle-label').textContent = 'OFF';
-            }
-        }
-
-        // Init toggle visuals from saved settings
-        setToggleState(musicToggle, window.platform.musicEnabled);
-        setToggleState(fxToggle, window.platform.fxEnabled);
-        setToggleState(hapticsToggle, window.platform.hapticsEnabled);
-
-        // --- Toggle Click Handlers ---
-        musicToggle.onclick = function() {
-            var enabled = !window.platform.musicEnabled;
-            window.platform.musicEnabled = enabled;
-            localStorage.setItem('musicEnabled', enabled.toString());
-            setToggleState(musicToggle, enabled);
-            if (window.toggleMusic) window.toggleMusic(enabled);
-            if (window.triggerHaptic) window.triggerHaptic('light');
-        };
-        fxToggle.onclick = function() {
-            var enabled = !window.platform.fxEnabled;
-            window.platform.fxEnabled = enabled;
-            localStorage.setItem('fxEnabled', enabled.toString());
-            setToggleState(fxToggle, enabled);
-            if (window.triggerHaptic) window.triggerHaptic('light');
-        };
-        hapticsToggle.onclick = function() {
-            var enabled = !window.platform.hapticsEnabled;
-            window.platform.hapticsEnabled = enabled;
-            localStorage.setItem('hapticsEnabled', enabled.toString());
-            setToggleState(hapticsToggle, enabled);
-            if (window.triggerHaptic) window.triggerHaptic('light');
-        };
-
-        // --- Settings Open/Close ---
-        function openSettings() {
-            settingsModal.classList.remove('hidden');
-            if (window.triggerHaptic) window.triggerHaptic('light');
-            if (window.pauseGame) window.pauseGame();
-        }
-        function closeSettingsFn() {
-            settingsModal.classList.add('hidden');
-            if (window.triggerHaptic) window.triggerHaptic('light');
-            if (window.resumeGame) window.resumeGame();
-        }
-        settingsBtn.onclick = openSettings;
-        closeSettingsBtn.onclick = closeSettingsFn;
-        goSettingsBtn.onclick = openSettings;
-
-        // --- Restart ---
-        restartBtn.onclick = function() {
-            if (window.triggerHaptic) window.triggerHaptic('medium');
-            gameOverModal.classList.add('hidden');
-            mainMenu.classList.remove('menu-hidden');
-            if (window.restartGame) window.restartGame();
-        };
-
-        // --- Play Button ---
-        playBtn.disabled = true;
-        playBtn.classList.add('loading');
-        playBtn.textContent = "LOADING...";
-
-        window.onGameReady = function() {
-            playBtn.disabled = false;
-            playBtn.classList.remove('loading');
-            playBtn.textContent = "PLAY";
-        };
-        playBtn.onclick = function() {
-            if (playBtn.disabled) return;
-            if (window.triggerHaptic) window.triggerHaptic('medium');
-            if (window.startGame) window.startGame();
-            mainMenu.classList.add('menu-hidden');
-        };
-        window.showMainMenu = function() {
-            mainMenu.classList.remove('menu-hidden');
-            gameOverModal.classList.add('hidden');
-        };
-
-        // --- Game Over ---
-        window.showGameOver = function(score) {
-            finalScoreEl.textContent = score;
-            gameOverModal.classList.remove('hidden');
-        };
-
-        // Platform overrides these; fallbacks for local dev only
-        if (typeof window.submitScore !== 'function') {
-            window.submitScore = function(score) {
-                console.log("[Game] Submitting score:", score);
-            };
-        }
-        if (typeof window.triggerHaptic !== 'function') {
-            window.triggerHaptic = function(type) {
-                if (!window.platform.hapticsEnabled) return;
-                if (navigator.vibrate) navigator.vibrate(10);
-            };
-        }
-
-        // --- Button Click SFX ---
-        var clickSound = new Audio('/audio/ButtonClick.wav');
-        function playClick() {
-            if (window.platform.fxEnabled) {
-                clickSound.currentTime = 0;
-                clickSound.play().catch(function() {});
-            }
-        }
-        document.querySelectorAll('button').forEach(function(btn) { btn.addEventListener('click', playClick); });
-        document.querySelectorAll('.pixel-toggle').forEach(function(t) { t.addEventListener('click', playClick); });
-    </script>
     <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

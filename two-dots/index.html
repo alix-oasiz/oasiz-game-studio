@@ -6,8 +6,11 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Two Dots</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@500;600&family=Nunito:wght@400;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@500;600&family=Nunito:wght@400;600;700;800&display=swap">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@500;600&family=Nunito:wght@400;600;700;800&display=swap');
 
         * {
             margin: 0;
@@ -426,10 +429,38 @@
         }
 
         .win-content .score-text {
-            font-size: 18px;
+            font-size: 32px;
             color: #555555;
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 2px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 700;
+        }
+
+        .win-content .score-breakdown {
+            font-size: 13px;
+            color: #999999;
+            text-align: center;
+            margin-bottom: 4px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+        }
+
+        .win-content .new-best-badge {
+            font-size: 14px;
+            color: #FFB800;
+            text-align: center;
+            margin-bottom: 4px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .win-content .total-score-line {
+            font-size: 14px;
+            color: #8CC8A4;
+            text-align: center;
+            margin-bottom: 20px;
             font-family: 'DM Sans', sans-serif;
             font-weight: 600;
         }

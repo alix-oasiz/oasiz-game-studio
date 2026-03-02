@@ -22,6 +22,13 @@ const _trailMat = new THREE.MeshBasicMaterial({
   opacity: 0.5,
 });
 
+const _speedLineGeo = new THREE.BoxGeometry(0.1, 0.1, 6);
+const _speedLineMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0.8,
+});
+
 const _tmpVec = new THREE.Vector3();
 
 /* ── Mesh pools ── */
@@ -52,6 +59,16 @@ const _vec3Pool = new ObjectPool<THREE.Vector3>(
   (v) => v.set(0, 0, 0),
   60,
 );
+
+const _speedLinePool = new ObjectPool<THREE.Mesh>(
+  () => new THREE.Mesh(_speedLineGeo, _speedLineMat),
+  (m) => { m.scale.setScalar(1); m.position.set(0, 0, 0); m.visible = false; },
+  30,
+);
+
+export function setTrailColor(color: THREE.Color): void {
+  _trailMat.color.copy(color);
+}
 
 /** Emits a single engine trail particle behind the jet. */
 export function emitTrail(
@@ -198,7 +215,9 @@ export function tickExplosion(
       scene.remove(p.mesh);
       p.mesh.visible = false;
       const geo = p.mesh.geometry;
-      if (geo === _sharedBoxGeo) {
+      if (geo === _speedLineGeo) {
+        _speedLinePool.release(p.mesh);
+      } else if (geo === _sharedBoxGeo) {
         const matIdx = _explMats.indexOf(p.mesh.material as THREE.MeshBasicMaterial);
         if (matIdx >= 0) _explMeshPools[matIdx].release(p.mesh);
       } else if (geo === _sharedSphereGeo) {
@@ -207,11 +226,18 @@ export function tickExplosion(
       _vec3Pool.release(p.vel);
       continue;
     }
-    p.vel.y -= 12 * dt;
-    _tmpVec.copy(p.vel).multiplyScalar(dt);
-    p.mesh.position.add(_tmpVec);
-    p.mesh.rotation.x += dt * 5;
-    p.mesh.rotation.y += dt * 3;
+
+    const geo = p.mesh.geometry;
+    if (geo === _speedLineGeo) {
+      _tmpVec.copy(p.vel).multiplyScalar(dt);
+      p.mesh.position.add(_tmpVec);
+    } else {
+      p.vel.y -= 12 * dt;
+      _tmpVec.copy(p.vel).multiplyScalar(dt);
+      p.mesh.position.add(_tmpVec);
+      p.mesh.rotation.x += dt * 5;
+      p.mesh.rotation.y += dt * 3;
+    }
     (p.mesh.material as THREE.MeshBasicMaterial).opacity = p.life / p.maxLife;
     particles[writeIdx++] = p;
   }
@@ -225,7 +251,9 @@ export function releaseAllParticles(scene: THREE.Scene, particles: Particle[]): 
     scene.remove(p.mesh);
     p.mesh.visible = false;
     const geo = p.mesh.geometry;
-    if (geo === _sharedBoxGeo) {
+    if (geo === _speedLineGeo) {
+      _speedLinePool.release(p.mesh);
+    } else if (geo === _sharedBoxGeo) {
       const matIdx = _explMats.indexOf(p.mesh.material as THREE.MeshBasicMaterial);
       if (matIdx >= 0) _explMeshPools[matIdx].release(p.mesh);
     } else if (geo === _sharedSphereGeo) {
@@ -235,4 +263,33 @@ export function releaseAllParticles(scene: THREE.Scene, particles: Particle[]): 
     _vec3Pool.release(p.vel);
   }
   particles.length = 0;
+}
+
+export function spawnSpeedLines(
+  scene: THREE.Scene,
+  x: number,
+  y: number,
+  z: number,
+  particles: Particle[],
+): void {
+  for (let i = 0; i < 2; i++) {
+    const mesh = _speedLinePool.acquire();
+    mesh.position.set(
+      x + (Math.random() - 0.5) * 5,
+      y + (Math.random() - 0.5) * 3,
+      z - 2 - Math.random() * 3,
+    );
+    mesh.visible = true;
+    scene.add(mesh);
+
+    const vel = _vec3Pool.acquire();
+    vel.set(0, 0, 30 + Math.random() * 20);
+
+    particles.push({
+      mesh,
+      life: 0.3 + Math.random() * 0.2,
+      maxLife: 0.5,
+      vel,
+    });
+  }
 }

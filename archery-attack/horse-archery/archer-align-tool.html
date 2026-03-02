@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Archer Alignment Tool</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #10131a;
+      color: #e9edf5;
+      font-family: "Sora", sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      width: 100%;
+      height: 100%;
+    }
+
+    .sidebar {
+      border-right: 1px solid rgba(255, 255, 255, 0.14);
+      background: #161b26;
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .canvas-wrap {
+      padding: 16px;
+      overflow: auto;
+      background: #0b0f16;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: #ffcc84;
+      letter-spacing: 0.5px;
+    }
+
+    .group {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+
+    .group-title {
+      margin: 0 0 10px;
+      color: #aeb6cb;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    select,
+    input[type="file"],
+    input[type="range"],
+    button {
+      width: 100%;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: #232a38;
+      color: #eef2ff;
+      padding: 8px;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      background: #9f6333;
+      border-color: #ca8c50;
+    }
+
+    button:hover { background: #b47339; }
+
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .row button { flex: 1; }
+
+    .value {
+      font-size: 12px;
+      color: #cfd5e5;
+      margin: -4px 0 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    #status {
+      font-size: 12px;
+      color: #99f1c4;
+      line-height: 1.4;
+    }
+
+    canvas {
+      display: block;
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      touch-action: none;
+      cursor: grab;
+    }
+
+    canvas.dragging {
+      cursor: grabbing;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>Archer Alignment</h1>
+
+      <div class="group">
+        <p class="group-title">Horse Layer</p>
+        <label for="horsePreset">Preset Horse</label>
+        <select id="horsePreset">
+          <option value="/horse_alpha.webm">horse_alpha.webm (video)</option>
+          <option value="/horse.mp4">horse.mp4 (video)</option>
+          <option value="/rider_fit_horse_frame.png">rider_fit_horse_frame (image)</option>
+          <option value="/horse-archer.png">horse-archer reference</option>
+          <option value="/Horse.png">Horse.png</option>
+        </select>
+        <button id="loadHorsePresetBtn" type="button">Load Horse Preset</button>
+        <label for="horseFile">Or Upload Horse Image</label>
+        <input id="horseFile" type="file" accept="image/*" />
+        <button id="loadHorseFileBtn" type="button">Load Horse File</button>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Archer Layer</p>
+        <label for="archerPreset">Preset Archer</label>
+        <select id="archerPreset">
+          <option value="/mongolarcher2.png">mongolarcher2</option>
+          <option value="/mongolarcher.png">mongolarcher</option>
+          <option value="/archer1.png">archer1</option>
+        </select>
+        <button id="loadArcherPresetBtn" type="button">Load Archer Preset</button>
+        <label for="archerFile">Or Upload Archer Image</label>
+        <input id="archerFile" type="file" accept="image/*" />
+        <button id="loadArcherFileBtn" type="button">Load Archer File</button>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Frames (30)</p>
+        <label for="frameSlider">Frame Index</label>
+        <input id="frameSlider" type="range" min="0" max="29" step="1" value="0" />
+        <div id="frameVal" class="value">0 / 29</div>
+        <div class="row">
+          <button id="prevFrameBtn" type="button">Prev</button>
+          <button id="nextFrameBtn" type="button">Next</button>
+        </div>
+        <button id="toggleLinkBtn" type="button">Link Frames: ON</button>
+        <div class="row">
+          <button id="copyPrevBtn" type="button">Copy Prev</button>
+          <button id="interpolateBtn" type="button">Interpolate</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Transform</p>
+        <label for="scale">Scale</label>
+        <input id="scale" type="range" min="0.1" max="2" step="0.01" value="0.48" />
+        <div id="scaleVal" class="value">0.48</div>
+
+        <label for="rotation">Rotation (deg)</label>
+        <input id="rotation" type="range" min="-180" max="180" step="1" value="-45" />
+        <div id="rotationVal" class="value">-45</div>
+
+        <label for="opacity">Opacity</label>
+        <input id="opacity" type="range" min="0.2" max="1" step="0.01" value="1" />
+        <div id="opacityVal" class="value">1.00</div>
+
+        <div class="row">
+          <button id="resetBtn" type="button">Reset</button>
+          <button id="centerBtn" type="button">Center</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Arrow Spawn</p>
+        <button id="placeArrowTipBtn" type="button">Place Arrow Tip</button>
+        <div id="arrowTipVal" class="value">x=127, y=292</div>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Save</p>
+        <div class="row">
+          <button id="saveJsonBtn" type="button">Save JSON</button>
+          <button id="savePngBtn" type="button">Save PNG</button>
+        </div>
+      </div>
+
+      <div id="status">Ready.</div>
+    </aside>
+
+    <main class="canvas-wrap">
+      <canvas id="stage" width="854" height="480"></canvas>
+    </main>
+  </div>
+
+  <script type="module" src="/src/archer-align-tool.ts"></script>
+</body>
+</html>
