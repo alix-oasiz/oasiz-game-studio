@@ -46,16 +46,16 @@ export const BOT_DIFFICULTY: Record<Difficulty, { maxTrailLen: number; aggressio
 
 // ─── Colors ───
 export const PLAYER_COLORS = [
-  0x00E5FF, 0xFF3D71, 0xFFAA00, 0x00E096, 0xA259FF, 0xFF6B35,
+  0x00D4FF, 0xFF4080, 0xFFBB00, 0x44DD88, 0xCC44FF, 0xFF7744,
 ];
 
 export const PLAYER_COLOR_STRINGS = [
-  '#00E5FF', '#FF3D71', '#FFAA00', '#00E096', '#A259FF', '#FF6B35',
+  '#00D4FF', '#FF4080', '#FFBB00', '#44DD88', '#CC44FF', '#FF7744',
 ];
 
-export const BOARD_COLOR = 0xDBF1FF;  // slightly off-white arena
-export const GRID_LINE_COLOR = 0xDED6C8; // warm cream grid lines
-export const BG_COLOR = 0xFFFFFF;  // white sky
+export const BOARD_COLOR = 0xF2FCF0;  // near-white with a hint of green
+export const GRID_LINE_COLOR = 0xE0EEDc; // very faint green-grey grid
+export const BG_COLOR = 0xFCFFF9;  // almost pure white
 
 export const TERRITORY_OPACITY = 1.0;
 export const TRAIL_OPACITY = 0.85;

@@ -7,7 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f0e8; font-family: 'Quicksand', sans-serif; color: #5A5A5A; display: flex; align-items: center; justify-content: center; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f0fae8; font-family: 'Quicksand', sans-serif; color: #5A5A5A; display: flex; align-items: center; justify-content: center; }
     .hidden { display: none !important; }
 
     #game-wrapper {
@@ -20,7 +20,7 @@
     /* ─── Menu ─── */
     #menu-screen {
       position: absolute; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; background: #f5f0e8; z-index: 100;
+      align-items: center; justify-content: center; background: #f0fae8; z-index: 100;
     }
     #menu-screen h1 {
       font-family: 'Quicksand', sans-serif; font-size: 2.8rem; font-weight: 700;
@@ -112,7 +112,7 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.18);
     }
 
-    /* ─── Texture Skin Buttons ─── */
+    /* ─── Model & Texture Skin Buttons ─── */
     #shop-skins {
       width: 100%; display: grid;
       grid-template-columns: repeat(3, 1fr); gap: 12px;
@@ -144,9 +144,23 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.12);
       image-rendering: pixelated;
     }
+    .skin-preview.model-preview {
+      width: 52px; height: 52px; border-radius: 10px;
+      image-rendering: auto;
+      border: 2px solid rgba(232,115,108,0.15);
+      background: transparent;
+    }
+    .model-preview-placeholder {
+      width: 52px; height: 52px; border-radius: 10px;
+      border: 2px solid rgba(222,214,200,0.7);
+      display: flex; align-items: center; justify-content: center;
+    }
     .shop-skin-btn.selected .skin-preview {
       width: 48px; height: 48px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .shop-skin-btn.selected .skin-preview.model-preview {
+      width: 56px; height: 56px;
     }
     .skin-name {
       font-size: 0.62rem; font-weight: 700;
@@ -422,7 +436,7 @@
       </div>
       <div class="shop-section-label">Colors</div>
       <div id="shop-colors"></div>
-      <div class="shop-section-label">Skins</div>
+      <div class="shop-section-label">Animals & Skins</div>
       <div id="shop-skins"></div>
     </div>
   </div>

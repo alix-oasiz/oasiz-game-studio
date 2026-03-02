@@ -18,7 +18,7 @@ export class Renderer {
   private territoryMaterials: Map<number, THREE.MeshLambertMaterial> = new Map();
   private shadowMaterial: THREE.MeshBasicMaterial | null = null;
   private trailMeshes: Map<number, THREE.Mesh> = new Map();
-  private trailMaterials: Map<number, THREE.MeshBasicMaterial> = new Map();
+  private trailMaterials: Map<number, THREE.MeshLambertMaterial> = new Map();
   private trailLengths: Map<number, number> = new Map();
   private avatars: Map<number, THREE.Group> = new Map();
 
@@ -28,7 +28,6 @@ export class Renderer {
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(BG_COLOR);
-    this.scene.fog = new THREE.Fog(BG_COLOR, 30, 55);
 
     const wrapper = document.getElementById('game-wrapper')!;
     const w = wrapper.clientWidth;
@@ -41,6 +40,10 @@ export class Renderer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setSize(w, h);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.createBoard();
     this.createLighting();
 
@@ -49,7 +52,7 @@ export class Renderer {
 
   private createBoard(): void {
     const boardGeo = new THREE.CircleGeometry(MAP_RADIUS, 48);
-    const boardMat = new THREE.MeshLambertMaterial({ color: BOARD_COLOR });
+    const boardMat = new THREE.MeshBasicMaterial({ color: BOARD_COLOR });
     const board = new THREE.Mesh(boardGeo, boardMat);
     board.rotation.x = -Math.PI / 2;
     this.scene.add(board);
@@ -79,7 +82,7 @@ export class Renderer {
     const ringsGeo = new THREE.BufferGeometry();
     ringsGeo.setAttribute('position', new THREE.Float32BufferAttribute(allRingVerts, 3));
     ringsGeo.setIndex(allRingIndices);
-    const ringsMat = new THREE.MeshBasicMaterial({ color: GRID_LINE_COLOR, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+    const ringsMat = new THREE.MeshBasicMaterial({ color: GRID_LINE_COLOR, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
     this.scene.add(new THREE.Mesh(ringsGeo, ringsMat));
 
     const borderCurve = new THREE.EllipseCurve(0, 0, MAP_RADIUS, MAP_RADIUS, 0, Math.PI * 2, false, 0);
@@ -94,44 +97,99 @@ export class Renderer {
 
 
   private createLighting(): void {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambient = new THREE.AmbientLight(0xffffff, 1.2);
     this.scene.add(ambient);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-    dir.position.set(20, 40, 20);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+    dir.position.set(-15, 50, 20);
+    dir.target.position.set(0, 0, 0);
+    this.scene.add(dir.target);
+    dir.castShadow = true;
+    dir.shadow.mapSize.width = 2048;
+    dir.shadow.mapSize.height = 2048;
+    dir.shadow.intensity = 0.15;
+    const d = MAP_RADIUS + 5;
+    dir.shadow.camera.left = -d;
+    dir.shadow.camera.right = d;
+    dir.shadow.camera.top = d;
+    dir.shadow.camera.bottom = -d;
+    dir.shadow.camera.near = 1;
+    dir.shadow.camera.far = 120;
+    dir.shadow.bias = -0.0001;
     this.scene.add(dir);
+
+    const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+    fill.position.set(15, 30, -10);
+    this.scene.add(fill);
   }
 
-  createAvatar(id: number, color: number, name?: string, texture?: THREE.Texture | null): THREE.Group {
+  createAvatar(id: number, color: number, name?: string, texture?: THREE.Texture | null, model?: THREE.Group | null): THREE.Group {
     const group = new THREE.Group();
 
-    const bodyGeo = new THREE.BoxGeometry(0.7, 0.35, 0.7);
-    let bodyMat: THREE.Material;
-    if (texture) {
-      bodyMat = new THREE.MeshLambertMaterial({ map: texture });
+    if (model && model.children.length > 0) {
+      const clone = model.clone(true);
+      clone.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          child.material = (child.material as THREE.Material).clone();
+        }
+      });
+      clone.name = 'model-body';
+      group.add(clone);
     } else {
-      bodyMat = new THREE.MeshLambertMaterial({ color });
+      const bodyGeo = new THREE.BoxGeometry(0.7, 0.35, 0.7);
+      let bodyMat: THREE.Material;
+      if (texture) {
+        bodyMat = new THREE.MeshLambertMaterial({ map: texture });
+      } else {
+        bodyMat = new THREE.MeshLambertMaterial({ color });
+      }
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.y = 0.175;
+      body.name = 'box-body';
+      group.add(body);
     }
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 0.175;
-    group.add(body);
 
     const ringGeo = new THREE.TorusGeometry(0.45, 0.04, 6, 16);
     const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 });
     ringGeo.rotateX(Math.PI / 2);
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.position.y = 0.4;
+    ring.name = 'ring';
     group.add(ring);
 
     if (name) {
       const label = this.createTextSprite(name);
       label.position.y = 1.1;
+      label.name = 'label';
       group.add(label);
     }
 
     this.scene.add(group);
     this.avatars.set(id, group);
     return group;
+  }
+
+  replaceAvatarBody(id: number, model: THREE.Group): void {
+    const avatar = this.avatars.get(id);
+    if (!avatar) return;
+
+    const oldBody = avatar.children.find(c => c.name === 'box-body' || c.name === 'model-body');
+    if (oldBody) {
+      avatar.remove(oldBody);
+      if (oldBody instanceof THREE.Mesh) {
+        oldBody.geometry.dispose();
+        if (oldBody.material instanceof THREE.Material) oldBody.material.dispose();
+      }
+    }
+
+    const clone = model.clone(true);
+    clone.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        child.material = (child.material as THREE.Material).clone();
+      }
+    });
+    clone.name = 'model-body';
+    avatar.add(clone);
   }
 
   private createTextSprite(text: string): THREE.Sprite {
@@ -167,7 +225,6 @@ export class Renderer {
     avatar.position.x = pos.x;
     avatar.position.z = pos.z;
 
-    // Rotate to face movement direction
     if (moveDir && (moveDir.x !== 0 || moveDir.z !== 0)) {
       const targetAngle = Math.atan2(moveDir.x, moveDir.z);
       let current = avatar.rotation.y;
@@ -177,7 +234,7 @@ export class Renderer {
       avatar.rotation.y = current + delta * 0.25;
     }
 
-    const ring = avatar.children[1] as THREE.Mesh;
+    const ring = avatar.getObjectByName('ring') as THREE.Mesh | undefined;
     if (ring?.material instanceof THREE.MeshBasicMaterial) {
       ring.material.opacity = 0.6 + 0.4 * Math.sin(time * 1.2 * Math.PI * 2);
     }
@@ -191,7 +248,7 @@ export class Renderer {
   setRingColor(id: number, color: number): void {
     const avatar = this.avatars.get(id);
     if (!avatar) return;
-    const ring = avatar.children[1] as THREE.Mesh;
+    const ring = avatar.getObjectByName('ring') as THREE.Mesh | undefined;
     if (ring?.material instanceof THREE.MeshBasicMaterial) {
       ring.material.color.setHex(color);
     }
@@ -256,7 +313,7 @@ export class Renderer {
       this.shadowMaterial = new THREE.MeshBasicMaterial({
         color: 0x000000,
         transparent: true,
-        opacity: 0.18,
+        opacity: 0.08,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
@@ -409,6 +466,8 @@ export class Renderer {
 
     const mesh = new THREE.Mesh(geo, mat!);
     mesh.renderOrder = order;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     this.scene.add(mesh);
     this.territoryObjects.set(id, mesh);
 
@@ -419,11 +478,13 @@ export class Renderer {
       oldShadow.geometry.dispose();
     }
 
+    // Drop shadow offset matches top-left sun: shadow falls toward +X, -Z
+    const shadowOffset = 0.18;
     const shadowPositions = new Float32Array(verts.length);
     for (let i = 0; i < verts.length; i += 3) {
-      shadowPositions[i]     = verts[i] + 0.15;
+      shadowPositions[i]     = verts[i] + shadowOffset;
       shadowPositions[i + 1] = 0.015;
-      shadowPositions[i + 2] = verts[i + 2] + 0.15;
+      shadowPositions[i + 2] = verts[i + 2] - shadowOffset;
     }
     const shadowGeo = new THREE.BufferGeometry();
     shadowGeo.setAttribute('position', new THREE.Float32BufferAttribute(shadowPositions, 3));
@@ -457,7 +518,7 @@ export class Renderer {
     if (!mesh) {
       let mat = this.trailMaterials.get(id);
       if (!mat) {
-        mat = new THREE.MeshBasicMaterial({
+        mat = new THREE.MeshLambertMaterial({
           color,
           transparent: true,
           opacity: TRAIL_OPACITY,
@@ -515,6 +576,7 @@ export class Renderer {
 
     const posAttr = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
     posAttr.needsUpdate = true;
+    mesh.geometry.computeVertexNormals();
     mesh.geometry.setDrawRange(0, Math.max(0, (n - 1)) * 6);
   }
 

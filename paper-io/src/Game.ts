@@ -124,8 +124,22 @@ export class Game {
         PLAYER_NAMES[i], sp.x, sp.z, i === 0, this.territoryGrid, skin.id,
       );
       this.players.push(player);
+
       const texture = this.skinSystem.getTexture(skin.id);
-      this.renderer.createAvatar(i, skin.color, PLAYER_NAMES[i], texture);
+      const model = this.skinSystem.getModel(skin.id);
+      this.renderer.createAvatar(i, skin.color, PLAYER_NAMES[i], texture, model);
+
+      if (skin.type === 'model' && !model) {
+        const modelPromise = this.skinSystem.getModelAsync(skin.id);
+        if (modelPromise) {
+          const playerId = i;
+          modelPromise.then((loadedModel) => {
+            if (this.running && this.players[playerId]?.alive) {
+              this.renderer.replaceAvatarBody(playerId, loadedModel);
+            }
+          });
+        }
+      }
     }
 
     // Bot AI
