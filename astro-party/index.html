@@ -1443,6 +1443,13 @@
       opacity: 0.45;
     }
 
+    .control-hint.combo-active {
+      opacity: 0.92;
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--hint-color) 40%, transparent) inset,
+        0 0 16px color-mix(in srgb, var(--hint-color) 34%, transparent);
+    }
+
     .control-hint-name {
       font-family: 'Orbitron', sans-serif;
       font-size: 0.7rem;
@@ -1456,6 +1463,131 @@
       font-size: 0.7rem;
       color: rgba(255, 255, 255, 0.75);
       white-space: nowrap;
+    }
+
+    .control-hint-combo {
+      position: relative;
+      margin: 7px 0 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 10px;
+      align-items: center;
+      padding: 6px 9px 7px;
+      border: 3px solid #17120a;
+      border-radius: 5px;
+      background:
+        radial-gradient(circle at 22% 26%, rgba(0, 0, 0, 0.32) 0 1.7px, transparent 1.7px),
+        radial-gradient(circle at 71% 62%, rgba(0, 0, 0, 0.24) 0 1.5px, transparent 1.5px),
+        linear-gradient(180deg, #ffe7a2 0%, #ffc84f 57%, #f09e1e 100%);
+      background-size: 10px 10px, 8px 8px, auto;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.17) inset,
+        0 4px 0 #5a2d08,
+        0 0 0 1px rgba(0, 0, 0, 0.25);
+      transform: rotate(-1.2deg);
+      overflow: visible;
+    }
+
+    .control-hint-combo-burst,
+    .control-hint-combo-value,
+    .control-hint-combo-pips {
+      position: relative;
+      z-index: 2;
+    }
+
+    .control-hint-combo-burst {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.53rem;
+      font-weight: 900;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #a30012;
+      text-shadow:
+        -1px 1px 0 rgba(255, 248, 225, 0.75),
+        0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    .control-hint-combo-value {
+      justify-self: end;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.96rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      color: #161004;
+      text-shadow:
+        -1px 1px 0 rgba(255, 242, 183, 0.8),
+        0 0 0 #000;
+    }
+
+    .control-hint-combo-pips {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .control-hint-combo-pip {
+      width: 12px;
+      height: 5px;
+      background: rgba(70, 28, 7, 0.44);
+      border: 1px solid rgba(35, 15, 4, 0.9);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+    }
+
+    .control-hint-combo-pip.active {
+      background: linear-gradient(180deg, #ff5b4e 0%, #c91325 100%);
+      border-color: #3c060f;
+      box-shadow:
+        0 0 0 1px rgba(255, 183, 147, 0.38) inset,
+        0 0 7px rgba(255, 74, 63, 0.36);
+    }
+
+    .control-hint-combo.combo-up {
+      animation: comboPop 330ms cubic-bezier(0.16, 0.98, 0.32, 1);
+    }
+
+    .control-hint-combo.combo-up .control-hint-combo-value {
+      animation: comboValuePunch 330ms cubic-bezier(0.14, 0.95, 0.35, 1);
+    }
+
+    .control-hint-combo.combo-up::after {
+      content: "POW!";
+      position: absolute;
+      top: -15px;
+      right: -13px;
+      padding: 2px 4px;
+      border: 2px solid #1b0f03;
+      background: #ff3f2f;
+      color: #fff8d7;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.5rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      transform: rotate(9deg);
+      text-shadow: -1px 1px 0 rgba(0, 0, 0, 0.75);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+      animation: comboBurstTag 330ms ease-out;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    @keyframes comboPop {
+      0% { transform: rotate(-2.2deg) scale(0.82); }
+      58% { transform: rotate(0.8deg) scale(1.09); }
+      100% { transform: rotate(-1.2deg) scale(1); }
+    }
+
+    @keyframes comboValuePunch {
+      0% { transform: scale(0.72) translateY(2px); }
+      58% { transform: scale(1.22) translateY(-1px); }
+      100% { transform: scale(1) translateY(0); }
+    }
+
+    @keyframes comboBurstTag {
+      0% { opacity: 0; transform: rotate(13deg) scale(0.62) translateY(7px); }
+      35% { opacity: 1; transform: rotate(8deg) scale(1.05) translateY(-1px); }
+      100% { opacity: 0; transform: rotate(2deg) scale(1.1) translateY(-8px); }
     }
 
     .system-message {

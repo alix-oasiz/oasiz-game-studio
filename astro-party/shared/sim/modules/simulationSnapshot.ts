@@ -44,6 +44,8 @@ export function buildPlayerListPayload(
       kills: player.kills,
       roundWins: player.roundWins,
       score: player.score,
+      comboMultiplier: player.comboMultiplier,
+      comboExpiresAtMs: player.comboExpiresAtMs,
       playerState: player.state,
       isBot: player.isBot,
     }));

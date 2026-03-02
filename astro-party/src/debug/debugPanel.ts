@@ -387,6 +387,8 @@ function buildFallbackPlayers(): PlayerData[] {
       kills: 0,
       roundWins: 0,
       score: 0,
+      comboMultiplier: 1,
+      comboExpiresAtMs: 0,
       state: "ACTIVE",
     },
     {
@@ -396,6 +398,8 @@ function buildFallbackPlayers(): PlayerData[] {
       kills: 0,
       roundWins: 0,
       score: 0,
+      comboMultiplier: 1,
+      comboExpiresAtMs: 0,
       state: "ACTIVE",
     },
     {
@@ -405,6 +409,8 @@ function buildFallbackPlayers(): PlayerData[] {
       kills: 0,
       roundWins: 0,
       score: 0,
+      comboMultiplier: 1,
+      comboExpiresAtMs: 0,
       state: "ACTIVE",
     },
     {
@@ -414,6 +420,8 @@ function buildFallbackPlayers(): PlayerData[] {
       kills: 0,
       roundWins: 0,
       score: 0,
+      comboMultiplier: 1,
+      comboExpiresAtMs: 0,
       state: "ACTIVE",
     },
   ];

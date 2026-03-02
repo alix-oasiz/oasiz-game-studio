@@ -102,21 +102,34 @@ export class BotManager {
 
   getLocalPlayersInfo(
     players: Map<string, PlayerData>,
-  ): Array<{ name: string; color: string; keyPreset: string }> {
+  ): Array<{
+    id: string;
+    name: string;
+    color: string;
+    keyPreset: string;
+    comboMultiplier: number;
+    comboExpiresAtMs: number;
+  }> {
     this.syncLocalPlayerSlots(players);
     const localPlayers: Array<{
+      id: string;
       name: string;
       color: string;
       keyPreset: string;
+      comboMultiplier: number;
+      comboExpiresAtMs: number;
     }> = [];
 
     const myId = this.network.getMyPlayerId();
     const myPlayer = myId ? players.get(myId) : null;
     if (myPlayer) {
       localPlayers.push({
+        id: myPlayer.id,
         name: myPlayer.name,
         color: myPlayer.color.primary,
         keyPreset: "A rotate | D fire",
+        comboMultiplier: myPlayer.comboMultiplier,
+        comboExpiresAtMs: myPlayer.comboExpiresAtMs,
       });
     }
 
@@ -126,9 +139,12 @@ export class BotManager {
         const slot = this.network.getPlayerKeySlot(playerId);
         const keyHints = this.getKeyHintForSlot(slot);
         localPlayers.push({
+          id: player.id,
           name: player.name,
           color: player.color.primary,
           keyPreset: keyHints,
+          comboMultiplier: player.comboMultiplier,
+          comboExpiresAtMs: player.comboExpiresAtMs,
         });
       }
     }

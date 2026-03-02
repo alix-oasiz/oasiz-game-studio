@@ -444,6 +444,12 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
       if (target.kills !== meta.kills) target.kills = meta.kills;
       if (target.roundWins !== meta.roundWins) target.roundWins = meta.roundWins;
       if (target.score !== meta.score) target.score = meta.score;
+      if (target.comboMultiplier !== meta.comboMultiplier) {
+        target.comboMultiplier = meta.comboMultiplier;
+      }
+      if (target.comboExpiresAtMs !== meta.comboExpiresAtMs) {
+        target.comboExpiresAtMs = meta.comboExpiresAtMs;
+      }
       if (target.playerState !== meta.playerState) target.playerState = meta.playerState;
       if (target.isBot !== nextIsBot) target.isBot = nextIsBot;
     }

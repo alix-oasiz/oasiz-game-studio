@@ -142,6 +142,8 @@ export interface PlayerData {
   kills: number;
   roundWins: number;
   score: number;
+  comboMultiplier: number;
+  comboExpiresAtMs: number;
   state: PlayerState;
   presence?: "CONNECTED" | "LEFT" | "KICKED";
 }

@@ -5,6 +5,7 @@ import { elements } from "./elements";
 import { escapeHtml } from "./text";
 import { createUIFeedback } from "../feedback/uiFeedback";
 import { SeededRNG } from "../../shared/sim/SeededRNG";
+import { getCombatComboRules } from "../../shared/sim/scoring";
 
 type Screen = "start" | "lobby" | "game" | "end";
 
@@ -28,6 +29,16 @@ const MAP_THEME_GRADIENTS: Partial<Record<number, StarfieldGradient>> = {
   4: { inner: "#020603", mid: "#0b1f11", outer: "#153a27" },
   5: { inner: "#030608", mid: "#0a1b2a", outer: "#15364d" },
 };
+const COMBAT_COMBO_RULES = getCombatComboRules();
+
+function formatComboMultiplier(multiplier: number): string {
+  const normalized = Math.max(1, Math.round(multiplier * 10) / 10);
+  const whole = Math.round(normalized);
+  if (Math.abs(normalized - whole) <= 0.001) {
+    return whole.toString();
+  }
+  return normalized.toFixed(1);
+}
 
 function getGradientForMap(mapId: number): StarfieldGradient {
   return MAP_THEME_GRADIENTS[mapId] ?? DEFAULT_STARFIELD_GRADIENT;
@@ -101,6 +112,8 @@ export function createScreenController(
   isMobile: boolean,
 ): ScreenController {
   const feedback = createUIFeedback("lobby");
+  const comboHintMultiplierByPlayerId = new Map<string, number>();
+  let comboHintRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
   let activeScreen: Screen = "start";
   let systemMessageTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -111,6 +124,20 @@ export function createScreenController(
     }
     elements.systemMessage.classList.remove("active");
     elements.systemMessage.textContent = "";
+  }
+
+  function clearComboHintRefreshTimer(): void {
+    if (!comboHintRefreshTimeout) return;
+    clearTimeout(comboHintRefreshTimeout);
+    comboHintRefreshTimeout = null;
+  }
+
+  function scheduleComboHintRefresh(delayMs: number): void {
+    clearComboHintRefreshTimer();
+    comboHintRefreshTimeout = setTimeout(() => {
+      comboHintRefreshTimeout = null;
+      updateControlHints();
+    }, Math.max(50, Math.floor(delayMs)));
   }
 
   function updateHudControlsVisibility(): void {
@@ -246,6 +273,8 @@ export function createScreenController(
     if (!shouldShow) {
       elements.controlHints.classList.remove("active");
       elements.controlHints.innerHTML = "";
+      comboHintMultiplierByPlayerId.clear();
+      clearComboHintRefreshTimer();
       return;
     }
 
@@ -253,18 +282,89 @@ export function createScreenController(
     if (localPlayers.length === 0) {
       elements.controlHints.classList.remove("active");
       elements.controlHints.innerHTML = "";
+      comboHintMultiplierByPlayerId.clear();
+      clearComboHintRefreshTimer();
       return;
     }
 
+    const nowMs = game.getHostSimTimeMs();
+    let nextComboRefreshDelayMs: number | null = null;
+    const visibleLocalPlayerIds = new Set<string>();
     elements.controlHints.innerHTML = localPlayers
       .map((player) => {
+        visibleLocalPlayerIds.add(player.id);
+        const comboRemainingMs = Math.max(
+          0,
+          Math.floor(player.comboExpiresAtMs - nowMs),
+        );
+        const isComboActive =
+          player.comboMultiplier > 1 && comboRemainingMs > 0;
+        const comboPipCount = 6;
+        const comboRemainingRatio = Math.max(
+          0,
+          Math.min(1, comboRemainingMs / COMBAT_COMBO_RULES.durationMs),
+        );
+        const comboActivePips = Math.max(
+          1,
+          Math.min(comboPipCount, Math.ceil(comboRemainingRatio * comboPipCount)),
+        );
+        if (isComboActive) {
+          const nextPipThresholdMs =
+            comboActivePips > 1
+              ? (COMBAT_COMBO_RULES.durationMs * (comboActivePips - 1)) /
+                comboPipCount
+              : 0;
+          const msUntilNextPip = Math.max(
+            0,
+            comboRemainingMs - nextPipThresholdMs,
+          );
+          const msUntilRefresh = Math.max(50, Math.ceil(msUntilNextPip));
+          if (
+            nextComboRefreshDelayMs === null ||
+            msUntilRefresh < nextComboRefreshDelayMs
+          ) {
+            nextComboRefreshDelayMs = msUntilRefresh;
+          }
+        }
+        const previousMultiplier =
+          comboHintMultiplierByPlayerId.get(player.id) ?? 1;
+        const isComboIncrement =
+          isComboActive && player.comboMultiplier > previousMultiplier + 0.01;
+        comboHintMultiplierByPlayerId.set(
+          player.id,
+          isComboActive ? player.comboMultiplier : 1,
+        );
+
+        const comboMarkup = isComboActive
+          ? '<div class="control-hint-combo' +
+            (isComboIncrement ? " combo-up" : "") +
+            '">' +
+            '<div class="control-hint-combo-burst">Combo!</div>' +
+            '<div class="control-hint-combo-value">x' +
+            formatComboMultiplier(player.comboMultiplier) +
+            "</div>" +
+            '<div class="control-hint-combo-pips">' +
+            Array.from({ length: comboPipCount }, (_, index) => {
+              return (
+                '<span class="control-hint-combo-pip' +
+                (index < comboActivePips ? " active" : "") +
+                '"></span>'
+              );
+            }).join("") +
+            "</div>" +
+            "</div>"
+          : "";
+
         return (
-          '<div class="control-hint" style="--hint-color: ' +
+          '<div class="control-hint' +
+          (isComboActive ? " combo-active" : "") +
+          '" style="--hint-color: ' +
           player.color +
           '">' +
           '<div class="control-hint-name">' +
           escapeHtml(player.name) +
           "</div>" +
+          comboMarkup +
           '<div class="control-hint-keys">' +
           escapeHtml(player.keyPreset) +
           "</div>" +
@@ -272,7 +372,17 @@ export function createScreenController(
         );
       })
       .join("");
+    for (const playerId of [...comboHintMultiplierByPlayerId.keys()]) {
+      if (!visibleLocalPlayerIds.has(playerId)) {
+        comboHintMultiplierByPlayerId.delete(playerId);
+      }
+    }
     elements.controlHints.classList.add("active");
+    if (nextComboRefreshDelayMs !== null) {
+      scheduleComboHintRefresh(nextComboRefreshDelayMs);
+    } else {
+      clearComboHintRefreshTimer();
+    }
   }
 
   function showSystemMessage(message: string, durationMs: number = 5000): void {

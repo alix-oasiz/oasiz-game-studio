@@ -807,6 +807,29 @@ export class NetworkSyncSystem {
         player.score = score as number;
         changed = true;
       }
+      const comboMultiplier = netPlayer.getState("comboMultiplier") as
+        | number
+        | undefined;
+      if (
+        Number.isFinite(comboMultiplier) &&
+        comboMultiplier !== player.comboMultiplier
+      ) {
+        player.comboMultiplier = Math.max(1, comboMultiplier as number);
+        changed = true;
+      }
+      const comboExpiresAtMs = netPlayer.getState("comboExpiresAtMs") as
+        | number
+        | undefined;
+      if (
+        Number.isFinite(comboExpiresAtMs) &&
+        comboExpiresAtMs !== player.comboExpiresAtMs
+      ) {
+        player.comboExpiresAtMs = Math.max(
+          0,
+          Math.floor(comboExpiresAtMs as number),
+        );
+        changed = true;
+      }
       const state = netPlayer.getState("playerState") as
         | "ACTIVE"
         | "EJECTED"

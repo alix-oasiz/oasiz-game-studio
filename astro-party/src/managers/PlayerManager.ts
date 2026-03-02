@@ -26,6 +26,8 @@ export class PlayerManager {
         kills: 0,
         roundWins: 0,
         score: 0,
+        comboMultiplier: 1,
+        comboExpiresAtMs: 0,
         state: "SPECTATING",
       };
       this.players.set(playerId, player);
@@ -49,6 +51,8 @@ export class PlayerManager {
       kills: 0,
       roundWins: 0,
       score: 0,
+      comboMultiplier: 1,
+      comboExpiresAtMs: 0,
       state: "ACTIVE",
     };
     this.players.set(playerId, player);
@@ -85,6 +89,8 @@ export class PlayerManager {
           kills: 0,
           roundWins: 0,
           score: 0,
+          comboMultiplier: 1,
+          comboExpiresAtMs: 0,
           state: "ACTIVE",
         };
         this.players.set(playerId, player);
@@ -119,6 +125,8 @@ export class PlayerManager {
       player.kills = 0;
       player.roundWins = 0;
       player.score = 0;
+      player.comboMultiplier = 1;
+      player.comboExpiresAtMs = 0;
       player.state = "ACTIVE";
     });
   }

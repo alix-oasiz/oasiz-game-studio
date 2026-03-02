@@ -8,6 +8,12 @@ export type ScoreEligibleBotType = "ai" | "local";
 
 interface ScoreRulesConfig {
   pointsByEvent: Record<ScoreEventType, number>;
+  combatCombo: {
+    enabled: boolean;
+    durationMs: number;
+    capMultiplier: number;
+    stepPerStreak: number;
+  };
   submission: {
     requireEligibleBotInLobby: boolean;
     eligibleBotTypes: ScoreEligibleBotType[];
@@ -23,6 +29,12 @@ export const SCORE_RULES: ScoreRulesConfig = {
     ROUND_WIN: 50,
     GAME_WIN: 100,
   },
+  combatCombo: {
+    enabled: true,
+    durationMs: 12000,
+    capMultiplier: 5,
+    stepPerStreak: 0.5,
+  },
   submission: {
     requireEligibleBotInLobby: true,
     eligibleBotTypes: ["ai"],
@@ -34,6 +46,21 @@ export function getScoreAwardForEvent(event: ScoreEventType): number {
   const configured = SCORE_RULES.pointsByEvent[event];
   if (!Number.isFinite(configured)) return 0;
   return Math.max(0, Math.floor(configured));
+}
+
+export function getCombatComboRules(): {
+  enabled: boolean;
+  durationMs: number;
+  capMultiplier: number;
+  stepPerStreak: number;
+} {
+  const combo = SCORE_RULES.combatCombo;
+  return {
+    enabled: combo.enabled,
+    durationMs: Math.max(0, Math.floor(combo.durationMs)),
+    capMultiplier: Math.max(1, combo.capMultiplier),
+    stepPerStreak: Math.max(0, combo.stepPerStreak),
+  };
 }
 
 export function isScoreSubmissionEligibleBotType(

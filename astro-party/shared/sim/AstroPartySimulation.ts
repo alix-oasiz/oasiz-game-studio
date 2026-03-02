@@ -151,6 +151,7 @@ import {
   killPilot as flowKillPilot,
   respawnFromPilot as flowRespawnFromPilot,
   updateEndlessRespawns,
+  updateCombatComboTimeouts,
   updatePendingEliminationChecks,
   checkEliminationWin,
   endMatchByScore,
@@ -1118,6 +1119,7 @@ export class AstroPartySimulation implements SimState {
     this.applyMapFeatureKinematics(dtSec);
     cleanupExpiredEntities(this);
     updateEndlessRespawns(this);
+    updateCombatComboTimeouts(this);
     updatePendingEliminationChecks(this);
     if (this.pendingEliminationCheckAtMs === null) {
       checkEliminationWin(this);
@@ -1633,6 +1635,9 @@ export class AstroPartySimulation implements SimState {
         player.kills = 0;
         player.score = 0;
       }
+      player.comboStreak = 0;
+      player.comboMultiplier = 1;
+      player.comboExpiresAtMs = 0;
       player.roundWins = 0;
       player.state = "ACTIVE";
       player.input = {
@@ -1696,6 +1701,9 @@ export class AstroPartySimulation implements SimState {
       kills: 0,
       roundWins: 0,
       score: 0,
+      comboStreak: 0,
+      comboMultiplier: 1,
+      comboExpiresAtMs: 0,
       state: "ACTIVE",
       input: {
         buttonA: false,

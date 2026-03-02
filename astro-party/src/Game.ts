@@ -842,6 +842,10 @@ export class Game {
     return this.rngSeed;
   }
 
+  getHostSimTimeMs(): number {
+    return this.networkSync.hostSimTimeMs;
+  }
+
   setNextRngSeed(seed: number | null): void {
     if (!this.network.isSimulationAuthority()) {
       console.log(
@@ -887,6 +891,14 @@ export class Game {
     for (const player of this.playerMgr.players.values()) {
       if (player.roundWins !== 0) {
         player.roundWins = 0;
+        changed = true;
+      }
+      if (player.comboMultiplier !== 1) {
+        player.comboMultiplier = 1;
+        changed = true;
+      }
+      if (player.comboExpiresAtMs !== 0) {
+        player.comboExpiresAtMs = 0;
         changed = true;
       }
       if (player.state !== "ACTIVE") {
@@ -1218,6 +1230,26 @@ export class Game {
         networkMeta.score !== player.score
       ) {
         player.score = networkMeta.score as number;
+        changed = true;
+      }
+      if (
+        Number.isFinite(networkMeta.comboMultiplier) &&
+        networkMeta.comboMultiplier !== player.comboMultiplier
+      ) {
+        player.comboMultiplier = Math.max(
+          1,
+          networkMeta.comboMultiplier as number,
+        );
+        changed = true;
+      }
+      if (
+        Number.isFinite(networkMeta.comboExpiresAtMs) &&
+        networkMeta.comboExpiresAtMs !== player.comboExpiresAtMs
+      ) {
+        player.comboExpiresAtMs = Math.max(
+          0,
+          Math.floor(networkMeta.comboExpiresAtMs as number),
+        );
         changed = true;
       }
       if (networkMeta.playerState && networkMeta.playerState !== player.state) {
@@ -2028,9 +2060,12 @@ export class Game {
   }
 
   getLocalPlayersInfo(): Array<{
+    id: string;
     name: string;
     color: string;
     keyPreset: string;
+    comboMultiplier: number;
+    comboExpiresAtMs: number;
   }> {
     return this.botMgr.getLocalPlayersInfo(this.playerMgr.players);
   }

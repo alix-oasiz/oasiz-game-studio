@@ -30,6 +30,174 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
 ## Milestone Journal
+## 2026-03-02 - Combo HUD art-direction correction (de-neon comic/arcade pass)
+
+- Scope:
+  - Replaced neon-coupled combo badge styling with a stronger comic/arcade plate treatment.
+- Changes:
+  - `src/ui/screens.ts`:
+    - removed per-player color CSS variable injection from combo badge markup (de-coupled combo visuals from ship neon palette).
+  - `index.html`:
+    - replaced combo badge styles with:
+      - warm arcade plate gradient (amber/orange),
+      - halftone-like dot texture,
+      - heavier dark outlines and shadow stacking,
+      - red active pips,
+      - `POW!` burst tag for increment animation.
+- Outcome:
+  - Combo presentation no longer reads as “neon UI chip” and better aligns with requested comic/arcade direction.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+
+## 2026-03-02 - Combo HUD follow-up stability fixes (review pass)
+
+- Scope:
+  - Applied two UX/state fixes identified in staged review for combo hints.
+- Changes:
+  - `src/ui/screens.ts`:
+    - clear combo multiplier cache when control hints are hidden (`shouldShow === false`) to avoid stale increment state across transitions.
+    - added scheduled combo hint refresh timer while combos are active so segmented combo pips/timeouts update and clear without waiting for unrelated player/state events.
+    - refresh timer auto-cancels when hints are hidden or no local players are present.
+- Outcome:
+  - Combo hint state no longer lingers stale after timeout.
+  - Increment animation eligibility is reset correctly after hide/show transitions.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+
+## 2026-03-02 - Combo HUD visual direction pass (comic/arcade styling)
+
+- Scope:
+  - Reworked combo indicator visuals away from clean/modern timer-bar style into comic/arcade presentation.
+- Changes:
+  - `src/ui/screens.ts`:
+    - combo markup now renders:
+      - burst title (`Combo!`)
+      - chunky multiplier text
+      - segmented combo pips (6-step visual energy indicator)
+    - removed sleek timer-bar markup from combo card.
+  - `index.html`:
+    - replaced combo card CSS with skewed comic plate styling, halftone-like texture accents, chunkier typography treatment, and stronger increment impact animation (`BAM` burst tag on combo-up).
+- Outcome:
+  - Combo state now reads as arcade/comic instead of modern HUD widget.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+
+## 2026-03-02 - Combo HUD visibility hotfix (timebase alignment)
+
+- Scope:
+  - Fixed combo HUD not appearing due mismatched timer comparison domains.
+- Root cause:
+  - Combo expiry (`comboExpiresAtMs`) is authored in simulation time (`sim.nowMs`).
+  - HUD visibility check in `src/ui/screens.ts` incorrectly compared it against `Date.now()` (wall clock), resulting in immediate negative remaining time and hidden combo badge.
+- Changes:
+  - `src/Game.ts`:
+    - added `getHostSimTimeMs()` accessor returning `networkSync.hostSimTimeMs`.
+  - `src/ui/screens.ts`:
+    - switched combo remaining-time baseline from `Date.now()` to `game.getHostSimTimeMs()`.
+- Outcome:
+  - Combo badge/timer now displays during active combo windows and animated increment behavior is visible as intended.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+
+## 2026-03-02 - Comic-style animated combo HUD in control hints + full combo metadata sync
+
+- Scope:
+  - Added a comic/arcade combo visualization to the bottom-center control-hint cards (desktop game HUD path).
+  - Combo panel now animates on multiplier increments instead of static text behavior.
+  - Wired combo metadata end-to-end so local and online clients receive authoritative combo values.
+- Shared/server metadata pipeline:
+  - `shared/sim/types.ts`:
+    - extended `PlayerListMeta` with:
+      - `comboMultiplier`
+      - `comboExpiresAtMs`
+  - `shared/sim/modules/simulationSnapshot.ts`:
+    - emits combo fields in `buildPlayerListPayload(...)`.
+  - `server/src/rooms/AstroPartyRoomState.ts`:
+    - added schema fields on `RoomPlayerMetaState`:
+      - `comboMultiplier`
+      - `comboExpiresAtMs`
+  - `server/src/rooms/AstroPartyRoom.ts`:
+    - applies combo field sync in `applyPlayerListState(...)`.
+- Client data sync:
+  - `src/network/transports/NetworkTransport.ts`:
+    - extended `PlayerMeta` with combo fields.
+  - `src/network/transports/LocalSharedSimTransport.ts`:
+    - combo fields exposed via `getState(...)` and `normalizePlayerMeta(...)`.
+  - `src/network/transports/ColyseusTransport.ts`:
+    - schema meta parsing includes combo fields.
+    - `getState(...)` exposes combo fields.
+    - player-list signature includes combo fields so UI updates on combo changes.
+  - `shared/game/types.ts` + `src/managers/PlayerManager.ts`:
+    - `PlayerData` now carries combo fields with defaults.
+  - `src/Game.ts` + `src/network/NetworkSyncSystem.ts`:
+    - combo values are synced from network metadata/state into player runtime data.
+  - `src/debug/debugPanel.ts`:
+    - updated fallback `PlayerData` mocks with combo defaults.
+- HUD/UX implementation:
+  - `src/managers/BotManager.ts` and `src/Game.ts`:
+    - local-player hint payload now includes player id + combo fields.
+  - `src/ui/screens.ts`:
+    - control hints render combo badge with per-player increment detection.
+    - increment events trigger animated class (`combo-up`) for comic pop/burst effect.
+    - combo timer uses authoritative remaining-time-derived CSS duration.
+  - `index.html`:
+    - added combo badge/timer/burst/punch keyframes and active hint styling.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+  - `astro-party/server`: `npm run typecheck` passed.
+  - `astro-party/server`: `npm run build` passed.
+
+## 2026-03-02 - Authoritative combat combo multiplier (tentative v1)
+
+- Scope:
+  - Added server-authoritative combat combo scoring multiplier with timeout.
+  - Tentative tuning set to `5x` cap and `12s` combo window.
+  - Combos reset on victim ship destruction/pilot death and on round reset boundaries.
+- Changes:
+  - `shared/sim/scoring.ts`:
+    - added `combatCombo` config block under `SCORE_RULES`:
+      - `enabled: true`
+      - `durationMs: 12000`
+      - `capMultiplier: 5`
+      - `stepPerStreak: 0.5`
+    - added `getCombatComboRules()` accessor.
+  - `shared/sim/types.ts`:
+    - extended `RuntimePlayer` with combo runtime fields:
+      - `comboStreak`
+      - `comboMultiplier`
+      - `comboExpiresAtMs`
+  - `shared/sim/systems/GameFlowSystem.ts`:
+    - refactored score event handling to use a local `ScoreEventType`.
+    - `awardPlayerScore(...)` now applies multiplier only for combat events (`SHIP_DESTROY`, `PILOT_KILL`).
+    - added combo lifecycle helpers:
+      - activation/advance on combat score events
+      - timeout expiry handling
+      - reset helper
+    - resets combo for victim in:
+      - `onShipHit(...)`
+      - `killPilot(...)`
+    - clears all combo state in `clearRoundEntities(...)`.
+    - added `updateCombatComboTimeouts(sim)` for per-tick timeout expiration.
+  - `shared/sim/AstroPartySimulation.ts`:
+    - initialized combo fields in `createPlayer(...)`.
+    - reset combo fields in `resetPlayersForNewSequence(...)`.
+    - wired per-tick timeout maintenance via `updateCombatComboTimeouts(this)` in the `PLAYING` update path.
+- Behavior:
+  - Combat scoring ramps with streak, capped at `5x`.
+  - No-combat window beyond `12s` expires combo back to base.
+  - Taking a ship hit or pilot death immediately resets that player's combo.
+  - Non-combat score events (`ROUND_WIN`, `GAME_WIN`) remain unmultiplied.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+  - `astro-party/server`: `npm run typecheck` passed.
+  - `astro-party/server`: `npm run build` passed.
+
 ## 2026-03-02 - Turret pre-combat preview render (map 5 only)
 
 - Scope:

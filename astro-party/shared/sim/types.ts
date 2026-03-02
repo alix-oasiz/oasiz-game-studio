@@ -236,6 +236,8 @@ export interface PlayerListMeta {
   kills: number;
   roundWins: number;
   score: number;
+  comboMultiplier: number;
+  comboExpiresAtMs: number;
   playerState: PlayerState;
   isBot: boolean;
 }
@@ -340,6 +342,9 @@ export interface RuntimePlayer {
   kills: number;
   roundWins: number;
   score: number;
+  comboStreak: number;
+  comboMultiplier: number;
+  comboExpiresAtMs: number;
   state: PlayerState;
   input: PlayerInput;
   latestInputSequence: number;

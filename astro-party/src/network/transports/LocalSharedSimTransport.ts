@@ -48,6 +48,8 @@ class LocalPlayerState implements NetworkPlayerState {
     if (key === "kills") return this.meta.kills ?? 0;
     if (key === "roundWins") return this.meta.roundWins ?? 0;
     if (key === "score") return this.meta.score ?? 0;
+    if (key === "comboMultiplier") return this.meta.comboMultiplier ?? 1;
+    if (key === "comboExpiresAtMs") return this.meta.comboExpiresAtMs ?? 0;
     if (key === "playerState") return this.meta.playerState ?? "ACTIVE";
     return undefined;
   }
@@ -618,6 +620,8 @@ export class LocalSharedSimTransport implements NetworkTransport {
       kills: meta.kills,
       roundWins: meta.roundWins,
       score: meta.score,
+      comboMultiplier: meta.comboMultiplier,
+      comboExpiresAtMs: meta.comboExpiresAtMs,
       playerState: meta.playerState,
       isBot: meta.isBot,
     };

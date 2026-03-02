@@ -62,6 +62,8 @@ interface RoomStatePlayerMeta {
   kills?: number;
   roundWins?: number;
   score?: number;
+  comboMultiplier?: number;
+  comboExpiresAtMs?: number;
   playerState?: "ACTIVE" | "EJECTED" | "SPECTATING";
   isBot?: boolean;
 }
@@ -112,6 +114,8 @@ class ColyseusPlayerState implements NetworkPlayerState {
     if (key === "kills") return this.meta.kills ?? 0;
     if (key === "roundWins") return this.meta.roundWins ?? 0;
     if (key === "score") return this.meta.score ?? 0;
+    if (key === "comboMultiplier") return this.meta.comboMultiplier ?? 1;
+    if (key === "comboExpiresAtMs") return this.meta.comboExpiresAtMs ?? 0;
     if (key === "playerState") return this.meta.playerState ?? "ACTIVE";
     return undefined;
   }
@@ -1044,6 +1048,12 @@ export class ColyseusTransport implements NetworkTransport {
         ? (value.roundWins as number)
         : 0,
       score: Number.isFinite(value?.score) ? (value.score as number) : 0,
+      comboMultiplier: Number.isFinite(value?.comboMultiplier)
+        ? Math.max(1, value.comboMultiplier as number)
+        : 1,
+      comboExpiresAtMs: Number.isFinite(value?.comboExpiresAtMs)
+        ? Math.max(0, Math.floor(value.comboExpiresAtMs as number))
+        : 0,
       playerState:
         value?.playerState === "ACTIVE" ||
         value?.playerState === "EJECTED" ||
@@ -1154,6 +1164,8 @@ export class ColyseusTransport implements NetworkTransport {
           (meta.kills ?? 0).toString(),
           (meta.roundWins ?? 0).toString(),
           (meta.score ?? 0).toString(),
+          (meta.comboMultiplier ?? 1).toString(),
+          (meta.comboExpiresAtMs ?? 0).toString(),
           meta.playerState ?? "ACTIVE",
           meta.isBot ? "1" : "0",
         ].join("~"),

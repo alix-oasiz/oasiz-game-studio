@@ -15,21 +15,73 @@ import { normalizeAngle } from "../utils.js";
 import { spawnInitialAsteroids, scheduleAsteroidSpawn } from "./AsteroidSystem.js";
 import { grantStartingPowerups } from "./PowerUpSystem.js";
 import { getMapDefinition } from "../maps.js";
-import { getScoreAwardForEvent } from "../scoring.js";
+import { getCombatComboRules, getScoreAwardForEvent } from "../scoring.js";
 import { getPilotDashWorldPoint } from "../../geometry/PilotRenderAnchors.js";
 
 // Keep both pilot dash trigger modes available for easy tuning/rollback.
 const PILOT_DASH_USE_EDGE_TRIGGER = false;
 const ENDLESS_RESPAWN_DELAY_MS = 3000;
+type ScoreEventType =
+  | "SHIP_DESTROY"
+  | "PILOT_KILL"
+  | "ROUND_WIN"
+  | "GAME_WIN";
+
+function isCombatScoreEvent(event: ScoreEventType): boolean {
+  return event === "SHIP_DESTROY" || event === "PILOT_KILL";
+}
+
+function resetCombatCombo(player: RuntimePlayer | undefined): void {
+  if (!player) return;
+  player.comboStreak = 0;
+  player.comboMultiplier = 1;
+  player.comboExpiresAtMs = 0;
+}
+
+function resolveActiveComboMultiplier(
+  sim: SimState,
+  player: RuntimePlayer,
+): number {
+  const combo = getCombatComboRules();
+  if (!combo.enabled) return 1;
+  if (player.comboStreak <= 0) return 1;
+  if (player.comboExpiresAtMs > sim.nowMs) {
+    return Math.max(1, Math.min(combo.capMultiplier, player.comboMultiplier));
+  }
+  resetCombatCombo(player);
+  return 1;
+}
+
+function advanceCombatCombo(sim: SimState, player: RuntimePlayer): void {
+  const combo = getCombatComboRules();
+  if (!combo.enabled) return;
+  player.comboStreak = Math.max(0, player.comboStreak) + 1;
+  player.comboMultiplier = Math.max(
+    1,
+    Math.min(combo.capMultiplier, 1 + player.comboStreak * combo.stepPerStreak),
+  );
+  player.comboExpiresAtMs = sim.nowMs + combo.durationMs;
+}
 
 function awardPlayerScore(
   sim: SimState,
   player: RuntimePlayer | undefined,
-  event: "SHIP_DESTROY" | "PILOT_KILL" | "ROUND_WIN" | "GAME_WIN",
+  event: ScoreEventType,
 ): void {
   if (!player) return;
   if (sim.experienceContext !== "LIVE_MATCH") return;
-  player.score += getScoreAwardForEvent(event);
+  const basePoints = getScoreAwardForEvent(event);
+  if (basePoints <= 0) return;
+
+  if (!isCombatScoreEvent(event)) {
+    player.score += basePoints;
+    return;
+  }
+
+  const multiplier = resolveActiveComboMultiplier(sim, player);
+  const awarded = Math.max(1, Math.floor(basePoints * multiplier));
+  player.score += awarded;
+  advanceCombatCombo(sim, player);
 }
 
 function isLocalHumanParticipant(player: RuntimePlayer | undefined): boolean {
@@ -163,6 +215,7 @@ export function onShipHit(sim: SimState, owner: RuntimePlayer | undefined, targe
 
   sim.hooks.onSound("explosion", target.id);
   sim.triggerScreenShake(15, 0.4);
+  resetCombatCombo(target);
   if (
     owner &&
     owner.id !== target.id &&
@@ -182,6 +235,7 @@ export function killPilot(sim: SimState, pilotPlayerId: string, killerId: string
   const player = sim.players.get(pilotPlayerId);
   if (player) {
     player.state = "SPECTATING";
+    resetCombatCombo(player);
     if (sim.ruleset === "ENDLESS_RESPAWN") {
       player.endlessRespawnAtMs = sim.nowMs + ENDLESS_RESPAWN_DELAY_MS;
     }
@@ -261,6 +315,16 @@ export function updateEndlessRespawns(sim: SimState): void {
 
   if (changed) {
     sim.syncPlayers();
+  }
+}
+
+export function updateCombatComboTimeouts(sim: SimState): void {
+  const combo = getCombatComboRules();
+  if (!combo.enabled) return;
+  for (const player of sim.players.values()) {
+    if (player.comboStreak <= 0) continue;
+    if (player.comboExpiresAtMs > sim.nowMs) continue;
+    resetCombatCombo(player);
   }
 }
 
@@ -476,6 +540,9 @@ export function clearRoundEntities(sim: SimState): void {
   sim.pendingEliminationCheckAtMs = null;
   sim.screenShakeIntensity = 0;
   sim.screenShakeDuration = 0;
+  for (const player of sim.players.values()) {
+    resetCombatCombo(player);
+  }
 }
 
 export function spawnAllShips(sim: SimState): void {

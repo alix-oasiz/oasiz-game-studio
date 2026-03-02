@@ -37,6 +37,8 @@ export interface PlayerMeta {
   kills?: number;
   roundWins?: number;
   score?: number;
+  comboMultiplier?: number;
+  comboExpiresAtMs?: number;
   playerState?: "ACTIVE" | "EJECTED" | "SPECTATING";
   isBot?: boolean;
 }
