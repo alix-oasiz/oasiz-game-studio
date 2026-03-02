@@ -122,6 +122,7 @@ interface RiderPlacement {
   headScreenY: number;
 }
 
+
 // ============= CONFIG =============
 const CONFIG = {
   MAX_SPREAD_ANGLE: 0.3,   // ~17° max deviation at worst stability
@@ -271,6 +272,21 @@ let characterFrameReady = false;
 let archerImage: HTMLImageElement | null = null;
 let archerImageLoaded = false;
 let archerBounds: SpriteBounds | null = null;
+let ornateTargetCanvas: HTMLCanvasElement | null = null;
+let ornateTargetLoaded = false;
+let ornateTargetBounds: SpriteBounds | null = null;
+let uiCharacterImage: HTMLImageElement | null = null;
+let uiCharacterLoaded = false;
+let uiPullButtonImage: HTMLImageElement | null = null;
+let uiPullButtonLoaded = false;
+let uiWavePanelImage: HTMLImageElement | null = null;
+let uiWavePanelLoaded = false;
+let uiArrowPanelImage: HTMLImageElement | null = null;
+let uiArrowPanelLoaded = false;
+let uiTopBarImage: HTMLImageElement | null = null;
+let uiTopBarLoaded = false;
+let loopableBackgroundImage: HTMLImageElement | null = null;
+let loopableBackgroundLoaded = false;
 let archerArrowTipNorm = { x: 0.66, y: 0.14 };
 let riderAnchorBaseTopY: number | null = null;
 let riderAnchorOffsetPx = 0;
@@ -319,7 +335,7 @@ const upgradeDefs: UpgradeDef[] = [
   {
     id: "windReader",
     name: "Wind Reader",
-    description: "Remove the close-range aim marker and rely on pure feel.",
+    description: "Show a ghost arc preview while pulling the bow.",
     maxLevel: 1,
   },
   {
@@ -660,6 +676,205 @@ function loadArcherImage(): void {
     archerBounds = null;
     console.log("[loadArcherImage]", "Could not load /hose-removebg-preview.png.");
   };
+}
+
+function loadOrnateTargetImage(): void {
+  const img = new Image();
+  img.src = "/incoming/Gemini_Generated_Image_z2qg17z2qg17z2qg.png";
+  img.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const cctx = c.getContext("2d");
+    if (!cctx) {
+      ornateTargetLoaded = false;
+      console.log("[loadOrnateTargetImage]", "Could not create canvas context.");
+      return;
+    }
+    cctx.clearRect(0, 0, c.width, c.height);
+    cctx.drawImage(img, 0, 0);
+    const imageData = cctx.getImageData(0, 0, c.width, c.height);
+    const data = imageData.data;
+    let minX = c.width;
+    let minY = c.height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++) {
+        const idx = (y * c.width + x) * 4;
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        const minCh = Math.min(r, g, b);
+        if (minCh >= 244) {
+          data[idx + 3] = 0;
+        } else if (minCh >= 210) {
+          const alphaScale = (244 - minCh) / 34;
+          data[idx + 3] = Math.round(data[idx + 3] * alphaScale);
+        }
+        // Decontaminate white matte fringing on anti-aliased edges.
+        if (data[idx + 3] < 255) {
+          const a = data[idx + 3] / 255;
+          data[idx] = Math.round(data[idx] * a);
+          data[idx + 1] = Math.round(data[idx + 1] * a);
+          data[idx + 2] = Math.round(data[idx + 2] * a);
+        }
+        if (data[idx + 3] > 24) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    cctx.putImageData(imageData, 0, 0);
+    ornateTargetCanvas = c;
+    if (maxX >= minX && maxY >= minY) {
+      ornateTargetBounds = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+    } else {
+      ornateTargetBounds = { x: 0, y: 0, w: c.width, h: c.height };
+    }
+    ornateTargetLoaded = true;
+    console.log("[loadOrnateTargetImage]", "Loaded and keyed ornate target image.");
+  };
+  img.onerror = () => {
+    ornateTargetLoaded = false;
+    ornateTargetCanvas = null;
+    ornateTargetBounds = null;
+    console.log("[loadOrnateTargetImage]", "Could not load ornate target image.");
+  };
+}
+
+function loadUiReplacementAssets(): void {
+  const load = (
+    path: string,
+    onOk: (img: HTMLImageElement) => void,
+    onFail: () => void,
+    label: string,
+  ): void => {
+    const img = new Image();
+    img.src = path;
+    img.onload = () => {
+      onOk(img);
+      console.log("[loadUiReplacementAssets]", "Loaded " + label);
+    };
+    img.onerror = () => {
+      onFail();
+      console.log("[loadUiReplacementAssets]", "Could not load " + label);
+    };
+  };
+
+  load(
+    "/incoming/ui/character_mount.png",
+    (img) => {
+      uiCharacterImage = img;
+      uiCharacterLoaded = true;
+    },
+    () => {
+      uiCharacterImage = null;
+      uiCharacterLoaded = false;
+    },
+    "character_mount.png",
+  );
+
+  load(
+    "/incoming/ui/pull_button.png",
+    (img) => {
+      uiPullButtonImage = img;
+      uiPullButtonLoaded = true;
+      fireBtn.style.background = "transparent";
+      fireBtn.style.border = "none";
+      fireBtn.style.width = "150px";
+      fireBtn.style.height = "150px";
+      fireBtn.style.backgroundImage = "url('/incoming/ui/pull_button.png')";
+      fireBtn.style.backgroundSize = "contain";
+      fireBtn.style.backgroundRepeat = "no-repeat";
+      fireBtn.style.backgroundPosition = "center";
+      fireBtn.style.boxShadow = "none";
+      fireBtn.style.color = "transparent";
+      fireBtn.style.textShadow = "none";
+      fireLabelEl.style.opacity = "0";
+    },
+    () => {
+      uiPullButtonImage = null;
+      uiPullButtonLoaded = false;
+    },
+    "pull_button.png",
+  );
+
+  load(
+    "/incoming/ui/wave_score_panel.png",
+    (img) => {
+      uiWavePanelImage = img;
+      uiWavePanelLoaded = true;
+    },
+    () => {
+      uiWavePanelImage = null;
+      uiWavePanelLoaded = false;
+    },
+    "wave_score_panel.png",
+  );
+
+  load(
+    "/incoming/ui/arrow_inventory_panel.png",
+    (img) => {
+      uiArrowPanelImage = img;
+      uiArrowPanelLoaded = true;
+    },
+    () => {
+      uiArrowPanelImage = null;
+      uiArrowPanelLoaded = false;
+    },
+    "arrow_inventory_panel.png",
+  );
+
+  load(
+    "/incoming/ui/top_global_bar.png",
+    (img) => {
+      uiTopBarImage = img;
+      uiTopBarLoaded = true;
+    },
+    () => {
+      uiTopBarImage = null;
+      uiTopBarLoaded = false;
+    },
+    "top_global_bar.png",
+  );
+}
+
+function loadLoopableBackground(): void {
+  const img = new Image();
+  img.src = "/incoming/background.jpg";
+  img.onload = () => {
+    loopableBackgroundImage = img;
+    loopableBackgroundLoaded = true;
+    console.log("[loadLoopableBackground]", "Loaded loopable background.");
+  };
+  img.onerror = () => {
+    loopableBackgroundImage = null;
+    loopableBackgroundLoaded = false;
+    console.log("[loadLoopableBackground]", "Could not load loopable background.");
+  };
+}
+
+function drawLoopableBackground(): boolean {
+  if (!loopableBackgroundLoaded || !loopableBackgroundImage) return false;
+  const img = loopableBackgroundImage;
+  const scale = h / Math.max(1, img.naturalHeight);
+  const tileW = img.naturalWidth * scale;
+  if (tileW <= 1) return false;
+
+  const scroll = (world.cameraX * pxPerUnit * 0.45) % tileW;
+  const startX = -scroll - tileW;
+  for (let x = startX; x < w + tileW; x += tileW) {
+    ctx.drawImage(img, x, 0, tileW, h);
+  }
+  return true;
+}
+
+function drawUiImage(img: HTMLImageElement | null, loaded: boolean, x: number, y: number, wOut: number, hOut: number): void {
+  if (!loaded || !img) return;
+  ctx.drawImage(img, x, y, wOut, hOut);
 }
 
 function getOpaqueSpriteBounds(img: HTMLImageElement): SpriteBounds {
@@ -1376,16 +1591,6 @@ function fireArrow(): void {
   triggerHaptic("heavy");
 }
 
-function getWindReaderPreviewAngle(): number {
-  const baseAngle = Math.PI / 4;
-  if (wobbleAmount <= 0) return baseAngle;
-
-  const wobbleStrength = Math.max(0, Math.min(1, wobbleAmount / Math.max(0.001, CONFIG.MAX_WOBBLE)));
-  const maxDeviation = CONFIG.MAX_SPREAD_ANGLE * (0.45 + wobbleStrength * 0.85);
-  const wobblePhase = Math.sin(drawElapsed * 0.14);
-  return baseAngle + wobblePhase * maxDeviation;
-}
-
 // ============= SCORE POPUPS =============
 function spawnScorePopup(
   x: number,
@@ -1885,72 +2090,101 @@ function drawWorldTargets(): void {
       continue;
     }
 
-    // Post
-    ctx.strokeStyle = "#5A3A1E";
-    ctx.lineWidth = Math.max(2, 3 * gameScale);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, faceY);
-    ctx.stroke();
+    const drewUiTarget = false;
+    const drewOrnate =
+      !drewUiTarget &&
+      ornateTargetLoaded &&
+      !!ornateTargetCanvas &&
+      !!ornateTargetBounds &&
+      t.kind !== "stoneColumn";
 
-    // Post cap
-    const capW = Math.max(4, 10 * scale);
-    const capH = Math.max(2, 6 * scale);
-    ctx.fillStyle = "#3D2810";
-    ctx.fillRect(-capW / 2, faceY - capH / 2, capW, capH);
-
-    // Slight 3D target depth: rear rim offset.
-    const rimDepth = Math.max(2, 3.2 * gameScale);
-    ctx.fillStyle = t.hit ? "#6A4428" : "#4F2E1D";
-    ctx.beginPath();
-    ctx.arc(rimDepth, faceY + rimDepth * 0.15, visualR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Target face
-    if (t.hit) {
-      const woodGrad = ctx.createRadialGradient(
-        -visualR * 0.2,
-        faceY - visualR * 0.2,
-        visualR * 0.1,
-        0,
-        faceY,
-        visualR,
+    if (drewUiTarget) {
+      // Reserved for a future dedicated target-face asset.
+    } else if (drewOrnate) {
+      const bounds = ornateTargetBounds as SpriteBounds;
+      const targetCenterFromBottomNorm = 0.72;
+      const spriteH = Math.max(46, postHeightPx / targetCenterFromBottomNorm);
+      const spriteW = spriteH * (bounds.w / Math.max(1, bounds.h));
+      const spriteTopY = faceY - spriteH * (1 - targetCenterFromBottomNorm);
+      ctx.drawImage(
+        ornateTargetCanvas as HTMLCanvasElement,
+        bounds.x,
+        bounds.y,
+        bounds.w,
+        bounds.h,
+        -spriteW * 0.5,
+        spriteTopY,
+        spriteW,
+        spriteH,
       );
-      woodGrad.addColorStop(0, "#C99757");
-      woodGrad.addColorStop(0.5, "#A8703F");
-      woodGrad.addColorStop(1, "#7F532E");
-      ctx.fillStyle = woodGrad;
+    } else {
+      // Post
+      ctx.strokeStyle = "#5A3A1E";
+      ctx.lineWidth = Math.max(2, 3 * gameScale);
       ctx.beginPath();
-      ctx.arc(0, faceY, visualR, 0, Math.PI * 2);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, faceY);
+      ctx.stroke();
+
+      // Post cap
+      const capW = Math.max(4, 10 * scale);
+      const capH = Math.max(2, 6 * scale);
+      ctx.fillStyle = "#3D2810";
+      ctx.fillRect(-capW / 2, faceY - capH / 2, capW, capH);
+
+      // Slight 3D target depth: rear rim offset.
+      const rimDepth = Math.max(2, 3.2 * gameScale);
+      ctx.fillStyle = t.hit ? "#6A4428" : "#4F2E1D";
+      ctx.beginPath();
+      ctx.arc(rimDepth, faceY + rimDepth * 0.15, visualR, 0, Math.PI * 2);
       ctx.fill();
 
-      // Subtle wood grain rings.
-      for (let i = 1; i <= 3; i++) {
-        const r = visualR * (0.25 + i * 0.2);
-        ctx.strokeStyle = "rgba(70, 43, 25, 0.35)";
-        ctx.lineWidth = Math.max(0.8, 1.1 * gameScale);
+      // Target face
+      if (t.hit) {
+        const woodGrad = ctx.createRadialGradient(
+          -visualR * 0.2,
+          faceY - visualR * 0.2,
+          visualR * 0.1,
+          0,
+          faceY,
+          visualR,
+        );
+        woodGrad.addColorStop(0, "#C99757");
+        woodGrad.addColorStop(0.5, "#A8703F");
+        woodGrad.addColorStop(1, "#7F532E");
+        ctx.fillStyle = woodGrad;
         ctx.beginPath();
-        ctx.arc(0, faceY, r, 0, Math.PI * 2);
+        ctx.arc(0, faceY, visualR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Subtle wood grain rings.
+        for (let i = 1; i <= 3; i++) {
+          const r = visualR * (0.25 + i * 0.2);
+          ctx.strokeStyle = "rgba(70, 43, 25, 0.35)";
+          ctx.lineWidth = Math.max(0.8, 1.1 * gameScale);
+          ctx.beginPath();
+          ctx.arc(0, faceY, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else {
+        for (let i = 0; i < CONFIG.RING_COLORS.length; i++) {
+          const r = visualR * (1 - i / CONFIG.RING_COLORS.length);
+          if (r < 0.5) continue;
+          ctx.fillStyle = CONFIG.RING_COLORS[i];
+          ctx.beginPath();
+          ctx.arc(0, faceY, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Target outline
+      if (visualR > 1) {
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = Math.max(1, 1.5 * gameScale);
+        ctx.beginPath();
+        ctx.arc(0, faceY, visualR, 0, Math.PI * 2);
         ctx.stroke();
       }
-    } else {
-      for (let i = 0; i < CONFIG.RING_COLORS.length; i++) {
-        const r = visualR * (1 - i / CONFIG.RING_COLORS.length);
-        if (r < 0.5) continue;
-        ctx.fillStyle = CONFIG.RING_COLORS[i];
-        ctx.beginPath();
-        ctx.arc(0, faceY, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Target outline
-    if (visualR > 1) {
-      ctx.strokeStyle = "#333";
-      ctx.lineWidth = Math.max(1, 1.5 * gameScale);
-      ctx.beginPath();
-      ctx.arc(0, faceY, visualR, 0, Math.PI * 2);
-      ctx.stroke();
     }
 
     if (t.embeddedArrow) {
@@ -2744,68 +2978,40 @@ function drawArrows(): void {
 }
 
 function drawWindReaderPreview(): void {
-  if (upgradeLevels.windReader > 0) return;
+  if (upgradeLevels.windReader <= 0) return;
   if (!isDrawing) return;
 
-  const previewAngle = getWindReaderPreviewAngle();
+  const baseAngle = Math.PI / 4;
   const spawnPoint = getArrowSpawnPointWorld();
   const speed = getArrowLaunchSpeed(Math.max(drawProgress, CONFIG.MIN_DRAW_TO_FIRE));
-  let dx = spawnPoint.worldX - world.cameraX;
-  if (dx > world.width / 2) dx -= world.width;
-  if (dx < -world.width / 2) dx += world.width;
-  const anchorX = horse.screenX + dx * pxPerUnit;
-  const anchorY = groundY - spawnPoint.height * pxPerUnit;
-
-  // Follow the same ballistic path logic as the old reader, but project to a fixed orbit radius.
   let simX = spawnPoint.worldX;
   let simY = spawnPoint.height;
-  let simVx = world.speed + speed * Math.cos(previewAngle);
-  let simVy = speed * Math.sin(previewAngle);
-  const stepDt = 18;
-  const previewSteps = 2 + Math.floor(Math.max(0, Math.min(1, drawProgress)) * 8);
+  let simVx = world.speed + speed * Math.cos(baseAngle);
+  let simVy = speed * Math.sin(baseAngle);
+  const stepDt = 28;
 
-  let pathX = anchorX;
-  let pathY = anchorY;
-  for (let i = 0; i < previewSteps; i++) {
+  ctx.save();
+  ctx.setLineDash([6 * gameScale, 7 * gameScale]);
+  ctx.lineWidth = Math.max(1.2, 1.9 * gameScale);
+  ctx.strokeStyle = "rgba(155, 240, 255, 0.7)";
+  ctx.beginPath();
+
+  for (let i = 0; i < 26; i++) {
     simVy -= CONFIG.ARROW_GRAVITY * stepDt;
     simVx += getCrosswindAccel() * stepDt;
     simX += simVx * stepDt;
     simY += simVy * stepDt;
 
-    let simDx = simX - world.cameraX;
-    if (simDx > world.width / 2) simDx -= world.width;
-    if (simDx < -world.width / 2) simDx += world.width;
-    pathX = horse.screenX + simDx * pxPerUnit;
-    pathY = groundY - simY * pxPerUnit;
+    let dx = simX - world.cameraX;
+    if (dx > world.width / 2) dx -= world.width;
+    if (dx < -world.width / 2) dx += world.width;
+    const sx = horse.screenX + dx * pxPerUnit;
+    const sy = groundY - simY * pxPerUnit;
+    if (i === 0) ctx.moveTo(sx, sy);
+    else ctx.lineTo(sx, sy);
+    if (sx < -120 || sx > w + 120 || sy < -120 || sy > h + 120) break;
   }
 
-  const orbitAngle = Math.atan2(anchorY - pathY, pathX - anchorX);
-  const orbitRadius = Math.max(36, 58 * gameScale);
-  const triangleLength = Math.max(12, 18 * gameScale);
-  const triangleHalfWidth = Math.max(5, 8 * gameScale);
-
-  const tipX = anchorX + Math.cos(orbitAngle) * orbitRadius;
-  const tipY = anchorY - Math.sin(orbitAngle) * orbitRadius;
-  const baseCenterX = tipX - Math.cos(orbitAngle) * triangleLength;
-  const baseCenterY = tipY + Math.sin(orbitAngle) * triangleLength;
-  const perpX = -Math.sin(orbitAngle);
-  const perpY = -Math.cos(orbitAngle);
-
-  const leftX = baseCenterX + perpX * triangleHalfWidth;
-  const leftY = baseCenterY + perpY * triangleHalfWidth;
-  const rightX = baseCenterX - perpX * triangleHalfWidth;
-  const rightY = baseCenterY - perpY * triangleHalfWidth;
-
-  ctx.save();
-  ctx.fillStyle = "rgba(142, 238, 255, 0.85)";
-  ctx.strokeStyle = "rgba(20, 40, 52, 0.95)";
-  ctx.lineWidth = Math.max(1, 1.6 * gameScale);
-  ctx.beginPath();
-  ctx.moveTo(tipX, tipY);
-  ctx.lineTo(leftX, leftY);
-  ctx.lineTo(rightX, rightY);
-  ctx.closePath();
-  ctx.fill();
   ctx.stroke();
   ctx.restore();
 }
@@ -3092,6 +3298,43 @@ function drawHUD(): void {
       true,
     );
   }
+
+  if (uiWavePanelLoaded || uiArrowPanelLoaded || uiTopBarLoaded) {
+    const wavePanelW = Math.max(150, 188 * gameScale);
+    if (uiWavePanelLoaded && uiWavePanelImage) {
+      const wavePanelH = wavePanelW * (uiWavePanelImage.naturalHeight / Math.max(1, uiWavePanelImage.naturalWidth));
+      drawUiImage(uiWavePanelImage, uiWavePanelLoaded, hudPanelX - 4, hudPanelY - 8, wavePanelW, wavePanelH);
+    }
+
+    const arrowPanelW = Math.max(140, 172 * gameScale);
+    if (uiArrowPanelLoaded && uiArrowPanelImage) {
+      const arrowPanelH = arrowPanelW * (uiArrowPanelImage.naturalHeight / Math.max(1, uiArrowPanelImage.naturalWidth));
+      drawUiImage(
+        uiArrowPanelImage,
+        uiArrowPanelLoaded,
+        quiverBgX - Math.max(8, 10 * gameScale),
+        quiverBgY - Math.max(8, 10 * gameScale),
+        arrowPanelW,
+        arrowPanelH,
+      );
+    }
+
+    const topBarW = Math.min(w * 0.36, 430 * gameScale);
+    if (uiTopBarLoaded && uiTopBarImage) {
+      const topBarH = topBarW * (uiTopBarImage.naturalHeight / Math.max(1, uiTopBarImage.naturalWidth));
+      drawUiImage(uiTopBarImage, uiTopBarLoaded, w * 0.5 - topBarW * 0.5, 18, topBarW, topBarH);
+    }
+  }
+}
+
+function drawUiCharacterOverlay(): void {
+  if (!uiCharacterLoaded || !uiCharacterImage) return;
+  const spriteW = Math.max(140, 300 * gameScale);
+  const spriteH = spriteW * (uiCharacterImage.naturalHeight / Math.max(1, uiCharacterImage.naturalWidth));
+  const baseY = groundY + Math.max(14, 20 * gameScale);
+  const x = horse.screenX - spriteW * 0.58;
+  const y = baseY - spriteH;
+  drawUiImage(uiCharacterImage, uiCharacterLoaded, x, y, spriteW, spriteH);
 }
 
 // ============= FIRE BUTTON DOM UPDATE =============
@@ -3639,16 +3882,22 @@ function gameLoop(timestamp: number): void {
 
   ctx.clearRect(0, 0, w, h);
 
-  drawSky();
-  drawMountains();
-  for (const c of clouds) drawCloud(c);
-  drawGround();
+  const drewLoopableBg = drawLoopableBackground();
+  if (!drewLoopableBg) {
+    drawSky();
+    drawMountains();
+    for (const c of clouds) drawCloud(c);
+    drawGround();
+  } else {
+    for (const c of clouds) drawCloud(c);
+  }
   drawWorldTargets();
   drawRingBursts();
   drawPerfectBursts();
   drawWindReaderPreview();
   drawArrows();
   drawHorseAndArcher();
+  drawUiCharacterOverlay();
   drawScorePopups();
 
   if (gameState === "PLAYING") {
@@ -3664,6 +3913,9 @@ function init(): void {
   window.addEventListener("resize", resizeCanvas);
 
   loadAudio();
+  loadOrnateTargetImage();
+  loadUiReplacementAssets();
+  loadLoopableBackground();
   updateStartTip();
   setupInputHandlers();
   setupUpgradeButtons();
