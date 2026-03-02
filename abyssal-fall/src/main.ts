@@ -39,7 +39,16 @@ interface ChunkPlatformCache {
 }
 
 type ShopSide = DoorwaySide;
-type RoomItemId = "hp_up" | "ammo_up" | "stomp_reload" | "chest_cache" | "powerup_cache";
+type RoomItemId =
+  | "hp_up"
+  | "ammo_up"
+  | "stomp_reload"
+  | "deep_tank"
+  | "vampiric_gel"
+  | "salvage_bonus"
+  | "rapid_chamber"
+  | "chest_cache"
+  | "powerup_cache";
 
 interface RoomItem {
   id: RoomItemId;
@@ -63,6 +72,10 @@ interface RoomPowerupPickup {
 
 interface RunUpgrades {
   stompReloadOneAmmo: boolean;
+  deepTankPlusTwoAmmo: boolean;
+  vampiricGel: boolean;
+  salvageBreakablesDropGems: boolean;
+  rapidChamber: boolean;
 }
 
 interface RoomEntryContext {
@@ -198,7 +211,18 @@ class Game {
   private frameCount: number = 0;
   private roomActionWasPressed: boolean = false;
 
-  private readonly SHOP_ITEM_COST: number = 20;
+  private readonly SHOP_HP_UP_COST: number = 50;
+  private readonly SHOP_AMMO_UP_COST: number = 50;
+  private readonly SHOP_STOMP_RELOAD_COST: number = 100;
+  private readonly SHOP_DEEP_TANK_COST: number = 100;
+  private readonly SHOP_VAMPIRIC_GEL_COST: number = 100;
+  private readonly SHOP_SALVAGE_BONUS_COST: number = 50;
+  private readonly SHOP_RAPID_CHAMBER_COST: number = 50;
+  private readonly VAMPIRIC_GEL_HEAL_CHANCE: number = 0.05;
+  private readonly SALVAGE_BREAKABLE_GEM_CHANCE: number = 0.45;
+  private readonly SHOP_TEST_BREAKABLE_RESPAWN_FRAMES: number = 35;
+  private readonly SHOP_TEST_MODE: boolean =
+    new URLSearchParams(window.location.search).get("shoptest") === "1";
   private readonly SHOP_ROOM_LEFT: number = 54;
   private readonly SHOP_ROOM_RIGHT: number = CONFIG.INTERNAL_WIDTH - 54;
   private readonly SHOP_ROOM_TOP: number = 98;
@@ -228,7 +252,15 @@ class Game {
   private roomPowerupPickup: RoomPowerupPickup | null = null;
   private selectedRoomItemId: RoomItemId | null = null;
   private previousRoomItemId: RoomItemId | null = null;
-  private runUpgrades: RunUpgrades = { stompReloadOneAmmo: false };
+  private shopTestBreakableDestroyed: boolean = false;
+  private shopTestBreakableRespawnFrames: number = 0;
+  private runUpgrades: RunUpgrades = {
+    stompReloadOneAmmo: false,
+    deepTankPlusTwoAmmo: false,
+    vampiricGel: false,
+    salvageBreakablesDropGems: false,
+    rapidChamber: false,
+  };
   private worldDoorwaySystem: WorldDoorwaySystem;
   private activeWorldDoorways: WorldDoorway[] = [];
   
@@ -277,6 +309,9 @@ class Game {
   private shopHpIconImg: HTMLImageElement | null = null;
   private shopAmmoIconImg: HTMLImageElement | null = null;
   private shopUtilityIconImg: HTMLImageElement | null = null;
+  private shopRapidIconImg: HTMLImageElement | null = null;
+  private shopVampiricIconImg: HTMLImageElement | null = null;
+  private shopSalvageIconImg: HTMLImageElement | null = null;
   private chestIconImg: HTMLImageElement | null = null;
   private menuCrabImg: HTMLImageElement | null = null;
   private menuCrabFrame: number = 0;
@@ -1173,6 +1208,24 @@ class Game {
     };
     this.shopUtilityIconImg.src = "assets/shop-icons/stomp_utility_spritesheet.png";
 
+    this.shopRapidIconImg = new Image();
+    this.shopRapidIconImg.onload = () => {
+      console.log("[Game] Shop rapid chamber icon loaded");
+    };
+    this.shopRapidIconImg.src = "assets/shop-icons/rapid_chamber.png";
+
+    this.shopVampiricIconImg = new Image();
+    this.shopVampiricIconImg.onload = () => {
+      console.log("[Game] Shop vampiric gel icon loaded");
+    };
+    this.shopVampiricIconImg.src = "assets/shop-icons/heart_red.png";
+
+    this.shopSalvageIconImg = new Image();
+    this.shopSalvageIconImg.onload = () => {
+      console.log("[Game] Shop salvage bonus icon loaded");
+    };
+    this.shopSalvageIconImg.src = "assets/shop-icons/salvage_bonus.png";
+
     this.chestIconImg = new Image();
     this.chestIconImg.onload = () => {
       console.log("[Game] Chest icon loaded");
@@ -1836,7 +1889,30 @@ class Game {
   private onPlayerShoot(): void {
     // Query powerup manager for special shot effects
     this.lastShotEffects = this.powerUpManager.onPlayerShoot();
-    
+
+    // Show ammo depletion feedback when the last bullet is spent.
+    const player = this.playerController.getPlayer();
+    if (player.ammo <= 0) {
+      this.spawnDamageText(player.x, player.y - player.height * 0.8, "Empty!");
+    }
+
+    // Laser shots replace normal bubble bullets entirely.
+    if (this.lastShotEffects.triggerLaser) {
+      const bullets = this.playerController.getBullets();
+      if (bullets.length > 0) {
+        this.playerController.removeBullet(bullets.length - 1);
+      }
+      this.powerUpManager.spawnLaserBeam(
+        player.x,
+        player.y,
+        this.cameraY + CONFIG.INTERNAL_HEIGHT + 100
+      );
+      
+      // Play laser sound
+      this.playLaserSound();
+      return;
+    }
+
     // Tag the bullet that was just created with powerup flags
     this.playerController.tagLastBullet(
       this.lastShotEffects.triggerBlast && this.powerUpManager.hasPowerUp("BLAST"),
@@ -1845,24 +1921,6 @@ class Game {
     
     // Play bullet sound
     this.playBulletSound();
-
-    // Show ammo depletion feedback when the last bullet is spent.
-    const player = this.playerController.getPlayer();
-    if (player.ammo <= 0) {
-      this.spawnDamageText(player.x, player.y - player.height * 0.8, "Empty!");
-    }
-    
-    // If laser is active, fire a laser beam immediately
-    if (this.lastShotEffects.triggerLaser) {
-      this.powerUpManager.spawnLaserBeam(
-        player.x,
-        player.y + player.height / 2,
-        this.cameraY + CONFIG.INTERNAL_HEIGHT + 100
-      );
-      
-      // Play laser sound
-      this.playLaserSound();
-    }
   }
   
   private updateScreenShake(): void {
@@ -2228,7 +2286,16 @@ class Game {
     this.selectedRoomItemId = null;
     this.roomItems = [];
     this.roomPowerupPickup = null;
-    this.runUpgrades = { stompReloadOneAmmo: false };
+    this.shopTestBreakableDestroyed = false;
+    this.shopTestBreakableRespawnFrames = 0;
+    this.runUpgrades = {
+      stompReloadOneAmmo: false,
+      deepTankPlusTwoAmmo: false,
+      vampiricGel: false,
+      salvageBreakablesDropGems: false,
+      rapidChamber: false,
+    };
+    this.playerController.setShootCooldownFrames(CONFIG.SHOOT_COOLDOWN);
     this.activeWorldDoorways = [];
     this.worldDoorwaySystem.reset();
     this.clearPlatformChunkCache();
@@ -2263,6 +2330,29 @@ class Game {
     document.getElementById("ammo-slider")?.classList.remove("hidden");
     document.getElementById("hp-bar")?.classList.remove("hidden");
     document.getElementById("powerup-bar")?.classList.add("hidden");
+
+    if (this.SHOP_TEST_MODE) {
+      console.log("[startGame]", "Shop test mode enabled");
+      this.gems = 999;
+      const player = this.playerController.getPlayer();
+      player.hp = Math.max(1, player.maxHp - 1);
+      this.previousHp = player.hp;
+      this.roomEntryContext = {
+        returnX: player.x,
+        returnY: player.y,
+        returnVx: 0,
+        returnVy: 0,
+      };
+      this.stopLoadingMusic();
+      this.stopGameOverMusic();
+      this.stopAmbience();
+      this.stopShopMusic();
+      this.enterSpecialRoom("shop", "left");
+      this.powerUpManager.grantPowerUp("BLAST");
+      this.triggerPowerUpAnnouncement("BLAST");
+      this.updateHUD();
+      return;
+    }
     
     // Start ambience music
     this.stopLoadingMusic();
@@ -2511,6 +2601,8 @@ class Game {
       }
     }
 
+    this.updateShopTestBreakableRespawn();
+
     this.updateDroppedGems();
     const playerRect = this.playerController.getRect();
     for (let i = this.droppedGems.length - 1; i >= 0; i--) {
@@ -2521,12 +2613,16 @@ class Game {
       if (this.checkGemPickup(playerRect, gem)) {
         gem.collected = true;
         const comboMultiplier = this.playerController.getComboMultiplier();
-        const points = gem.value * comboMultiplier;
-        this.score += points;
-        this.scoreGems += points;
-        this.gems++;
-        this.gemCollectCount++;
-        this.playGemSound();
+        if (this.isHeartPickup(gem)) {
+          this.collectHeartPickup(gem);
+        } else {
+          const points = gem.value * comboMultiplier;
+          this.score += points;
+          this.scoreGems += points;
+          this.gems++;
+          this.gemCollectCount++;
+          this.playGemSound();
+        }
         this.releaseDroppedGem(i);
       }
     }
@@ -2583,8 +2679,27 @@ class Game {
     const corridorY = entrance.y;
     const corridorW = this.ROOM_CORRIDOR_DEPTH;
     const corridorH = entrance.height;
+    const floorTop = bottom - wallThickness;
     add(corridorX, corridorY - 6, corridorW, 6, true);
     add(corridorX, corridorY + corridorH - 6 - CONFIG.WALL_BLOCK_SIZE, corridorW, 6, true);
+
+    if (this.isShopTestRoomActive()) {
+      const lowerPlatform = this.getShopTestLowerPlatformRect();
+      add(lowerPlatform.x, lowerPlatform.y, lowerPlatform.width, lowerPlatform.height);
+      if (!this.shopTestBreakableDestroyed) {
+        const breakable = this.getShopTestBreakableRect();
+        segments.push({
+          x: breakable.x,
+          y: breakable.y,
+          width: breakable.width,
+          height: breakable.height,
+          isWall: true,
+          breakable: true,
+          hp: 1,
+          chunkIndex: -1,
+        });
+      }
+    }
 
     return segments;
   }
@@ -2605,37 +2720,157 @@ class Game {
       rectA.y + rectA.height > rectB.y;
   }
 
-  private createShopRoomItems(): RoomItem[] {
-    const itemWidth = 44;
-    const itemHeight = 44;
-    const floorTop = this.SHOP_ROOM_BOTTOM - CONFIG.WALL_BLOCK_SIZE;
-    const itemY = floorTop - itemHeight - 8;
+  private buildShopItemPool(itemWidth: number, itemHeight: number, itemY: number): RoomItem[] {
     return [
       {
         id: "hp_up",
         name: "+1 MAX HP",
         description: "Increase maximum HP by 1 and heal 1 HP",
-        cost: this.SHOP_ITEM_COST,
+        cost: this.SHOP_HP_UP_COST,
         soldOut: false,
-        rect: { x: 130, y: itemY, width: itemWidth, height: itemHeight },
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
       },
       {
         id: "ammo_up",
         name: "+1 MAX AMMO",
         description: "Increase max ammo by 1 and reload 1 ammo",
-        cost: this.SHOP_ITEM_COST,
+        cost: this.SHOP_AMMO_UP_COST,
         soldOut: false,
-        rect: { x: 202, y: itemY, width: itemWidth, height: itemHeight },
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
       },
       {
         id: "stomp_reload",
         name: "STOMP RELOAD",
         description: "Jumping on enemy heads reloads 1 ammo",
-        cost: this.SHOP_ITEM_COST,
+        cost: this.SHOP_STOMP_RELOAD_COST,
         soldOut: this.runUpgrades.stompReloadOneAmmo,
-        rect: { x: 274, y: itemY, width: itemWidth, height: itemHeight },
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "deep_tank",
+        name: "DEEP TANK",
+        description: "Increase max ammo by 2 and reload 2 ammo",
+        cost: this.SHOP_DEEP_TANK_COST,
+        soldOut: this.runUpgrades.deepTankPlusTwoAmmo,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "vampiric_gel",
+        name: "LIFESTEAL CHANCE",
+        description: "5% chance to spawn a heart on enemy kill",
+        cost: this.SHOP_VAMPIRIC_GEL_COST,
+        soldOut: this.runUpgrades.vampiricGel,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "salvage_bonus",
+        name: "SALVAGE BONUS",
+        description: "Breakable blocks can spawn bonus gems",
+        cost: this.SHOP_SALVAGE_BONUS_COST,
+        soldOut: this.runUpgrades.salvageBreakablesDropGems,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "rapid_chamber",
+        name: "RAPID CHAMBER",
+        description: "Fire rate increased while airborne",
+        cost: this.SHOP_RAPID_CHAMBER_COST,
+        soldOut: this.runUpgrades.rapidChamber,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
       },
     ];
+  }
+
+  private createShopRoomItems(): RoomItem[] {
+    const itemWidth = 40;
+    const itemHeight = 40;
+    const itemGap = 12;
+    const floorTop = this.SHOP_ROOM_BOTTOM - CONFIG.WALL_BLOCK_SIZE;
+    const itemY = floorTop - itemHeight - 8;
+    const roomMidX = (this.SHOP_ROOM_LEFT + this.SHOP_ROOM_RIGHT) * 0.5;
+    const shownCount = 3;
+    const rowWidth = shownCount * itemWidth + (shownCount - 1) * itemGap;
+    const rowStartX = roomMidX - rowWidth * 0.5;
+    const pool = this.buildShopItemPool(itemWidth, itemHeight, itemY);
+    const available = pool.filter((item) => !item.soldOut);
+    const candidates = (available.length >= shownCount ? available : pool).slice();
+
+    // Fisher-Yates shuffle for unbiased random kiosk selection.
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = candidates[i];
+      candidates[i] = candidates[j];
+      candidates[j] = tmp;
+    }
+
+    return candidates.slice(0, shownCount).map((item, idx) => ({
+      ...item,
+      rect: {
+        x: rowStartX + idx * (itemWidth + itemGap),
+        y: itemY,
+        width: itemWidth,
+        height: itemHeight,
+      },
+    }));
+  }
+
+  private createShopTestRoomItems(): RoomItem[] {
+    const itemWidth = 40;
+    const itemHeight = 40;
+    const itemGap = 12;
+    const floorTop = this.SHOP_ROOM_BOTTOM - CONFIG.WALL_BLOCK_SIZE;
+    const bottomRowY = floorTop - itemHeight - 8;
+    const topRowY = bottomRowY - itemHeight - 12;
+    const roomMidX = (this.SHOP_ROOM_LEFT + this.SHOP_ROOM_RIGHT) * 0.5;
+    const topRowCount = 4;
+    const bottomRowCount = 3;
+    const topRowWidth = topRowCount * itemWidth + (topRowCount - 1) * itemGap;
+    const bottomRowWidth = bottomRowCount * itemWidth + (bottomRowCount - 1) * itemGap;
+    const topRowStartX = roomMidX - topRowWidth * 0.5;
+    const bottomRowStartX = roomMidX - bottomRowWidth * 0.5;
+    const pool = this.buildShopItemPool(itemWidth, itemHeight, topRowY);
+    const topRow = pool.slice(0, 4).map((item, idx) => ({
+      ...item,
+      rect: { x: topRowStartX + idx * (itemWidth + itemGap), y: topRowY, width: itemWidth, height: itemHeight },
+    }));
+    const bottomRow = pool.slice(4).map((item, idx) => ({
+      ...item,
+      rect: { x: bottomRowStartX + idx * (itemWidth + itemGap), y: bottomRowY, width: itemWidth, height: itemHeight },
+    }));
+    return topRow.concat(bottomRow);
+  }
+
+  private isShopTestRoomActive(): boolean {
+    return this.SHOP_TEST_MODE && this.currentRoomType === "shop";
+  }
+
+  private getShopTestLowerPlatformRect(): { x: number; y: number; width: number; height: number } {
+    const width = 184;
+    const height = 16;
+    const wallThickness = CONFIG.WALL_BLOCK_SIZE;
+    const floorTop = this.SHOP_ROOM_BOTTOM - wallThickness;
+    const x = (this.SHOP_ROOM_LEFT + this.SHOP_ROOM_RIGHT) * 0.5 - width * 0.5;
+    const y = floorTop - 64;
+    return { x, y, width, height };
+  }
+
+  private getShopTestBreakableRect(): { x: number; y: number; width: number; height: number } {
+    const lower = this.getShopTestLowerPlatformRect();
+    const width = 28;
+    const height = 22;
+    const x = lower.x + (lower.width - width) * 0.5;
+    const y = lower.y - height;
+    return { x, y, width, height };
+  }
+
+  private updateShopTestBreakableRespawn(): void {
+    if (!this.isShopTestRoomActive()) return;
+    if (!this.shopTestBreakableDestroyed) return;
+    if (this.shopTestBreakableRespawnFrames > 0) {
+      this.shopTestBreakableRespawnFrames--;
+      return;
+    }
+    this.shopTestBreakableDestroyed = false;
   }
 
   private createChestRoomItems(): RoomItem[] {
@@ -2676,6 +2911,10 @@ class Game {
     this.roomPowerupPickup = null;
     if (roomType === "shop") {
       this.roomItems = this.createShopRoomItems();
+      if (this.SHOP_TEST_MODE) {
+        this.shopTestBreakableDestroyed = false;
+        this.shopTestBreakableRespawnFrames = 0;
+      }
     } else if (roomType === "chest") {
       this.roomItems = this.createChestRoomItems();
     } else {
@@ -2704,6 +2943,7 @@ class Game {
     this.selectedRoomItemId = null;
     this.roomItems = [];
     this.roomPowerupPickup = null;
+    this.shopTestBreakableRespawnFrames = 0;
 
     const player = this.playerController.getPlayer();
     const returnX = this.roomEntryContext ? this.roomEntryContext.returnX : player.x;
@@ -2816,6 +3056,19 @@ class Game {
       player.ammo = Math.max(player.ammo, Math.min(player.maxAmmo, beforeAmmo + 1));
     } else if (item.id === "stomp_reload") {
       this.runUpgrades.stompReloadOneAmmo = true;
+    } else if (item.id === "deep_tank") {
+      this.runUpgrades.deepTankPlusTwoAmmo = true;
+      const beforeAmmo = this.playerController.getPlayer().ammo;
+      this.playerController.addMaxAmmo(2);
+      const player = this.playerController.getPlayer();
+      player.ammo = Math.max(player.ammo, Math.min(player.maxAmmo, beforeAmmo + 2));
+    } else if (item.id === "vampiric_gel") {
+      this.runUpgrades.vampiricGel = true;
+    } else if (item.id === "salvage_bonus") {
+      this.runUpgrades.salvageBreakablesDropGems = true;
+    } else if (item.id === "rapid_chamber") {
+      this.runUpgrades.rapidChamber = true;
+      this.playerController.setShootCooldownFrames(5);
     } else if (item.id === "chest_cache") {
       this.triggerChestGemBurst(item.rect.x + item.rect.width / 2, item.rect.y + item.rect.height / 2);
       this.playTreasureRingSound();
@@ -3167,7 +3420,7 @@ class Game {
 
     if (nearestFloor) {
       gem.y = nearestFloor.y - halfH - 4;
-      gem.vy = Math.min(gem.vy, -3.2);
+      gem.vy = Math.min(gem.vy ?? 0, -3.2);
     }
 
     const pushRight = nearestLeftGap <= nearestRightGap;
@@ -3348,6 +3601,17 @@ class Game {
       
       for (const platform of nearbyPlatforms) {
         if (this.checkCollision(bullet, platform)) {
+          const impactX = bullet.x;
+          const impactY = bullet.y;
+
+          // Blast shots should explode on terrain impact too, not only enemy impact.
+          if (bullet.isBlast && this.powerUpManager.hasPowerUp("BLAST")) {
+            this.powerUpManager.spawnBlastExplosion(impactX, impactY);
+            this.playBlastSound();
+            this.addScreenShake(8);
+            this.triggerHaptic("medium");
+          }
+
           if (platform.breakable) {
             // Damage breakable platform
             platform.hp--;
@@ -3396,7 +3660,7 @@ class Game {
           }
           
           // Trigger blast explosion if blast powerup shot
-          if (this.lastShotEffects.triggerBlast && this.powerUpManager.hasPowerUp("BLAST")) {
+          if (bullet.isBlast && this.powerUpManager.hasPowerUp("BLAST")) {
             this.powerUpManager.spawnBlastExplosion(hitX, hitY);
             this.playBlastSound();
             this.addScreenShake(8);
@@ -3404,7 +3668,7 @@ class Game {
           }
           
           // Trigger lightning chain if lightning powerup shot
-          if (this.lastShotEffects.triggerLightning && this.powerUpManager.hasPowerUp("LIGHTNING")) {
+          if (bullet.isLightning && this.powerUpManager.hasPowerUp("LIGHTNING")) {
             this.triggerLightningChain(hitX, hitY);
             this.addScreenShake(5);
             this.triggerHaptic("light");
@@ -3545,18 +3809,47 @@ class Game {
     this.addScreenShake(2);
 
     // Remove platform from its chunk
-    const chunk = this.levelSpawner.getChunk(platform.chunkIndex);
-    const index = chunk.platforms.indexOf(platform);
-    if (index !== -1) {
-      chunk.platforms.splice(index, 1);
-      this.markChunkPlatformCacheDirty(platform.chunkIndex);
-      this.rebuildPlatformBuckets();
+    if (platform.chunkIndex >= 0) {
+      const chunk = this.levelSpawner.getChunk(platform.chunkIndex);
+      const index = chunk.platforms.indexOf(platform);
+      if (index !== -1) {
+        chunk.platforms.splice(index, 1);
+        this.markChunkPlatformCacheDirty(platform.chunkIndex);
+        this.rebuildPlatformBuckets();
+      }
+    } else if (this.isShopTestRoomActive()) {
+      this.shopTestBreakableDestroyed = true;
+      this.shopTestBreakableRespawnFrames = this.SHOP_TEST_BREAKABLE_RESPAWN_FRAMES;
     }
     
     // Award some score for breaking blocks
     this.score += 2;
     this.scoreBreakables += 2;
     this.breakableDestroyCount++;
+    if (this.runUpgrades.salvageBreakablesDropGems && Math.random() < this.SALVAGE_BREAKABLE_GEM_CHANCE) {
+      const isLargeGem = Math.random() < 0.2;
+      const gemSize = isLargeGem ? 18 : 14;
+      const gemValue = isLargeGem ? CONFIG.SCORE_PER_GEM * 2 : CONFIG.SCORE_PER_GEM;
+      this.droppedGems.push({
+        x: cx + (Math.random() - 0.5) * 10,
+        y: cy - 8,
+        width: gemSize,
+        height: gemSize,
+        value: gemValue,
+        collected: false,
+        chunkIndex: platform.chunkIndex,
+        bobOffset: Math.random() * Math.PI * 2,
+        dropped: true,
+        vx: (Math.random() - 0.5) * 2.8,
+        vy: -(2 + Math.random() * 1.8),
+        life: 0,
+        settled: false,
+        settleFrames: 0,
+        fadeTimer: 0,
+        collectDelay: 14,
+        isLarge: isLargeGem,
+      });
+    }
     this.triggerHaptic("light");
   }
   
@@ -3820,12 +4113,16 @@ class Game {
       if (this.checkGemPickup(playerRect, gem)) {
         gem.collected = true;
         const comboMultiplier = this.playerController.getComboMultiplier();
-        const points = gem.value * comboMultiplier;
-        this.score += points;
-        this.scoreGems += points;
-        this.gems++;
-        this.gemCollectCount++;
-        this.playGemSound();
+        if (this.isHeartPickup(gem)) {
+          this.collectHeartPickup(gem);
+        } else {
+          const points = gem.value * comboMultiplier;
+          this.score += points;
+          this.scoreGems += points;
+          this.gems++;
+          this.gemCollectCount++;
+          this.playGemSound();
+        }
         this.releaseDroppedGem(i);
       }
     }
@@ -3841,6 +4138,22 @@ class Game {
       playerRect.y < gemTop + gem.height &&
       playerRect.y + playerRect.height > gemTop
     );
+  }
+
+  private isHeartPickup(gem: Gem): boolean {
+    return gem.value <= 0;
+  }
+
+  private collectHeartPickup(gem: Gem): void {
+    const player = this.playerController.getPlayer();
+    if (player.hp < player.maxHp) {
+      player.hp = Math.min(player.maxHp, player.hp + 1);
+      this.previousHp = player.hp;
+      this.triggerHaptic("success");
+    } else {
+      this.triggerHaptic("light");
+    }
+    this.playGemSound();
   }
   
   private bounceOnEnemy(enemy: BaseEnemy, index: number): void {
@@ -4216,9 +4529,11 @@ class Game {
   
   private processBlastCollisions(): void {
     const explosions = this.powerUpManager.getBlastExplosions();
+    const blastedBreakables = new Set<Platform>();
     
     for (const exp of explosions) {
       if (exp.frame !== 5) continue; // Only deal damage on frame 5 (middle of expansion)
+      const radiusSq = exp.maxRadius * exp.maxRadius;
       
       for (let i = this.activeEnemies.length - 1; i >= 0; i--) {
         const enemy = this.activeEnemies[i];
@@ -4233,6 +4548,21 @@ class Game {
             this.killEnemy(enemy, i);
           }
         }
+      }
+
+      // Blast utility role: instantly clear any breakables caught in the blast radius.
+      for (let i = this.activePlatforms.length - 1; i >= 0; i--) {
+        const platform = this.activePlatforms[i];
+        if (!platform.breakable || blastedBreakables.has(platform)) continue;
+
+        const closestX = Math.max(platform.x, Math.min(exp.x, platform.x + platform.width));
+        const closestY = Math.max(platform.y, Math.min(exp.y, platform.y + platform.height));
+        const dx = exp.x - closestX;
+        const dy = exp.y - closestY;
+        if (dx * dx + dy * dy > radiusSq) continue;
+
+        blastedBreakables.add(platform);
+        this.destroyPlatform(platform);
       }
     }
   }
@@ -4351,6 +4681,12 @@ class Game {
     this.score += points;
     this.scoreEnemies += points;
     this.enemyKillCount++;
+    if (this.runUpgrades.vampiricGel) {
+      const player = this.playerController.getPlayer();
+      if (player.hp < player.maxHp && Math.random() < this.VAMPIRIC_GEL_HEAL_CHANCE) {
+        this.spawnLifestealHeartDrop(cx, cy, enemy.chunkIndex);
+      }
+    }
     
     // Small screen shake on enemy death
     this.addScreenShake(3);
@@ -4558,6 +4894,29 @@ class Game {
       dropped: true,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - 1.0,
+      life: 0,
+      settled: false,
+      settleFrames: 0,
+      fadeTimer: 0,
+      collectDelay: 8,
+      isLarge: false,
+    });
+  }
+
+  private spawnLifestealHeartDrop(x: number, y: number, chunkIndex: number): void {
+    const heartSize = 16;
+    this.droppedGems.push({
+      x: x + (Math.random() - 0.5) * 10,
+      y: y - 8,
+      width: heartSize,
+      height: heartSize,
+      value: 0,
+      collected: false,
+      chunkIndex,
+      bobOffset: Math.random() * Math.PI * 2,
+      dropped: true,
+      vx: (Math.random() - 0.5) * 1.6,
+      vy: -(1.6 + Math.random() * 1.2),
       life: 0,
       settled: false,
       settleFrames: 0,
@@ -5110,6 +5469,7 @@ class Game {
       // Draw bullets (bubbles)
       this.drawBullets();
       this.drawEnemyBullets();
+      this.drawLaserBeams();
       
       // Draw powerup orbs
       this.drawPowerUpOrbs();
@@ -5132,13 +5492,13 @@ class Game {
       this.drawShields();
       this.drawBlastExplosions();
       this.drawLightningChains();
-      this.drawLaserBeams();
       
       ctx.restore();
     } else if (this.gameState === "shop") {
       this.drawSpecialRoom();
       this.drawGems();
       this.drawBullets();
+      this.drawLaserBeams();
       this.drawPlayer();
       if (this.debugDrawHitboxes) {
         this.drawDebugHitboxes();
@@ -5147,7 +5507,6 @@ class Game {
       this.drawShields();
       this.drawBlastExplosions();
       this.drawLightningChains();
-      this.drawLaserBeams();
       this.drawSpecialRoomOverlay();
     }
     
@@ -5375,8 +5734,27 @@ class Game {
       addWall(right - wallThickness, entrance.y + entrance.height, wallThickness, bottom - (entrance.y + entrance.height));
     }
 
+    if (this.isShopTestRoomActive()) {
+      const lowerPlatform = this.getShopTestLowerPlatformRect();
+      addWall(lowerPlatform.x, lowerPlatform.y, lowerPlatform.width, lowerPlatform.height);
+    }
+
     for (const wall of wallSegments) {
       this.drawPlatformGeometry(ctx, wall);
+    }
+
+    if (this.isShopTestRoomActive() && !this.shopTestBreakableDestroyed) {
+      const breakable = this.getShopTestBreakableRect();
+      this.drawPlatformGeometry(ctx, {
+        x: breakable.x,
+        y: breakable.y,
+        width: breakable.width,
+        height: breakable.height,
+        isWall: true,
+        breakable: true,
+        hp: 1,
+        chunkIndex: -1,
+      });
     }
 
     // Tunnel styling inside shop: flat strips (same style as outside tunnel).
@@ -5476,6 +5854,7 @@ class Game {
       ctx.lineWidth = item.id === this.selectedRoomItemId ? 2.4 : 1.4;
       ctx.strokeRect(item.rect.x, item.rect.y, item.rect.width, item.rect.height);
     }
+
   }
 
   private drawShopItemIcon(item: RoomItem): void {
@@ -5495,8 +5874,20 @@ class Game {
       return;
     }
 
-    if (item.id === "ammo_up" && this.shopAmmoIconImg && this.shopAmmoIconImg.complete) {
+    if ((item.id === "ammo_up" || item.id === "deep_tank") && this.shopAmmoIconImg && this.shopAmmoIconImg.complete) {
       ctx.drawImage(this.shopAmmoIconImg, iconX, iconY, iconSize, iconSize);
+      if (item.id === "deep_tank") {
+        ctx.fillStyle = "rgba(255, 246, 210, 0.98)";
+        ctx.strokeStyle = "rgba(14, 24, 38, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.font = "7px 'Press Start 2P'";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        const tx = iconX + iconSize - 1;
+        const ty = iconY + iconSize - 1;
+        ctx.strokeText("2x", tx, ty);
+        ctx.fillText("2x", tx, ty);
+      }
       ctx.restore();
       return;
     }
@@ -5514,6 +5905,24 @@ class Game {
         iconSize,
         iconSize
       );
+      ctx.restore();
+      return;
+    }
+
+    if (item.id === "rapid_chamber" && this.shopRapidIconImg && this.shopRapidIconImg.complete) {
+      ctx.drawImage(this.shopRapidIconImg, iconX, iconY, iconSize, iconSize);
+      ctx.restore();
+      return;
+    }
+
+    if (item.id === "vampiric_gel" && this.shopVampiricIconImg && this.shopVampiricIconImg.complete) {
+      ctx.drawImage(this.shopVampiricIconImg, iconX, iconY, iconSize, iconSize);
+      ctx.restore();
+      return;
+    }
+
+    if (item.id === "salvage_bonus" && this.shopSalvageIconImg && this.shopSalvageIconImg.complete) {
+      ctx.drawImage(this.shopSalvageIconImg, iconX, iconY, iconSize, iconSize);
       ctx.restore();
       return;
     }
@@ -5542,6 +5951,29 @@ class Game {
     ctx.arc(item.rect.x + item.rect.width / 2, item.rect.y + item.rect.height / 2, iconSize * 0.33, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+  }
+
+  private getShopKioskExplainer(item: RoomItem): string {
+    switch (item.id) {
+      case "hp_up":
+        return "+1 max HP, heal +1";
+      case "ammo_up":
+        return "+1 max ammo, +1 ammo";
+      case "stomp_reload":
+        return "Stomp reloads +1 ammo";
+      case "deep_tank":
+        return "+2 max ammo, +2 ammo";
+      case "vampiric_gel":
+        return "5% chance to drop a heart";
+      case "salvage_bonus":
+        return "Breakables can drop gems";
+      case "rapid_chamber":
+        return "Faster airborne fire";
+      case "chest_cache":
+        return "Open for gem burst";
+      default:
+        return "";
+    }
   }
 
   private drawSpecialRoomOverlay(): void {
@@ -5576,7 +6008,7 @@ class Game {
     }
 
     const panelWidth = Math.min(236, popupMaxWidth);
-    const panelHeight = selected ? (selected.cost > 0 ? 68 : 76) : 40;
+    const panelHeight = selected ? (selected.cost > 0 ? 96 : 104) : 40;
     const shakeX = this.roomNoFundsTimer > 0 ? Math.sin(this.frameCount * 0.85) * 4 : 0;
     const panelX = popupLeft + (popupMaxWidth - panelWidth) * 0.5 + shakeX;
     const panelY = this.SHOP_ROOM_TOP + 48;
@@ -5589,6 +6021,33 @@ class Game {
         out = out.slice(0, -1);
       }
       return `${out}...`;
+    };
+    const wrapText = (text: string, maxWidth: number, maxLines: number): string[] => {
+      const words = text.split(/\s+/).filter((w) => w.length > 0);
+      if (words.length === 0) return [""];
+      const lines: string[] = [];
+      let current = words[0];
+      for (let i = 1; i < words.length; i++) {
+        const candidate = `${current} ${words[i]}`;
+        if (ctx.measureText(candidate).width <= maxWidth) {
+          current = candidate;
+        } else {
+          lines.push(current);
+          current = words[i];
+          if (lines.length >= maxLines - 1) break;
+        }
+      }
+      const usedWordCount = lines.join(" ").split(/\s+/).filter((w) => w.length > 0).length;
+      const remainingWords = words.slice(usedWordCount);
+      let lastLine = remainingWords.join(" ");
+      if (ctx.measureText(lastLine).width > maxWidth) {
+        while (lastLine.length > 3 && ctx.measureText(`${lastLine}...`).width > maxWidth) {
+          lastLine = lastLine.slice(0, -1);
+        }
+        lastLine = `${lastLine}...`;
+      }
+      lines.push(lastLine);
+      return lines.slice(0, maxLines);
     };
 
     ctx.fillStyle = "rgba(6, 22, 40, 0.88)";
@@ -5615,22 +6074,28 @@ class Game {
     ctx.fillStyle = "rgba(235, 248, 255, 0.98)";
     ctx.font = "9px 'Press Start 2P'";
     ctx.fillText(fitText(selected.name, panelWidth - 20), panelX + 10, panelY + 30);
+    ctx.fillStyle = "rgba(192, 230, 255, 0.95)";
+    const explainer = this.getShopKioskExplainer(selected);
+    const explainerText = explainer.length > 0 ? explainer.toUpperCase() : selected.description.toUpperCase();
+    const explainerLines = wrapText(explainerText, panelWidth - 20, 2);
+    for (let i = 0; i < explainerLines.length; i++) {
+      ctx.fillText(explainerLines[i], panelX + 10, panelY + 44 + i * 10);
+    }
+    const infoBottomY = panelY + 44 + (explainerLines.length - 1) * 10;
+    const costRowY = infoBottomY + 13;
+    const actionRowY = selected.cost <= 0 ? costRowY + 12 : costRowY;
 
     if (selected.cost > 0) {
       if (this.gemSimpleImg && this.gemSimpleImg.complete) {
-        ctx.drawImage(this.gemSimpleImg, panelX + 10, panelY + 37, 12, 12);
+        ctx.drawImage(this.gemSimpleImg, panelX + 10, costRowY - 6, 12, 12);
       }
       ctx.fillStyle = "rgba(255, 232, 160, 0.98)";
-      ctx.fillText(`x ${selected.cost}`, panelX + 26, panelY + 43);
-    } else {
-      ctx.fillStyle = "rgba(192, 230, 255, 0.95)";
-      const descWidth = panelWidth - 20;
-      ctx.fillText(fitText(selected.description.toUpperCase(), descWidth), panelX + 10, panelY + 44);
+      ctx.fillText(`x ${selected.cost}`, panelX + 26, costRowY);
     }
 
     if (selected.soldOut) {
       ctx.fillStyle = "rgba(255, 190, 110, 0.95)";
-      ctx.fillText("SOLD OUT", panelX + panelWidth - 96, panelY + 43);
+      ctx.fillText("SOLD OUT", panelX + panelWidth - 96, costRowY);
     } else if (selected.cost <= 0 || this.gems >= selected.cost) {
       ctx.fillStyle = "rgba(200, 255, 210, 0.95)";
       const actionLabel = selected.id === "chest_cache"
@@ -5641,12 +6106,11 @@ class Game {
       const actionText = selected.cost <= 0 ? `PRESS ACTION: ${actionLabel}` : actionLabel;
       const actionWidth = ctx.measureText(actionText).width;
       const actionX = Math.max(panelX + 10, panelX + panelWidth - actionWidth - rightInset);
-      const actionY = selected.cost <= 0 ? panelY + 60 : panelY + 43;
-      ctx.fillText(actionText, actionX, actionY);
+      ctx.fillText(actionText, actionX, actionRowY);
     } else {
       ctx.fillStyle = "rgba(255, 120, 120, 0.95)";
       const msg = this.roomNoFundsTimer > 0 ? "NOT ENOUGH GEMS" : "INSUFFICIENT GEMS";
-      ctx.fillText(msg, panelX + panelWidth - 164, panelY + 43);
+      ctx.fillText(msg, panelX + panelWidth - 164, costRowY);
     }
   }
 
@@ -6066,6 +6530,30 @@ class Game {
 
     for (const gem of this.droppedGems) {
       if (gem.collected) continue;
+
+      if (this.isHeartPickup(gem)) {
+        const heartIcon = this.shopVampiricIconImg ?? this.shopHpIconImg;
+        if (heartIcon && heartIcon.complete) {
+          this.ctx.drawImage(
+            heartIcon,
+            gem.x - gem.width / 2,
+            gem.y - gem.height / 2,
+            gem.width,
+            gem.height
+          );
+        } else {
+          ctx.save();
+          ctx.translate(gem.x, gem.y);
+          ctx.fillStyle = "rgba(255, 122, 150, 0.95)";
+          ctx.beginPath();
+          ctx.moveTo(0, gem.height * 0.36);
+          ctx.bezierCurveTo(-gem.width * 0.6, -gem.height * 0.1, -gem.width * 0.5, -gem.height * 0.55, 0, -gem.height * 0.22);
+          ctx.bezierCurveTo(gem.width * 0.5, -gem.height * 0.55, gem.width * 0.6, -gem.height * 0.1, 0, gem.height * 0.36);
+          ctx.fill();
+          ctx.restore();
+        }
+        continue;
+      }
 
       const sprite = gem.isLarge ? this.gemOutlinedImg : this.gemSimpleImg;
       const spriteLoaded = gem.isLarge ? this.gemOutlinedLoaded : this.gemSimpleLoaded;
@@ -7008,36 +7496,13 @@ class Game {
     
     for (const exp of explosions) {
       ctx.save();
-      
-      // Outer shockwave ring
-      ctx.strokeStyle = info.color.replace("1)", `${exp.alpha * 0.6})`).replace("#ff6633", `rgba(255, 102, 51, ${exp.alpha * 0.6})`);
-      const ringColor = `rgba(255, 102, 51, ${exp.alpha * 0.6})`;
-      ctx.strokeStyle = ringColor;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      // Inner fire gradient
-      const gradient = ctx.createRadialGradient(exp.x, exp.y, 0, exp.x, exp.y, exp.radius);
-      gradient.addColorStop(0, `rgba(255, 200, 100, ${exp.alpha * 0.5})`);
-      gradient.addColorStop(0.4, `rgba(255, 102, 51, ${exp.alpha * 0.3})`);
-      gradient.addColorStop(0.7, `rgba(255, 50, 0, ${exp.alpha * 0.15})`);
-      gradient.addColorStop(1, `rgba(255, 50, 0, 0)`);
-      ctx.fillStyle = gradient;
+
+      // Solid filled radius for clearer gameplay readability.
+      ctx.fillStyle = `rgba(255, 102, 51, ${Math.max(0.12, exp.alpha * 0.35)})`;
       ctx.beginPath();
       ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Bright center flash
-      if (exp.frame < 8) {
-        const flashAlpha = (1 - exp.frame / 8) * 0.7;
-        ctx.fillStyle = `rgba(255, 255, 200, ${flashAlpha})`;
-        ctx.beginPath();
-        ctx.arc(exp.x, exp.y, exp.radius * 0.3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      
+
       ctx.restore();
     }
   }
