@@ -318,8 +318,12 @@ export class Renderer {
     this.mapEffects.drawArenaBorder(borderColor);
   }
 
-  drawYellowBlock(block: YellowBlock): void {
-    this.mapEffects.drawYellowBlock(block);
+  drawYellowBlock(block: YellowBlock, hitPulse: number = 0): void {
+    this.mapEffects.drawYellowBlock(block, hitPulse);
+  }
+
+  drawYellowBlockHitFlash(block: YellowBlock, intensity: number): void {
+    this.mapEffects.drawYellowBlockHitFlash(block, intensity);
   }
 
   drawCenterHole(

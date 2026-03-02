@@ -43,6 +43,91 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
 - Validation output was logged repeatedly for the same milestone.
   - Learning: report one validation block per milestone, with explicit exceptions only.
 
+## 2026-03-02 - Fire/Yellow-block SFX mix rebalance (mix-v1) with source backups
+
+- Scope:
+  - Reduced projectile/fire SFX dominance and increased yellow-block hit audibility under music.
+  - Kept source backups in repo as requested.
+- Audio source updates:
+  - Added backups:
+    - `assets/audio-src/sfx-fire-pre-mix-v1.wav`
+    - `assets/audio-src/sfx-hit-soft-pre-mix-v1.wav`
+  - Retuned active sources:
+    - `assets/audio-src/sfx-fire.wav` (shorter/less harsh projectile cue)
+    - `assets/audio-src/sfx-hit-soft.wav` (snappier, brighter block-hit cue)
+  - Regenerated runtime outputs:
+    - `public/assets/audio/sfx-fire.ogg`
+    - `public/assets/audio/sfx-hit-soft.ogg`
+- Runtime mix/policy updates:
+  - `src/audio/assetManifest.ts`:
+    - `sfxFire.volume`: `0.70 -> 0.56`
+    - `sfxHitSoft.volume`: `0.58 -> 0.72`
+  - `src/AudioManager.ts`:
+    - Added a small fire SFX anti-stack guard (`70ms` min interval) to reduce overlap spam without changing gameplay fire rate.
+- Documentation:
+  - Updated `assets/audio-src/README.md` with active/backup mapping for fire and soft-hit variants.
+- Validation:
+  - `bun run process:audio -- --only sfx-fire.ogg,sfx-hit-soft.ogg` passed.
+  - `bun run ffmpeg:check` passed.
+  - `bun run typecheck` passed.
+  - `bun run build` passed.
+
+## 2026-03-02 - Gameplay BGM default volume reduction for SFX clarity
+
+- Scope:
+  - Lowered in-game (gameplay) BGM default volume to reduce masking against asteroid/yellow-block hit SFX.
+  - Left menu/results music defaults unchanged.
+- Changes:
+  - `src/audio/assetManifest.ts`:
+    - `gameplayLoop.volume`: `0.32 -> 0.24`
+- Validation:
+  - `bun run typecheck` passed.
+  - `bun run build` passed.
+
+## 2026-03-02 - Soft-hit volume bump (yellow blocks)
+
+- Scope:
+  - Increased yellow-block soft-hit runtime gain by one step for improved audibility.
+- Changes:
+  - `src/audio/assetManifest.ts`:
+    - `sfxHitSoft.volume`: `0.72 -> 0.76`
+- Validation:
+  - `bun run typecheck` passed.
+  - `bun run build` passed.
+
+## 2026-03-02 - Countdown tail cleanup + UI click swap + powerup pickup SFX
+
+- Scope:
+  - Removed tail artifact from countdown cue.
+  - Swapped UI click source to `sound (3).wav`.
+  - Added a new powerup-pickup SFX path using `pickupCoin (2).wav`.
+- Audio source updates:
+  - Added backups:
+    - `assets/audio-src/sfx-countdown-pre-tailfix-v1.wav`
+    - `assets/audio-src/sfx-ui-click-pre-sound3-v1.wav`
+  - Updated active sources:
+    - `assets/audio-src/sfx-countdown.wav` (trim/fade tail cleanup)
+    - `assets/audio-src/sfx-ui-click.wav` (from `sound (3).wav`)
+    - `assets/audio-src/sfx-powerup.wav` (from `pickupCoin (2).wav`)
+  - Regenerated runtime outputs:
+    - `public/assets/audio/sfx-countdown.ogg`
+    - `public/assets/audio/sfx-ui-click.ogg`
+    - `public/assets/audio/sfx-powerup.ogg`
+- Runtime wiring:
+  - Added `sfxPowerup` asset in `src/audio/assetManifest.ts`.
+  - Added `playPowerupPickup()` in `src/AudioManager.ts`.
+  - Added authoritative mapping `powerupPickup -> sfxPowerup` in `src/feedback/gameplayFeedback.ts`.
+  - Emitted sim sound event when powerup is granted in `shared/sim/modules/simulationCollisionHandlers.ts`.
+- Documentation:
+  - Updated `assets/audio-src/README.md` expected output list and variant mapping sections for countdown/ui click/powerup.
+- Validation:
+  - `bun run process:audio -- --only sfx-countdown.ogg,sfx-ui-click.ogg,sfx-powerup.ogg` passed.
+  - `bun run ffmpeg:check` passed.
+  - `bun run typecheck` passed.
+  - `bun run build` passed.
+  - `astro-party/server`: `npm run typecheck` passed.
+  - `astro-party/server`: `npm run build` passed.
+
 ## 2026-02-16 - Networking Authority Rewrite
 
 - Replaced client interpolation/prediction queueing with newest-snapshot authoritative sync in `src/network/NetworkSyncSystem.ts`.

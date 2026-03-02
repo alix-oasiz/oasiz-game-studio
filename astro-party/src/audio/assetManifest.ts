@@ -9,12 +9,14 @@ export type AudioAssetId =
   | "sfxFire"
   | "sfxExplosion"
   | "sfxHit"
+  | "sfxHitSoft"
   | "sfxDash"
   | "sfxCountdown"
   | "sfxFight"
   | "sfxWin"
   | "sfxKill"
   | "sfxRespawn"
+  | "sfxPowerup"
   | "sfxUiClick"
   | "sfxPilotEject"
   | "sfxPilotDeath";
@@ -63,7 +65,7 @@ export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
     relativePath: "music-loop-gameplay.ogg",
     url: "./assets/audio/music-loop-gameplay.ogg",
     loop: true,
-    volume: 0.32,
+    volume: 0.24,
     preload: "none",
   },
   resultsSting: {
@@ -81,7 +83,7 @@ export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
     relativePath: "sfx-fire.ogg",
     url: "./assets/audio/sfx-fire.ogg",
     loop: false,
-    volume: 0.7,
+    volume: 0.56,
     preload: "metadata",
   },
   sfxExplosion: {
@@ -100,6 +102,15 @@ export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
     url: "./assets/audio/sfx-hit.ogg",
     loop: false,
     volume: 0.65,
+    preload: "metadata",
+  },
+  sfxHitSoft: {
+    id: "sfxHitSoft",
+    channel: "fx",
+    relativePath: "sfx-hit-soft.ogg",
+    url: "./assets/audio/sfx-hit-soft.ogg",
+    loop: false,
+    volume: 0.76,
     preload: "metadata",
   },
   sfxDash: {
@@ -154,6 +165,15 @@ export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
     url: "./assets/audio/sfx-respawn.ogg",
     loop: false,
     volume: 0.7,
+    preload: "metadata",
+  },
+  sfxPowerup: {
+    id: "sfxPowerup",
+    channel: "fx",
+    relativePath: "sfx-powerup.ogg",
+    url: "./assets/audio/sfx-powerup.ogg",
+    loop: false,
+    volume: 0.74,
     preload: "metadata",
   },
   sfxUiClick: {

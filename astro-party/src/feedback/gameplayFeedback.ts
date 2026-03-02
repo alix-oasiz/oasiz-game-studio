@@ -6,16 +6,22 @@ type HapticType = "light" | "medium" | "heavy" | "success" | "error";
 type GameplaySoundId =
   | "fire"
   | "dash"
+  | "hit"
+  | "hitSoft"
   | "explosion"
   | "pilotEject"
   | "kill"
   | "pilotDeath"
+  | "powerupPickup"
   | "respawn"
   | "win";
 
 type AuthoritativeSoundType =
   | "fire"
   | "dash"
+  | "hit"
+  | "yellowBlockHit"
+  | "powerupPickup"
   | "explosion"
   | "kill"
   | "respawn"
@@ -27,6 +33,9 @@ const AUTHORITATIVE_SOUND_PRESETS: Record<
 > = {
   fire: ["fire"],
   dash: ["dash"],
+  hit: ["hit"],
+  yellowBlockHit: ["hitSoft"],
+  powerupPickup: ["powerupPickup"],
   explosion: ["explosion", "pilotEject"],
   kill: ["kill", "pilotDeath"],
   respawn: ["respawn"],
@@ -46,6 +55,12 @@ function playGameplaySound(id: GameplaySoundId): void {
     case "dash":
       void AudioManager.playDash();
       break;
+    case "hit":
+      void AudioManager.playHit();
+      break;
+    case "hitSoft":
+      void AudioManager.playHitSoft();
+      break;
     case "explosion":
       void AudioManager.playExplosion();
       break;
@@ -57,6 +72,9 @@ function playGameplaySound(id: GameplaySoundId): void {
       break;
     case "pilotDeath":
       void AudioManager.playPilotDeath();
+      break;
+    case "powerupPickup":
+      void AudioManager.playPowerupPickup();
       break;
     case "respawn":
       void AudioManager.playRespawn();

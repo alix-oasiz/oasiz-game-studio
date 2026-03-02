@@ -150,6 +150,7 @@ export function hitAsteroid(sim: SimState, asteroid: RuntimeAsteroid): boolean {
   if (!asteroid.alive) return false;
   asteroid.hp -= 1;
   if (asteroid.hp > 0) {
+    sim.hooks.onSound("hit", "asteroid");
     sim.triggerScreenShake(3, 0.1);
     return false;
   }
@@ -160,6 +161,7 @@ export function hitAsteroid(sim: SimState, asteroid: RuntimeAsteroid): boolean {
 export function destroyAsteroid(sim: SimState, asteroid: RuntimeAsteroid): void {
   if (!asteroid.alive) return;
   asteroid.alive = false;
+  sim.hooks.onSound("hit", "asteroid");
   sim.triggerScreenShake(8, 0.2);
 
   if (asteroid.variant === "ORANGE" && asteroid.size >= ASTEROID_LARGE_MIN) {

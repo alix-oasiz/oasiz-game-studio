@@ -1497,6 +1497,7 @@ export class AstroPartySimulation implements SimState {
         this.projectiles = this.projectiles.filter((proj) => proj.id !== projectileId);
       },
       triggerScreenShake: this.triggerScreenShake.bind(this),
+      onSound: this.hooks.onSound,
       onShipHit: this.onShipHit.bind(this),
       killPilot: this.killPilot.bind(this),
       hitAsteroid: (asteroid: RuntimeAsteroid) => {

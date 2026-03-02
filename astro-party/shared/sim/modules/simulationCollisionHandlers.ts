@@ -53,6 +53,7 @@ export interface SimulationCollisionHandlersContext {
   getPluginString: (body: Matter.Body, key: string) => string | null;
   removeProjectileEntity: (projectileId: string) => void;
   triggerScreenShake: (intensity: number, duration: number) => void;
+  onSound: (type: string, playerId: string) => void;
   onShipHit: (owner: RuntimePlayer | undefined, target: RuntimePlayer) => void;
   killPilot: (pilotPlayerId: string, killerId: string) => void;
   hitAsteroid: (asteroid: RuntimeAsteroid) => void;
@@ -222,6 +223,7 @@ export function handleShipHitPowerUpCollision(
   if (!powerUp) return;
 
   ctx.grantPowerUp(shipPlayerId, powerUp.type);
+  ctx.onSound("powerupPickup", shipPlayerId);
   powerUp.alive = false;
   ctx.removePowerUpBody(powerUpId);
 }
@@ -235,6 +237,7 @@ export function damageYellowBlock(
   if (!block || block.hp <= 0) return;
 
   block.hp -= amount;
+  ctx.onSound("yellowBlockHit", "yellowBlock");
   if (block.hp > 0) return;
 
   block.hp = 0;

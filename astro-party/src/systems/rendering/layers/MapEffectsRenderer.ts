@@ -128,18 +128,31 @@ export class MapEffectsRenderer {
     ctx.restore();
   }
 
-  drawYellowBlock(block: YellowBlock): void {
+  drawYellowBlock(block: YellowBlock, hitPulse: number = 0): void {
     const { ctx } = this;
+    const pulse = this.clamp01(hitPulse);
     ctx.save();
 
-    ctx.fillStyle = "#f7d354";
+    const fillBoost = Math.round(24 * pulse);
+    const fillR = Math.min(255, 247 + fillBoost);
+    const fillG = Math.min(255, 211 + fillBoost);
+    const fillB = Math.min(255, 84 + Math.round(6 * pulse));
+    ctx.fillStyle =
+      "rgb(" +
+      fillR +
+      ", " +
+      fillG +
+      ", " +
+      fillB +
+      ")";
     ctx.fillRect(block.x, block.y, block.width, block.height);
 
     ctx.strokeStyle = MAP_COMIC_COLORS.outline;
     ctx.lineWidth = 3;
     ctx.strokeRect(block.x + 1, block.y + 1, block.width - 2, block.height - 2);
 
-    ctx.strokeStyle = "#ffe79a";
+    ctx.strokeStyle =
+      "rgb(255, " + Math.min(255, 231 + Math.round(18 * pulse)) + ", 154)";
     ctx.lineWidth = 1;
     ctx.strokeRect(block.x + 4, block.y + 4, block.width - 8, block.height - 8);
 
@@ -161,6 +174,31 @@ export class MapEffectsRenderer {
       ctx.stroke();
     }
 
+    ctx.restore();
+  }
+
+  drawYellowBlockHitFlash(block: YellowBlock, intensity: number): void {
+    const { ctx } = this;
+    const clamped = this.clamp01(intensity);
+    if (clamped <= 0) return;
+
+    const expansion = 5 * (1 - clamped);
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 245, 190, " + (0.18 * clamped) + ")";
+    ctx.fillRect(
+      block.x - expansion,
+      block.y - expansion,
+      block.width + expansion * 2,
+      block.height + expansion * 2,
+    );
+    ctx.strokeStyle = "rgba(255, 228, 143, " + (0.65 * clamped) + ")";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      block.x - expansion,
+      block.y - expansion,
+      block.width + expansion * 2,
+      block.height + expansion * 2,
+    );
     ctx.restore();
   }
 

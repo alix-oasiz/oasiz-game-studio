@@ -59,8 +59,16 @@ interface GameplayRenderData {
   renderTurretBullets: TurretBulletState[];
 }
 
+interface YellowBlockRenderEntry {
+  index: number;
+  block: YellowBlock;
+}
+
 export class GameRenderer {
+  private static readonly YELLOW_BLOCK_HIT_FLASH_DURATION_SEC = 0.18;
   private mapVisualTimeSec = 0;
+  private previousYellowBlockHpByKey = new Map<string, number>();
+  private yellowBlockHitFlashStartByKey = new Map<string, number>();
 
   constructor(
     private renderer: Renderer,
@@ -111,11 +119,28 @@ export class GameRenderer {
     if (!ctx.hideBorder) {
       this.renderer.drawArenaBorder(mapTheme.border);
     }
-    for (const block of this.getYellowBlocksForRender(
+    const yellowBlocksForRender = this.getYellowBlocksForRender(
       map.yellowBlocks,
       ctx.yellowBlockHp,
-    )) {
-      this.renderer.drawYellowBlock(block);
+    );
+    this.updateYellowBlockHitFlashes(
+      ctx.mapId,
+      map.yellowBlocks,
+      ctx.yellowBlockHp,
+      mapTimeSec,
+    );
+    for (const entry of yellowBlocksForRender) {
+      const pulse = this.getYellowBlockHitPulse(
+        ctx.mapId,
+        entry.index,
+        mapTimeSec,
+      );
+      this.renderer.drawYellowBlock(entry.block, pulse);
+    }
+    for (const [index, block] of map.yellowBlocks.entries()) {
+      const pulse = this.getYellowBlockHitPulse(ctx.mapId, index, mapTimeSec);
+      if (pulse <= 0) continue;
+      this.renderer.drawYellowBlockHitFlash(block, pulse);
     }
     for (const hole of map.centerHoles) {
       this.renderer.drawCenterHole(
@@ -360,12 +385,55 @@ export class GameRenderer {
   private getYellowBlocksForRender(
     yellowBlocks: YellowBlock[],
     networkYellowBlockHp: number[],
-  ): YellowBlock[] {
+  ): YellowBlockRenderEntry[] {
     if (networkYellowBlockHp.length <= 0) return [];
     if (networkYellowBlockHp.length !== yellowBlocks.length) return [];
-    return yellowBlocks.filter(
-      (_, index) => (networkYellowBlockHp[index] ?? 1) > 0,
-    );
+    const renderEntries: YellowBlockRenderEntry[] = [];
+    for (let index = 0; index < yellowBlocks.length; index += 1) {
+      if ((networkYellowBlockHp[index] ?? 1) <= 0) continue;
+      renderEntries.push({ index, block: yellowBlocks[index] });
+    }
+    return renderEntries;
+  }
+
+  private updateYellowBlockHitFlashes(
+    mapId: MapId,
+    yellowBlocks: YellowBlock[],
+    yellowBlockHp: number[],
+    nowSec: number,
+  ): void {
+    if (yellowBlockHp.length !== yellowBlocks.length) return;
+    for (let index = 0; index < yellowBlocks.length; index += 1) {
+      const key = this.getYellowBlockKey(mapId, index);
+      const currentHp = Math.max(0, Math.floor(yellowBlockHp[index] ?? 0));
+      const previousHp = this.previousYellowBlockHpByKey.get(key);
+      if (previousHp !== undefined && currentHp < previousHp) {
+        this.yellowBlockHitFlashStartByKey.set(key, nowSec);
+      }
+      this.previousYellowBlockHpByKey.set(key, currentHp);
+    }
+  }
+
+  private getYellowBlockHitPulse(
+    mapId: MapId,
+    blockIndex: number,
+    nowSec: number,
+  ): number {
+    const key = this.getYellowBlockKey(mapId, blockIndex);
+    const startedAt = this.yellowBlockHitFlashStartByKey.get(key);
+    if (startedAt === undefined) return 0;
+    const elapsed = nowSec - startedAt;
+    if (elapsed <= 0) return 1;
+    const duration = GameRenderer.YELLOW_BLOCK_HIT_FLASH_DURATION_SEC;
+    if (elapsed >= duration) {
+      this.yellowBlockHitFlashStartByKey.delete(key);
+      return 0;
+    }
+    return 1 - elapsed / duration;
+  }
+
+  private getYellowBlockKey(mapId: MapId, blockIndex: number): string {
+    return mapId + ":" + blockIndex;
   }
 
   private getMapTheme(mapId: MapId): {

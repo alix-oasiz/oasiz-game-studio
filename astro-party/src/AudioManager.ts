@@ -36,16 +36,19 @@ const MUSIC_FADE_IN_MS = 220;
 const MUSIC_FADE_OUT_MS = 180;
 /** Slow fade-in used only for the gameplay BGM (not menu/results music). */
 const GAMEPLAY_BGM_FADE_IN_MS = 2500;
+const FIRE_SFX_MIN_INTERVAL_MS = 70;
 const GAMEPLAY_FX_ASSET_IDS: ReadonlySet<AudioAssetId> = new Set<AudioAssetId>([
   "sfxFire",
   "sfxExplosion",
   "sfxHit",
+  "sfxHitSoft",
   "sfxDash",
   "sfxCountdown",
   "sfxFight",
   "sfxWin",
   "sfxKill",
   "sfxRespawn",
+  "sfxPowerup",
   "sfxPilotEject",
   "sfxPilotDeath",
 ]);
@@ -68,6 +71,7 @@ class AudioManagerClass {
     new Map();
   private gameplayFxSuppressed: boolean = false;
   private gameplayFxVolumeMultiplier: number = 1;
+  private lastPlaybackAtMsByAsset: Map<AudioAssetId, number> = new Map();
 
   constructor() {
     this.setupUserGestureUnlock();
@@ -230,6 +234,16 @@ class AudioManagerClass {
     return SettingsManager.shouldPlayFx();
   }
 
+  private getNowMs(): number {
+    if (
+      typeof performance !== "undefined" &&
+      typeof performance.now === "function"
+    ) {
+      return performance.now();
+    }
+    return Date.now();
+  }
+
   private getOrCreateAssetPlayer(assetId: AudioAssetId): Howl {
     const existing = this.assetPlayers.get(assetId);
     if (existing) {
@@ -276,6 +290,14 @@ class AudioManagerClass {
       return null;
     }
 
+    if (assetId === "sfxFire") {
+      const nowMs = this.getNowMs();
+      const lastPlayedAtMs = this.lastPlaybackAtMsByAsset.get(assetId) ?? -Infinity;
+      if (nowMs - lastPlayedAtMs < FIRE_SFX_MIN_INTERVAL_MS) {
+        return null;
+      }
+    }
+
     const player = this.getOrCreateAssetPlayer(assetId);
     player.loop(definition.loop);
     player.volume(this.resolveAssetVolume(assetId));
@@ -292,6 +314,7 @@ class AudioManagerClass {
       return null;
     }
     this.activeSoundIdByAsset.set(assetId, soundId);
+    this.lastPlaybackAtMsByAsset.set(assetId, this.getNowMs());
     return soundId;
   }
 
@@ -758,6 +781,10 @@ class AudioManagerClass {
     this.playAsset("sfxHit", false);
   }
 
+  async playHitSoft(): Promise<void> {
+    this.playAsset("sfxHitSoft", false);
+  }
+
   async playDash(): Promise<void> {
     this.playAsset("sfxDash", false);
   }
@@ -783,6 +810,10 @@ class AudioManagerClass {
 
   async playRespawn(): Promise<void> {
     this.playAsset("sfxRespawn", false);
+  }
+
+  async playPowerupPickup(): Promise<void> {
+    this.playAsset("sfxPowerup", false);
   }
 
   async playUIClick(): Promise<void> {
@@ -846,6 +877,7 @@ class AudioManagerClass {
     this.pendingBackgroundMusicAssetId = null;
     this.gameplayFxSuppressed = false;
     this.gameplayFxVolumeMultiplier = 1;
+    this.lastPlaybackAtMsByAsset.clear();
     console.log("[AudioManager.destroy]", "Destroyed");
   }
 }

@@ -38,12 +38,14 @@ Expected output filenames in `public/assets/audio`:
 - sfx-fire.ogg
 - sfx-explosion.ogg
 - sfx-hit.ogg
+- sfx-hit-soft.ogg
 - sfx-dash.ogg
 - sfx-countdown.ogg
 - sfx-fight.ogg
 - sfx-win.ogg
 - sfx-kill.ogg
 - sfx-respawn.ogg
+- sfx-powerup.ogg
 - sfx-ui-click.ogg
 - sfx-pilot-eject.ogg
 - sfx-pilot-death.ogg
@@ -65,9 +67,15 @@ Fight variants:
 - `clear_fight_fx_that__#4-1772053786795.wav` (original untrimmed source)
 
 UI click variants:
-- `sfx-ui-click-fast-1p6x-tight.wav` -> `sfx-ui-click.wav` (active)
+- `sound (3).wav` -> `sfx-ui-click.wav` (active)
+- `sfx-ui-click-pre-sound3-v1.wav` (backup of previous active before sound(3) swap)
+- `sfx-ui-click-fast-1p6x-tight.wav` -> `sfx-ui-click.wav` (previous active)
 - `sfx-ui-click-previous.wav` (previous active source)
 - Additional alternates: `sfx-ui-click-fast-1p2x.wav`, `sfx-ui-click-fast-1p3x.wav`, `sfx-ui-click-fast-1p4x-tight.wav`, `sfx-ui-click-fast-1p5x.wav`, `sfx-ui-click-fast-1p8x-tight.wav`, `sfx-ui-click-fast-2p0x-tight.wav`
+
+Countdown variants:
+- `sfx-countdown.wav` (active, tail-noise-trimmed)
+- `sfx-countdown-pre-tailfix-v1.wav` (backup of previous active before tail cleanup)
 
 Dash variants from `jump.wav` (toned down):
 - `sfx-dash-from-jump-v4-soft-270ms.wav` -> `sfx-dash.wav` (active, longest/most blended)
@@ -76,6 +84,16 @@ Dash variants from `jump.wav` (toned down):
 - `sfx-dash-from-jump-v3-soft-250ms.wav` (smoother tail)
 
 Fire variants:
-- `sfx-fire-v1-crisp-240ms.wav` -> `sfx-fire.wav` (active)
+- `sfx-fire.wav` (active, mix-v1 toned projectile cue)
+- `sfx-fire-pre-mix-v1.wav` (backup of previous active before mix-v1 retune)
+- `sfx-fire-v1-crisp-240ms.wav` -> `sfx-fire.wav` (previous active)
 - `sfx-fire-previous.wav` (previous active source)
 - Additional alternates: `sfx-fire-v2-balanced-300ms.wav`, `sfx-fire-v3-soft-tail-360ms.wav`, `sfx-fire-v4-fuller-420ms.wav`
+
+Hit variants:
+- `sfx-hit.wav` -> `sfx-hit.ogg` (active, original asteroid hit)
+- `sfx-hit-soft.wav` -> `sfx-hit-soft.ogg` (active for yellow blocks)
+- `sfx-hit-soft-pre-mix-v1.wav` (backup of previous yellow-block soft hit before mix-v1 retune)
+
+Powerup variants:
+- `pickupCoin (2).wav` -> `sfx-powerup.wav` -> `sfx-powerup.ogg` (active)
