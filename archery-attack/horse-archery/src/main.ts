@@ -319,7 +319,7 @@ const upgradeDefs: UpgradeDef[] = [
   {
     id: "windReader",
     name: "Wind Reader",
-    description: "Show a ghost arc preview while pulling the bow.",
+    description: "Remove the close-range aim marker and rely on pure feel.",
     maxLevel: 1,
   },
   {
@@ -1374,6 +1374,16 @@ function fireArrow(): void {
 
   playSfx("bowRelease");
   triggerHaptic("heavy");
+}
+
+function getWindReaderPreviewAngle(): number {
+  const baseAngle = Math.PI / 4;
+  if (wobbleAmount <= 0) return baseAngle;
+
+  const wobbleStrength = Math.max(0, Math.min(1, wobbleAmount / Math.max(0.001, CONFIG.MAX_WOBBLE)));
+  const maxDeviation = CONFIG.MAX_SPREAD_ANGLE * (0.45 + wobbleStrength * 0.85);
+  const wobblePhase = Math.sin(drawElapsed * 0.14);
+  return baseAngle + wobblePhase * maxDeviation;
 }
 
 // ============= SCORE POPUPS =============
@@ -2734,40 +2744,68 @@ function drawArrows(): void {
 }
 
 function drawWindReaderPreview(): void {
-  if (upgradeLevels.windReader <= 0) return;
+  if (upgradeLevels.windReader > 0) return;
   if (!isDrawing) return;
 
-  const baseAngle = Math.PI / 4;
-  const speed = getArrowLaunchSpeed(Math.max(drawProgress, CONFIG.MIN_DRAW_TO_FIRE));
+  const previewAngle = getWindReaderPreviewAngle();
   const spawnPoint = getArrowSpawnPointWorld();
+  const speed = getArrowLaunchSpeed(Math.max(drawProgress, CONFIG.MIN_DRAW_TO_FIRE));
+  let dx = spawnPoint.worldX - world.cameraX;
+  if (dx > world.width / 2) dx -= world.width;
+  if (dx < -world.width / 2) dx += world.width;
+  const anchorX = horse.screenX + dx * pxPerUnit;
+  const anchorY = groundY - spawnPoint.height * pxPerUnit;
+
+  // Follow the same ballistic path logic as the old reader, but project to a fixed orbit radius.
   let simX = spawnPoint.worldX;
   let simY = spawnPoint.height;
-  let simVx = world.speed + speed * Math.cos(baseAngle);
-  let simVy = speed * Math.sin(baseAngle);
-  const stepDt = 28;
+  let simVx = world.speed + speed * Math.cos(previewAngle);
+  let simVy = speed * Math.sin(previewAngle);
+  const stepDt = 18;
+  const previewSteps = 2 + Math.floor(Math.max(0, Math.min(1, drawProgress)) * 8);
 
-  ctx.save();
-  ctx.setLineDash([6 * gameScale, 7 * gameScale]);
-  ctx.lineWidth = Math.max(1.2, 1.9 * gameScale);
-  ctx.strokeStyle = "rgba(155, 240, 255, 0.7)";
-  ctx.beginPath();
-
-  for (let i = 0; i < 26; i++) {
+  let pathX = anchorX;
+  let pathY = anchorY;
+  for (let i = 0; i < previewSteps; i++) {
     simVy -= CONFIG.ARROW_GRAVITY * stepDt;
     simVx += getCrosswindAccel() * stepDt;
     simX += simVx * stepDt;
     simY += simVy * stepDt;
 
-    let dx = simX - world.cameraX;
-    if (dx > world.width / 2) dx -= world.width;
-    if (dx < -world.width / 2) dx += world.width;
-    const sx = horse.screenX + dx * pxPerUnit;
-    const sy = groundY - simY * pxPerUnit;
-    if (i === 0) ctx.moveTo(sx, sy);
-    else ctx.lineTo(sx, sy);
-    if (sx < -120 || sx > w + 120 || sy < -120 || sy > h + 120) break;
+    let simDx = simX - world.cameraX;
+    if (simDx > world.width / 2) simDx -= world.width;
+    if (simDx < -world.width / 2) simDx += world.width;
+    pathX = horse.screenX + simDx * pxPerUnit;
+    pathY = groundY - simY * pxPerUnit;
   }
 
+  const orbitAngle = Math.atan2(anchorY - pathY, pathX - anchorX);
+  const orbitRadius = Math.max(36, 58 * gameScale);
+  const triangleLength = Math.max(12, 18 * gameScale);
+  const triangleHalfWidth = Math.max(5, 8 * gameScale);
+
+  const tipX = anchorX + Math.cos(orbitAngle) * orbitRadius;
+  const tipY = anchorY - Math.sin(orbitAngle) * orbitRadius;
+  const baseCenterX = tipX - Math.cos(orbitAngle) * triangleLength;
+  const baseCenterY = tipY + Math.sin(orbitAngle) * triangleLength;
+  const perpX = -Math.sin(orbitAngle);
+  const perpY = -Math.cos(orbitAngle);
+
+  const leftX = baseCenterX + perpX * triangleHalfWidth;
+  const leftY = baseCenterY + perpY * triangleHalfWidth;
+  const rightX = baseCenterX - perpX * triangleHalfWidth;
+  const rightY = baseCenterY - perpY * triangleHalfWidth;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(142, 238, 255, 0.85)";
+  ctx.strokeStyle = "rgba(20, 40, 52, 0.95)";
+  ctx.lineWidth = Math.max(1, 1.6 * gameScale);
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(leftX, leftY);
+  ctx.lineTo(rightX, rightY);
+  ctx.closePath();
+  ctx.fill();
   ctx.stroke();
   ctx.restore();
 }
