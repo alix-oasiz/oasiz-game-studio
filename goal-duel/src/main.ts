@@ -1089,6 +1089,8 @@ class GoalDuelGame {
   private tireTraces: TireTracePath[] = [];
   private lastTireTraceTime = 0;
   private lastBoostCloudTime = 0; // Throttle boost cloud spawning
+  private lastDriftSfxTimePlayer = 0;
+  private lastDriftSfxTimeBot = 0;
   private searchingScrollInterval: number | null = null;
   private searchingEaseInterval: number | null = null;
 
@@ -4584,15 +4586,39 @@ class GoalDuelGame {
       if (!input.boost && acceleration > 0.5 && speed > 3 && thr > 0.3) {
         // Play rev sound for acceleration
         this.audio.playRev(Math.min(0.6, acceleration * 0.1));
-        // Play screech sound for acceleration
-        this.audio.playScreech(Math.min(0.25, acceleration * 0.05));
       }
       
       // Drift particles (when turning sharply while moving)
       if (this.settings.vfxDrifting && Math.abs(steer) > 0.25 && speed > 3) {
         this.spawnDriftParticle(body.position.x, body.position.y, right, sideSpeed, isPlayer, speed);
-        // Play screech sound when drifting
-        this.audio.playScreech(0.2);
+      }
+
+      // Drift screech should be a rare "hard slide" cue, not a constant driving loop.
+      const isHumanControlled = isPlayer || this.matchMode === "LOCAL_2P";
+      const hardTurn = Math.abs(steer) > 0.45;
+      const hardMomentumChange = Math.abs(acceleration) > 0.9;
+      const heavyLateralSlide = Math.abs(sideSpeed) > 3.2;
+      const shouldPlayDriftScreech =
+        isHumanControlled &&
+        this.settings.vfxDrifting &&
+        speed > 4.5 &&
+        hardTurn &&
+        (hardMomentumChange || heavyLateralSlide);
+
+      if (shouldPlayDriftScreech) {
+        const now = Date.now();
+        const cooldownMs = 750;
+        const lastSfxTime = isPlayer ? this.lastDriftSfxTimePlayer : this.lastDriftSfxTimeBot;
+        if (now - lastSfxTime > cooldownMs) {
+          const screechVolume = clamp(
+            0.16 + Math.abs(sideSpeed) * 0.015 + Math.abs(acceleration) * 0.02,
+            0.16,
+            0.42,
+          );
+          this.audio.playScreech(screechVolume);
+          if (isPlayer) this.lastDriftSfxTimePlayer = now;
+          else this.lastDriftSfxTimeBot = now;
+        }
       }
     }
 
