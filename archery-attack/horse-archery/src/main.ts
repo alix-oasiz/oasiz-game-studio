@@ -9,7 +9,7 @@
 
 // ============= TYPES =============
 type GameState = "START" | "PLAYING" | "PAUSED" | "WAVE_UPGRADE" | "GAME_OVER";
-type UpgradeId = "doubleShot" | "pullSpeed" | "wobbleControl" | "magnetArrows" | "perfectReload" | "extraQuiver";
+type UpgradeId = "doubleShot" | "pullSpeed" | "wobbleControl" | "magnetArrows" | "windReader" | "perfectReload" | "extraQuiver";
 type TargetKind = "normal" | "runner" | "tiny" | "stoneColumn";
 
 interface Settings {
@@ -317,6 +317,12 @@ const upgradeDefs: UpgradeDef[] = [
     maxLevel: 1,
   },
   {
+    id: "windReader",
+    name: "Wind Reader",
+    description: "Show a ghost arc preview while pulling the bow.",
+    maxLevel: 1,
+  },
+  {
     id: "perfectReload",
     name: "Bullseye Refill",
     description: "Perfect shots instantly refill your quiver.",
@@ -335,6 +341,7 @@ const upgradeLevels: Record<UpgradeId, number> = {
   pullSpeed: 0,
   wobbleControl: 0,
   magnetArrows: 0,
+  windReader: 0,
   perfectReload: 0,
   extraQuiver: 0,
 };
@@ -876,6 +883,7 @@ function resetUpgrades(): void {
   upgradeLevels.pullSpeed = 0;
   upgradeLevels.wobbleControl = 0;
   upgradeLevels.magnetArrows = 0;
+  upgradeLevels.windReader = 0;
   upgradeLevels.perfectReload = 0;
   upgradeLevels.extraQuiver = 0;
 }
@@ -2726,6 +2734,7 @@ function drawArrows(): void {
 }
 
 function drawWindReaderPreview(): void {
+  if (upgradeLevels.windReader <= 0) return;
   if (!isDrawing) return;
 
   const baseAngle = Math.PI / 4;
