@@ -84,25 +84,11 @@ function awardPlayerScore(
   advanceCombatCombo(sim, player);
 }
 
-function isLocalHumanParticipant(player: RuntimePlayer | undefined): boolean {
-  if (!player) return false;
-  return !player.isBot || player.botType === "local";
-}
-
 function shouldAwardCombatScore(
   attacker: RuntimePlayer | undefined,
   victim: RuntimePlayer | undefined,
 ): boolean {
-  if (!attacker || !victim) return false;
-  // In local multiplayer, do not award score for local-human-vs-local-human eliminations.
-  if (
-    (attacker.botType === "local" || victim.botType === "local") &&
-    isLocalHumanParticipant(attacker) &&
-    isLocalHumanParticipant(victim)
-  ) {
-    return false;
-  }
-  return true;
+  return Boolean(attacker && victim);
 }
 
 export function updatePilots(sim: SimState, dtSec: number): void {
