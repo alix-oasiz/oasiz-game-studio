@@ -115,6 +115,7 @@ function resolveSceneForPhase(phase: GamePhase): AudioSceneId {
       return "START";
     case "LOBBY":
       return "LOBBY";
+    case "MATCH_INTRO":
     case "COUNTDOWN":
     case "PLAYING":
     case "ROUND_END":
@@ -250,6 +251,17 @@ async function init(): Promise<void> {
   let pendingDemoStartupAfterIntro: { showAttract: boolean } | null = null;
   let pendingDemoStartupInProgress = false;
   let suppressNextStartPhaseEffects = false;
+  let liveMatchIntroShownForSequence = false;
+  let liveMatchIntroStartPoll: ReturnType<typeof setInterval> | null = null;
+  let liveMatchIntroTrackPoll: ReturnType<typeof setInterval> | null = null;
+  let liveMatchIntroZoomPoll: ReturnType<typeof setInterval> | null = null;
+  let liveMatchIntroHideTimer: ReturnType<typeof setTimeout> | null = null;
+  const liveIntroOverlay = document.getElementById(
+    "demoPlayerIntroOverlay",
+  ) as HTMLElement | null;
+  const liveIntroRing = document.getElementById(
+    "demoPlayerIntroRing",
+  ) as HTMLElement | null;
   const demoInputActionSubscribers = new Set<
     (action: "rotate" | "fire" | "dash") => void
   >();
@@ -371,6 +383,127 @@ async function init(): Promise<void> {
     void AudioManager.playSceneMusic(nextScene);
   };
 
+  const clearLiveMatchIntroTimers = (): void => {
+    if (liveMatchIntroStartPoll !== null) {
+      clearInterval(liveMatchIntroStartPoll);
+      liveMatchIntroStartPoll = null;
+    }
+    if (liveMatchIntroTrackPoll !== null) {
+      clearInterval(liveMatchIntroTrackPoll);
+      liveMatchIntroTrackPoll = null;
+    }
+    if (liveMatchIntroZoomPoll !== null) {
+      clearInterval(liveMatchIntroZoomPoll);
+      liveMatchIntroZoomPoll = null;
+    }
+    if (liveMatchIntroHideTimer !== null) {
+      clearTimeout(liveMatchIntroHideTimer);
+      liveMatchIntroHideTimer = null;
+    }
+  };
+
+  const hideLiveMatchPlayerIntro = (): void => {
+    clearLiveMatchIntroTimers();
+    game.setDemoZoomBoost(null);
+    if (!liveIntroOverlay || !liveIntroRing) return;
+    liveIntroOverlay.classList.add("hidden");
+    liveIntroOverlay.classList.remove("spot-panel", "spot-action", "spot-dimmed");
+    liveIntroOverlay.style.pointerEvents = "none";
+    liveIntroRing.style.opacity = "0";
+    liveIntroRing.style.removeProperty("border-color");
+    liveIntroRing.style.removeProperty("box-shadow");
+  };
+
+  const canPlayLiveMatchPlayerIntro = (): boolean => {
+    if (demoController?.isDemoActive()) return false;
+    if (game.getExperienceContext() !== "LIVE_MATCH") return false;
+    const sessionMode = game.getSessionMode();
+    if (sessionMode === "online") return true;
+    return game.getLocalPlayerCount() === 1;
+  };
+
+  const startLiveMatchPlayerIntro = (): void => {
+    if (liveMatchIntroShownForSequence) return;
+    if (!canPlayLiveMatchPlayerIntro()) return;
+    if (!liveIntroOverlay || !liveIntroRing) return;
+
+    const myPlayerId = game.getMyPlayerId();
+    if (!myPlayerId) return;
+    const myPlayer = game.getPlayers().find((player) => player.id === myPlayerId);
+    const shipColor = myPlayer?.color.primary ?? "#00f0ff";
+
+    const begin = (initialPos: { x: number; y: number }): void => {
+      liveMatchIntroShownForSequence = true;
+      hideLiveMatchPlayerIntro();
+
+      liveIntroOverlay.classList.remove("hidden");
+      liveIntroOverlay.style.pointerEvents = "none";
+      liveIntroRing.style.borderColor = shipColor;
+      liveIntroRing.style.boxShadow = `0 0 18px ${shipColor}, 0 0 40px ${shipColor}55`;
+      liveIntroRing.style.opacity = "1";
+      liveIntroOverlay.style.setProperty("--spot-x", `${initialPos.x}px`);
+      liveIntroOverlay.style.setProperty("--spot-y", `${initialPos.y}px`);
+      liveIntroOverlay.style.setProperty("--spot-r", "96px");
+      liveIntroOverlay.style.setProperty("--spot-bg-alpha", "0.84");
+      liveIntroRing.style.left = `${initialPos.x}px`;
+      liveIntroRing.style.top = `${initialPos.y}px`;
+
+      const introBoostStart = 1.34;
+      const introZoomDurationMs = 1320;
+      const introZoomStartAt = performance.now();
+      game.setDemoZoomBoost(introBoostStart);
+      liveMatchIntroZoomPoll = setInterval(() => {
+        const pos = game.getLocalShipViewportPos();
+        if (!pos) {
+          hideLiveMatchPlayerIntro();
+          return;
+        }
+        liveIntroRing.style.left = `${pos.x}px`;
+        liveIntroRing.style.top = `${pos.y}px`;
+        liveIntroOverlay.style.setProperty("--spot-x", `${pos.x}px`);
+        liveIntroOverlay.style.setProperty("--spot-y", `${pos.y}px`);
+
+        const elapsed = performance.now() - introZoomStartAt;
+        const t = Math.max(0, Math.min(1, elapsed / introZoomDurationMs));
+        const eased = t * t * t * (t * (t * 6 - 15) + 10);
+        const boost = 1 + (introBoostStart - 1) * (1 - eased);
+        const spotRadius = 96 + (272 - 96) * eased;
+        const veilAlpha = 0.84 * (1 - eased);
+        game.setDemoZoomBoost(boost);
+        liveIntroOverlay.style.setProperty("--spot-r", `${spotRadius.toFixed(1)}px`);
+        liveIntroOverlay.style.setProperty(
+          "--spot-bg-alpha",
+          `${veilAlpha.toFixed(3)}`,
+        );
+        liveIntroRing.style.opacity = `${Math.max(0, 1 - eased)}`;
+        if (t >= 1) {
+          hideLiveMatchPlayerIntro();
+        }
+      }, 16);
+    };
+
+    const initialPos = game.getLocalShipViewportPos();
+    if (initialPos) {
+      begin(initialPos);
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 24;
+    liveMatchIntroStartPoll = setInterval(() => {
+      attempts += 1;
+      const pos = game.getLocalShipViewportPos();
+      if (pos) {
+        begin(pos);
+        return;
+      }
+      if (attempts >= maxAttempts && liveMatchIntroStartPoll !== null) {
+        clearInterval(liveMatchIntroStartPoll);
+        liveMatchIntroStartPoll = null;
+      }
+    }, 16);
+  };
+
   const syncPlatformGameplayActivity = (): void => {
     const demoState = demoController?.isDemoActive()
       ? demoController.getState()
@@ -378,6 +511,7 @@ async function init(): Promise<void> {
     const isInteractiveDemo =
       demoState === "TUTORIAL";
     const isGameplayPhase =
+      currentPhase === "MATCH_INTRO" ||
       currentPhase === "COUNTDOWN" ||
       currentPhase === "PLAYING" ||
       currentPhase === "ROUND_END";
@@ -401,6 +535,7 @@ async function init(): Promise<void> {
   };
 
   async function teardownDemoAndShowMenu(): Promise<void> {
+    hideLiveMatchPlayerIntro();
     if (!demoController?.isDemoActive()) return;
     demoOverlay?.hideAll();
     await demoController.teardown();
@@ -417,6 +552,7 @@ async function init(): Promise<void> {
   }
 
   async function teardownDemoForAction(): Promise<void> {
+    hideLiveMatchPlayerIntro();
     const activeDemoController = demoController;
     if (!activeDemoController?.isDemoActive()) return;
     await runWithSuppressedStartPhaseEffects(async () => {
@@ -638,6 +774,10 @@ async function init(): Promise<void> {
     if (phase !== "LOBBY") {
       lobbyUI.closeMapPicker();
     }
+    if (phase === "START" || phase === "LOBBY" || phase === "GAME_END") {
+      liveMatchIntroShownForSequence = false;
+      hideLiveMatchPlayerIntro();
+    }
 
     // During demo: intercept game phases to show background battle without HUD
     if (demoController?.isDemoActive()) {
@@ -646,6 +786,7 @@ async function init(): Promise<void> {
         case "LOBBY":
           // Demo just created room — suppress lobby screen
           return;
+        case "MATCH_INTRO":
         case "COUNTDOWN":
         case "PLAYING":
         case "ROUND_END": {
@@ -703,6 +844,7 @@ async function init(): Promise<void> {
         mapPreviewUI.updateMapPreview();
         screenController.resetEndScreenButtons();
         break;
+      case "MATCH_INTRO":
       case "COUNTDOWN":
       case "PLAYING":
         screenController.showScreen("game");
@@ -732,6 +874,9 @@ async function init(): Promise<void> {
       const previousPhase = currentPhase;
       currentPhase = phase;
       syncScreenToPhase(phase, true, previousPhase);
+      if (phase === "MATCH_INTRO" && previousPhase !== "MATCH_INTRO") {
+        startLiveMatchPlayerIntro();
+      }
       syncAudioToPhase(phase, previousPhase);
       syncPlatformGameplayActivity();
     },

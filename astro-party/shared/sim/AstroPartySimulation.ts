@@ -45,6 +45,7 @@ import {
   PLAYER_COLORS,
   DEFAULT_ADVANCED_SETTINGS,
   COUNTDOWN_SECONDS,
+  MATCH_INTRO_DURATION_MS,
   ROUND_RESULTS_DURATION_MS,
   MAX_AMMO,
   HOMING_MISSILE_LIFETIME_MS,
@@ -155,6 +156,7 @@ import {
   endMatchByScore,
   beginPlaying,
   clearRoundEntities,
+  spawnAllShips,
   syncRoomMeta,
   cleanupExpiredEntities,
   getSpawnPoints,
@@ -229,6 +231,7 @@ export class AstroPartySimulation implements SimState {
   // ---- Counters ----
   private revision = 0;
   private botCounter = 0;
+  private matchIntroMs = 0;
   private countdownMs = 0;
   private countdownValue = COUNTDOWN_SECONDS;
   private winnerId: string | null = null;
@@ -466,6 +469,7 @@ export class AstroPartySimulation implements SimState {
       this.rotateToRandomMap();
     }
     this.currentRound = 1;
+    this.matchIntroMs = 0;
     this.roundEndMs = 0;
     this.resetPlayersForNewSequence(preserveScoreAndKills);
 
@@ -475,17 +479,39 @@ export class AstroPartySimulation implements SimState {
       return;
     }
 
+    this.beginMatchIntroSequence();
+  }
+
+
+  private beginMatchIntroSequence(): void {
+    this.matchIntroMs = MATCH_INTRO_DURATION_MS;
+    this.phase = "MATCH_INTRO";
+    clearRoundEntities(this);
+    spawnAllShips(this);
+    // Publish map/room meta before phase callbacks so clients can swap visuals.
+    syncRoomMeta(this);
+    this.hooks.onPhase("MATCH_INTRO");
+    this.syncPlayers();
+  }
+
+  private enterCountdownPhase(preserveShipVisualState = false): void {
     this.phase = "COUNTDOWN";
+    this.matchIntroMs = 0;
     this.countdownMs = COUNTDOWN_SECONDS * 1000;
     this.countdownValue = COUNTDOWN_SECONDS;
-    // Publish map/room meta before phase/countdown callbacks so clients
-    // can swap visuals before entering the next phase.
+    if (!preserveShipVisualState) {
+      for (const playerId of this.playerOrder) {
+        const player = this.players.get(playerId);
+        if (!player) continue;
+        player.state = "ACTIVE";
+        player.ship.alive = false;
+      }
+    }
     syncRoomMeta(this);
     this.hooks.onPhase("COUNTDOWN");
     this.hooks.onCountdown(this.countdownValue);
     this.syncPlayers();
   }
-
 
   private shouldUseCountdownPhase(): boolean {
     return this.experienceContext === "LIVE_MATCH";
@@ -493,6 +519,7 @@ export class AstroPartySimulation implements SimState {
   restartToLobby(sessionId: string): void {
     if (!ensureRoomLeader(this.createPlayerControlsContext(), sessionId)) return;
     this.phase = "LOBBY";
+    this.matchIntroMs = 0;
     this.countdownMs = 0;
     this.countdownValue = COUNTDOWN_SECONDS;
     this.roundEndMs = 0;
@@ -974,6 +1001,13 @@ export class AstroPartySimulation implements SimState {
       }
     }
 
+    if (this.phase === "MATCH_INTRO") {
+      this.matchIntroMs = Math.max(0, this.matchIntroMs - deltaMs);
+      if (this.matchIntroMs <= 0) {
+        this.enterCountdownPhase(true);
+      }
+    }
+
     if (this.phase === "ROUND_END") {
       this.roundEndMs = Math.max(0, this.roundEndMs - deltaMs);
       if (this.roundEndMs <= 0) {
@@ -986,21 +1020,9 @@ export class AstroPartySimulation implements SimState {
           this.reseed((Date.now() >>> 0) ^ this.currentRound);
           beginPlaying(this);
         } else {
-          this.phase = "COUNTDOWN";
-          this.countdownMs = COUNTDOWN_SECONDS * 1000;
-          this.countdownValue = COUNTDOWN_SECONDS;
-          for (const playerId of this.playerOrder) {
-            const player = this.players.get(playerId);
-            if (!player) continue;
-            player.state = "ACTIVE";
-            player.ship.alive = false;
-          }
           // Publish rotated map first so remote clients don't briefly render
           // countdown with the previous round's map.
-          syncRoomMeta(this);
-          this.hooks.onPhase("COUNTDOWN");
-          this.hooks.onCountdown(this.countdownValue);
-          this.syncPlayers();
+          this.enterCountdownPhase();
         }
       }
     }
@@ -1575,8 +1597,12 @@ export class AstroPartySimulation implements SimState {
       this.hooks.onPhase("LOBBY");
       syncRoomMeta(this);
     }
-    if (this.playerOrder.length < 2 && this.phase === "COUNTDOWN") {
+    if (
+      this.playerOrder.length < 2 &&
+      (this.phase === "COUNTDOWN" || this.phase === "MATCH_INTRO")
+    ) {
       this.phase = "LOBBY";
+      this.matchIntroMs = 0;
       this.countdownMs = 0;
       this.hooks.onPhase("LOBBY");
       syncRoomMeta(this);

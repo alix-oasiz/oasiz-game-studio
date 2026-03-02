@@ -55,7 +55,9 @@ Screen flow can hide or reveal gameplay while the simulation continues.
 Core behavior:
 - Round-based elimination.
 - Canonical phase sequence:
-  - `START -> LOBBY -> COUNTDOWN -> PLAYING -> ROUND_END -> GAME_END`
+  - Match start: `START -> LOBBY -> MATCH_INTRO -> COUNTDOWN -> PLAYING`
+  - Round transitions: `ROUND_END -> COUNTDOWN -> PLAYING`
+  - Match end: `... -> GAME_END`
 - Players can be eliminated and spectate until round transition.
 - Match winner is determined by round progression and rounds-to-win logic.
 

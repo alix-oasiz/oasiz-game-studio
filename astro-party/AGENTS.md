@@ -153,7 +153,10 @@ Update when behavior/process changes:
 
 ## Gameplay Flow Guardrails
 
-- Canonical phase flow for `ROUND_ELIMINATION`: `START -> LOBBY -> COUNTDOWN -> PLAYING -> ROUND_END -> GAME_END`.
+- Canonical phase flow for `ROUND_ELIMINATION`:
+  - match start: `START -> LOBBY -> MATCH_INTRO -> COUNTDOWN -> PLAYING`
+  - round loop: `ROUND_END -> COUNTDOWN -> PLAYING`
+  - match end: `... -> GAME_END`
 - Ruleset/context naming and behavior must follow `GAME_MODES.md`.
 - Do not conflate onboarding tutorial and background attract behavior under one generic "demo" mode.
 - Keep ruleset semantics and experience-context behavior separated.

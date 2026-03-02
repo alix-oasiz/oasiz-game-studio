@@ -37,6 +37,7 @@ export const PROJECTILE_VISUAL_GLOW_RADIUS = PROJECTILE_RADIUS * 3;
 // ============= GAME FLOW =============
 
 export const COUNTDOWN_SECONDS = 3;
+export const MATCH_INTRO_DURATION_MS = 1200;
 export const ROUND_RESULTS_DURATION_MS = 2500;
 
 // ============= PILOT =============

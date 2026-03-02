@@ -245,6 +245,7 @@ export class Game {
 
   private isStickyRosterPhase(phase: GamePhase = this.flowMgr.phase): boolean {
     return (
+      phase === "MATCH_INTRO" ||
       phase === "COUNTDOWN" ||
       phase === "PLAYING" ||
       phase === "ROUND_END" ||
@@ -380,6 +381,7 @@ export class Game {
       onGameStateReceived: (state) => {
         if (!this.network.isSimulationAuthority()) {
           if (
+            this.flowMgr.phase !== "MATCH_INTRO" &&
             this.flowMgr.phase !== "COUNTDOWN" &&
             this.flowMgr.phase !== "PLAYING" &&
             this.flowMgr.phase !== "ROUND_END"
@@ -430,7 +432,9 @@ export class Game {
             return;
           }
           const shouldForceRosterSync =
-            phase === "COUNTDOWN" || phase === "PLAYING";
+            phase === "MATCH_INTRO" ||
+            phase === "COUNTDOWN" ||
+            phase === "PLAYING";
           this.network.resyncPlayerListFromState(
             "state-phase-" + phase.toLowerCase(),
             shouldForceRosterSync,
@@ -457,6 +461,22 @@ export class Game {
           }
 
           if (
+            phase === "MATCH_INTRO" &&
+            (oldPhase === "LOBBY" || oldPhase === "GAME_END")
+          ) {
+            console.log("[Game] Non-host: match intro starting, clearing old state");
+            this.finalScoreSubmittedForMatch = false;
+            if (oldPhase === "GAME_END") {
+              this.flowMgr.winnerId = null;
+              this.flowMgr.winnerName = null;
+              this.resetPlayersForNewSequence();
+              this.clearStickyRoster();
+            }
+            this.resetForNextRound();
+            this.networkSync.clearNetworkEntities();
+          }
+
+          if (
             phase === "COUNTDOWN" &&
             (oldPhase === "ROUND_END" ||
               oldPhase === "LOBBY" ||
@@ -475,7 +495,7 @@ export class Game {
             this.resetForNextRound();
             this.networkSync.clearNetworkEntities();
           }
-          if (phase === "COUNTDOWN") {
+          if (phase === "MATCH_INTRO" || phase === "COUNTDOWN") {
             this.syncStickyRosterFromLivePlayers();
           }
           if (phase === "LOBBY" && oldPhase !== "LOBBY") {
@@ -1405,12 +1425,26 @@ export class Game {
       this.cachedLocalShipWorldPos = { x: myShip.x, y: myShip.y };
     }
 
-    // Apply demo zoom boost (multiplies adaptive zoom, focuses on player ship)
+    // Apply demo zoom boost and smoothly blend focus from local ship back
+    // to adaptive camera as the boost returns to 1.
     const zoomMultiplier = this.demoZoomBoost ?? 1;
+    const introFocusCurve = Math.max(0, Math.min(1, (zoomMultiplier - 1) / 0.34));
+    const introFocusBlend =
+      introFocusCurve * introFocusCurve * (3 - 2 * introFocusCurve);
+    const focusX = myShip
+      ? adaptiveCameraState.focusX +
+        (myShip.x - adaptiveCameraState.focusX) *
+          (this.demoZoomBoost !== null ? introFocusBlend : 0)
+      : adaptiveCameraState.focusX;
+    const focusY = myShip
+      ? adaptiveCameraState.focusY +
+        (myShip.y - adaptiveCameraState.focusY) *
+          (this.demoZoomBoost !== null ? introFocusBlend : 0)
+      : adaptiveCameraState.focusY;
     this.renderer.setCamera(
       adaptiveCameraState.zoom * zoomMultiplier,
-      myShip && this.demoZoomBoost ? myShip.x : adaptiveCameraState.focusX,
-      myShip && this.demoZoomBoost ? myShip.y : adaptiveCameraState.focusY,
+      focusX,
+      focusY,
     );
 
     this.gameRenderer.render({

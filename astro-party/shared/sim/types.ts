@@ -3,6 +3,7 @@
 export type GamePhase =
   | "START"
   | "LOBBY"
+  | "MATCH_INTRO"
   | "COUNTDOWN"
   | "PLAYING"
   | "ROUND_END"

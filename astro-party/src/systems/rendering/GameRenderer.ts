@@ -19,6 +19,7 @@ import {
   TurretBulletState,
 } from "../../types";
 import { getMapDefinition, type YellowBlock } from "../../../shared/sim/maps";
+import { TURRET_TUNING } from "../../../shared/sim/mapFeatureTuning";
 
 export interface RenderContext {
   dt: number;
@@ -86,7 +87,7 @@ export class GameRenderer {
     this.renderMapPass(ctx, map, mapTheme, mapTimeSec);
 
     if (this.isGameplayRenderPhase(ctx.phase)) {
-      this.renderGameplayPass(ctx);
+      this.renderGameplayPass(ctx, map);
     }
 
     this.renderCountdownPass(ctx);
@@ -94,11 +95,23 @@ export class GameRenderer {
   }
 
   private usesSimTime(phase: GamePhase): boolean {
-    return phase === "PLAYING" || phase === "GAME_END" || phase === "ROUND_END";
+    return (
+      phase === "MATCH_INTRO" ||
+      phase === "COUNTDOWN" ||
+      phase === "PLAYING" ||
+      phase === "GAME_END" ||
+      phase === "ROUND_END"
+    );
   }
 
   private isGameplayRenderPhase(phase: GamePhase): boolean {
-    return phase === "PLAYING" || phase === "ROUND_END" || phase === "GAME_END";
+    return (
+      phase === "MATCH_INTRO" ||
+      phase === "COUNTDOWN" ||
+      phase === "PLAYING" ||
+      phase === "ROUND_END" ||
+      phase === "GAME_END"
+    );
   }
 
   private advanceMapVisualTime(dt: number): number {
@@ -119,9 +132,10 @@ export class GameRenderer {
     if (!ctx.hideBorder) {
       this.renderer.drawArenaBorder(mapTheme.border);
     }
-    const yellowBlocksForRender = this.getYellowBlocksForRender(
+    const yellowBlocksForRender = this.resolveYellowBlocksForRender(
       map.yellowBlocks,
       ctx.yellowBlockHp,
+      this.isPreCombatMapPreviewPhase(ctx.phase),
     );
     this.updateYellowBlockHitFlashes(
       ctx.mapId,
@@ -155,8 +169,11 @@ export class GameRenderer {
     }
   }
 
-  private renderGameplayPass(ctx: RenderContext): void {
-    const data = this.getGameplayRenderData(ctx);
+  private renderGameplayPass(
+    ctx: RenderContext,
+    map: ReturnType<typeof getMapDefinition>,
+  ): void {
+    const data = this.getGameplayRenderData(ctx, map);
 
     data.renderShips.forEach((state) => {
       if (!state.alive) return;
@@ -308,7 +325,10 @@ export class GameRenderer {
     this.renderer.drawCountdown(ctx.countdown > 0 ? ctx.countdown : 0);
   }
 
-  private getGameplayRenderData(ctx: RenderContext): GameplayRenderData {
+  private getGameplayRenderData(
+    ctx: RenderContext,
+    map: ReturnType<typeof getMapDefinition>,
+  ): GameplayRenderData {
     return {
       renderShips: ctx.networkShips,
       renderPilots: ctx.networkPilots,
@@ -318,9 +338,34 @@ export class GameRenderer {
       renderLaserBeams: ctx.networkLaserBeams,
       renderMines: ctx.networkMines,
       renderHomingMissiles: ctx.networkHomingMissiles,
-      renderTurret: ctx.networkTurret,
+      renderTurret: this.resolveTurretForRender(ctx, map),
       renderTurretBullets: ctx.networkTurretBullets,
     };
+  }
+
+  private resolveTurretForRender(
+    ctx: RenderContext,
+    map: ReturnType<typeof getMapDefinition>,
+  ): TurretState | null {
+    if (ctx.networkTurret) return ctx.networkTurret;
+    if (!this.isPreCombatMapPreviewPhase(ctx.phase)) return null;
+    if (!map.hasTurret) return null;
+    return {
+      id: "preview_turret",
+      x: GAME_CONFIG.ARENA_WIDTH * 0.5,
+      y: GAME_CONFIG.ARENA_HEIGHT * 0.5,
+      angle: this.getPreviewTurretAngle(ctx.nowMs),
+      alive: true,
+      detectionRadius: TURRET_TUNING.detectionRadius,
+      orbitRadius: TURRET_TUNING.orbitRadius,
+      isTracking: false,
+      targetAngle: 0,
+    };
+  }
+
+  private getPreviewTurretAngle(nowMs: number): number {
+    const rotationPerSecond = TURRET_TUNING.idleRotationSpeed;
+    return (nowMs * 0.001 * rotationPerSecond) % (Math.PI * 2);
   }
 
   private getShipPowerUpRenderData(
@@ -382,12 +427,29 @@ export class GameRenderer {
     };
   }
 
-  private getYellowBlocksForRender(
+  private isPreCombatMapPreviewPhase(phase: GamePhase): boolean {
+    return phase === "MATCH_INTRO" || phase === "COUNTDOWN";
+  }
+
+  private hasCompleteYellowBlockHpSnapshot(
     yellowBlocks: YellowBlock[],
     networkYellowBlockHp: number[],
+  ): boolean {
+    return networkYellowBlockHp.length === yellowBlocks.length;
+  }
+
+  private resolveYellowBlocksForRender(
+    yellowBlocks: YellowBlock[],
+    networkYellowBlockHp: number[],
+    allowFallbackPreview: boolean,
   ): YellowBlockRenderEntry[] {
-    if (networkYellowBlockHp.length <= 0) return [];
-    if (networkYellowBlockHp.length !== yellowBlocks.length) return [];
+    if (yellowBlocks.length <= 0) return [];
+
+    if (!this.hasCompleteYellowBlockHpSnapshot(yellowBlocks, networkYellowBlockHp)) {
+      if (!allowFallbackPreview) return [];
+      return yellowBlocks.map((block, index) => ({ index, block }));
+    }
+
     const renderEntries: YellowBlockRenderEntry[] = [];
     for (let index = 0; index < yellowBlocks.length; index += 1) {
       if ((networkYellowBlockHp[index] ?? 1) <= 0) continue;

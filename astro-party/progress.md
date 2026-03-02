@@ -30,6 +30,140 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
 ## Milestone Journal
+## 2026-03-02 - Turret pre-combat preview render (map 5 only)
+
+- Scope:
+  - Added render-only turret preview for `MATCH_INTRO`/`COUNTDOWN` when authoritative turret state is not yet present.
+  - Kept simulation/authority flow unchanged.
+- Changes:
+  - `src/systems/rendering/GameRenderer.ts`:
+    - `renderGameplayPass(...)` now receives current map definition.
+    - `getGameplayRenderData(...)` now resolves turret through `resolveTurretForRender(...)`.
+    - Added preview fallback using map contract + `TURRET_TUNING`:
+      - pre-combat phases only
+      - map must have turret
+      - only used when `networkTurret` is null
+    - Added `getPreviewTurretAngle(...)` to keep preview motion aligned with turret idle rotation.
+- Outcome:
+  - Turret map now shows turret before countdown starts, while authoritative runtime turret still takes over in `PLAYING`.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+
+## 2026-03-02 - Pre-combat map-visual contract cleanup (renderer-owned, no sim workaround)
+
+- Scope:
+  - Refactored yellow-block pre-combat rendering logic into explicit map-visual ownership helpers in `GameRenderer`.
+  - Kept authority/simulation flow unchanged (no map-feature pre-spawn workaround reintroduced).
+- Changes:
+  - `src/systems/rendering/GameRenderer.ts`:
+    - replaced phase-coupled inline yellow-block fallback with explicit helper contract:
+      - `isPreCombatMapPreviewPhase(...)`
+      - `hasCompleteYellowBlockHpSnapshot(...)`
+      - `resolveYellowBlocksForRender(...)`
+    - `renderMapPass(...)` now resolves fallback intent once and passes it through clearly.
+- Outcome:
+  - Maintains the intended behavior (yellow blocks render in `MATCH_INTRO`/`COUNTDOWN` even when HP snapshot is not yet hydrated) with cleaner ownership and less patch-like branching.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+
+## 2026-03-02 - Per-match authoritative intro phase (`MATCH_INTRO`) wired with minimal client overlay
+
+- Scope:
+  - Added a one-time per-match intro phase before countdown without adding per-round intro behavior.
+  - Kept changes focused to phase flow + existing overlay/camera hooks.
+- Shared/server flow changes:
+  - Added `MATCH_INTRO` to phase contract:
+    - `shared/sim/types.ts`
+  - Added intro duration constant:
+    - `shared/sim/constants.ts` (`MATCH_INTRO_DURATION_MS = 1200`)
+  - Updated authoritative sequence in `AstroPartySimulation`:
+    - match start now: `LOBBY -> MATCH_INTRO -> COUNTDOWN -> PLAYING`
+    - intro spawns ships for visual presentation, counts down timer, then enters normal countdown
+    - round transitions remain `ROUND_END -> COUNTDOWN -> PLAYING` (no per-round intro)
+    - `COUNTDOWN` entry reset extracted into helper to avoid duplicate logic
+    - `MATCH_INTRO` included in low-player abort-to-lobby guard
+  - Server room handling:
+    - `AstroPartyRoom` clears stale round result state on `MATCH_INTRO` phase entry.
+- Client flow/render changes:
+  - `GameRenderer` now renders gameplay layer during `MATCH_INTRO` so ships are visible in intro.
+  - `Game` sync path now accepts snapshots during `MATCH_INTRO`.
+  - `Game` sticky-roster and roster-resync hooks include `MATCH_INTRO`.
+  - `main.ts` phase routing updates:
+    - screen/audio mapping includes `MATCH_INTRO`
+    - platform gameplay activity includes `MATCH_INTRO`
+    - one-time live intro spotlight+zoom now triggers only on `MATCH_INTRO` entry and resets on `START/LOBBY/GAME_END`.
+- Documentation alignment:
+  - Updated `GAME_MODES.md` canonical `ROUND_ELIMINATION` sequence to include one-time `MATCH_INTRO` before countdown.
+  - Updated `AGENTS.md` gameplay flow guardrail to match the new canonical phase sequence.
+- Follow-up transition smoothing (same thread, post-validation):
+  - Preserved intro ship visual state during `MATCH_INTRO -> COUNTDOWN` handoff so countdown no longer hard-cuts to empty scene.
+  - Enabled gameplay-pass rendering during `COUNTDOWN` so intro ships remain visible while countdown text overlays.
+  - Extended intro overlay hide timer (`900ms -> 1350ms`) to overlap countdown start and reduce abrupt zoom drop.
+  - Replaced hard camera handoff with eased intro blend:
+    - zoom boost now eases down over time instead of staying fixed then dropping,
+    - ship-focus now blends back to adaptive camera focus based on remaining boost,
+    - intro spotlight waits for real ship viewport position before first render (no center flash fallback).
+  - Cinematic polish pass (no fallback):
+    - Intro spotlight veil now fades with the zoom timeline (`--spot-bg-alpha` animated down to 0).
+    - Spotlight radius now expands with the zoom timeline (`--spot-r` animated outward) for curved cinematic pullback.
+    - Removed fallback spotlight behavior during intro tracking:
+      - if ship lock is unavailable at start, intro does not begin,
+    - if ship lock is lost mid-intro, intro aborts instead of falling back to last/center position.
+    - Adjusted camera focus blend curve to smoothstep against zoom multiplier for less linear-feeling handoff.
+  - Map-element consistency fix (countdown preloading):
+    - Initial mitigation used authority-side map-feature pre-spawn in intro/countdown.
+    - Root cause was later identified as mixed visual ownership:
+      - repulsion/center-hole visuals are static map-definition rendered,
+      - yellow blocks were gated by runtime `yellowBlockHp` snapshot presence.
+    - Replaced mitigation with targeted render-path fix:
+      - during `MATCH_INTRO`/`COUNTDOWN`, if yellow-block HP snapshot is unavailable, render yellow blocks from map definition at full HP.
+      - removed intro/countdown map-feature pre-spawn workaround from simulation flow.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+  - `astro-party/server`: `npm run typecheck` passed.
+  - `astro-party/server`: `npm run build` passed.
+
+## 2026-03-02 - Live-match intro experiment rollback (pre-countdown cinematic path)
+
+- Scope:
+  - Attempted a lightweight client-side cinematic intro path before round start, then rolled it back after runtime validation showed it still felt late relative to countdown.
+- Attempted changes:
+  - Moved intro trigger from `COUNTDOWN -> PLAYING` to `COUNTDOWN` entry in `src/main.ts`.
+  - Added intro spotlight fallback targeting in `src/Game.ts` so pre-spawn phases could use deterministic spawn-slot positioning.
+  - Hardened intro startup to avoid waiting on late ship hydration:
+    - spawn-slot lookup from authoritative transport player order,
+    - immediate fallback chain (`ship -> spawn slot -> arena center`),
+    - removed delayed retry/poll startup path.
+  - Validation on implementation passes:
+    - `bun run typecheck` passed.
+    - `bun run build` passed.
+- Outcome:
+  - Manual behavior still did not meet expectation (intro perceived as happening after countdown).
+  - Root practical constraint for this path: very short `LOBBY -> COUNTDOWN` window plus current authoritative spawn/phase timing.
+- Reversion log:
+  - Reverted experiment files to `HEAD`:
+    - `src/main.ts`
+    - `src/Game.ts`
+    - `progress.md` (this was reverted during cleanup, then this recovery milestone was appended per process requirement).
+  - Per follow-up user request, also cleared remaining staged edits and returned repo to fully clean state:
+    - `index.html`
+    - `src/ui/elements.ts`
+- Reasoning:
+  - Preserve a stable baseline and switch to the alternate approach instead of iterating further on a path that failed the intended timing outcome.
+
+## 2026-03-02 - Progress log recovery entry (separate)
+
+- Scope:
+  - Added an explicit standalone log entry to record that `progress.md` had been reverted during cleanup and was then restored via append-only milestone updates.
+- Why this entry exists:
+  - Keeps history auditable without rewriting prior milestones.
+  - Aligns with the progress log contract to append recovery context instead of silently replacing it.
+- Validation:
+  - Docs-only update; no runtime commands rerun.
+
 ## Recurring Patterns Filtered Out
 
 - Iterative UI micro-patches were repeatedly applied to the same lobby/start layouts.

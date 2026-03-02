@@ -141,7 +141,11 @@ export class AstroPartyRoom extends Room<AstroPartyRoomState> {
           } else {
             this.lock();
           }
-          if (phase === "LOBBY" || phase === "COUNTDOWN") {
+          if (
+            phase === "LOBBY" ||
+            phase === "MATCH_INTRO" ||
+            phase === "COUNTDOWN"
+          ) {
             this.clearRoundResultState();
           }
         },
