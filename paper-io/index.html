@@ -8,6 +8,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #f5f0e8; font-family: 'Quicksand', sans-serif; color: #5A5A5A; display: flex; align-items: center; justify-content: center; }
+    .hidden { display: none !important; }
 
     #game-wrapper {
       width: min(100vw, 56.25vh); /* 9:16 portrait */
@@ -26,6 +27,90 @@
       color: #E8736C; margin-bottom: 0.5rem; letter-spacing: 2px;
     }
     .game-desc { font-size: 0.95rem; opacity: 0.5; font-weight: 500; margin-bottom: 2rem; text-align: center; }
+
+    /* ─── Shop Open Button (on menu) ─── */
+    #shop-open-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 28px; font-family: 'Quicksand', sans-serif;
+      font-size: 1rem; font-weight: 700; color: #5A5A5A;
+      background: rgba(255,255,255,0.7); border: 2px solid rgba(222,214,200,0.9);
+      border-radius: 14px; cursor: pointer; letter-spacing: 0.5px;
+      transition: all 0.2s ease; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      margin-bottom: 0.4rem;
+    }
+    #shop-open-btn:hover { background: rgba(255,255,255,0.9); transform: scale(1.03); }
+    #shop-open-btn:active { transform: scale(0.97); }
+    #shop-open-btn .preview-swatch {
+      width: 20px; height: 20px; border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.9);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+    #shop-open-btn svg { width: 18px; height: 18px; fill: currentColor; opacity: 0.5; flex-shrink: 0; }
+
+    /* ─── Shop Modal ─── */
+    #shop-modal {
+      position: absolute; inset: 0; z-index: 110; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 22px; background: rgba(245,240,232,0.95); backdrop-filter: blur(14px);
+    }
+    #shop-modal.visible { display: flex; }
+
+    .shop-card {
+      width: min(100%, 320px); display: flex; flex-direction: column;
+      align-items: center; gap: 24px;
+    }
+    .shop-header {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+    }
+    .shop-modal-title {
+      font-family: 'Quicksand', sans-serif; color: #E8736C;
+      font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    #shop-close-btn {
+      width: 40px; height: 40px; border-radius: 12px;
+      border: 2px solid rgba(222,214,200,0.7); background: rgba(255,255,255,0.6);
+      color: #5A5A5A; display: grid; place-items: center;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    #shop-close-btn:hover { background: rgba(255,255,255,0.9); }
+    #shop-close-btn:active { transform: scale(0.93); }
+    #shop-close-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+    .shop-section-label {
+      font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 700; opacity: 0.45; align-self: flex-start;
+    }
+    #shop-colors {
+      width: 100%; display: grid;
+      grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .shop-color-btn {
+      border: 2px solid rgba(222,214,200,0.9);
+      background: rgba(255,255,255,0.75);
+      border-radius: 14px; height: 56px;
+      display: grid; place-items: center;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .shop-color-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .shop-color-btn:active { transform: scale(0.95); }
+    .shop-color-btn.selected {
+      border-color: #E8736C;
+      background: rgba(232,115,108,0.12);
+      box-shadow: 0 2px 10px rgba(232,115,108,0.25);
+    }
+    .shop-swatch {
+      width: 26px; height: 26px;
+      border-radius: 999px;
+      border: 2.5px solid rgba(255,255,255,0.85);
+      box-shadow: 0 1px 5px rgba(0,0,0,0.14);
+    }
+    .shop-color-btn.selected .shop-swatch {
+      width: 30px; height: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
 
     #play-btn {
       margin-top: 2rem; padding: 14px 60px; font-family: 'Quicksand', sans-serif;
@@ -100,6 +185,69 @@
     #pause-overlay.visible { display: flex; }
     #pause-overlay h2 { font-family: 'Quicksand', sans-serif; font-size: 2rem; font-weight: 700; color: #E8736C; opacity: 0.7; }
 
+    /* ─── Settings Button ─── */
+    #settings-btn {
+      position: absolute; bottom: 30px; right: 20px; width: 48px; height: 48px;
+      border: 2px solid rgba(232,115,108,0.25); border-radius: 14px;
+      background: rgba(245,240,232,0.85); color: #E8736C;
+      display: grid; place-items: center; z-index: 55; cursor: pointer;
+      transition: transform 0.16s ease, background 0.16s ease;
+      backdrop-filter: blur(6px);
+    }
+    #settings-btn:hover { background: rgba(245,240,232,0.95); }
+    #settings-btn:active { transform: scale(0.94); }
+    #settings-btn svg { width: 22px; height: 22px; fill: currentColor; }
+    @media (pointer: coarse) { #settings-btn { bottom: 120px; right: 16px; } }
+
+    /* ─── Settings Modal ─── */
+    #settings-modal {
+      position: absolute; inset: 0; z-index: 90; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 22px; background: rgba(245,240,232,0.92); backdrop-filter: blur(12px);
+    }
+    #settings-modal.visible { display: flex; }
+
+    .modal-card {
+      width: min(100%, 320px); display: flex; flex-direction: column;
+      align-items: center; gap: 28px;
+    }
+    .modal-title {
+      font-family: 'Quicksand', sans-serif; color: #E8736C;
+      font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .settings-list {
+      width: 100%; display: flex; flex-direction: column; gap: 6px;
+    }
+    .setting-row {
+      width: 100%; border: none; background: transparent; color: #5A5A5A;
+      padding: 14px 0; display: flex; align-items: center; justify-content: space-between;
+      text-align: left; border-bottom: 1px solid rgba(222,214,200,0.5);
+      cursor: pointer; font-family: 'Quicksand', sans-serif;
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-name { display: flex; flex-direction: column; gap: 2px; }
+    .setting-title {
+      font-size: 1rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .setting-state {
+      font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: rgba(90,90,90,0.5);
+    }
+    .switch {
+      width: 46px; height: 26px; border-radius: 999px;
+      background: rgba(90,90,90,0.15); position: relative; flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .switch::after {
+      content: ""; position: absolute; width: 20px; height: 20px;
+      border-radius: 999px; background: rgba(90,90,90,0.4);
+      top: 3px; left: 3px; transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .setting-row.active .switch { background: rgba(232,115,108,0.35); }
+    .setting-row.active .switch::after { transform: translateX(20px); background: #E8736C; }
+    @media (pointer: coarse) { .setting-row { min-height: 56px; } }
+
     /* ─── Mobile D-Pad ─── */
     #dpad {
       position: absolute; bottom: 30px; right: 30px; width: 130px; height: 130px;
@@ -127,6 +275,11 @@
   <div id="menu-screen">
     <h1>Paper.io</h1>
     <p class="game-desc">Conquer territory by drawing loops. Don't get caught!</p>
+    <button id="shop-open-btn">
+      <span class="preview-swatch" id="shop-preview" style="background:#00E5FF"></span>
+      Shop
+      <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 0 0 0 1.41L13.17 12l-3.88 3.88a1 1 0 1 0 1.41 1.41l4.59-4.59a1 1 0 0 0 0-1.41L10.7 6.71a1 1 0 0 0-1.41 0z"/></svg>
+    </button>
     <button id="play-btn">Play</button>
     <div class="how-to-play" id="how-to-toggle">How to Play</div>
     <div id="how-to-content">
@@ -143,7 +296,6 @@
     <div id="hud-left">
       <div id="hud-player"><span class="color-dot" id="player-dot"></span> YOU <span id="player-pct">0%</span></div>
       <div id="hud-timer">00:00</div>
-      <button id="mute-btn">🔊</button>
     </div>
     <div id="leaderboard">
       <h3>Leaderboard</h3>
@@ -165,6 +317,64 @@
 
   <!-- Pause -->
   <div id="pause-overlay"><h2>Paused</h2></div>
+
+  <!-- Settings Button -->
+  <button id="settings-btn" class="hidden" aria-label="Settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M19.43 12.98a7.55 7.55 0 0 0 .05-.98 7.55 7.55 0 0 0-.05-.98l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.06 7.06 0 0 0-1.7-.98l-.38-2.65A.5.5 0 0 0 14 1h-4a.5.5 0 0 0-.49.41l-.38 2.65a7.06 7.06 0 0 0-1.7.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64L4.57 11a7.55 7.55 0 0 0-.05.98 7.55 7.55 0 0 0 .05.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .6.22l2.49-1a7.06 7.06 0 0 0 1.7.98l.38 2.65a.5.5 0 0 0 .49.41h4a.5.5 0 0 0 .49-.41l.38-2.65a7.06 7.06 0 0 0 1.7-.98l2.49 1a.5.5 0 0 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/>
+    </svg>
+  </button>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal">
+    <div class="modal-card">
+      <div class="modal-title">Settings</div>
+      <div class="settings-list">
+        <button id="music-toggle" class="setting-row active">
+          <span class="setting-name">
+            <span class="setting-title">Music</span>
+            <span id="music-state" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+        <button id="fx-toggle" class="setting-row active">
+          <span class="setting-name">
+            <span class="setting-title">FX</span>
+            <span id="fx-state" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+        <button id="haptics-toggle" class="setting-row active">
+          <span class="setting-name">
+            <span class="setting-title">Haptics</span>
+            <span id="haptics-state" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shop Modal -->
+  <div id="shop-modal">
+    <div class="shop-card">
+      <div class="shop-header">
+        <div class="shop-modal-title">Shop</div>
+        <button id="shop-close-btn" aria-label="Close shop">
+          <svg viewBox="0 0 24 24"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>
+        </button>
+      </div>
+      <div class="shop-section-label">Player Color</div>
+      <div id="shop-colors">
+        <button class="shop-color-btn selected" data-color-index="0" aria-label="Cyan"><span class="shop-swatch" style="background:#00E5FF"></span></button>
+        <button class="shop-color-btn" data-color-index="1" aria-label="Pink"><span class="shop-swatch" style="background:#FF3D71"></span></button>
+        <button class="shop-color-btn" data-color-index="2" aria-label="Orange"><span class="shop-swatch" style="background:#FFAA00"></span></button>
+        <button class="shop-color-btn" data-color-index="3" aria-label="Green"><span class="shop-swatch" style="background:#00E096"></span></button>
+        <button class="shop-color-btn" data-color-index="4" aria-label="Purple"><span class="shop-swatch" style="background:#A259FF"></span></button>
+        <button class="shop-color-btn" data-color-index="5" aria-label="Vermillion"><span class="shop-swatch" style="background:#FF6B35"></span></button>
+      </div>
+    </div>
+  </div>
 
   <!-- Mobile D-Pad -->
   <div id="dpad">

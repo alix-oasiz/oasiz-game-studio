@@ -17,6 +17,7 @@ export class Game {
   private menu: Menu;
 
   private players: PlayerState[] = [];
+  private human: PlayerState | null = null;
   private botController!: BotController;
   private inputHandler!: InputHandler;
 
@@ -24,7 +25,7 @@ export class Game {
   private running = false;
   private paused = false;
   private gameOver = false;
-  private started = false; // waiting for first human input
+  private started = false;
   private gameTime = 0;
   private lastFrameTime = 0;
   private hudUpdateTimer = 0;
@@ -44,10 +45,7 @@ export class Game {
       () => this.showMainMenu(),
     );
 
-    document.getElementById('mute-btn')!.addEventListener('click', () => {
-      const muted = this.audio.toggleMute();
-      document.getElementById('mute-btn')!.textContent = muted ? '🔇' : '🔊';
-    });
+    this.initSettingsModal();
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'p' || e.key === 'P') this.togglePause();
@@ -59,10 +57,39 @@ export class Game {
     this.startRenderLoop();
   }
 
+  private settingsOpen = false;
+
+  private initSettingsModal(): void {
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+
+    settingsBtn?.addEventListener('click', () => {
+      this.settingsOpen = !this.settingsOpen;
+      settingsModal?.classList.toggle('visible', this.settingsOpen);
+      if (this.settingsOpen && this.running && !this.gameOver) {
+        this.paused = true;
+      }
+      this.audio.triggerHaptic('light');
+    });
+
+    settingsModal?.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        this.settingsOpen = false;
+        settingsModal.classList.remove('visible');
+        if (this.running && !this.gameOver) {
+          this.paused = false;
+        }
+      }
+    });
+  }
+
   private showMainMenu(): void {
     this.stopGame();
     this.menu.showMenu();
     this.hud.hide();
+    document.getElementById('settings-btn')?.classList.add('hidden');
+    this.settingsOpen = false;
+    document.getElementById('settings-modal')?.classList.remove('visible');
   }
 
   private startGame(config: MenuConfig): void {
@@ -78,14 +105,22 @@ export class Game {
 
     // Create players
     const total = 1 + config.botCount;
+    const maxColorIndex = PLAYER_COLORS.length - 1;
+    const selectedColorIndex = Math.max(0, Math.min(config.playerColorIndex, maxColorIndex));
+    const botColorIndices = PLAYER_COLORS
+      .map((_, idx) => idx)
+      .filter((idx) => idx !== selectedColorIndex);
     for (let i = 0; i < total; i++) {
       const sp = SPAWN_POINTS[i];
+      const colorIndex = i === 0
+        ? selectedColorIndex
+        : botColorIndices[(i - 1) % botColorIndices.length];
       const player = createPlayer(
-        i, PLAYER_COLORS[i], PLAYER_COLOR_STRINGS[i],
+        i, PLAYER_COLORS[colorIndex], PLAYER_COLOR_STRINGS[colorIndex],
         PLAYER_NAMES[i], sp.x, sp.z, i === 0,
       );
       this.players.push(player);
-      this.renderer.createAvatar(i, PLAYER_COLORS[i], PLAYER_NAMES[i]);
+      this.renderer.createAvatar(i, PLAYER_COLORS[colorIndex], PLAYER_NAMES[i]);
     }
 
     // Bot AI
@@ -98,8 +133,9 @@ export class Game {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
     this.inputHandler = new InputHandler(this.players[0], this.renderer.camera, canvas);
 
-    // HUD
+    // HUD & Settings button
     this.hud.show();
+    document.getElementById('settings-btn')?.classList.remove('hidden');
 
     // Initial territory + avatar positioning
     for (const p of this.players) {
@@ -107,16 +143,15 @@ export class Game {
       this.renderer.updateAvatar(p.id, p.position, 0);
     }
 
-    // Snap camera to human player immediately
-    const human = this.players[0];
-    this.renderer.setCameraTarget(human.position);
+    this.human = this.players[0];
+    this.renderer.setCameraTarget(this.human.position);
 
     this.running = true;
   }
 
   private stopGame(): void {
     this.running = false;
-    // Clean up renderer objects
+    this.human = null;
     for (const p of this.players) {
       this.renderer.cleanupPlayer(p.id);
     }
@@ -130,57 +165,58 @@ export class Game {
     else this.menu.hidePause();
   }
 
+  private readonly _oldPos: Vec2 = { x: 0, z: 0 };
+
   private updateGame(dt: number): void {
     if (this.paused || this.gameOver) return;
 
-    // Update human input (steer toward mouse/touch each frame)
     this.inputHandler.update();
 
-    // Update bot AI
-    for (const p of this.players) {
-      if (!p.isHuman && p.alive) {
-        this.botController.update(p, this.players);
-      }
+    const players = this.players;
+    const playerCount = players.length;
+
+    for (let pi = 1; pi < playerCount; pi++) {
+      const p = players[pi];
+      if (p.alive) this.botController.update(p, players, dt);
     }
 
-    // Rebuild spatial hash for all trails
     this.trailHash.clear();
-    for (const p of this.players) {
+    for (let pi = 0; pi < playerCount; pi++) {
+      const p = players[pi];
       if (p.alive && p.trail.length >= 2) {
         this.trailHash.insertTrail(p.id, p.trail);
       }
     }
 
-    // Move all players
-    for (const p of this.players) {
+    const oldPos = this._oldPos;
+
+    for (let pi = 0; pi < playerCount; pi++) {
+      const p = players[pi];
       if (!p.alive) continue;
 
-      // Wait for first human input
       if (p.isHuman && !this.started) {
         if (p.hasInput) this.started = true;
         else continue;
       }
 
       const rawPos = computeMovement(p, dt);
-
-      // Clamp to circular arena instead of killing
       const newPos = clampToArena(rawPos);
 
-      const oldPos: Vec2 = { x: p.position.x, z: p.position.z };
+      oldPos.x = p.position.x;
+      oldPos.z = p.position.z;
       const wasInTerritory = p.territory.containsPoint(oldPos);
       const nowInTerritory = p.territory.containsPoint(newPos);
 
-      // Check trail collision using spatial hash
       let hitTrail = false;
       const candidates = this.trailHash.query(oldPos, newPos);
-      for (const cand of candidates) {
-        const other = this.players[cand.playerId];
+      for (let ci = 0, cLen = candidates.length; ci < cLen; ci++) {
+        const cand = candidates[ci];
+        const other = players[cand.playerId];
         if (!other || !other.alive) continue;
         const trail = other.trail;
-        const i = cand.segIdx;
-        // Skip last 2 segments of own trail to avoid self-collision at current pos
-        if (other.id === p.id && i >= trail.length - 3) continue;
-        if (segmentsIntersect(oldPos, newPos, trail[i], trail[i + 1])) {
+        const si = cand.segIdx;
+        if (other.id === p.id && si >= trail.length - 3) continue;
+        if (segmentsIntersect(oldPos, newPos, trail[si], trail[si + 1])) {
           if (other.id === p.id) {
             this.killPlayer(p);
             hitTrail = true;
@@ -192,74 +228,90 @@ export class Game {
       }
       if (hitTrail) continue;
 
-      // Move
       p.position = newPos;
 
-      // Trail logic
+      // Regenerate territory if it was completely consumed by an enemy capture
+      if (p.alive && p.territory.polygons.length === 0 && !p.isTrailing) {
+        p.territory.initAtSpawn(p.position.x, p.position.z);
+        this.renderer.updateTerritory(p.id, p.territory.polygons, p.color);
+        p.territory.dirty = false;
+      }
+
       if (wasInTerritory && !nowInTerritory) {
-        // Leaving territory — start trailing
         p.isTrailing = true;
         p.trail = [{ x: oldPos.x, z: oldPos.z }];
+      }
+
+      // If player is outside territory and not trailing (e.g. territory was consumed
+      // mid-trail and they re-entered the regenerated zone then left again), ensure
+      // trailing restarts so they are never stuck unable to capture.
+      if (!p.isTrailing && !nowInTerritory && p.hasInput && p.territory.polygons.length > 0) {
+        const wasInLastFrame = p.territory.containsPoint(oldPos);
+        if (!wasInLastFrame) {
+          p.isTrailing = true;
+          p.trail = [{ x: p.position.x, z: p.position.z }];
+        }
       }
 
       if (p.isTrailing) {
         sampleTrailPoint(p);
 
         if (nowInTerritory && p.trail.length >= 3) {
-          // Returned to territory — capture!
-          p.trail.push({ x: newPos.x, z: newPos.z }); // close the trail
+          p.trail.push({ x: newPos.x, z: newPos.z });
           p.territory.captureFromTrail(p.trail);
 
-          // Remove overlap from other players
-          for (const other of this.players) {
+          for (let oi = 0; oi < playerCount; oi++) {
+            const other = players[oi];
             if (other.id !== p.id && other.alive) {
               other.territory.removeOverlap(p.trail);
-              this.renderer.updateTerritory(other.id, other.territory.polygons, other.color);
+              if (other.territory.dirty) {
+                this.renderer.updateTerritory(other.id, other.territory.polygons, other.color);
+                other.territory.dirty = false;
+              }
             }
           }
 
           p.trail = [];
           p.isTrailing = false;
           this.renderer.updateTerritory(p.id, p.territory.polygons, p.color);
+          p.territory.dirty = false;
           this.audio.territoryCaptured();
         }
       }
     }
 
-    // Update visuals
-    for (const p of this.players) {
+    for (let pi = 0; pi < playerCount; pi++) {
+      const p = players[pi];
       if (p.alive) {
         this.renderer.updateAvatar(p.id, p.position, this.gameTime, p.moveDir);
         this.renderer.updateTrail(p.id, p.trail, p.color);
       }
     }
 
-    // Camera follows human player
-    const human = this.players.find(p => p.isHuman);
-    if (human) {
-      this.renderer.updateCamera(human.position, dt);
+    if (this.human) {
+      this.renderer.updateCamera(this.human.position, dt);
     }
 
-    // Throttled HUD update
     this.hudUpdateTimer += dt;
-    if (this.hudUpdateTimer >= 0.1) {
+    if (this.hudUpdateTimer >= 0.15) {
       this.hudUpdateTimer = 0;
-      this.hud.update(this.players);
+      this.hud.update(players);
 
-      // Gold ring for the leader
       let leaderId = -1;
       let bestArea = -1;
-      for (const p of this.players) {
+      for (let pi = 0; pi < playerCount; pi++) {
+        const p = players[pi];
         if (!p.alive) continue;
         const area = p.territory.computeArea();
         if (area > bestArea) { bestArea = area; leaderId = p.id; }
       }
       if (leaderId !== this.currentLeaderId) {
-        // Reset previous leader's ring to their own color
         if (this.currentLeaderId >= 0) {
-          this.renderer.setRingColor(this.currentLeaderId, PLAYER_COLORS[this.currentLeaderId]);
+          const previousLeader = this.players[this.currentLeaderId];
+          if (previousLeader) {
+            this.renderer.setRingColor(this.currentLeaderId, previousLeader.color);
+          }
         }
-        // Set new leader's ring to gold
         if (leaderId >= 0) {
           this.renderer.setRingColor(leaderId, 0xFFD700);
         }
@@ -267,7 +319,6 @@ export class Game {
       }
     }
 
-    // Check game over
     this.checkGameOver();
   }
 
@@ -285,7 +336,7 @@ export class Game {
   }
 
   private checkGameOver(): void {
-    const human = this.players.find(p => p.isHuman);
+    const human = this.human;
     if (!human) return;
 
     const alive = this.players.filter(p => p.alive);
@@ -298,6 +349,9 @@ export class Game {
       if (winner) this.renderer.showCrown(winner.id);
 
       const { pct, rank } = this.hud.getHumanScore(this.players);
+      document.getElementById('settings-btn')?.classList.add('hidden');
+      this.settingsOpen = false;
+      document.getElementById('settings-modal')?.classList.remove('visible');
       this.menu.showGameOver(
         `${pct}%`,
         `#${rank} of ${this.players.length}`,

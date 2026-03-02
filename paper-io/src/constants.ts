@@ -38,10 +38,10 @@ export enum BotBehavior {
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
-export const BOT_DIFFICULTY: Record<Difficulty, { maxTrailLen: number; aggression: number; loopSize: number }> = {
-  easy: { maxTrailLen: 6, aggression: 0.1, loopSize: 5 },
-  medium: { maxTrailLen: 12, aggression: 0.4, loopSize: 8 },
-  hard: { maxTrailLen: 20, aggression: 0.8, loopSize: 12 },
+export const BOT_DIFFICULTY: Record<Difficulty, { maxTrailLen: number; aggression: number; loopSize: number; turnRate: number }> = {
+  easy:   { maxTrailLen: 15, aggression: 0.1, loopSize: 8,  turnRate: 2.5 },
+  medium: { maxTrailLen: 25, aggression: 0.4, loopSize: 12, turnRate: 3.5 },
+  hard:   { maxTrailLen: 40, aggression: 0.8, loopSize: 16, turnRate: 4.5 },
 };
 
 // ─── Colors ───

@@ -33,7 +33,7 @@ function pointInPolygonWinding(point: Vec2, polygon: Vec2[]): boolean {
 
 const TERRITORY_Y = 0.03;
 const TRAIL_Y = 0.06;
-const CELL_SIZE = 0.05; // grid resolution for territory rendering
+const CELL_SIZE = 0.1;
 
 export class Renderer {
   scene: THREE.Scene;
@@ -42,12 +42,13 @@ export class Renderer {
 
   private territoryObjects: Map<number, THREE.Mesh> = new Map();
   private territoryMaterials: Map<number, THREE.MeshBasicMaterial> = new Map();
-  private territoryPolyCount: Map<number, number> = new Map(); // track polygon count to skip unchanged
   private trailMeshes: Map<number, THREE.Mesh> = new Map();
-  private trailLengths: Map<number, number> = new Map(); // track trail length to skip unchanged
+  private trailMaterials: Map<number, THREE.MeshBasicMaterial> = new Map();
+  private trailLengths: Map<number, number> = new Map();
   private avatars: Map<number, THREE.Group> = new Map();
 
   private cameraTarget: Vec2 = { x: 0, z: 0 };
+  private territoryRenderOrder = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
@@ -72,27 +73,42 @@ export class Renderer {
   }
 
   private createBoard(): void {
-    // Circular arena floor
-    const boardGeo = new THREE.CircleGeometry(MAP_RADIUS, 64);
+    const boardGeo = new THREE.CircleGeometry(MAP_RADIUS, 48);
     const boardMat = new THREE.MeshLambertMaterial({ color: BOARD_COLOR });
     const board = new THREE.Mesh(boardGeo, boardMat);
     board.rotation.x = -Math.PI / 2;
     this.scene.add(board);
 
-    // Concentric ring grid lines
     const ringCount = MAP_RADIUS;
+    const ringSegments = 48;
+    const allRingVerts: number[] = [];
+    const allRingIndices: number[] = [];
+    let vertOffset = 0;
     for (let i = 1; i <= ringCount; i++) {
-      const ringGeo = new THREE.RingGeometry(i - 0.02, i + 0.02, 64);
-      const ringMat = new THREE.MeshBasicMaterial({ color: GRID_LINE_COLOR, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.01;
-      this.scene.add(ring);
+      const inner = i - 0.02;
+      const outer = i + 0.02;
+      for (let s = 0; s <= ringSegments; s++) {
+        const angle = (Math.PI * 2 * s) / ringSegments;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        allRingVerts.push(cos * inner, 0.01, sin * inner);
+        allRingVerts.push(cos * outer, 0.01, sin * outer);
+      }
+      for (let s = 0; s < ringSegments; s++) {
+        const base = vertOffset + s * 2;
+        allRingIndices.push(base, base + 1, base + 2);
+        allRingIndices.push(base + 1, base + 3, base + 2);
+      }
+      vertOffset += (ringSegments + 1) * 2;
     }
+    const ringsGeo = new THREE.BufferGeometry();
+    ringsGeo.setAttribute('position', new THREE.Float32BufferAttribute(allRingVerts, 3));
+    ringsGeo.setIndex(allRingIndices);
+    const ringsMat = new THREE.MeshBasicMaterial({ color: GRID_LINE_COLOR, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+    this.scene.add(new THREE.Mesh(ringsGeo, ringsMat));
 
-    // Circular border edge
     const borderCurve = new THREE.EllipseCurve(0, 0, MAP_RADIUS, MAP_RADIUS, 0, Math.PI * 2, false, 0);
-    const borderPoints = borderCurve.getPoints(128);
+    const borderPoints = borderCurve.getPoints(64);
     const borderGeo = new THREE.BufferGeometry().setFromPoints(borderPoints);
     const borderMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, opacity: 0.35, transparent: true });
     const border = new THREE.LineLoop(borderGeo, borderMat);
@@ -120,7 +136,7 @@ export class Renderer {
     body.position.y = 0.175;
     group.add(body);
 
-    const ringGeo = new THREE.TorusGeometry(0.45, 0.04, 8, 24);
+    const ringGeo = new THREE.TorusGeometry(0.45, 0.04, 6, 16);
     const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 });
     ringGeo.rotateX(Math.PI / 2);
     const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -235,10 +251,6 @@ export class Renderer {
    * 3. Boundary cells → interpolated edge vertices via marching squares for smooth outline.
    */
   updateTerritory(id: number, polygons: Vec2[][], color: number): void {
-    // Skip if polygon count hasn't changed (territory unchanged)
-    const prevCount = this.territoryPolyCount.get(id) ?? -1;
-    if (prevCount === polygons.length && polygons.length > 0) return;
-    this.territoryPolyCount.set(id, polygons.length);
 
     const old = this.territoryObjects.get(id);
     if (old) {
@@ -250,7 +262,6 @@ export class Renderer {
     if (polygons.length === 0) {
       this.territoryObjects.delete(id);
       this.territoryMaterials.delete(id);
-      this.territoryPolyCount.delete(id);
       return;
     }
 
@@ -285,15 +296,14 @@ export class Renderer {
     const cols = Math.round((maxX - minX) / CELL_SIZE) + 1;
     const rows = Math.round((maxZ - minZ) / CELL_SIZE) + 1;
 
-    // Sample grid nodes using winding-number point-in-polygon
     const field = new Uint8Array(cols * rows);
+    const pt: Vec2 = { x: 0, z: 0 };
     for (let r = 0; r < rows; r++) {
-      const gz = minZ + r * CELL_SIZE;
+      pt.z = minZ + r * CELL_SIZE;
       for (let c = 0; c < cols; c++) {
-        const gx = minX + c * CELL_SIZE;
-        const pt: Vec2 = { x: gx, z: gz };
-        for (const poly of polygons) {
-          if (pointInPolygonWinding(pt, poly)) {
+        pt.x = minX + c * CELL_SIZE;
+        for (let pi = 0; pi < polygons.length; pi++) {
+          if (pointInPolygonWinding(pt, polygons[pi])) {
             field[r * cols + c] = 1;
             break;
           }
@@ -319,20 +329,14 @@ export class Renderer {
       if (!field[ri]) { exterior[ri] = 1; stack.push(r, cols - 1); }
     }
 
-    // BFS flood fill
     while (stack.length > 0) {
       const sc = stack.pop()!;
       const sr = stack.pop()!;
-      const neighbors = [
-        [sr - 1, sc], [sr + 1, sc], [sr, sc - 1], [sr, sc + 1],
-      ];
-      for (const [nr, nc] of neighbors) {
-        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-        const ni = nr * cols + nc;
-        if (exterior[ni] || field[ni]) continue;
-        exterior[ni] = 1;
-        stack.push(nr, nc);
-      }
+      let nr: number, nc: number, ni: number;
+      nr = sr - 1; nc = sc; if (nr >= 0) { ni = nr * cols + nc; if (!exterior[ni] && !field[ni]) { exterior[ni] = 1; stack.push(nr, nc); } }
+      nr = sr + 1; nc = sc; if (nr < rows) { ni = nr * cols + nc; if (!exterior[ni] && !field[ni]) { exterior[ni] = 1; stack.push(nr, nc); } }
+      nr = sr; nc = sc - 1; if (nc >= 0) { ni = nr * cols + nc; if (!exterior[ni] && !field[ni]) { exterior[ni] = 1; stack.push(nr, nc); } }
+      nr = sr; nc = sc + 1; if (nc < cols) { ni = nr * cols + nc; if (!exterior[ni] && !field[ni]) { exterior[ni] = 1; stack.push(nr, nc); } }
     }
 
     // Fill interior holes: any non-exterior, non-field cell becomes territory
@@ -345,11 +349,12 @@ export class Renderer {
     // Fully inside cells → 2 triangles (quad). Boundary cells → interpolated triangles.
     const verts: number[] = [];
     const indices: number[] = [];
-    const vertMap = new Map<string, number>(); // dedup vertices by key
+    const vertMap = new Map<number, number>();
 
     const addVert = (x: number, z: number): number => {
-      // Quantize to avoid floating point key issues
-      const key = `${Math.round(x * 1000)},${Math.round(z * 1000)}`;
+      const qx = Math.round(x * 1000);
+      const qz = Math.round(z * 1000);
+      const key = qx * 131072 + qz;
       const existing = vertMap.get(key);
       if (existing !== undefined) return existing;
       const idx = verts.length / 3;
@@ -387,77 +392,26 @@ export class Renderer {
           continue;
         }
 
-        // Marching squares: edge midpoints for boundary cells
-        // Top edge mid, Right edge mid, Bottom edge mid, Left edge mid
-        const tm = { x: mx, z: z0 };
-        const rm = { x: x1, z: mz };
-        const bm = { x: mx, z: z1 };
-        const lm = { x: x0, z: mz };
+        const tmx = mx, tmz = z0;
+        const rmx = x1, rmz = mz;
+        const bmx = mx, bmz = z1;
+        const lmx = x0, lmz = mz;
 
         switch (config) {
-          // 1 corner inside
-          case 1: // BL
-            addTri(x0, z1, lm.x, lm.z, bm.x, bm.z);
-            break;
-          case 2: // BR
-            addTri(x1, z1, bm.x, bm.z, rm.x, rm.z);
-            break;
-          case 4: // TR
-            addTri(x1, z0, rm.x, rm.z, tm.x, tm.z);
-            break;
-          case 8: // TL
-            addTri(x0, z0, tm.x, tm.z, lm.x, lm.z);
-            break;
-
-          // 2 adjacent corners
-          case 3: // BL+BR (bottom)
-            addTri(x0, z1, lm.x, lm.z, rm.x, rm.z);
-            addTri(x0, z1, rm.x, rm.z, x1, z1);
-            break;
-          case 6: // TR+BR (right)
-            addTri(x1, z0, tm.x, tm.z, bm.x, bm.z);
-            addTri(x1, z0, bm.x, bm.z, x1, z1);
-            break;
-          case 12: // TL+TR (top)
-            addTri(x0, z0, x1, z0, rm.x, rm.z);
-            addTri(x0, z0, rm.x, rm.z, lm.x, lm.z);
-            break;
-          case 9: // TL+BL (left)
-            addTri(x0, z0, tm.x, tm.z, bm.x, bm.z);
-            addTri(x0, z0, bm.x, bm.z, x0, z1);
-            break;
-
-          // 2 diagonal corners (ambiguous — use 2 triangles for each)
-          case 5: // TL=0,TR=1,BR=0,BL=1 → BL+TR
-            addTri(x0, z1, lm.x, lm.z, bm.x, bm.z);
-            addTri(x1, z0, rm.x, rm.z, tm.x, tm.z);
-            break;
-          case 10: // TL+BR
-            addTri(x0, z0, tm.x, tm.z, lm.x, lm.z);
-            addTri(x1, z1, bm.x, bm.z, rm.x, rm.z);
-            break;
-
-          // 3 corners inside (1 corner outside)
-          case 7: // all except TL
-            addTri(x1, z0, tm.x, tm.z, lm.x, lm.z);
-            addTri(x1, z0, lm.x, lm.z, x0, z1);
-            addTri(x1, z0, x0, z1, x1, z1);
-            break;
-          case 11: // all except TR
-            addTri(x0, z0, tm.x, tm.z, rm.x, rm.z);
-            addTri(x0, z0, rm.x, rm.z, x1, z1);
-            addTri(x0, z0, x1, z1, x0, z1);
-            break;
-          case 13: // all except BR
-            addTri(x0, z0, x1, z0, rm.x, rm.z);
-            addTri(x0, z0, rm.x, rm.z, bm.x, bm.z);
-            addTri(x0, z0, bm.x, bm.z, x0, z1);
-            break;
-          case 14: // all except BL
-            addTri(x0, z0, x1, z0, x1, z1);
-            addTri(x0, z0, x1, z1, bm.x, bm.z);
-            addTri(x0, z0, bm.x, bm.z, lm.x, lm.z);
-            break;
+          case 1: addTri(x0, z1, lmx, lmz, bmx, bmz); break;
+          case 2: addTri(x1, z1, bmx, bmz, rmx, rmz); break;
+          case 4: addTri(x1, z0, rmx, rmz, tmx, tmz); break;
+          case 8: addTri(x0, z0, tmx, tmz, lmx, lmz); break;
+          case 3: addTri(x0, z1, lmx, lmz, rmx, rmz); addTri(x0, z1, rmx, rmz, x1, z1); break;
+          case 6: addTri(x1, z0, tmx, tmz, bmx, bmz); addTri(x1, z0, bmx, bmz, x1, z1); break;
+          case 12: addTri(x0, z0, x1, z0, rmx, rmz); addTri(x0, z0, rmx, rmz, lmx, lmz); break;
+          case 9: addTri(x0, z0, tmx, tmz, bmx, bmz); addTri(x0, z0, bmx, bmz, x0, z1); break;
+          case 5: addTri(x0, z1, lmx, lmz, bmx, bmz); addTri(x1, z0, rmx, rmz, tmx, tmz); break;
+          case 10: addTri(x0, z0, tmx, tmz, lmx, lmz); addTri(x1, z1, bmx, bmz, rmx, rmz); break;
+          case 7: addTri(x1, z0, tmx, tmz, lmx, lmz); addTri(x1, z0, lmx, lmz, x0, z1); addTri(x1, z0, x0, z1, x1, z1); break;
+          case 11: addTri(x0, z0, tmx, tmz, rmx, rmz); addTri(x0, z0, rmx, rmz, x1, z1); addTri(x0, z0, x1, z1, x0, z1); break;
+          case 13: addTri(x0, z0, x1, z0, rmx, rmz); addTri(x0, z0, rmx, rmz, bmx, bmz); addTri(x0, z0, bmx, bmz, x0, z1); break;
+          case 14: addTri(x0, z0, x1, z0, x1, z1); addTri(x0, z0, x1, z1, bmx, bmz); addTri(x0, z0, bmx, bmz, lmx, lmz); break;
         }
       }
     }
@@ -470,40 +424,72 @@ export class Renderer {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setIndex(indices);
-    geo.computeVertexNormals();
 
     const mesh = new THREE.Mesh(geo, mat!);
+    mesh.renderOrder = ++this.territoryRenderOrder;
     this.scene.add(mesh);
     this.territoryObjects.set(id, mesh);
   }
 
-  /** Update trail as a thick ribbon mesh */
+  private static readonly MAX_TRAIL_POINTS = 512;
+
   updateTrail(id: number, trail: Vec2[], color: number): void {
-    // Skip if trail length hasn't changed
     const prevLen = this.trailLengths.get(id) ?? 0;
     if (prevLen === trail.length && trail.length > 0) return;
     this.trailLengths.set(id, trail.length);
 
-    const old = this.trailMeshes.get(id);
-    if (old) {
-      this.scene.remove(old);
-      this.disposeObject(old);
-      this.trailMeshes.delete(id);
-    }
+    let mesh = this.trailMeshes.get(id);
 
-    if (trail.length < 2) return;
+    if (trail.length < 2) {
+      if (mesh) mesh.visible = false;
+      return;
+    }
 
     const halfWidth = 0.25;
     const y = TRAIL_Y;
-    const verts: number[] = [];
-    const indices: number[] = [];
+    const maxPts = Renderer.MAX_TRAIL_POINTS;
+    const n = Math.min(trail.length, maxPts);
 
-    for (let i = 0; i < trail.length; i++) {
+    if (!mesh) {
+      let mat = this.trailMaterials.get(id);
+      if (!mat) {
+        mat = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: TRAIL_OPACITY,
+          side: THREE.DoubleSide,
+        });
+        this.trailMaterials.set(id, mat);
+      }
+
+      const posAttr = new THREE.BufferAttribute(new Float32Array(maxPts * 2 * 3), 3);
+      posAttr.setUsage(THREE.DynamicDrawUsage);
+      const idxArr = new Uint16Array((maxPts - 1) * 6);
+      for (let i = 0; i < maxPts - 1; i++) {
+        const vi = i * 2;
+        const ii = i * 6;
+        idxArr[ii] = vi; idxArr[ii + 1] = vi + 1; idxArr[ii + 2] = vi + 2;
+        idxArr[ii + 3] = vi + 1; idxArr[ii + 4] = vi + 3; idxArr[ii + 5] = vi + 2;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', posAttr);
+      geo.setIndex(new THREE.BufferAttribute(idxArr, 1));
+
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.trailMeshes.set(id, mesh);
+    }
+
+    mesh.visible = true;
+    const posArr = (mesh.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
+
+    for (let i = 0; i < n; i++) {
       let dx: number, dz: number;
       if (i === 0) {
         dx = trail[1].x - trail[0].x;
         dz = trail[1].z - trail[0].z;
-      } else if (i === trail.length - 1) {
+      } else if (i === n - 1) {
         dx = trail[i].x - trail[i - 1].x;
         dz = trail[i].z - trail[i - 1].z;
       } else {
@@ -514,31 +500,18 @@ export class Renderer {
       const px = -dz / len * halfWidth;
       const pz = dx / len * halfWidth;
 
-      verts.push(trail[i].x + px, y, trail[i].z + pz);
-      verts.push(trail[i].x - px, y, trail[i].z - pz);
-
-      if (i < trail.length - 1) {
-        const vi = i * 2;
-        indices.push(vi, vi + 1, vi + 2);
-        indices.push(vi + 1, vi + 3, vi + 2);
-      }
+      const off = i * 6;
+      posArr[off]     = trail[i].x + px;
+      posArr[off + 1] = y;
+      posArr[off + 2] = trail[i].z + pz;
+      posArr[off + 3] = trail[i].x - px;
+      posArr[off + 4] = y;
+      posArr[off + 5] = trail[i].z - pz;
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: TRAIL_OPACITY,
-      side: THREE.DoubleSide,
-    });
-
-    const mesh = new THREE.Mesh(geo, mat);
-    this.scene.add(mesh);
-    this.trailMeshes.set(id, mesh);
+    const posAttr = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    posAttr.needsUpdate = true;
+    mesh.geometry.setDrawRange(0, Math.max(0, (n - 1)) * 6);
   }
 
   setCameraTarget(pos: Vec2): void {
@@ -588,7 +561,7 @@ export class Renderer {
     const terr = this.territoryObjects.get(id);
     if (terr) {
       this.scene.remove(terr);
-      this.disposeObject(terr);
+      terr.geometry.dispose();
       this.territoryObjects.delete(id);
     }
     const terrMat = this.territoryMaterials.get(id);
@@ -596,12 +569,16 @@ export class Renderer {
       terrMat.dispose();
       this.territoryMaterials.delete(id);
     }
-    this.territoryPolyCount.delete(id);
     const trail = this.trailMeshes.get(id);
     if (trail) {
       this.scene.remove(trail);
-      this.disposeObject(trail);
+      trail.geometry.dispose();
       this.trailMeshes.delete(id);
+    }
+    const trailMat = this.trailMaterials.get(id);
+    if (trailMat) {
+      trailMat.dispose();
+      this.trailMaterials.delete(id);
     }
     this.trailLengths.delete(id);
     this.hideAvatar(id);

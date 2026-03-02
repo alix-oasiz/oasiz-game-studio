@@ -1,18 +1,22 @@
 import { type Vec2 } from './constants.ts';
 
-/**
- * Spatial hash grid for fast segment-vs-trail collision queries.
- * Inserts trail segments into grid cells, then only checks segments
- * in cells near the query segment.
- */
+export interface TrailCandidate {
+  playerId: number;
+  segIdx: number;
+}
+
 export class SpatialHash {
   private cellSize: number;
-  private cells: Map<number, { playerId: number; segIdx: number }[]> = new Map();
-  private w: number; // grid width for key hashing
+  private invCellSize: number;
+  private cells: Map<number, TrailCandidate[]> = new Map();
+  private w: number;
+  private resultBuf: TrailCandidate[] = [];
+  private seenSet = new Set<number>();
 
   constructor(cellSize = 4) {
     this.cellSize = cellSize;
-    this.w = 1000; // large enough to avoid collisions
+    this.invCellSize = 1 / cellSize;
+    this.w = 1000;
   }
 
   clear(): void {
@@ -23,15 +27,15 @@ export class SpatialHash {
     return (cx + 500) * this.w + (cz + 500);
   }
 
-  /** Insert all segments of a player's trail */
   insertTrail(playerId: number, trail: Vec2[]): void {
-    for (let i = 0; i < trail.length - 1; i++) {
+    const inv = this.invCellSize;
+    for (let i = 0, len = trail.length - 1; i < len; i++) {
       const a = trail[i];
       const b = trail[i + 1];
-      const minCX = Math.floor(Math.min(a.x, b.x) / this.cellSize);
-      const maxCX = Math.floor(Math.max(a.x, b.x) / this.cellSize);
-      const minCZ = Math.floor(Math.min(a.z, b.z) / this.cellSize);
-      const maxCZ = Math.floor(Math.max(a.z, b.z) / this.cellSize);
+      const minCX = Math.floor(Math.min(a.x, b.x) * inv);
+      const maxCX = Math.floor(Math.max(a.x, b.x) * inv);
+      const minCZ = Math.floor(Math.min(a.z, b.z) * inv);
+      const maxCZ = Math.floor(Math.max(a.z, b.z) * inv);
 
       for (let cx = minCX; cx <= maxCX; cx++) {
         for (let cz = minCZ; cz <= maxCZ; cz++) {
@@ -47,22 +51,25 @@ export class SpatialHash {
     }
   }
 
-  /** Query all trail segments that could intersect the segment a→b */
-  query(a: Vec2, b: Vec2): { playerId: number; segIdx: number }[] {
-    const minCX = Math.floor(Math.min(a.x, b.x) / this.cellSize);
-    const maxCX = Math.floor(Math.max(a.x, b.x) / this.cellSize);
-    const minCZ = Math.floor(Math.min(a.z, b.z) / this.cellSize);
-    const maxCZ = Math.floor(Math.max(a.z, b.z) / this.cellSize);
+  query(a: Vec2, b: Vec2): TrailCandidate[] {
+    const inv = this.invCellSize;
+    const minCX = Math.floor(Math.min(a.x, b.x) * inv);
+    const maxCX = Math.floor(Math.max(a.x, b.x) * inv);
+    const minCZ = Math.floor(Math.min(a.z, b.z) * inv);
+    const maxCZ = Math.floor(Math.max(a.z, b.z) * inv);
 
-    const results: { playerId: number; segIdx: number }[] = [];
-    const seen = new Set<string>();
+    const results = this.resultBuf;
+    results.length = 0;
+    const seen = this.seenSet;
+    seen.clear();
 
     for (let cx = minCX; cx <= maxCX; cx++) {
       for (let cz = minCZ; cz <= maxCZ; cz++) {
         const bucket = this.cells.get(this.key(cx, cz));
         if (!bucket) continue;
-        for (const entry of bucket) {
-          const dedupKey = `${entry.playerId}_${entry.segIdx}`;
+        for (let i = 0, len = bucket.length; i < len; i++) {
+          const entry = bucket[i];
+          const dedupKey = entry.playerId * 100000 + entry.segIdx;
           if (!seen.has(dedupKey)) {
             seen.add(dedupKey);
             results.push(entry);
