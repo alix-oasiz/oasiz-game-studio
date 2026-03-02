@@ -3185,23 +3185,24 @@ class GoalDuelGame {
           easeFinished = true;
           this.searchingEaseInterval = null;
 
-          // Show result
+          // Show player's selected loadout in the bottom result section
           this.elSearchingResult.classList.remove("hidden");
           const flagImg = document.createElement("img");
-          const preloadedFlag = this.flagImages.get(this.botCountry);
+          const preloadedFlag = this.flagImages.get(this.selectedCountry);
           if (preloadedFlag && preloadedFlag.complete && preloadedFlag.naturalWidth > 0) {
             flagImg.src = preloadedFlag.src;
           } else {
-            flagImg.src = `https://hatscripts.github.io/circle-flags/flags/${this.botCountry}.svg`;
+            flagImg.src = `https://hatscripts.github.io/circle-flags/flags/${this.selectedCountry}.svg`;
           }
-          flagImg.alt = botCountry.name;
+          const selectedCountryName = this.countries.find((country) => country.code === this.selectedCountry)?.name ?? "Selected country";
+          flagImg.alt = selectedCountryName;
           this.elResultFlag.innerHTML = "";
           this.elResultFlag.appendChild(flagImg);
 
           const carImg = document.createElement("img");
-          const botCarImg = this.carImages.get(this.botCarName);
-          if (botCarImg && botCarImg.naturalWidth > 0) {
-            carImg.src = botCarImg.src;
+          const playerCarImg = this.carImages.get(this.playerCarName);
+          if (playerCarImg && playerCarImg.naturalWidth > 0) {
+            carImg.src = playerCarImg.src;
           }
           this.elResultCar.innerHTML = "";
           this.elResultCar.appendChild(carImg);
@@ -3376,11 +3377,9 @@ class GoalDuelGame {
       // This prevents the frustrating "kicked to menu on first try" issue
       this._matchEnded = true;
       this._matchStarting = false;
-      // Try to reset state but don't force menu transition
+      // Reset UI state fully so no stale gameplay controls remain on top of menu/search overlays
       try {
-        if (this.state !== "MENU" && this.state !== "SEARCHING") {
-          this.setState("MENU", true);
-        }
+        this.setState("MENU", true);
       } catch (stateErr) {
         console.error("[Game] Failed to reset state:", stateErr);
       }

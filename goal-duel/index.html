@@ -320,7 +320,7 @@
       }
 
       @media (pointer: coarse) and (orientation: portrait) {
-        #startOverlay {
+        #startOverlay:not(.hidden) {
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
@@ -618,19 +618,19 @@
 
         /* Rotate searching for opponent panel */
         .searchingOverlay {
-          transform: rotate(90deg) !important;
+          transform: rotate(0deg) !important;
           transform-origin: center center !important;
         }
 
         /* Rotate settings card (not the entire modal, so joystick/turbo stay visible) */
         #settingsModal .settingsCard {
-          transform: rotate(90deg) !important;
+          transform: rotate(0deg) !important;
           transform-origin: center center !important;
         }
 
         /* Rotate info modal */
         #infoModal {
-          transform: rotate(90deg) !important;
+          transform: rotate(0deg) !important;
           transform-origin: center center !important;
         }
 
@@ -2896,6 +2896,173 @@
           margin-top: 8px;
           flex-direction: column;
           gap: 10px;
+        }
+      }
+
+      /* Final portrait gameplay pass:
+         keep controls in their same relative corners and rotate each gameplay UI element. */
+      @media (pointer: coarse) and (orientation: portrait) {
+        #hudRoot {
+          position: fixed !important;
+          left: 0 !important;
+          right: 0 !important;
+          top: calc(env(safe-area-inset-top) + 6px) !important;
+          bottom: auto !important;
+          width: auto !important;
+          height: auto !important;
+          transform: none !important;
+          z-index: 90 !important;
+        }
+
+        .hudRow {
+          width: min(100vw - 16px, 560px) !important;
+          margin: 0 auto !important;
+          display: grid !important;
+          grid-template-columns: 72px 1fr 72px !important;
+          align-items: center !important;
+          gap: 8px !important;
+        }
+
+        #btnMenu {
+          position: relative !important;
+          top: auto !important;
+          right: auto !important;
+          bottom: auto !important;
+          left: auto !important;
+          justify-self: start !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #btnSettings {
+          position: relative !important;
+          top: auto !important;
+          right: auto !important;
+          bottom: auto !important;
+          left: auto !important;
+          justify-self: end !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #btnMenu:active {
+          transform: rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        #btnSettings:active {
+          transform: rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        .hudPills {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #mobileControls {
+          position: fixed !important;
+          inset: 0 !important;
+          padding: 0 !important;
+        }
+
+        .joystickWrap:not(.player2) {
+          position: fixed !important;
+          right: calc(env(safe-area-inset-right) + 18px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          left: auto !important;
+          top: auto !important;
+          transform: rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .actionWrap:not(.player2) {
+          position: fixed !important;
+          left: calc(env(safe-area-inset-left) + 18px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          right: auto !important;
+          top: auto !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #settingsModal .actionWrap:not(.player2) {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .joystickWrap.player2 {
+          position: fixed !important;
+          left: calc(env(safe-area-inset-left) + 18px) !important;
+          top: calc(env(safe-area-inset-top) + 120px) !important;
+          right: auto !important;
+          bottom: auto !important;
+          transform: rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .actionWrap.player2 {
+          position: fixed !important;
+          right: calc(env(safe-area-inset-right) + 18px) !important;
+          top: calc(env(safe-area-inset-top) + 120px) !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #settingsModal .actionWrap.player2 {
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .btnSkipReplay {
+          left: 50% !important;
+          right: auto !important;
+          top: auto !important;
+          bottom: calc(env(safe-area-inset-bottom) + 140px) !important;
+          transform: translateX(-50%) rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .btnSkipReplay:active {
+          transform: translateX(-50%) rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        .countdownText {
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        .countdownText.countdownPulse {
+          animation: countdownPulsePortrait 0.85s ease-out forwards !important;
+          -webkit-animation: countdownPulsePortrait 0.85s ease-out forwards !important;
+        }
+
+        @keyframes countdownPulsePortrait {
+          0% { transform: rotate(-90deg) scale(0.4); opacity: 0; }
+          40% { transform: rotate(-90deg) scale(1.15); opacity: 1; }
+          70% { transform: rotate(-90deg) scale(0.95); }
+          100% { transform: rotate(-90deg) scale(1); opacity: 1; }
+        }
+
+        @-webkit-keyframes countdownPulsePortrait {
+          0% { -webkit-transform: rotate(-90deg) scale(0.4); opacity: 0; }
+          40% { -webkit-transform: rotate(-90deg) scale(1.15); opacity: 1; }
+          70% { -webkit-transform: rotate(-90deg) scale(0.95); }
+          100% { -webkit-transform: rotate(-90deg) scale(1); opacity: 1; }
+        }
+
+        #settingsModal .settingsCard {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        #infoModal {
+          transform: none !important;
+        }
+
+        #infoModal .panel {
+          transform: rotate(90deg) !important;
+          transform-origin: center center !important;
         }
       }
     </style>
