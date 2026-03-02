@@ -4800,61 +4800,58 @@ class GoalDuelGame {
         }
       }
 
-    // Dynamic camera zoom and follow
+    // Dynamic framing camera:
+    // keep both cars + ball visible by fitting their world-space bounds into the viewport.
     const fixedFieldW = 720;
     const fixedFieldH = 1200;
 
-    // Calculate dynamic zoom adjustments based on speed and ball distance
-    const playerSpeed = Vector.magnitude(this.playerCar.velocity);
-    const maxSpeed = this.settings.carMaxSpeedBoost;
-    const speedRatio = Math.min(playerSpeed / maxSpeed, 1.0);
+    const pad = this._isMobile ? 4 : 26;
+    const topUI = this._isMobile ? 4 : 120;
+    const availW = this._isMobile ? this._viewW - 8 : this._viewW - pad * 2;
+    const availH = this._isMobile ? this._viewH - 8 : Math.max(200, this._viewH - topUI - 80 - pad);
+    const safeAvailW = Math.max(1, availW);
+    const safeAvailH = Math.max(1, availH);
 
-    // Base zoom - higher on mobile for closer view
-    let baseZoom = this._isMobile ? 1.50 : 1.20; // Increased from 1.20 to 1.50 on mobile
+    const baseScaleAtZoomOne = Math.min(safeAvailW / fixedFieldW, safeAvailH / fixedFieldH);
+    const baseVisibleW = safeAvailW / baseScaleAtZoomOne;
+    const baseVisibleH = safeAvailH / baseScaleAtZoomOne;
 
-    // In BOT mode: intense zoom when accelerating (subtract from zoom to zoom IN)
-    if (this.matchMode === "BOT") {
-      // Intense zoom: subtract from base zoom to zoom IN dramatically
-      // Higher speed = more zoom in (lower zoom value = closer view)
-      const intenseZoomAmount = speedRatio * 0.45; // 45% zoom in at max speed (very dramatic)
-      baseZoom = baseZoom - intenseZoomAmount; // Subtract to zoom IN
-      // Clamp to prevent zooming too close
-      baseZoom = Math.max(0.75, baseZoom); // Don't zoom closer than 0.75
-    } else {
-      // LOCAL_2P mode: normal zoom behavior (add small adjustments)
-      const baseZoomFactor = this.settings.cameraZoomSpeedFactor;
-      const speedZoomAdjust = speedRatio * baseZoomFactor;
-    
-    // Zoom based on ball distance (closer ball = zoom in more) - small adjustment
-    const ballDist = Vector.magnitude(Vector.sub(this.ball.position, this.playerCar.position));
-    const maxDist = Math.sqrt(fixedFieldW * fixedFieldW + fixedFieldH * fixedFieldH);
-    const distRatio = Math.min(ballDist / maxDist, 1.0);
-    const ballZoomAdjust = (1.0 - distRatio) * this.settings.cameraZoomBallFactor;
-    
-      // Add adjustments (but these are small, so effect is minimal)
-      baseZoom = baseZoom + speedZoomAdjust + ballZoomAdjust;
-    }
-    
-    this.targetZoom = baseZoom;
-    
+    const carRadius = Math.max(this.settings.carSpriteWidth, this.settings.carSpriteHeight) * 0.55;
+    const ballRadius = this.settings.ballSpriteSize * 0.5;
+    const framingPadding = this._isMobile ? 90 : 110;
+
+    const p1 = this.playerCar.position;
+    const p2 = this.botCar.position;
+    const ball = this.ball.position;
+
+    const minX = Math.min(p1.x - carRadius, p2.x - carRadius, ball.x - ballRadius) - framingPadding;
+    const maxX = Math.max(p1.x + carRadius, p2.x + carRadius, ball.x + ballRadius) + framingPadding;
+    const minY = Math.min(p1.y - carRadius, p2.y - carRadius, ball.y - ballRadius) - framingPadding;
+    const maxY = Math.max(p1.y + carRadius, p2.y + carRadius, ball.y + ballRadius) + framingPadding;
+
+    const spanW = Math.max(1, maxX - minX);
+    const spanH = Math.max(1, maxY - minY);
+
+    const requiredZoomX = spanW / baseVisibleW;
+    const requiredZoomY = spanH / baseVisibleH;
+    const requiredZoom = Math.max(requiredZoomX, requiredZoomY);
+
+    // Keep the familiar baseline view and only zoom out beyond it when needed.
+    const baselineZoom = this._isMobile ? 1.5 : 1.2;
+    const minZoom = baselineZoom;
+    const maxZoom = this._isMobile ? 2.6 : 2.2;
+    this.targetZoom = clamp(Math.max(requiredZoom, baselineZoom), minZoom, maxZoom);
+
     // Smooth zoom transition
     const zoomSmooth = this.settings.cameraZoomSmoothness;
     const zoomA = 1 - Math.exp(-zoomSmooth * dt);
     this.currentZoom = lerp(this.currentZoom, this.targetZoom, zoomA);
-    
-    const viewW = fixedFieldW * this.currentZoom;
-    const viewH = fixedFieldH * this.currentZoom;
 
-    const px = this.playerCar.position.x;
-    const py = this.playerCar.position.y;
-    const bx = this.ball.position.x;
-    const by2 = this.ball.position.y;
+    const targetX = (minX + maxX) * 0.5;
+    const targetY = (minY + maxY) * 0.5;
 
-    const targetX = lerp(px, bx, 0.18);
-    const targetY = lerp(py, by2, 0.28);
-
-    // Allow camera to follow the car across the larger stadium (no clamping)
-    const k = 14; // responsiveness
+    // Smooth camera follow toward framed center
+    const k = 14;
     const a = 1 - Math.exp(-k * dt);
     this.camX = lerp(this.camX, targetX, a);
     this.camY = lerp(this.camY, targetY, a);
