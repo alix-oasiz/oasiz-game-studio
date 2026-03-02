@@ -810,12 +810,27 @@
         }
 
         body.local-2p-mode .countdownText {
-          transform: scale(1) !important;
+          transform: rotate(90deg) scale(1) !important;
+          transform-origin: center center !important;
         }
 
         body.local-2p-mode .countdownText.countdownPulse {
-          animation: countdownPulse 0.85s ease-out forwards;
-          -webkit-animation: countdownPulse 0.85s ease-out forwards;
+          animation: countdownPulseLocal2P 0.85s ease-out forwards !important;
+          -webkit-animation: countdownPulseLocal2P 0.85s ease-out forwards !important;
+        }
+
+        @keyframes countdownPulseLocal2P {
+          0% { transform: rotate(90deg) scale(0.4); opacity: 0; }
+          40% { transform: rotate(90deg) scale(1.15); opacity: 1; }
+          70% { transform: rotate(90deg) scale(0.95); }
+          100% { transform: rotate(90deg) scale(1); opacity: 1; }
+        }
+
+        @-webkit-keyframes countdownPulseLocal2P {
+          0% { -webkit-transform: rotate(90deg) scale(0.4); opacity: 0; }
+          40% { -webkit-transform: rotate(90deg) scale(1.15); opacity: 1; }
+          70% { -webkit-transform: rotate(90deg) scale(0.95); }
+          100% { -webkit-transform: rotate(90deg) scale(1); opacity: 1; }
         }
 
         body.local-2p-mode .searchingOverlay,
@@ -3062,6 +3077,181 @@
 
         #infoModal .panel {
           transform: rotate(90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        /* Local 2P portrait layout: right-side HUD cluster and corner-mirrored controls */
+        body.local-2p-mode #hudRoot {
+          left: auto !important;
+          right: calc(env(safe-area-inset-right) + 56px) !important;
+          top: 50% !important;
+          bottom: auto !important;
+          width: 0 !important;
+          height: 0 !important;
+          transform: none !important;
+          transform-origin: top right !important;
+          z-index: 45 !important;
+          overflow: visible !important;
+          --local2p-hud-btn-size: 72px;
+          --local2p-pill-score-width: 68px;
+          --local2p-pill-time-width: 92px;
+          --local2p-pill-gap: 4px;
+          --local2p-hud-pills-width: calc((2 * var(--local2p-pill-score-width)) + var(--local2p-pill-time-width) + (2 * var(--local2p-pill-gap)));
+          --local2p-hud-gap: 22px;
+          --local2p-hud-row-width: calc((2 * var(--local2p-hud-btn-size)) + var(--local2p-hud-pills-width) + (2 * var(--local2p-hud-gap)));
+          --local2p-hud-row-height: var(--local2p-hud-btn-size);
+        }
+
+        body.local-2p-mode .hudRow {
+          position: absolute !important;
+          right: 0 !important;
+          top: calc(50% + ((var(--local2p-hud-row-width) - var(--local2p-hud-row-height)) / 2)) !important;
+          width: var(--local2p-hud-row-width) !important;
+          margin: 0 !important;
+          display: grid !important;
+          grid-template-columns: var(--local2p-hud-btn-size) var(--local2p-hud-pills-width) var(--local2p-hud-btn-size) !important;
+          align-items: center !important;
+          gap: var(--local2p-hud-gap) !important;
+          transform: rotate(90deg) !important;
+          transform-origin: right center !important;
+        }
+
+        body.local-2p-mode .hudPills {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+          width: var(--local2p-hud-pills-width) !important;
+          margin: 0 !important;
+          height: 44px !important;
+          display: block !important;
+          justify-self: center !important;
+        }
+
+        body.local-2p-mode .hudPills .pill {
+          position: absolute !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          margin: 0 !important;
+          white-space: nowrap !important;
+          justify-content: center !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(1),
+        body.local-2p-mode .hudPills .pill:nth-child(2) {
+          width: var(--local2p-pill-score-width) !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(3) {
+          width: var(--local2p-pill-time-width) !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(1) {
+          left: 0 !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(2) {
+          left: calc(var(--local2p-pill-score-width) + var(--local2p-pill-gap)) !important;
+        }
+
+        body.local-2p-mode .hudPills .pill:nth-child(3) {
+          left: calc((2 * var(--local2p-pill-score-width)) + (2 * var(--local2p-pill-gap))) !important;
+          right: auto !important;
+        }
+
+        body.local-2p-mode #hudYou,
+        body.local-2p-mode #hudBot,
+        body.local-2p-mode #hudTime {
+          display: inline-block !important;
+          font-variant-numeric: tabular-nums !important;
+          text-align: right !important;
+        }
+
+        body.local-2p-mode #hudYou,
+        body.local-2p-mode #hudBot {
+          min-width: 1.6ch !important;
+        }
+
+        body.local-2p-mode #hudTime {
+          min-width: 3.6ch !important;
+        }
+
+        body.local-2p-mode #btnMenu,
+        body.local-2p-mode #btnSettings {
+          position: relative !important;
+          top: auto !important;
+          right: auto !important;
+          bottom: auto !important;
+          left: auto !important;
+          justify-self: center !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #btnMenu:active,
+        body.local-2p-mode #btnSettings:active {
+          transform: rotate(0deg) translateY(1px) scale(0.98) !important;
+        }
+
+        body.local-2p-mode #mobileControls {
+          position: fixed !important;
+          inset: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Player 1 corners: thumbstick bottom-right, turbo bottom-left */
+        body.local-2p-mode .joystickWrap:not(.player2) {
+          right: calc(env(safe-area-inset-right) + 16px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          left: auto !important;
+          top: auto !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .joystickWrap:not(.player2) {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode .actionWrap:not(.player2) {
+          left: calc(env(safe-area-inset-left) + 16px) !important;
+          bottom: calc(env(safe-area-inset-bottom) + 18px) !important;
+          right: auto !important;
+          top: auto !important;
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .actionWrap:not(.player2) {
+          transform: rotate(0deg) !important;
+          transform-origin: center center !important;
+        }
+
+        /* Player 2 corners: thumbstick top-left, turbo top-right */
+        body.local-2p-mode .joystickWrap.player2 {
+          left: calc(env(safe-area-inset-left) + 16px) !important;
+          top: calc(env(safe-area-inset-top) + 18px) !important;
+          right: auto !important;
+          bottom: auto !important;
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .joystickWrap.player2 {
+          transform: rotate(-90deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode .actionWrap.player2 {
+          right: calc(env(safe-area-inset-right) + 16px) !important;
+          top: calc(env(safe-area-inset-top) + 18px) !important;
+          left: auto !important;
+          bottom: auto !important;
+          transform: rotate(-180deg) !important;
+          transform-origin: center center !important;
+        }
+
+        body.local-2p-mode #settingsModal .actionWrap.player2 {
+          transform: rotate(-180deg) !important;
           transform-origin: center center !important;
         }
       }

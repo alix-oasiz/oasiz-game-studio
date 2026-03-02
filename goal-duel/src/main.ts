@@ -2537,10 +2537,14 @@ class GoalDuelGame {
 
     // Player 2 joystick (for LOCAL_2P mode)
     const updateJoystickP2 = (dx: number, dy: number) => {
-      const distance = Math.hypot(dx, dy);
+      // Top joystick wrapper is rotated in local-2P portrait.
+      // Remap raw screen deltas so dragging up/right matches stick visual up/right.
+      const localDx = -dy;
+      const localDy = dx;
+      const distance = Math.hypot(localDx, localDy);
       const scale = distance > maxRadius ? maxRadius / distance : 1;
-      const px = dx * scale;
-      const py = dy * scale;
+      const px = localDx * scale;
+      const py = localDy * scale;
       
       if (this.elJoyStickP2) {
         this.elJoyStickP2.style.transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`;
@@ -2549,9 +2553,10 @@ class GoalDuelGame {
       let normalizedX = clamp(px / maxRadius, -1, 1);
       let normalizedY = clamp(py / maxRadius, -1, 1);
       
-      // Calculate the desired direction angle from joystick input
-      // Reverse Y to fix direction mapping (down=up), keep X normal (left=left, right=right)
-      const desiredAngle = Math.atan2(normalizedY, normalizedX);
+      // The P2 stick wrapper is rotated for portrait local-2P.
+      // We keep the visual remap above, then rotate the steering vector back by -90deg
+      // so car movement matches the on-screen stick direction.
+      const desiredAngle = Math.atan2(normalizedY, normalizedX) - (Math.PI / 2);
       const joystickMagnitude = Math.hypot(normalizedX, normalizedY);
       
       // Only apply input if joystick is moved significantly
