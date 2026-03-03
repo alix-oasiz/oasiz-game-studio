@@ -323,14 +323,14 @@ class Game {
   private menuCrabImg: HTMLImageElement | null = null;
   private menuCrabFrame: number = 0;
   private readonly DIVER_DRAW_SIZE: number = 64;
-  private readonly PLAYER_FRAME_W: number = 48;
-  private readonly PLAYER_FRAME_H: number = 48;
+  private readonly PLAYER_FRAME_W: number = 32;
+  private readonly PLAYER_FRAME_H: number = 32;
   private readonly PLAYER_ANIMS: Record<PlayerAnimState, PlayerAnimConfig> = {
-    idle: { src: "assets/characters/underwater4/Idle.png", frames: 4, speed: 0.07 },
-    run: { src: "assets/characters/underwater4/Walk.png", frames: 6, speed: 0.11 },
-    jump: { src: "assets/characters/underwater4/Walk2.png", frames: 6, speed: 0.1 },
-    fall: { src: "assets/characters/underwater4/Walk2.png", frames: 6, speed: 0.07 },
-    shoot: { src: "assets/characters/underwater4/Attack.png", frames: 6, speed: 0.15 },
+    idle: { src: "assets/characters/pixel_adventure_virtual_guy/idle.png", frames: 11, speed: 0.1 },
+    run: { src: "assets/characters/pixel_adventure_virtual_guy/run.png", frames: 12, speed: 0.14 },
+    jump: { src: "assets/characters/pixel_adventure_virtual_guy/jump.png", frames: 1, speed: 0.08 },
+    fall: { src: "assets/characters/pixel_adventure_virtual_guy/fall.png", frames: 1, speed: 0.08 },
+    shoot: { src: "assets/characters/pixel_adventure_virtual_guy/hit.png", frames: 7, speed: 0.14 },
   };
   
   // Screen shake
@@ -504,7 +504,7 @@ class Game {
     this.cacheHudRefs();
     this.loadHitboxTuning();
     this.loadHitboxLabColliders();
-    this.loadHitboxLabCollidersFromFile(); // async, overrides localStorage if collisions.json exists
+    this.loadHitboxLabCollidersFromFile(); // async, overrides localStorage if hitbox-colliders.json exists
     this.applyHitboxTuning();
     
     // Start game loop
@@ -2069,7 +2069,7 @@ class Game {
       this.hitboxLabLoadedCount = Object.keys(next).length;
       console.log(`[HitboxLab] Loaded ${this.hitboxLabLoadedCount} frame colliders from project file`);
     } catch {
-      // collisions.json not found — localStorage version stays active
+      // hitbox-colliders.json not found - localStorage version stays active
     }
   }
 
