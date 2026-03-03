@@ -33,24 +33,38 @@ export class TerritoryGrid {
     return this.data[gr * this.size + gc] === pid;
   }
 
-  capture(playerId: number, polygon: Vec2[]): Set<number> {
-    if (polygon.length < 3) return new Set();
+  capture(playerId: number, trail: Vec2[]): Set<number> {
+    if (trail.length < 3) return new Set();
 
+    const affected = new Set<number>();
+
+    // Rasterize every trail segment into the grid so there are no gaps
+    for (let i = 0; i < trail.length - 1; i++) {
+      this.rasterizeSegment(trail[i], trail[i + 1], playerId, affected);
+    }
+    // Close the loop: connect last point back to first
+    this.rasterizeSegment(trail[trail.length - 1], trail[0], playerId, affected);
+
+    // Also fill interior via point-in-polygon for the area enclosed by the trail
     let minC = this.size, maxC = 0, minR = this.size, maxR = 0;
-    for (const v of polygon) {
+    for (const v of trail) {
       const [gc, gr] = this.toGrid(v.x, v.z);
       if (gc < minC) minC = gc;
       if (gc > maxC) maxC = gc;
       if (gr < minR) minR = gr;
       if (gr > maxR) maxR = gr;
     }
+    minC = Math.max(0, minC - 1);
+    minR = Math.max(0, minR - 1);
+    maxC = Math.min(this.size - 1, maxC + 1);
+    maxR = Math.min(this.size - 1, maxR + 1);
 
-    const affected = new Set<number>();
     for (let r = minR; r <= maxR; r++) {
       for (let c = minC; c <= maxC; c++) {
+        const i = r * this.size + c;
+        if (this.data[i] === playerId) continue;
         const [wx, wz] = this.toWorld(c, r);
-        if (pointInPolygon({ x: wx, z: wz }, polygon)) {
-          const i = r * this.size + c;
+        if (pointInPolygon({ x: wx, z: wz }, trail)) {
           const prev = this.data[i];
           if (prev !== playerId && prev >= 0) affected.add(prev);
           this.data[i] = playerId;
@@ -58,8 +72,34 @@ export class TerritoryGrid {
       }
     }
 
-    this.floodFillEnclosed(playerId);
+    this.floodFillEnclosed(playerId, affected);
     return affected;
+  }
+
+  /** Bresenham-style rasterization of a world-space segment into the grid */
+  private rasterizeSegment(a: Vec2, b: Vec2, playerId: number, affected: Set<number>): void {
+    const [c0, r0] = this.toGrid(a.x, a.z);
+    const [c1, r1] = this.toGrid(b.x, b.z);
+
+    let c = c0, r = r0;
+    const dc = Math.abs(c1 - c0);
+    const dr = Math.abs(r1 - r0);
+    const sc = c0 < c1 ? 1 : -1;
+    const sr = r0 < r1 ? 1 : -1;
+    let err = dc - dr;
+
+    for (;;) {
+      const i = r * this.size + c;
+      const prev = this.data[i];
+      if (prev !== playerId) {
+        if (prev >= 0) affected.add(prev);
+        this.data[i] = playerId;
+      }
+      if (c === c1 && r === r1) break;
+      const e2 = 2 * err;
+      if (e2 > -dr) { err -= dr; c += sc; }
+      if (e2 < dc) { err += dc; r += sr; }
+    }
   }
 
   initCircle(playerId: number, cx: number, cz: number, radius: number): void {
@@ -113,7 +153,7 @@ export class TerritoryGrid {
     return maxC >= 0 ? { minC, maxC, minR, maxR } : null;
   }
 
-  private floodFillEnclosed(playerId: number): void {
+  private floodFillEnclosed(playerId: number, affected: Set<number>): void {
     const sz = this.size;
     const visited = new Uint8Array(sz * sz);
     const stack: number[] = [];
@@ -145,6 +185,8 @@ export class TerritoryGrid {
 
     for (let i = 0; i < sz * sz; i++) {
       if (!visited[i] && this.data[i] !== playerId) {
+        const prev = this.data[i];
+        if (prev >= 0) affected.add(prev);
         this.data[i] = playerId;
       }
     }

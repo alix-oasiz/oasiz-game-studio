@@ -46,21 +46,18 @@ export class Audio {
       this.settings.music = !this.settings.music;
       this.saveSettings();
       updateUI();
-      this.triggerHaptic('light');
     });
 
     fxToggle?.addEventListener('click', () => {
       this.settings.fx = !this.settings.fx;
       this.saveSettings();
       updateUI();
-      this.triggerHaptic('light');
     });
 
     hapticsToggle?.addEventListener('click', () => {
       this.settings.haptics = !this.settings.haptics;
       this.saveSettings();
       updateUI();
-      this.triggerHaptic('light');
     });
   }
 
@@ -120,7 +117,6 @@ export class Audio {
 
   territoryCaptured(): void {
     this.playTone('sine', [440, 660], 120, 0.15);
-    this.triggerHaptic('success');
   }
 
   playerDeath(): void {

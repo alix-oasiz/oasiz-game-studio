@@ -75,7 +75,6 @@ export class Game {
       if (this.settingsOpen && this.running && !this.gameOver) {
         this.paused = true;
       }
-      this.audio.triggerHaptic('light');
     });
 
     settingsModal?.addEventListener('click', (e) => {
@@ -94,6 +93,8 @@ export class Game {
     this.menu.showMenu();
     this.hud.hide();
     document.getElementById('settings-btn')?.classList.add('hidden');
+    const joystick = document.getElementById('joystick-zone');
+    if (joystick) { joystick.classList.add('hidden'); joystick.classList.remove('visible'); }
     this.settingsOpen = false;
     document.getElementById('settings-modal')?.classList.remove('visible');
   }
@@ -148,13 +149,16 @@ export class Game {
       if (!p.isHuman) this.botController.initBot(p);
     }
 
-    // Input — pass camera and canvas for mouse/touch raycasting
-    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-    this.inputHandler = new InputHandler(this.players[0], this.renderer.camera, canvas);
+    this.inputHandler = new InputHandler(this.players[0]);
 
-    // HUD & Settings button
+    // HUD, Settings button, joystick
     this.hud.show();
     document.getElementById('settings-btn')?.classList.remove('hidden');
+    const joystick = document.getElementById('joystick-zone');
+    if (joystick) {
+      joystick.classList.remove('hidden');
+      joystick.classList.add('visible');
+    }
 
     // Initial territory + avatar positioning
     for (const p of this.players) {
@@ -372,6 +376,8 @@ export class Game {
       const displayPct = Math.max(pct, this.peakPct);
       const newlyUnlocked = this.skinSystem.tryUnlock(this.peakPct);
       document.getElementById('settings-btn')?.classList.add('hidden');
+      const joystick = document.getElementById('joystick-zone');
+      if (joystick) { joystick.classList.add('hidden'); joystick.classList.remove('visible'); }
       this.settingsOpen = false;
       document.getElementById('settings-modal')?.classList.remove('visible');
       this.menu.showGameOver(
