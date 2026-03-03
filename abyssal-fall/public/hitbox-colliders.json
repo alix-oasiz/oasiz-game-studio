@@ -455,96 +455,96 @@
     "unsafe": {
       "type": "rect",
       "x": 22,
-      "y": 16,
+      "y": 40,
       "width": 39,
-      "height": 58
+      "height": 34
     },
     "safe": {
       "type": "rect",
       "x": 7,
-      "y": 36,
-      "width": 28,
-      "height": 25
+      "y": 38,
+      "width": 41,
+      "height": 23
     }
   },
   "squid_walk#1": {
     "unsafe": {
       "type": "rect",
       "x": 22,
-      "y": 23,
-      "width": 43,
-      "height": 51
+      "y": 40,
+      "width": 39,
+      "height": 34
     },
     "safe": {
       "type": "rect",
       "x": 7,
-      "y": 36,
-      "width": 28,
-      "height": 25
+      "y": 38,
+      "width": 41,
+      "height": 23
     }
   },
   "squid_walk#2": {
     "unsafe": {
       "type": "rect",
       "x": 22,
-      "y": 19,
-      "width": 47,
-      "height": 55
+      "y": 40,
+      "width": 49,
+      "height": 35
     },
     "safe": {
       "type": "rect",
       "x": 7,
-      "y": 36,
-      "width": 28,
-      "height": 25
+      "y": 38,
+      "width": 41,
+      "height": 23
     }
   },
   "squid_walk#3": {
     "unsafe": {
       "type": "rect",
-      "x": 35,
-      "y": 35,
-      "width": 50,
-      "height": 26
+      "x": 22,
+      "y": 40,
+      "width": 65,
+      "height": 22
     },
     "safe": {
       "type": "rect",
       "x": 7,
-      "y": 36,
-      "width": 28,
-      "height": 25
+      "y": 38,
+      "width": 41,
+      "height": 23
     }
   },
   "squid_walk#4": {
     "unsafe": {
       "type": "rect",
-      "x": 35,
-      "y": 35,
-      "width": 50,
-      "height": 26
+      "x": 22,
+      "y": 40,
+      "width": 65,
+      "height": 22
     },
     "safe": {
       "type": "rect",
       "x": 7,
-      "y": 36,
-      "width": 28,
-      "height": 25
+      "y": 38,
+      "width": 41,
+      "height": 23
     }
   },
   "squid_walk#5": {
     "unsafe": {
       "type": "rect",
-      "x": 35,
-      "y": 22,
-      "width": 30,
-      "height": 52
+      "x": 22,
+      "y": 40,
+      "width": 43,
+      "height": 34
     },
     "safe": {
       "type": "rect",
       "x": 7,
-      "y": 36,
-      "width": 28,
-      "height": 25
+      "y": 38,
+      "width": 41,
+      "height": 23
     }
   },
   "weed_decor#0": {

@@ -557,6 +557,8 @@
             box-shadow: none;
             box-sizing: border-box;
             --hp-heart-icon: url('assets/shop-icons/heart_red.png');
+            --hp-heart-size: 44px;
+            --hp-heart-offset-x: -10px;
         }
 
         #hp-bar.hidden {
@@ -564,14 +566,14 @@
         }
 
         .hp-bubble {
-            width: 20px;
-            height: 20px;
+            width: var(--hp-heart-size);
+            height: var(--hp-heart-size);
             background-image: var(--hp-heart-icon);
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
             position: relative;
-            left: -5px;
+            left: var(--hp-heart-offset-x);
             transition: transform 0.3s ease, opacity 0.3s ease;
             box-shadow: none;
             margin: 0;
@@ -613,10 +615,10 @@
             transform: translateY(-50%);
             width: 72px;
             height: 129px;
-            --ammo-track-left: 10px;
-            --ammo-track-bottom: 34px;
-            --ammo-track-width: 8px;
-            --ammo-track-height: 70px;
+            --ammo-track-left: 9.2px;
+            --ammo-track-bottom: 30.5px;
+            --ammo-track-width: 9.6px;
+            --ammo-track-height: 84px;
             background-color: transparent;
             background-image: url('assets/ui/ammo_pipe.png');
             background-repeat: no-repeat;

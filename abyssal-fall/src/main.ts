@@ -85,7 +85,7 @@ interface RoomEntryContext {
   returnVy: number;
 }
 
-type PlayerAnimState = "idle" | "run" | "jump" | "fall" | "shoot";
+type PlayerAnimState = "idle" | "run" | "jump" | "fall" | "shoot" | "hit";
 interface PlayerAnimConfig {
   src: string;
   frames: number;
@@ -227,6 +227,8 @@ class Game {
   private readonly SHOP_TEST_BREAKABLE_RESPAWN_FRAMES: number = 35;
   private readonly SHOP_TEST_MODE: boolean =
     new URLSearchParams(window.location.search).get("shoptest") === "1";
+  private readonly SIDE_TEST_MODE: boolean =
+    new URLSearchParams(window.location.search).get("side") === "1";
   private readonly SHOP_ROOM_LEFT: number = 54;
   private readonly SHOP_ROOM_RIGHT: number = CONFIG.INTERNAL_WIDTH - 54;
   private readonly SHOP_ROOM_TOP: number = 98;
@@ -236,6 +238,10 @@ class Game {
   private readonly SHOP_TUNNEL_STRIP_HEIGHT: number = 6;
   private readonly SHOP_TRANSITION_LOCK_FRAMES: number = 18;
   private readonly WORLD_DOORWAY_DEBUG: boolean = false;
+  // health_bar_frame.png slot is left-biased relative to full image; tuned ratio keeps
+  // hearts centered in the inner slot across scales.
+  private readonly HP_FRAME_CENTER_BIAS_X_RATIO: number = -30 / 363;
+  private readonly HP_HEART_INNER_WIDTH_RATIO: number = 0.36;
   private debugDrawHitboxes: boolean = false;
   private readonly HITBOX_TUNING_STORAGE_KEY: string = "downwellHitboxTuningV1";
   private readonly HITBOX_LAB_STORAGE_KEY: string = "downwellHitboxLabFramesV1";
@@ -256,6 +262,9 @@ class Game {
   private roomPowerupPickup: RoomPowerupPickup | null = null;
   private selectedRoomItemId: RoomItemId | null = null;
   private previousRoomItemId: RoomItemId | null = null;
+  private debugInvincible: boolean = false;
+  private debugControlEl: HTMLDivElement | null = null;
+  private debugLightingLabelEl: HTMLDivElement | null = null;
   private shopTestBreakableDestroyed: boolean = false;
   private shopTestBreakableRespawnFrames: number = 0;
   private runUpgrades: RunUpgrades = {
@@ -294,6 +303,7 @@ class Game {
     jump: null,
     fall: null,
     shoot: null,
+    hit: null,
   };
   private playerAnimLoaded: Record<PlayerAnimState, boolean> = {
     idle: false,
@@ -301,10 +311,13 @@ class Game {
     jump: false,
     fall: false,
     shoot: false,
+    hit: false,
   };
   private playerAnimState: PlayerAnimState = "idle";
   private playerAnimFrame: number = 0;
   private playerAnimTimer: number = 0;
+  private playerHitAnimFrames: number = 0;
+  private readonly PLAYER_HIT_ANIM_DURATION_FRAMES: number = 18;
   private gemSimpleImg: HTMLImageElement | null = null;
   private gemOutlinedImg: HTMLImageElement | null = null;
   private gemSimpleLoaded: boolean = false;
@@ -330,7 +343,8 @@ class Game {
     run: { src: "assets/characters/pixel_adventure_virtual_guy/run.png", frames: 12, speed: 0.14 },
     jump: { src: "assets/characters/pixel_adventure_virtual_guy/jump.png", frames: 1, speed: 0.08 },
     fall: { src: "assets/characters/pixel_adventure_virtual_guy/fall.png", frames: 1, speed: 0.08 },
-    shoot: { src: "assets/characters/pixel_adventure_virtual_guy/hit.png", frames: 7, speed: 0.14 },
+    shoot: { src: "assets/characters/pixel_adventure_virtual_guy/double_jump.png", frames: 6, speed: 0.16 },
+    hit: { src: "assets/characters/pixel_adventure_virtual_guy/hit.png", frames: 7, speed: 0.18 },
   };
   
   // Screen shake
@@ -506,6 +520,8 @@ class Game {
     this.loadHitboxLabColliders();
     this.loadHitboxLabCollidersFromFile(); // async, overrides localStorage if hitbox-colliders.json exists
     this.applyHitboxTuning();
+    this.setupDebugControlOverlay();
+    this.syncDebugControlOverlay();
     
     // Start game loop
     this.gameLoop();
@@ -564,6 +580,7 @@ class Game {
       if (e.code === "KeyP" && !e.repeat) {
         this.debugDrawHitboxes = !this.debugDrawHitboxes;
         console.log(`[Debug] Hitboxes ${this.debugDrawHitboxes ? "ON" : "OFF"}`);
+        this.syncDebugControlOverlay();
         e.preventDefault();
       }
       if (this.gameState !== "playing" && this.gameState !== "shop") return;
@@ -850,9 +867,11 @@ class Game {
     const rightCenter = rightWallScreenEdge + (rightEdge - rightWallScreenEdge) / 2;
     
     if (hpBar) {
+      const hpWidth = hpBar.clientWidth || 87;
+      const hpOffsetX = Math.round(hpWidth * this.HP_FRAME_CENTER_BIAS_X_RATIO);
       hpBar.style.left = "0px";
       hpBar.style.top = "50%";
-      hpBar.style.transform = "translateY(-50%)";
+      hpBar.style.transform = `translate(${hpOffsetX}px, -50%)`;
     }
     
     if (ammoSlider) {
@@ -904,15 +923,24 @@ class Game {
     if (count <= 0) return;
 
     const frameHeight = this.hudRefs.hpBar.clientHeight || 216;
-    const bubbleSize = 20;
+    const frameWidth = this.hudRefs.hpBar.clientWidth || 87;
+    const cssBubbleSize = Number.parseFloat(
+      getComputedStyle(this.hudRefs.hpBar).getPropertyValue("--hp-heart-size")
+    ) || 44;
+    // Keep hearts large, but shrink only when max HP grows so they still fit.
+    const maxByHeight = Math.floor((frameHeight * 0.9) / count);
+    // Respect frame width so hearts stay centered with a few pixels side padding on mobile.
+    const maxByWidth = Math.floor(frameWidth * this.HP_HEART_INNER_WIDTH_RATIO);
+    const bubbleSize = this.clamp(Math.min(cssBubbleSize, maxByHeight, maxByWidth), 24, 56);
     const minContent = count * bubbleSize;
-    const targetContent = Math.max(minContent, Math.floor(frameHeight * 0.72));
+    const targetContent = Math.max(minContent, Math.floor(frameHeight * 0.9));
     const gapRaw = count > 1 ? (targetContent - minContent) / (count - 1) : 0;
-    const gap = this.clamp(gapRaw, 0, 10);
+    const gap = this.clamp(gapRaw, 0, 4);
     const contentHeight = minContent + (count - 1) * gap;
     const pad = Math.max(0, Math.floor((frameHeight - contentHeight) / 2));
 
     this.hudRefs.hpBar.style.justifyContent = "flex-start";
+    this.hudRefs.hpBar.style.setProperty("--hp-heart-size", `${bubbleSize}px`);
     this.hudRefs.hpBar.style.gap = `${Math.round(gap)}px`;
     this.hudRefs.hpBar.style.paddingTop = `${pad}px`;
     this.hudRefs.hpBar.style.paddingBottom = `${pad}px`;
@@ -1563,12 +1591,14 @@ class Game {
   }
 
   private applyPlayerDamage(killerX: number, killerY: number): void {
+    if (this.debugDrawHitboxes && this.debugInvincible) return;
     if (this.powerUpManager.hasPowerUp("SHIELD")) return;
     if (this.playerController.isInvulnerable()) return;
     const player = this.playerController.getPlayer();
     this.worldDoorwaySystem.preloadForDepth(player.y);
     this.playerController.takeDamage();
     player.invulnerable = Math.max(player.invulnerable, this.CONTACT_HIT_INVULN_FRAMES);
+    this.playerHitAnimFrames = this.PLAYER_HIT_ANIM_DURATION_FRAMES;
     this.spawnDamageText(player.x, player.y - player.height * 0.6, "-1");
     this.playHurtSound();
     if (this.playerController.isDead()) {
@@ -2244,6 +2274,58 @@ class Game {
     this.hitboxPanelEl = panel;
   }
 
+  private setupDebugControlOverlay(): void {
+    const wrap = document.createElement("div");
+    wrap.style.position = "fixed";
+    wrap.style.left = "10px";
+    wrap.style.top = "10px";
+    wrap.style.zIndex = "9999";
+    wrap.style.padding = "8px 10px";
+    wrap.style.background = "rgba(0,0,0,0.78)";
+    wrap.style.border = "1px solid rgba(180,235,255,0.8)";
+    wrap.style.borderRadius = "8px";
+    wrap.style.color = "#dff8ff";
+    wrap.style.font = "12px monospace";
+    wrap.style.display = "none";
+    wrap.style.pointerEvents = "auto";
+
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+    label.style.cursor = "pointer";
+    label.textContent = "Invincible";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = this.debugInvincible;
+    checkbox.addEventListener("change", () => {
+      this.debugInvincible = checkbox.checked;
+      console.log(`[Debug] Invincible ${this.debugInvincible ? "ON" : "OFF"}`);
+    });
+
+    label.prepend(checkbox);
+    wrap.appendChild(label);
+
+    const lightingLabel = document.createElement("div");
+    lightingLabel.style.marginTop = "8px";
+    lightingLabel.style.opacity = "0.95";
+    lightingLabel.textContent = "";
+    wrap.appendChild(lightingLabel);
+
+    document.body.appendChild(wrap);
+    this.debugControlEl = wrap;
+    this.debugLightingLabelEl = lightingLabel;
+  }
+
+  private syncDebugControlOverlay(): void {
+    if (!this.debugControlEl) return;
+    this.debugControlEl.style.display = this.debugDrawHitboxes ? "block" : "none";
+    if (this.debugLightingLabelEl) {
+      this.debugLightingLabelEl.textContent = "Lighting: Gradient Lantern";
+    }
+  }
+
   private syncHitboxTunerPanelInputs(): void {
     if (!this.hitboxPanelEl) return;
     const sliders = this.hitboxPanelEl.querySelectorAll<HTMLInputElement>("input[data-hitbox-key]");
@@ -2390,9 +2472,9 @@ class Game {
     document.getElementById("hp-bar")?.classList.remove("hidden");
     document.getElementById("powerup-bar")?.classList.add("hidden");
 
-    if (this.SHOP_TEST_MODE) {
+    if (this.SHOP_TEST_MODE || this.SIDE_TEST_MODE) {
       console.log("[startGame]", "Shop test mode enabled");
-      this.gems = 999;
+      this.gems = this.SHOP_TEST_MODE ? 999 : 120;
       const player = this.playerController.getPlayer();
       player.hp = Math.max(1, player.maxHp - 1);
       this.previousHp = player.hp;
@@ -2407,8 +2489,10 @@ class Game {
       this.stopAmbience();
       this.stopShopMusic();
       this.enterSpecialRoom("shop", "left");
-      this.powerUpManager.grantPowerUp("BLAST");
-      this.triggerPowerUpAnnouncement("BLAST");
+      if (this.SHOP_TEST_MODE) {
+        this.powerUpManager.grantPowerUp("BLAST");
+        this.triggerPowerUpAnnouncement("BLAST");
+      }
       this.updateHUD();
       return;
     }
@@ -2453,6 +2537,9 @@ class Game {
   
   private update(): void {
     this.frameCount++;
+    if (this.playerHitAnimFrames > 0) {
+      this.playerHitAnimFrames--;
+    }
     if (this.roomTransitionLockFrames > 0) {
       this.roomTransitionLockFrames--;
     }
@@ -2738,9 +2825,9 @@ class Game {
     const corridorY = entrance.y;
     const corridorW = this.ROOM_CORRIDOR_DEPTH;
     const corridorH = entrance.height;
-    const floorTop = bottom - wallThickness;
     add(corridorX, corridorY - 6, corridorW, 6, true);
     add(corridorX, corridorY + corridorH - 6 - CONFIG.WALL_BLOCK_SIZE, corridorW, 6, true);
+    add(corridorX, corridorY + corridorH - CONFIG.WALL_BLOCK_SIZE, corridorW, CONFIG.WALL_BLOCK_SIZE);
 
     if (this.isShopTestRoomActive()) {
       const lowerPlatform = this.getShopTestLowerPlatformRect();
@@ -5076,10 +5163,12 @@ class Game {
       
       if (!sprite || !spriteLoaded) {
         // Fallback: draw a simple flash effect if sprite not loaded
+        const lifeT = (anim.frame + anim.frameTimer) / Math.max(1, anim.maxFrames);
+        const popScale = 1 + 0.1 * Math.max(0, 1 - lifeT / 0.45);
         ctx.save();
         ctx.fillStyle = `rgba(255, 100, 100, ${0.8 - anim.frame * 0.3})`;
         ctx.beginPath();
-        ctx.arc(anim.x, anim.y, anim.width * 0.6, 0, Math.PI * 2);
+        ctx.arc(anim.x, anim.y, anim.width * 0.6 * popScale, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         continue;
@@ -5092,7 +5181,10 @@ class Game {
       const sy = 0;
       
       // Scale to match enemy size (roughly)
-      const scale = Math.max(anim.width, anim.height) / frameWidth * 1.5;
+      const baseScale = Math.max(anim.width, anim.height) / frameWidth * 1.5;
+      const lifeT = (anim.frame + anim.frameTimer) / Math.max(1, anim.maxFrames);
+      const popScale = 1 + 0.1 * Math.max(0, 1 - lifeT / 0.45);
+      const scale = baseScale * popScale;
       const drawWidth = frameWidth * scale;
       const drawHeight = frameHeight * scale;
       
@@ -5654,6 +5746,10 @@ class Game {
     
     ctx.restore();
 
+    if (this.gameState === "playing") {
+      this.drawDebugSelectableLighting();
+    }
+
     // Draw touch zones overlay OUTSIDE the scale transform so it fills the full screen
     if ((this.gameState === "playing" || this.gameState === "shop") && this.isMobile) {
       this.drawTouchZones();
@@ -5670,6 +5766,61 @@ class Game {
 
     // Apply dithering effect as post-process
     this.applyDithering();
+  }
+
+  private drawDebugSelectableLighting(): void {
+    if (this.deathFreezeFrames > 0) return;
+    const player = this.playerController.getPlayer();
+    const screenX = (player.x + this.screenShakeX) * this.scale + this.offsetX;
+    const screenY = (player.y - this.cameraY + this.screenShakeY) * this.scale + this.offsetY;
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    this.drawLightingLanternVignette(ctx, screenX, screenY, w, h);
+  }
+
+  // Continuous falloff from diver: bright core, gradually darker with distance.
+  private drawLightingLanternVignette(
+    ctx: CanvasRenderingContext2D,
+    screenX: number,
+    screenY: number,
+    w: number,
+    h: number
+  ): void {
+    // Explicit light boundary: bright inside this radius, then fast falloff.
+    const lightRadius = 96 * this.scale;
+    const c0 = Math.hypot(screenX, screenY);
+    const c1 = Math.hypot(w - screenX, screenY);
+    const c2 = Math.hypot(screenX, h - screenY);
+    const c3 = Math.hypot(w - screenX, h - screenY);
+    const maxDistToCorner = Math.max(c0, c1, c2, c3) * 1.03;
+    const edgeRatio = Math.min(0.9, lightRadius / Math.max(1, maxDistToCorner));
+
+    ctx.save();
+    const radial = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, maxDistToCorner);
+    // Harder profile:
+    // 1) Nearly clear inside radius
+    // 2) Darkness starts right at edgeRatio
+    // 3) Reaches heavy darkness quickly after edge
+    const ramp1 = Math.min(0.96, edgeRatio + 0.12);
+    const ramp2 = Math.min(0.98, edgeRatio + 0.36);
+    radial.addColorStop(0, "rgba(5, 14, 26, 0.00)");
+    radial.addColorStop(Math.max(0, edgeRatio - 0.02), "rgba(5, 14, 26, 0.02)");
+    radial.addColorStop(edgeRatio, "rgba(5, 14, 26, 0.08)");
+    radial.addColorStop(ramp1, "rgba(5, 14, 26, 0.58)");
+    radial.addColorStop(ramp2, "rgba(5, 14, 26, 0.75)");
+    radial.addColorStop(1, "rgba(5, 14, 26, 0.82)");
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, w, h);
+
+    const depthGrad = ctx.createLinearGradient(0, 0, 0, h);
+    depthGrad.addColorStop(0, "rgba(3, 10, 18, 0.00)");
+    depthGrad.addColorStop(0.5, "rgba(3, 10, 18, 0.06)");
+    depthGrad.addColorStop(1, "rgba(3, 10, 18, 0.16)");
+    ctx.fillStyle = depthGrad;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
   }
 
   private drawWorldDoorways(): void {
@@ -5848,22 +5999,23 @@ class Game {
     const wallThickness = CONFIG.WALL_BLOCK_SIZE;
 
     const wallSegments: Platform[] = [];
-    const addWall = (x: number, y: number, width: number, height: number): void => {
+    const addWall = (x: number, y: number, width: number, height: number, isWall: boolean = true): void => {
       if (width <= 0 || height <= 0) return;
       wallSegments.push({
         x,
         y,
         width,
         height,
-        isWall: true,
+        isWall,
         breakable: false,
         hp: 0,
         chunkIndex: -1,
       });
     };
 
-    addWall(left, top, right - left, wallThickness);
-    addWall(left, bottom - wallThickness, right - left, wallThickness);
+    // Ceiling/floor should use platform texture, not dark wall texture.
+    addWall(left, top, right - left, wallThickness, false);
+    addWall(left, bottom - wallThickness, right - left, wallThickness, false);
 
     const fullVerticalHeight = bottom - top;
     if (this.currentRoomEntranceSide === "left") {
@@ -5933,7 +6085,7 @@ class Game {
       y: interiorTunnelFloor.y + interiorTunnelFloor.height,
       width: interiorTunnelW,
       height: CONFIG.WALL_BLOCK_SIZE,
-      isWall: true,
+      isWall: false,
       breakable: false,
       hp: 0,
       chunkIndex: -1,
@@ -6545,7 +6697,11 @@ class Game {
         } else if (platform.isWall) {
           // Left-most column uses LEFT tile, right-most column uses RIGHT tile.
           // This removes the vertical seam on the inner edge of right-side walls.
-          if (bx === 0) {
+          if (blocksX === 1) {
+            tile = platform.x + platform.width * 0.5 >= CONFIG.INTERNAL_WIDTH * 0.5
+              ? this.wallTileRightImg
+              : this.wallTileLeftImg;
+          } else if (bx === 0) {
             tile = this.wallTileLeftImg;
           } else if (bx === blocksX - 1) {
             tile = this.wallTileRightImg;
@@ -6565,6 +6721,28 @@ class Game {
         }
 
         drawTile(tile, blockX, blockY, blockW, blockH, rotation);
+      }
+    }
+  }
+
+  private drawTiledImageRect(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): void {
+    if (!img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return;
+    const tileW = 32;
+    const tileH = 32;
+    for (let ty = y; ty < y + height; ty += tileH) {
+      for (let tx = x; tx < x + width; tx += tileW) {
+        const dw = Math.min(tileW, x + width - tx);
+        const dh = Math.min(tileH, y + height - ty);
+        const sw = Math.max(1, Math.floor((dw / tileW) * img.naturalWidth));
+        const sh = Math.max(1, Math.floor((dh / tileH) * img.naturalHeight));
+        ctx.drawImage(img, 0, 0, sw, sh, tx, ty, dw, dh);
       }
     }
   }
@@ -7336,7 +7514,9 @@ class Game {
     // Draw animated underwater character sprite
     if (this.playerAnimLoaded.idle && this.playerAnimImages.idle) {
       let animState: PlayerAnimState = "idle";
-      if (!p.grounded) {
+      if (this.playerHitAnimFrames > 0) {
+        animState = "hit";
+      } else if (!p.grounded) {
         animState = p.vy > 1.2 ? "fall" : "jump";
         if (this.playerController.isCurrentlyShooting()) {
           animState = "shoot";
@@ -7826,11 +8006,11 @@ class Game {
       }
       ctx.drawImage(btnImg as HTMLImageElement, drawX, drawY, drawSize, drawSize);
       if (active) {
-        ctx.globalAlpha = 0.22;
+        // Rectangular press highlight to match square button art.
+        ctx.globalAlpha = 0.18;
         ctx.fillStyle = "rgba(255,255,255,0.9)";
-        ctx.beginPath();
-        ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
-        ctx.fill();
+        const pad = drawSize * 0.14;
+        ctx.fillRect(drawX + pad, drawY + pad, drawSize - pad * 2, drawSize - pad * 2);
       }
       ctx.restore();
       return;
