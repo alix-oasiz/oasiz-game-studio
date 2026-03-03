@@ -1132,7 +1132,7 @@ class Game {
     };
     this.breakableGroundImg.src = "assets/breakable_ground.png";
 
-    // Load wall tile textures (seaside cave set)
+    // Load wall tile textures
     this.wallTileLeftImg = new Image();
     this.wallTileLeftImg.onload = () => {
       console.log("[Game] Wall tile LEFT loaded");
@@ -1323,7 +1323,7 @@ class Game {
     };
     this.hurtSpriteSquid.src = "assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/2/Hurt.png";
   }
-  
+
   private loadAudio(): void {
     this.loadingMusicAudio = new Audio("assets/sfx/underwater-ambience.mp3");
     this.loadingMusicAudio.loop = true;
@@ -3703,8 +3703,11 @@ class Game {
             radius
           );
         } else {
-          const enemyRect = this.getEnemyCollisionRect(enemy);
-          bulletHitEnemy = this.checkCollision(bullet, enemyRect);
+          const unsafeZone = this.getEnemyCollisionRect(enemy);
+          const safeZone = this.getEnemySafeZoneRect(enemy);
+          bulletHitEnemy =
+            this.checkCollision(bullet, unsafeZone) ||
+            (safeZone !== null && this.checkCollision(bullet, safeZone));
         }
 
         if (bulletHitEnemy) {
