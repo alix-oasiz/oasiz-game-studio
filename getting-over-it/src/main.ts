@@ -48,9 +48,9 @@ startBtn.addEventListener('click', startGame);
 // ─── Constants ───────────────────────────────────────────────────────────────
 const GRAVITY      = 0.45;   // px / frame²  (downward = +y in canvas)
 const ARM_LEN      = 92;     // fixed arm length, px
-const ANG_DAMP     = 0.962;  // angular damping while gripped
+const ANG_DAMP     = 0.93;   // angular damping while gripped  (higher = slower spin)
 const LIN_DAMP     = 0.983;  // linear damping in free flight
-const MOUSE_SENS   = 0.38;   // how strongly mouse rotation drives omega
+const MOUSE_SENS   = 0.15;   // how strongly mouse rotation drives omega (lower = slower)
 const GRIP_RADIUS  = 15;     // px – how close tip must be to rock edge to grip
 const GROUND_Y     = 320;    // world-space Y of the flat ground floor
 const PLAYER_R     = 16;     // body radius for ground collision
@@ -110,16 +110,21 @@ function makeRock(cx: number, cy: number, rx: number, ry: number, n: number, see
 }
 
 // World-space rocks.  y=0 is spawn.  Negative y = higher altitude.
+// Each rock is positioned so its nearest edge is ~120-160 px from the
+// previous rock's nearest edge — within comfortable swinging distance.
 const ROCKS: Rock[] = [
-  makeRock(   0,  200, 200,  85,  9, 1.10),  // big starting platform
-  makeRock(-200,   50, 100,  55,  7, 2.30),
-  makeRock( 200,  -90, 120,  60,  8, 0.70),
-  makeRock(-120, -270,  90,  52,  7, 3.20),
-  makeRock( 230, -400, 115,  62,  8, 1.80),
-  makeRock( -60, -570, 130,  68,  9, 0.50),
-  makeRock( 250, -740,  95,  58,  7, 2.90),
-  makeRock(-210, -920, 118,  62,  8, 1.40),
-  makeRock(  90,-1100, 135,  72,  9, 3.60),
+  //                cx    cy    rx   ry   n  seed
+  makeRock(   0,  220, 190,  75,  9, 1.10),  // 0 – wide starting platform
+  makeRock(-110,   90, 100,  50,  7, 2.30),  // 1 – left,  130 up
+  makeRock(  90,  -20, 110,  52,  8, 0.70),  // 2 – right, 110 up
+  makeRock( -80, -140,  90,  48,  7, 3.20),  // 3 – left,  120 up
+  makeRock( 110, -240, 105,  52,  8, 1.80),  // 4 – right, 100 up
+  makeRock( -60, -360, 115,  55,  9, 0.50),  // 5 – left,  120 up
+  makeRock( 100, -470,  95,  50,  7, 2.90),  // 6 – right, 110 up
+  makeRock( -70, -590, 110,  55,  8, 1.40),  // 7 – left,  120 up
+  makeRock(  80, -700, 120,  58,  9, 3.60),  // 8 – right, 110 up
+  makeRock( -50, -820, 100,  52,  7, 0.90),  // 9 – left,  120 up
+  makeRock(  90, -930, 115,  55,  8, 2.10),  // 10 – right, 110 up
 ];
 
 // ─── Player state ────────────────────────────────────────────────────────────
