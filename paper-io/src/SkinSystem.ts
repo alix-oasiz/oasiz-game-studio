@@ -11,40 +11,48 @@ export interface SkinDef {
   textureUrl?: string;
   modelDir?: string;
   modelFile?: string;
+  modelObj?: string;
+  modelMtl?: string;
+  modelTex?: string;
   previewUrl?: string;
   unlockedByDefault: boolean;
   unlockScore: number;
 }
 
-const ANIMAL_MODELS: { id: string; name: string; folder: string; file: string; color: number; colorStr: string; unlockScore: number }[] = [
-  { id: 'cat', name: 'Cat', folder: 'Cat', file: 'cat.vox', color: 0xFFAA00, colorStr: '#FFAA00', unlockScore: 0 },
-  { id: 'dog', name: 'Dog', folder: 'Dog', file: 'dog.vox', color: 0xFF6B35, colorStr: '#FF6B35', unlockScore: 0 },
-  { id: 'bunny', name: 'Bunny', folder: 'Bunny', file: 'bunny.vox', color: 0xFF3D71, colorStr: '#FF3D71', unlockScore: 0 },
-  { id: 'fox', name: 'Fox', folder: 'Fox', file: 'fox.vox', color: 0xFF8C00, colorStr: '#FF8C00', unlockScore: 0 },
-  { id: 'penguin', name: 'Penguin', folder: 'Penguin', file: 'penguin.vox', color: 0x4DD0E1, colorStr: '#4DD0E1', unlockScore: 0 },
-  { id: 'chicken', name: 'Chicken', folder: 'Chicken', file: 'chicken.vox', color: 0xFFD700, colorStr: '#FFD700', unlockScore: 0 },
-  { id: 'turtle', name: 'Turtle', folder: 'Turtle', file: 'turtle.vox', color: 0x00E096, colorStr: '#00E096', unlockScore: 5 },
-  { id: 'frog', name: 'Frog', folder: 'Frog', file: 'frog.vox', color: 0x00E096, colorStr: '#00E096', unlockScore: 8 },
-  { id: 'piglet', name: 'Piglet', folder: 'Piglet', file: 'piglet.vox', color: 0xFF9999, colorStr: '#FF9999', unlockScore: 10 },
-  { id: 'bear', name: 'Bear', folder: 'Bear', file: 'bear.vox', color: 0x8B5E3C, colorStr: '#8B5E3C', unlockScore: 12 },
-  { id: 'monkey', name: 'Monkey', folder: 'Monkey', file: 'monkey.vox', color: 0xA0522D, colorStr: '#A0522D', unlockScore: 15 },
-  { id: 'mouse', name: 'Mouse', folder: 'Mouse', file: 'mouse.vox', color: 0xBBBBBB, colorStr: '#BBBBBB', unlockScore: 18 },
-  { id: 'cow', name: 'Cow', folder: 'Cow', file: 'cow.vox', color: 0xF5F5DC, colorStr: '#F5F5DC', unlockScore: 20 },
-  { id: 'panda', name: 'Panda', folder: 'Panda', file: 'panda.vox', color: 0x333333, colorStr: '#333333', unlockScore: 25 },
-  { id: 'elephant', name: 'Elephant', folder: 'Elephant', file: 'elephant.vox', color: 0x999999, colorStr: '#999999', unlockScore: 30 },
-  { id: 'parrot', name: 'Parrot', folder: 'Parrot', file: 'parrot.vox', color: 0xFF3D71, colorStr: '#FF3D71', unlockScore: 35 },
-  { id: 'crocodile', name: 'Crocodile', folder: 'Crocodile', file: 'crocodile.vox', color: 0x2E8B57, colorStr: '#2E8B57', unlockScore: 40 },
-  { id: 'axolotl', name: 'Axolotl', folder: 'Axolotl', file: 'axolotl.vox', color: 0xFFB6C1, colorStr: '#FFB6C1', unlockScore: 45 },
-  { id: 'mole', name: 'Mole', folder: 'Mole', file: 'mole.vox', color: 0x5C4033, colorStr: '#5C4033', unlockScore: 50 },
-  { id: 'unicorn', name: 'Unicorn', folder: 'Unicorn', file: 'unicorn.vox', color: 0xA259FF, colorStr: '#A259FF', unlockScore: 60 },
+const ANIMAL_MODELS: {
+  id: string; name: string;
+  dir: string; file: string;
+  obj: string; mtl: string; tex: string;
+  color: number; colorStr: string; unlockScore: number;
+}[] = [
+  { id: 'cat',       name: 'Cat',       dir: 'assets/Animals/Cat/',       file: 'cat.vox',       obj: 'assets/Animals/Cat/cat.vox.obj',             mtl: 'assets/Animals/Cat/cat.vox.mtl',             tex: 'assets/Animals/Cat/cat.vox.png',             color: 0xFFAA00, colorStr: '#FFAA00', unlockScore: 0  },
+  { id: 'dog',       name: 'Dog',       dir: 'assets/Animals/Dog/',       file: 'dog.vox',       obj: 'assets/Animals/Dog/dog.vox.obj',             mtl: 'assets/Animals/Dog/dog.vox.mtl',             tex: 'assets/Animals/Dog/dog.vox.png',             color: 0xFF6B35, colorStr: '#FF6B35', unlockScore: 0  },
+  { id: 'bunny',     name: 'Bunny',     dir: 'assets/Animals/Bunny/',     file: 'bunny.vox',     obj: 'assets/Animals/Bunny/bunny.vox.obj',         mtl: 'assets/Animals/Bunny/bunny.vox.mtl',         tex: 'assets/Animals/Bunny/bunny.vox.png',         color: 0xFF3D71, colorStr: '#FF3D71', unlockScore: 0  },
+  { id: 'fox',       name: 'Fox',       dir: 'assets/Animals/Fox/',       file: 'fox.vox',       obj: 'assets/Animals/Fox/fox.vox.obj',             mtl: 'assets/Animals/Fox/fox.vox.mtl',             tex: 'assets/Animals/Fox/fox.vox.png',             color: 0xFF8C00, colorStr: '#FF8C00', unlockScore: 0  },
+  { id: 'penguin',   name: 'Penguin',   dir: 'assets/Animals/Penguin/',   file: 'penguin.vox',   obj: 'assets/Animals/Penguin/penguin.vox.obj',     mtl: 'assets/Animals/Penguin/penguin.vox.mtl',     tex: 'assets/Animals/Penguin/penguin.vox.png',     color: 0x4DD0E1, colorStr: '#4DD0E1', unlockScore: 0  },
+  { id: 'chicken',   name: 'Chicken',   dir: 'assets/Animals/Chicken/',   file: 'chicken.vox',   obj: 'assets/Animals/Chicken/chicken.vox.obj',     mtl: 'assets/Animals/Chicken/chicken.vox.mtl',     tex: 'assets/Animals/Chicken/chicken.vox.png',     color: 0xFFD700, colorStr: '#FFD700', unlockScore: 0  },
+  { id: 'turtle',    name: 'Turtle',    dir: 'assets/Animals/Turtle/',    file: 'turtle.vox',    obj: 'assets/Animals/Turtle/turtle.vox.obj',       mtl: 'assets/Animals/Turtle/turtle.vox.mtl',       tex: 'assets/Animals/Turtle/turtle.vox.png',       color: 0x00E096, colorStr: '#00E096', unlockScore: 5  },
+  { id: 'frog',      name: 'Frog',      dir: 'assets/Animals/Frog/',      file: 'frog.vox',      obj: 'assets/Animals/Frog/frog.vox.obj',           mtl: 'assets/Animals/Frog/frog.vox.mtl',           tex: 'assets/Animals/Frog/frog.vox.png',           color: 0x00E096, colorStr: '#00E096', unlockScore: 8  },
+  { id: 'piglet',    name: 'Piglet',    dir: 'assets/Animals/Piglet/',    file: 'piglet.vox',    obj: 'assets/Animals/Piglet/piglet.vox.obj',       mtl: 'assets/Animals/Piglet/piglet.vox.mtl',       tex: 'assets/Animals/Piglet/piglet.vox.png',       color: 0xFF9999, colorStr: '#FF9999', unlockScore: 10 },
+  { id: 'bear',      name: 'Bear',      dir: 'assets/Animals/Bear/',      file: 'bear.vox',      obj: 'assets/Animals/Bear/bear.vox.obj',           mtl: 'assets/Animals/Bear/bear.vox.mtl',           tex: 'assets/Animals/Bear/bear.vox.png',           color: 0x8B5E3C, colorStr: '#8B5E3C', unlockScore: 12 },
+  { id: 'monkey',    name: 'Monkey',    dir: 'assets/Animals/Monkey/',    file: 'monkey.vox',    obj: 'assets/Animals/Monkey/monkey.vox.obj',       mtl: 'assets/Animals/Monkey/monkey.vox.mtl',       tex: 'assets/Animals/Monkey/monkey.vox.png',       color: 0xA0522D, colorStr: '#A0522D', unlockScore: 15 },
+  { id: 'mouse',     name: 'Mouse',     dir: 'assets/Animals/Mouse/',     file: 'mouse.vox',     obj: 'assets/Animals/Mouse/mouse.vox.obj',         mtl: 'assets/Animals/Mouse/mouse.vox.mtl',         tex: 'assets/Animals/Mouse/mouse.vox.png',         color: 0xBBBBBB, colorStr: '#BBBBBB', unlockScore: 18 },
+  { id: 'cow',       name: 'Cow',       dir: 'assets/Animals/Cow/',       file: 'cow.vox',       obj: 'assets/Animals/Cow/cow.vox.obj',             mtl: 'assets/Animals/Cow/cow.vox.mtl',             tex: 'assets/Animals/Cow/cow.vox.png',             color: 0xF5F5DC, colorStr: '#F5F5DC', unlockScore: 20 },
+  { id: 'panda',     name: 'Panda',     dir: 'assets/Animals/Panda/',     file: 'panda.vox',     obj: 'assets/Animals/Panda/panda.vox.obj',         mtl: 'assets/Animals/Panda/panda.vox.mtl',         tex: 'assets/Animals/Panda/panda.vox.png',         color: 0x333333, colorStr: '#333333', unlockScore: 25 },
+  { id: 'elephant',  name: 'Elephant',  dir: 'assets/Animals/Elephant/',  file: 'elephant.vox',  obj: 'assets/Animals/Elephant/elephant.vox.obj',   mtl: 'assets/Animals/Elephant/elephant.vox.mtl',   tex: 'assets/Animals/Elephant/elephant.vox.png',   color: 0x999999, colorStr: '#999999', unlockScore: 30 },
+  { id: 'parrot',    name: 'Parrot',    dir: 'assets/Animals/Parrot/',    file: 'parrot.vox',    obj: 'assets/Animals/Parrot/parrot.vox.obj',       mtl: 'assets/Animals/Parrot/parrot.vox.mtl',       tex: 'assets/Animals/Parrot/parrot.vox.png',       color: 0xFF3D71, colorStr: '#FF3D71', unlockScore: 35 },
+  { id: 'crocodile', name: 'Crocodile', dir: 'assets/Animals/Crocodile/', file: 'crocodile.vox', obj: 'assets/Animals/Crocodile/crocodile.vox.obj', mtl: 'assets/Animals/Crocodile/crocodile.vox.mtl', tex: 'assets/Animals/Crocodile/crocodile.vox.png', color: 0x2E8B57, colorStr: '#2E8B57', unlockScore: 40 },
+  { id: 'axolotl',   name: 'Axolotl',   dir: 'assets/Animals/Axolotl/',   file: 'axolotl.vox',   obj: 'assets/Animals/Axolotl/axolotl.vox.obj',     mtl: 'assets/Animals/Axolotl/axolotl.vox.mtl',     tex: 'assets/Animals/Axolotl/axolotl.vox.png',     color: 0xFFB6C1, colorStr: '#FFB6C1', unlockScore: 45 },
+  { id: 'mole',      name: 'Mole',      dir: 'assets/Animals/Mole/',      file: 'mole.vox',      obj: 'assets/Animals/Mole/mole.vox.obj',           mtl: 'assets/Animals/Mole/mole.vox.mtl',           tex: 'assets/Animals/Mole/mole.vox.png',           color: 0x5C4033, colorStr: '#5C4033', unlockScore: 50 },
+  { id: 'unicorn',   name: 'Unicorn',   dir: 'assets/Animals/Unicorn/',   file: 'unicorn.vox',   obj: 'assets/Animals/Unicorn/unicorn.vox.obj',     mtl: 'assets/Animals/Unicorn/unicorn.vox.mtl',     tex: 'assets/Animals/Unicorn/unicorn.vox.png',     color: 0xA259FF, colorStr: '#A259FF', unlockScore: 60 },
 ];
 
 export const SKINS: SkinDef[] = [
-  { id: 'cyan', name: 'Cyan', type: 'color', color: 0x00E5FF, colorStr: '#00E5FF', unlockedByDefault: true, unlockScore: 0 },
-  { id: 'pink', name: 'Pink', type: 'color', color: 0xFF3D71, colorStr: '#FF3D71', unlockedByDefault: true, unlockScore: 0 },
-  { id: 'orange', name: 'Orange', type: 'color', color: 0xFFAA00, colorStr: '#FFAA00', unlockedByDefault: true, unlockScore: 0 },
-  { id: 'green', name: 'Green', type: 'color', color: 0x00E096, colorStr: '#00E096', unlockedByDefault: true, unlockScore: 0 },
-  { id: 'purple', name: 'Purple', type: 'color', color: 0xA259FF, colorStr: '#A259FF', unlockedByDefault: true, unlockScore: 0 },
+  { id: 'cyan',       name: 'Cyan',       type: 'color', color: 0x00E5FF, colorStr: '#00E5FF', unlockedByDefault: true, unlockScore: 0 },
+  { id: 'pink',       name: 'Pink',       type: 'color', color: 0xFF3D71, colorStr: '#FF3D71', unlockedByDefault: true, unlockScore: 0 },
+  { id: 'orange',     name: 'Orange',     type: 'color', color: 0xFFAA00, colorStr: '#FFAA00', unlockedByDefault: true, unlockScore: 0 },
+  { id: 'green',      name: 'Green',      type: 'color', color: 0x00E096, colorStr: '#00E096', unlockedByDefault: true, unlockScore: 0 },
+  { id: 'purple',     name: 'Purple',     type: 'color', color: 0xA259FF, colorStr: '#A259FF', unlockedByDefault: true, unlockScore: 0 },
   { id: 'vermillion', name: 'Vermillion', type: 'color', color: 0xFF6B35, colorStr: '#FF6B35', unlockedByDefault: true, unlockScore: 0 },
 
   ...ANIMAL_MODELS.map(a => ({
@@ -53,15 +61,16 @@ export const SKINS: SkinDef[] = [
     type: 'model' as const,
     color: a.color,
     colorStr: a.colorStr,
-    modelDir: `Animals/${a.folder}/`,
+    modelDir: a.dir,
     modelFile: a.file,
-    previewUrl: `Animals/${a.folder}/${a.file}.png`,
+    modelObj: a.obj,
+    modelMtl: a.mtl,
+    modelTex: a.tex,
+    previewUrl: a.tex,
     unlockedByDefault: a.unlockScore === 0,
     unlockScore: a.unlockScore,
   })),
 ];
-
-const ASSETS = 'assets/';
 
 export class SkinSystem {
   private textures: Map<string, THREE.Texture> = new Map();
@@ -119,13 +128,13 @@ export class SkinSystem {
   private preloadAssets(): void {
     for (const skin of SKINS) {
       if (skin.type === 'texture' && skin.textureUrl) {
-        const tex = this.textureLoader.load(ASSETS + skin.textureUrl);
+        const tex = this.textureLoader.load(skin.textureUrl);
         tex.magFilter = THREE.NearestFilter;
         tex.minFilter = THREE.NearestMipmapLinearFilter;
         tex.colorSpace = THREE.SRGBColorSpace;
         this.textures.set(skin.id, tex);
       }
-      if (skin.type === 'model' && skin.modelDir && skin.modelFile) {
+      if (skin.type === 'model' && skin.modelObj) {
         this.loadModel(skin);
       }
     }
@@ -136,8 +145,11 @@ export class SkinSystem {
     if (existing) return existing;
 
     const promise = new Promise<THREE.Group>((resolve) => {
-      const dir = ASSETS + skin.modelDir!;
-      const file = skin.modelFile!;
+      const objUrl = skin.modelObj!;
+      const mtlUrl = skin.modelMtl!;
+      // Derive the resource path from the (potentially CDN-rewritten) OBJ URL
+      // so texture references inside the MTL resolve correctly.
+      const resourceDir = objUrl.substring(0, objUrl.lastIndexOf('/') + 1);
 
       let loadedObj: THREE.Group | null = null;
       const manager = new THREE.LoadingManager();
@@ -150,14 +162,12 @@ export class SkinSystem {
       };
 
       const mtlLoader = new MTLLoader(manager);
-      mtlLoader.setPath(dir);
-      mtlLoader.setResourcePath(dir);
-      mtlLoader.load(file + '.mtl', (materials) => {
+      mtlLoader.setResourcePath(resourceDir);
+      mtlLoader.load(mtlUrl, (materials) => {
         materials.preload();
         const loader = new OBJLoader(manager);
         loader.setMaterials(materials);
-        loader.setPath(dir);
-        loader.load(file + '.obj', (obj) => {
+        loader.load(objUrl, (obj) => {
           loadedObj = obj;
         }, undefined, () => {
           this.loadObjWithTexture(skin, resolve);
@@ -172,12 +182,11 @@ export class SkinSystem {
   }
 
   private loadObjWithTexture(skin: SkinDef, resolve: (g: THREE.Group) => void): void {
-    const dir = ASSETS + skin.modelDir!;
-    const file = skin.modelFile!;
+    const objUrl = skin.modelObj!;
+    const texUrl = skin.modelTex!;
     const loader = new OBJLoader();
-    loader.setPath(dir);
-    loader.load(file + '.obj', (obj) => {
-      const tex = this.textureLoader.load(dir + file + '.png');
+    loader.load(objUrl, (obj) => {
+      const tex = this.textureLoader.load(texUrl);
       tex.magFilter = THREE.NearestFilter;
       tex.minFilter = THREE.NearestMipmapLinearFilter;
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -290,13 +299,11 @@ export class SkinSystem {
   }
 
   getPreviewUrl(skin: SkinDef): string | null {
-    if (!skin.previewUrl) return null;
-    return ASSETS + skin.previewUrl;
+    return skin.previewUrl ?? null;
   }
 
   getTextureUrl(skin: SkinDef): string | null {
-    if (!skin.textureUrl) return null;
-    return ASSETS + skin.textureUrl;
+    return skin.textureUrl ?? null;
   }
 
   whenAssetsReady(): Promise<void> {
