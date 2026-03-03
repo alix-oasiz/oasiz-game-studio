@@ -45,6 +45,7 @@ export class PlayerController {
   private player: Player;
   private bullets: Bullet[] = [];
   private shootCooldown: number = 0;
+  private shootCooldownFrames: number = CONFIG.SHOOT_COOLDOWN;
   private isShooting: boolean = false; // Track if currently shooting (for hover effect)
   private recoilHoverFrames: number = 0; // Frames of hover damping remaining after last shot
   private wasActionPressed: boolean = false;
@@ -131,6 +132,10 @@ export class PlayerController {
   
   getShootCooldown(): number {
     return this.shootCooldown;
+  }
+
+  setShootCooldownFrames(frames: number): void {
+    this.shootCooldownFrames = Math.max(2, Math.round(frames));
   }
 
   addMaxHp(amount: number): void {
@@ -277,14 +282,14 @@ export class PlayerController {
     if (this.shootCooldown > 0 || this.player.ammo <= 0) return false;
     if (this.player.grounded) return false; // Can only shoot while airborne
     
-    this.shootCooldown = CONFIG.SHOOT_COOLDOWN;
+    this.shootCooldown = this.shootCooldownFrames;
     this.player.ammo--;
     
     // Apply upward recoil when shooting
     this.player.vy = CONFIG.PLAYER_RECOIL;
     
     // Keep hover damping active for a few frames after last shot so recoil doesn't catapult player
-    this.recoilHoverFrames = CONFIG.SHOOT_COOLDOWN;
+    this.recoilHoverFrames = this.shootCooldownFrames;
     
     // Create single bullet shooting straight down
     this.bullets.push({

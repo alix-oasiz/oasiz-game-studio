@@ -1407,7 +1407,6 @@ export class LevelSpawner {
     const platformsByY = new Map<number, { x: number; width: number }[]>();
     for (const p of chunk.platforms) {
       if (p.isWall) continue;
-      if (!p.breakable && !p.oneWay) continue;
       const key = p.y;
       if (!platformsByY.has(key)) platformsByY.set(key, []);
       platformsByY.get(key)!.push({ x: p.x, width: p.width });

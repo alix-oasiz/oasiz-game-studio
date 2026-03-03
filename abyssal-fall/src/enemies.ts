@@ -6,14 +6,15 @@
  * Supports sprite sheet rendering with per-enemy configurations.
  */
 
+/// <reference types="vite/client" />
 import { CONFIG } from "./config";
-
-function getAssetUrl(relativePath: string): string {
-  const baseUrl = import.meta.env.BASE_URL || "/";
-  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  return `${normalizedBase}assets/${relativePath}`;
-}
 import { SeededRNG } from "./world";
+
+import crabIdleUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Idle.png?inline";
+import crabAttackUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Attack3.png?inline";
+import sharkWalkUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/1/Walk.png?inline";
+import squidWalkUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/2/Walk.png?inline";
+import weedsUrl from "../public/assets/weeds.png?inline";
 
 // ============= TYPES =============
 export type EnemyType = "STATIC" | "HORIZONTAL" | "EXPLODER" | "PUFFER";
@@ -315,7 +316,7 @@ export class StaticEnemy extends BaseEnemy {
     
     // Red crab sprite sheet: 4 frames, 96×96 per frame (384x96 total)
     this.setupSprite({
-      src: getAssetUrl("Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Idle.png"),
+      src: crabIdleUrl,
       frameWidth: 96,
       frameHeight: 96,
       frameCount: 4,
@@ -332,7 +333,7 @@ export class StaticEnemy extends BaseEnemy {
     this.attackSprite.onload = () => {
       this.attackSpriteLoaded = true;
     };
-    this.attackSprite.src = getAssetUrl("Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Attack3.png");
+    this.attackSprite.src = crabAttackUrl;
   }
 
   update(playerX: number, playerY: number): void {
@@ -533,7 +534,7 @@ export class HorizontalEnemy extends BaseEnemy {
     // Scale to fit hitbox nicely
     const scale = 0.8;
     this.setupSprite({
-      src: getAssetUrl("Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/1/Walk.png"),
+      src: sharkWalkUrl,
       frameWidth: 96,
       frameHeight: 96,
       frameCount: 6,
@@ -601,7 +602,7 @@ export class ExploderEnemy extends BaseEnemy {
     // Squid walk sprite sheet: 6 frames, 96×96 per frame (576x96 total)
     const scale = 0.75;
     this.setupSprite({
-      src: getAssetUrl("Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/2/Walk.png"),
+      src: squidWalkUrl,
       frameWidth: 96,
       frameHeight: 96,
       frameCount: 6,
@@ -734,7 +735,7 @@ export class PufferEnemy extends BaseEnemy {
     PufferEnemy.spriteSheet.onerror = () => {
       console.warn("[PufferEnemy]", "Failed to load puffer sprite sheet");
     };
-    PufferEnemy.spriteSheet.src = getAssetUrl("weeds.png");
+    PufferEnemy.spriteSheet.src = weedsUrl;
   }
 
   update(playerX: number, playerY: number): void {

@@ -205,7 +205,10 @@
         <button id="nextBtn">Next</button>
         <button id="copyFrameBtn">Copy Frame JSON</button>
         <button id="copyAllBtn">Copy All JSON</button>
-        <button id="saveBtn" class="good">Save</button>
+        <button id="saveProjectBtn" class="primary">Save to Project</button>
+        <button id="saveBtn" class="good">Save to File</button>
+        <button id="loadFileBtn">Load File</button>
+        <input id="loadFileInput" type="file" accept=".json" style="display:none" />
         <button id="resetFrameBtn" class="warn">Reset Frame</button>
         <button id="resetAllBtn" class="warn">Reset All</button>
       </div>
@@ -227,6 +230,13 @@
 
         <div class="group">
           <h3>Shape</h3>
+          <div class="row">
+            <label>Zone</label>
+            <select id="zoneType">
+              <option value="unsafe">Unsafe</option>
+              <option value="safe">Safe</option>
+            </select>
+          </div>
           <div class="row">
             <label>Type</label>
             <select id="shapeType">
@@ -266,11 +276,11 @@
     const STORAGE_KEY = "downwellHitboxLabFramesV1";
 
     const SOURCES = [
-      { key: "player_idle", label: "Player Idle", src: "./assets/characters/underwater4/Idle.png", frameW: 48, frameH: 48, count: 4, defaults: { type: "rect", x: 11, y: 8, width: 24, height: 33 } },
-      { key: "player_run", label: "Player Run", src: "./assets/characters/underwater4/Walk.png", frameW: 48, frameH: 48, count: 6, defaults: { type: "rect", x: 8, y: 14, width: 32, height: 24 } },
-      { key: "player_jump", label: "Player Jump", src: "./assets/characters/underwater4/Walk2.png", frameW: 48, frameH: 48, count: 6, defaults: { type: "rect", x: 8, y: 14, width: 32, height: 24 } },
-      { key: "player_fall", label: "Player Fall", src: "./assets/characters/underwater4/Walk2.png", frameW: 48, frameH: 48, count: 6, defaults: { type: "rect", x: 8, y: 14, width: 32, height: 24 } },
-      { key: "player_shoot", label: "Player Shoot", src: "./assets/characters/underwater4/Attack.png", frameW: 48, frameH: 48, count: 6, defaults: { type: "rect", x: 8, y: 12, width: 32, height: 28 } },
+      { key: "player_idle", label: "Player Idle", src: "./assets/characters/pixel_adventure_virtual_guy/idle.png", frameW: 32, frameH: 32, count: 11, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_run", label: "Player Run", src: "./assets/characters/pixel_adventure_virtual_guy/run.png", frameW: 32, frameH: 32, count: 12, defaults: { type: "rect", x: 8, y: 10, width: 16, height: 21 } },
+      { key: "player_jump", label: "Player Jump", src: "./assets/characters/pixel_adventure_virtual_guy/jump.png", frameW: 32, frameH: 32, count: 1, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_fall", label: "Player Fall", src: "./assets/characters/pixel_adventure_virtual_guy/fall.png", frameW: 32, frameH: 32, count: 1, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_shoot", label: "Player Shoot", src: "./assets/characters/pixel_adventure_virtual_guy/hit.png", frameW: 32, frameH: 32, count: 7, defaults: { type: "rect", x: 8, y: 8, width: 16, height: 23 } },
 
       { key: "crab_idle", label: "Crab Idle", src: "./assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Idle.png", frameW: 96, frameH: 96, count: 4, defaults: { type: "rect", x: 13, y: 33, width: 70, height: 50 } },
       { key: "crab_attack", label: "Crab Attack", src: "./assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Attack3.png", frameW: 96, frameH: 96, count: 6, defaults: { type: "rect", x: 10, y: 28, width: 76, height: 56 } },
@@ -289,6 +299,7 @@
       frames: [],
       colliders: {},
       selected: 0,
+      activeZone: "unsafe",
       images: new Map(),
       view: { dx: 0, dy: 0, scale: 1, frameW: 1, frameH: 1 },
       hover: { type: "none" },
@@ -309,6 +320,7 @@
       currentName: document.getElementById("currentName"),
       currentSource: document.getElementById("currentSource"),
       currentSize: document.getElementById("currentSize"),
+      zoneType: document.getElementById("zoneType"),
       shapeType: document.getElementById("shapeType"),
       rectGroup: document.getElementById("rectGroup"),
       circleGroup: document.getElementById("circleGroup"),
@@ -324,7 +336,10 @@
       nextBtn: document.getElementById("nextBtn"),
       copyFrameBtn: document.getElementById("copyFrameBtn"),
       copyAllBtn: document.getElementById("copyAllBtn"),
+      saveProjectBtn: document.getElementById("saveProjectBtn"),
       saveBtn: document.getElementById("saveBtn"),
+      loadFileBtn: document.getElementById("loadFileBtn"),
+      loadFileInput: document.getElementById("loadFileInput"),
       resetFrameBtn: document.getElementById("resetFrameBtn"),
       resetAllBtn: document.getElementById("resetAllBtn"),
       importBtn: document.getElementById("importBtn"),
@@ -352,6 +367,30 @@
 
     function makeFrameId(sourceKey, index) {
       return `${sourceKey}#${index}`;
+    }
+
+    function isColliderShape(x) {
+      return x && typeof x === "object" && (x.type === "rect" || x.type === "circle");
+    }
+
+    function isZoneSetEntry(x) {
+      return x && typeof x === "object" && !Array.isArray(x) && ("safe" in x || "unsafe" in x);
+    }
+
+    function usesZoneSet(frame) {
+      return frame.sourceKey.startsWith("crab_") || frame.sourceKey.startsWith("shark_") || frame.sourceKey.startsWith("squid_");
+    }
+
+    function ensureZoneSet(frame, entry) {
+      if (isZoneSetEntry(entry)) {
+        if (!isColliderShape(entry.unsafe)) entry.unsafe = deepClone(frame.defaults);
+        if (!isColliderShape(entry.safe)) entry.safe = deepClone(frame.defaults);
+        return entry;
+      }
+      if (isColliderShape(entry)) {
+        return { unsafe: deepClone(entry), safe: deepClone(frame.defaults) };
+      }
+      return { unsafe: deepClone(frame.defaults), safe: deepClone(frame.defaults) };
     }
 
     async function buildFrames() {
@@ -434,12 +473,42 @@
       els.frameCount.textContent = String(frames.length);
     }
 
-    function getCollider(frame) {
-      if (!state.colliders[frame.id]) state.colliders[frame.id] = deepClone(frame.defaults);
+    function getColliderEntry(frame) {
+      const existing = state.colliders[frame.id];
+      if (usesZoneSet(frame)) {
+        const normalized = ensureZoneSet(frame, existing);
+        state.colliders[frame.id] = normalized;
+        return normalized;
+      }
+      if (!isColliderShape(existing)) {
+        state.colliders[frame.id] = deepClone(frame.defaults);
+      }
       return state.colliders[frame.id];
     }
 
-    function loadSaved() {
+    function getActiveCollider(frame) {
+      const entry = getColliderEntry(frame);
+      if (isZoneSetEntry(entry)) {
+        const zone = state.activeZone === "safe" ? "safe" : "unsafe";
+        if (!isColliderShape(entry[zone])) entry[zone] = deepClone(frame.defaults);
+        return entry[zone];
+      }
+      return entry;
+    }
+
+    async function loadSaved() {
+      // Try committed file first, fall back to localStorage
+      try {
+        const res = await fetch("./hitbox-colliders.json");
+        if (res.ok) {
+          const parsed = await res.json();
+          if (parsed && typeof parsed === "object") {
+            state.colliders = parsed;
+            status("Loaded hitbox-colliders.json from repo.");
+            return;
+          }
+        }
+      } catch (_) {}
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return;
@@ -451,13 +520,45 @@
     }
 
     function saveAll() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.colliders));
-      status("Saved to localStorage.");
+      const json = JSON.stringify(state.colliders, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "hitbox-colliders.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      // Also keep localStorage as session backup
+      localStorage.setItem(STORAGE_KEY, json);
+      status("Downloaded hitbox-colliders.json; commit it to public/");
+    }
+
+    async function saveProject() {
+      const json = JSON.stringify(state.colliders, null, 2);
+      try {
+        const res = await fetch("/__hitbox/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: json,
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || `HTTP ${res.status}`);
+        }
+        localStorage.setItem(STORAGE_KEY, json);
+        status("Saved to project file: public/hitbox-colliders.json");
+      } catch (err) {
+        status("Project save failed: " + err.message);
+      }
     }
 
     function resetFrame() {
       const frame = state.frames[state.selected];
-      state.colliders[frame.id] = deepClone(frame.defaults);
+      if (usesZoneSet(frame)) {
+        state.colliders[frame.id] = { unsafe: deepClone(frame.defaults), safe: deepClone(frame.defaults) };
+      } else {
+        state.colliders[frame.id] = deepClone(frame.defaults);
+      }
       syncControls();
       drawFrame();
       status(`Reset ${frame.id} to defaults.`);
@@ -465,7 +566,13 @@
 
     function resetAll() {
       const next = {};
-      for (const frame of state.frames) next[frame.id] = deepClone(frame.defaults);
+      for (const frame of state.frames) {
+        if (usesZoneSet(frame)) {
+          next[frame.id] = { unsafe: deepClone(frame.defaults), safe: deepClone(frame.defaults) };
+        } else {
+          next[frame.id] = deepClone(frame.defaults);
+        }
+      }
       state.colliders = next;
       syncControls();
       drawFrame();
@@ -511,11 +618,15 @@
 
     function syncControls() {
       const frame = state.frames[state.selected];
-      const collider = getCollider(frame);
+      const entry = getColliderEntry(frame);
+      const collider = getActiveCollider(frame);
 
       els.currentName.textContent = `${frame.sourceLabel} #${frame.frameIndex}`;
       els.currentSource.textContent = frame.sourcePath;
       els.currentSize.textContent = `${frame.frameW}x${frame.frameH}`;
+
+      els.zoneType.disabled = !isZoneSetEntry(entry);
+      els.zoneType.value = state.activeZone;
 
       els.shapeType.value = collider.type;
       els.rectGroup.style.display = collider.type === "rect" ? "grid" : "none";
@@ -533,7 +644,8 @@
 
     function drawFrame() {
       const frame = state.frames[state.selected];
-      const collider = getCollider(frame);
+      const entry = getColliderEntry(frame);
+      const collider = getActiveCollider(frame);
       const img = state.images.get(frame.sourcePath);
       if (!img) return;
 
@@ -556,38 +668,40 @@
       ctx.lineWidth = 3;
       ctx.strokeRect(dx, dy, drawW, drawH);
 
-      ctx.lineWidth = 2;
-      if (collider.type === "circle") {
-        const cx = dx + collider.cx * scale;
-        const cy = dy + collider.cy * scale;
-        const r = collider.radius * scale;
+      const drawCollider = (col, colors, drawHandles) => {
+        ctx.lineWidth = 2;
+        if (col.type === "circle") {
+          const cx = dx + col.cx * scale;
+          const cy = dy + col.cy * scale;
+          const r = col.radius * scale;
+          ctx.fillStyle = colors.fill;
+          ctx.strokeStyle = colors.stroke;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          if (!drawHandles) return;
+          const hr = 5;
+          const hx = dx + (col.cx + col.radius) * scale;
+          const hy = cy;
+          ctx.fillStyle = "rgba(255, 240, 120, 0.95)";
+          ctx.strokeStyle = "rgba(0,0,0,0.9)";
+          ctx.beginPath();
+          ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          return;
+        }
 
-        ctx.fillStyle = "rgba(255, 120, 120, 0.15)";
-        ctx.strokeStyle = "rgba(255, 120, 120, 0.95)";
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        const hr = 5;
-        const hx = dx + (collider.cx + collider.radius) * scale;
-        const hy = cy;
-        ctx.fillStyle = "rgba(255, 240, 120, 0.95)";
-        ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        ctx.beginPath();
-        ctx.arc(hx, hy, hr, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      } else {
-        const rx = dx + collider.x * scale;
-        const ry = dy + collider.y * scale;
-        const rw = collider.width * scale;
-        const rh = collider.height * scale;
-
-        ctx.fillStyle = "rgba(120, 255, 170, 0.15)";
-        ctx.strokeStyle = "rgba(120, 255, 170, 0.95)";
+        const rx = dx + col.x * scale;
+        const ry = dy + col.y * scale;
+        const rw = col.width * scale;
+        const rh = col.height * scale;
+        ctx.fillStyle = colors.fill;
+        ctx.strokeStyle = colors.stroke;
         ctx.fillRect(rx, ry, rw, rh);
         ctx.strokeRect(rx, ry, rw, rh);
+        if (!drawHandles) return;
 
         const hs = 8;
         const handles = [
@@ -601,6 +715,17 @@
           ctx.fillRect(Math.round(hx - hs / 2), Math.round(hy - hs / 2), hs, hs);
           ctx.strokeRect(Math.round(hx - hs / 2), Math.round(hy - hs / 2), hs, hs);
         }
+      };
+
+      if (isZoneSetEntry(entry)) {
+        if (isColliderShape(entry.unsafe)) {
+          drawCollider(entry.unsafe, { fill: "rgba(255, 100, 100, 0.15)", stroke: "rgba(255, 100, 100, 0.95)" }, state.activeZone === "unsafe");
+        }
+        if (isColliderShape(entry.safe)) {
+          drawCollider(entry.safe, { fill: "rgba(110, 255, 140, 0.15)", stroke: "rgba(110, 255, 140, 0.95)" }, state.activeZone === "safe");
+        }
+      } else {
+        drawCollider(collider, { fill: "rgba(120, 255, 170, 0.15)", stroke: "rgba(120, 255, 170, 0.95)" }, true);
       }
 
       ctx.fillStyle = "rgba(215,240,255,0.9)";
@@ -664,7 +789,14 @@
         const target = deepClone(after);
         if (target.type === "rect") clampRect(target, targetFrame);
         if (target.type === "circle") clampCircle(target, targetFrame);
-        state.colliders[targetFrame.id] = target;
+        if (usesZoneSet(targetFrame)) {
+          const entry = ensureZoneSet(targetFrame, state.colliders[targetFrame.id]);
+          const zone = state.activeZone === "safe" ? "safe" : "unsafe";
+          entry[zone] = target;
+          state.colliders[targetFrame.id] = entry;
+        } else {
+          state.colliders[targetFrame.id] = target;
+        }
         count++;
       }
       return count;
@@ -830,7 +962,7 @@
       numberInputs.forEach(([el, key]) => {
         el.addEventListener("input", () => {
           const frame = state.frames[state.selected];
-          const collider = getCollider(frame);
+          const collider = getActiveCollider(frame);
           const before = deepClone(collider);
           const n = Number(el.value);
           if (!Number.isFinite(n)) return;
@@ -846,7 +978,7 @@
 
       els.shapeType.addEventListener("change", () => {
         const frame = state.frames[state.selected];
-        const collider = getCollider(frame);
+        const collider = getActiveCollider(frame);
         collider.type = els.shapeType.value;
         if (collider.type === "circle") {
           if (collider.cx == null) collider.cx = Math.floor(frame.frameW / 2);
@@ -858,6 +990,12 @@
           if (collider.width == null) collider.width = Math.floor(frame.frameW * 0.5);
           if (collider.height == null) collider.height = Math.floor(frame.frameH * 0.5);
         }
+        syncControls();
+        drawFrame();
+      });
+
+      els.zoneType.addEventListener("change", () => {
+        state.activeZone = els.zoneType.value === "safe" ? "safe" : "unsafe";
         syncControls();
         drawFrame();
       });
@@ -875,13 +1013,39 @@
         drawFrame();
       };
 
+      els.saveProjectBtn.onclick = () => void saveProject();
       els.saveBtn.onclick = () => saveAll();
+
+      els.loadFileBtn.onclick = () => els.loadFileInput.click();
+      els.loadFileInput.addEventListener("change", () => {
+        const file = els.loadFileInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target.result);
+            if (!parsed || typeof parsed !== "object") throw new Error("JSON must be an object");
+            state.colliders = parsed;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            syncControls();
+            drawFrame();
+            status("Loaded " + file.name);
+          } catch (err) {
+            status("Load failed: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+        els.loadFileInput.value = "";
+      });
       els.resetFrameBtn.onclick = () => resetFrame();
-      els.resetAllBtn.onclick = () => resetAll();
+      els.resetAllBtn.onclick = () => {
+        if (!window.confirm("Reset ALL frame colliders to defaults? This affects every creature.")) return;
+        resetAll();
+      };
 
       els.copyFrameBtn.onclick = async () => {
         const frame = state.frames[state.selected];
-        const payload = { id: frame.id, collider: getCollider(frame) };
+        const payload = { id: frame.id, collider: getColliderEntry(frame) };
         await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
         status(`Copied ${frame.id}.`);
       };
@@ -906,7 +1070,7 @@
 
       els.canvas.addEventListener("mousedown", (ev) => {
         const frame = state.frames[state.selected];
-        const collider = getCollider(frame);
+        const collider = getActiveCollider(frame);
         const { fx, fy } = canvasToFrame(ev.clientX, ev.clientY);
         const hit = detectHit(frame, collider, fx, fy);
         if (hit === "none") return;
@@ -921,7 +1085,7 @@
 
       window.addEventListener("mousemove", (ev) => {
         const frame = state.frames[state.selected];
-        const collider = getCollider(frame);
+        const collider = getActiveCollider(frame);
         const { fx, fy } = canvasToFrame(ev.clientX, ev.clientY);
         if (state.drag.active) {
           const before = deepClone(collider);
@@ -942,7 +1106,7 @@
         state.drag.type = "none";
         state.drag.start = null;
         const frame = state.frames[state.selected];
-        const collider = getCollider(frame);
+        const collider = getActiveCollider(frame);
         const hit = detectHit(frame, collider, state.drag.startFx, state.drag.startFy);
         updateCanvasCursor(hit);
         status("Hitbox updated. Click Save to keep it.");
@@ -952,7 +1116,7 @@
     async function main() {
       status("Loading assets...");
       await buildFrames();
-      loadSaved();
+      await loadSaved();
       renderFrameList();
       bindControls();
       syncControls();
@@ -967,3 +1131,4 @@
   </script>
 </body>
 </html>
+

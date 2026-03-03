@@ -203,22 +203,26 @@
         /* Settings Button */
         #settings-btn {
             position: absolute;
-            top: 45px;
-            right: 18px;
+            top: calc(env(safe-area-inset-top, 0px) + 8px);
+            right: 12px;
             width: 52px;
             height: 52px;
-            border-radius: 10px;
-            background: rgba(8, 24, 46, 0.82);
-            border: 2px solid rgba(165, 222, 255, 0.72);
+            border-radius: 0;
+            background-color: transparent;
+            background-image: url("assets/ui/settings_icon.png");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            border: none;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.2s ease;
             z-index: 15;
-            box-shadow:
-                0 6px 16px rgba(0, 0, 0, 0.45),
-                inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+            box-shadow: none;
         }
 
         #settings-btn.hidden {
@@ -226,15 +230,11 @@
         }
 
         #settings-btn:hover {
-            background: rgba(12, 38, 68, 0.92);
-            transform: rotate(10deg) scale(1.04);
+            transform: scale(1.04);
         }
 
         #settings-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: #e8f7ff;
-            filter: drop-shadow(0 0 4px rgba(120, 220, 255, 0.55));
+            display: none;
         }
 
         /* Game Over Screen */
@@ -314,9 +314,9 @@
         }
 
         #game-over-screen {
-            justify-content: flex-start;
-            padding-top: clamp(20px, 8vh, 72px);
-            padding-bottom: 18px;
+            justify-content: center;
+            padding-top: 0;
+            padding-bottom: 0;
         }
 
         #game-over-screen .content {
@@ -424,10 +424,11 @@
             top: 0;
             left: 0;
             width: 100%;
-            padding: 16px;
+            padding: 0 12px;
             z-index: 5;
             pointer-events: none;
             display: none;
+            box-sizing: border-box;
         }
 
         #powerup-bar {
@@ -479,18 +480,25 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            padding-top: 45px;
+            padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
         }
 
         .hud-left {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            background: rgba(5, 20, 38, 0.68);
-            border: 1px solid rgba(140, 210, 255, 0.45);
-            border-radius: 8px;
-            padding: 10px 12px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            gap: 6px;
+            width: 172px;
+            min-height: 98px;
+            padding: 22px 20px 8px 20px;
+            align-items: center;
+            text-align: center;
+            background-image: url("assets/ui/scoreboard_panel.png");
+            background-repeat: no-repeat;
+            background-size: 100% 100%;
+            background-position: center;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            box-sizing: border-box;
         }
 
         .hud-right {
@@ -525,23 +533,32 @@
                 0 0 10px rgba(255, 122, 217, 0.48);
         }
 
-        /* Vertical HP Bubble Container (left side) */
+        /* Vertical HP Heart Container (left side) */
         #hp-bar {
             position: absolute;
             left: 0;
             top: 50%;
             transform: translateY(-50%);
-            width: 28px;
-            height: 220px;
+            width: 87px;
+            height: 216px;
             display: flex;
             flex-direction: column;
-            justify-content: space-evenly;
+            justify-content: flex-start;
             align-items: center;
+            gap: 0;
             z-index: 5;
-            background: rgba(5, 20, 38, 0.68);
-            border: 1px solid rgba(140, 210, 255, 0.45);
-            border-radius: 16px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            background-color: transparent;
+            background-image: url('assets/ui/health_bar_frame.png');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            box-shadow: none;
+            box-sizing: border-box;
+            --hp-heart-icon: url('assets/shop-icons/heart_red.png');
+            --hp-heart-size: 44px;
+            --hp-heart-offset-x: -10px;
         }
 
         #hp-bar.hidden {
@@ -549,70 +566,37 @@
         }
 
         .hp-bubble {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, rgba(200, 240, 255, 0.6), rgba(100, 200, 255, 0.25) 60%, rgba(60, 160, 220, 0.15));
-            border: 1.8px solid rgba(210, 240, 255, 0.85);
+            width: var(--hp-heart-size);
+            height: var(--hp-heart-size);
+            background-image: var(--hp-heart-icon);
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
             position: relative;
+            left: var(--hp-heart-offset-x);
             transition: transform 0.3s ease, opacity 0.3s ease;
-            box-shadow:
-                0 0 8px rgba(100, 200, 255, 0.55),
-                0 0 0 2px rgba(0, 0, 0, 0.35),
-                inset 0 -2px 4px rgba(60, 140, 200, 0.2);
-        }
-
-        /* Bubble shine highlight */
-        .hp-bubble::before {
-            content: '';
-            position: absolute;
-            top: 3px;
-            left: 4px;
-            width: 6px;
-            height: 5px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.7);
-        }
-
-        /* Secondary smaller shine */
-        .hp-bubble::after {
-            content: '';
-            position: absolute;
-            top: 2px;
-            left: 10px;
-            width: 3px;
-            height: 3px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.45);
-        }
-
-        /* Popped bubble state */
-        .hp-bubble.popped {
-            transform: scale(1.6);
-            opacity: 0;
-            background: radial-gradient(circle, rgba(180, 230, 255, 0.2), transparent 70%);
-            border-color: transparent;
             box-shadow: none;
+            margin: 0;
+        }
+
+        .hp-bubble::before,
+        .hp-bubble::after {
+            content: none;
+            display: none;
+        }
+
+        /* Lost heart slot state */
+        .hp-bubble.popped {
+            transform: scale(1.35);
+            opacity: 0;
             transition: transform 0.35s ease-out, opacity 0.35s ease-out;
         }
 
-        .hp-bubble.popped::before,
-        .hp-bubble.popped::after {
-            display: none;
-        }
-
-        /* Empty bubble slot (after pop animation finishes) */
+        /* Empty heart slot (after pop animation finishes) */
         .hp-bubble.empty {
-            opacity: 0.15;
+            opacity: 0.22;
             transform: scale(0.5);
-            background: radial-gradient(circle at 35% 35%, rgba(150, 200, 220, 0.2), transparent 70%);
-            border: 1px dashed rgba(150, 200, 220, 0.25);
-            box-shadow: none;
-        }
-
-        .hp-bubble.empty::before,
-        .hp-bubble.empty::after {
-            display: none;
+            filter: grayscale(1) brightness(0.55);
         }
 
         #hp {
@@ -629,87 +613,82 @@
             right: 12px;
             top: 50%;
             transform: translateY(-50%);
-            width: 16px;
-            height: 180px;
-            background: linear-gradient(90deg, #111 0%, #1a1a1a 40%, #0d0d0d 100%);
-            border: 2px solid #b00;
-            border-radius: 8px;
+            width: 72px;
+            height: 129px;
+            --ammo-track-left: 9.2px;
+            --ammo-track-bottom: 30.5px;
+            --ammo-track-width: 9.6px;
+            --ammo-track-height: 84px;
+            background-color: transparent;
+            background-image: url('assets/ui/ammo_pipe.png');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
             z-index: 5;
             overflow: visible;
-            box-shadow:
-                inset 0 2px 4px rgba(0, 0, 0, 0.6),
-                inset 0 -2px 4px rgba(0, 0, 0, 0.4),
-                0 0 6px rgba(180, 0, 0, 0.3),
-                0 1px 2px rgba(0, 0, 0, 0.5);
+            box-shadow: none;
             /* Position is dynamically set by JS to center between wall and screen edge */
         }
 
         #ammo-slider-fill {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: linear-gradient(90deg, #ddd 0%, #fff 45%, #ccc 100%);
-            border-radius: 0 0 6px 6px;
+            bottom: var(--ammo-track-bottom);
+            left: var(--ammo-track-left);
+            width: var(--ammo-track-width);
+            height: 0;
+            background: linear-gradient(90deg, #d72222 0%, #ff2f2f 45%, #c91414 100%);
+            border-radius: 0 0 5px 5px;
             transition: height 0.1s ease;
-            box-shadow: 0 -2px 6px rgba(255, 255, 255, 0.3);
+            box-shadow: inset 0 0 2px rgba(255, 120, 120, 0.6);
+            z-index: 2;
         }
 
         /* Full fill gets top rounding too */
-        #ammo-slider-fill[style*="height: 100%"],
-        #ammo-slider-fill[style*="height:100%"] {
-            border-radius: 6px;
+        #ammo-slider-fill[style*="height: 86px"],
+        #ammo-slider-fill[style*="height:86px"] {
+            border-radius: 5px;
         }
 
         #ammo-slider-segments {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            left: var(--ammo-track-left);
+            bottom: var(--ammo-track-bottom);
+            width: var(--ammo-track-width);
+            height: var(--ammo-track-height);
             display: flex;
             flex-direction: column;
             pointer-events: none;
-            z-index: 1;
+            z-index: 3;
         }
 
         .ammo-segment {
             flex: 1;
-            border-bottom: 1.5px solid rgba(180, 0, 0, 0.5);
+            border-bottom: 1px solid rgba(130, 130, 130, 0.35);
         }
 
         .ammo-segment:last-child {
             border-bottom: none;
         }
 
-        /* Beveled top cap */
+        /* White steam tube background behind red heat fill */
         #ammo-slider::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(180deg, rgba(255, 100, 100, 0.25), transparent);
-            border-radius: 6px 6px 0 0;
-            z-index: 2;
+            left: var(--ammo-track-left);
+            bottom: var(--ammo-track-bottom);
+            width: var(--ammo-track-width);
+            height: var(--ammo-track-height);
+            background: linear-gradient(90deg, #e8e8e8 0%, #ffffff 48%, #d8d8d8 100%);
+            border-radius: 5px;
+            z-index: 1;
             pointer-events: none;
         }
 
-        /* Triangle indicator at bottom */
+        /* Remove old triangle pointer style */
         #ammo-slider::after {
-            content: '';
-            position: absolute;
-            bottom: -14px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 9px solid transparent;
-            border-right: 9px solid transparent;
-            border-top: 11px solid #b00;
-            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
-            z-index: 2;
+            content: none;
         }
 
         #ammo-slider.hidden {
@@ -745,8 +724,8 @@
                 font-size: 0.6rem;
             }
             #settings-btn {
-                top: 120px;
-                right: 14px;
+                top: calc(env(safe-area-inset-top, 0px) + 8px);
+                right: 12px;
                 width: 58px;
                 height: 58px;
             }
@@ -755,7 +734,12 @@
                 width: min(320px, 70vw);
             }
             .hud-top {
-                padding-top: 120px;
+                padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+            }
+            .hud-left {
+                width: 164px;
+                min-height: 94px;
+                padding: 20px 18px 8px 18px;
             }
             #score {
                 font-size: 1rem;
@@ -916,8 +900,8 @@
                 </p>
                 <button class="btn" id="start-btn">START</button>
                 <p class="controls-hint">
-                    Touch left/right to move<br>
-                    Touch center to jump or shoot
+                    Left/Right buttons to move<br>
+                    Right button to jump or shoot
                 </p>
             </div>
         </div>

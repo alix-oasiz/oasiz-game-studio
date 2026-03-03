@@ -39,7 +39,16 @@ interface ChunkPlatformCache {
 }
 
 type ShopSide = DoorwaySide;
-type RoomItemId = "hp_up" | "ammo_up" | "stomp_reload" | "chest_cache" | "powerup_cache";
+type RoomItemId =
+  | "hp_up"
+  | "ammo_up"
+  | "stomp_reload"
+  | "deep_tank"
+  | "vampiric_gel"
+  | "salvage_bonus"
+  | "rapid_chamber"
+  | "chest_cache"
+  | "powerup_cache";
 
 interface RoomItem {
   id: RoomItemId;
@@ -63,6 +72,10 @@ interface RoomPowerupPickup {
 
 interface RunUpgrades {
   stompReloadOneAmmo: boolean;
+  deepTankPlusTwoAmmo: boolean;
+  vampiricGel: boolean;
+  salvageBreakablesDropGems: boolean;
+  rapidChamber: boolean;
 }
 
 interface RoomEntryContext {
@@ -72,7 +85,7 @@ interface RoomEntryContext {
   returnVy: number;
 }
 
-type PlayerAnimState = "idle" | "run" | "jump" | "fall" | "shoot";
+type PlayerAnimState = "idle" | "run" | "jump" | "fall" | "shoot" | "hit";
 interface PlayerAnimConfig {
   src: string;
   frames: number;
@@ -114,6 +127,10 @@ type LabCircleCollider = {
 };
 
 type LabCollider = LabRectCollider | LabCircleCollider;
+type LabColliderZoneSet = {
+  safe?: LabCollider;
+  unsafe?: LabCollider;
+};
 
 const DEFAULT_HITBOX_TUNING: HitboxTuning = {
   playerBaseWidth: 30,
@@ -198,7 +215,20 @@ class Game {
   private frameCount: number = 0;
   private roomActionWasPressed: boolean = false;
 
-  private readonly SHOP_ITEM_COST: number = 20;
+  private readonly SHOP_HP_UP_COST: number = 50;
+  private readonly SHOP_AMMO_UP_COST: number = 50;
+  private readonly SHOP_STOMP_RELOAD_COST: number = 100;
+  private readonly SHOP_DEEP_TANK_COST: number = 100;
+  private readonly SHOP_VAMPIRIC_GEL_COST: number = 100;
+  private readonly SHOP_SALVAGE_BONUS_COST: number = 50;
+  private readonly SHOP_RAPID_CHAMBER_COST: number = 50;
+  private readonly VAMPIRIC_GEL_HEAL_CHANCE: number = 0.05;
+  private readonly SALVAGE_BREAKABLE_GEM_CHANCE: number = 0.45;
+  private readonly SHOP_TEST_BREAKABLE_RESPAWN_FRAMES: number = 35;
+  private readonly SHOP_TEST_MODE: boolean =
+    new URLSearchParams(window.location.search).get("shoptest") === "1";
+  private readonly SIDE_TEST_MODE: boolean =
+    new URLSearchParams(window.location.search).get("side") === "1";
   private readonly SHOP_ROOM_LEFT: number = 54;
   private readonly SHOP_ROOM_RIGHT: number = CONFIG.INTERNAL_WIDTH - 54;
   private readonly SHOP_ROOM_TOP: number = 98;
@@ -208,11 +238,15 @@ class Game {
   private readonly SHOP_TUNNEL_STRIP_HEIGHT: number = 6;
   private readonly SHOP_TRANSITION_LOCK_FRAMES: number = 18;
   private readonly WORLD_DOORWAY_DEBUG: boolean = false;
+  // health_bar_frame.png slot is left-biased relative to full image; tuned ratio keeps
+  // hearts centered in the inner slot across scales.
+  private readonly HP_FRAME_CENTER_BIAS_X_RATIO: number = -30 / 363;
+  private readonly HP_HEART_INNER_WIDTH_RATIO: number = 0.36;
   private debugDrawHitboxes: boolean = false;
   private readonly HITBOX_TUNING_STORAGE_KEY: string = "downwellHitboxTuningV1";
   private readonly HITBOX_LAB_STORAGE_KEY: string = "downwellHitboxLabFramesV1";
   private hitboxTuning: HitboxTuning = { ...DEFAULT_HITBOX_TUNING };
-  private hitboxLabColliders: Record<string, LabCollider> = {};
+  private hitboxLabColliders: Record<string, LabCollider | LabColliderZoneSet> = {};
   private hitboxLabLoadedCount: number = 0;
   private hitboxPanelEl: HTMLDivElement | null = null;
   private hitboxPanelVisible: boolean = false;
@@ -228,7 +262,18 @@ class Game {
   private roomPowerupPickup: RoomPowerupPickup | null = null;
   private selectedRoomItemId: RoomItemId | null = null;
   private previousRoomItemId: RoomItemId | null = null;
-  private runUpgrades: RunUpgrades = { stompReloadOneAmmo: false };
+  private debugInvincible: boolean = false;
+  private debugControlEl: HTMLDivElement | null = null;
+  private debugLightingLabelEl: HTMLDivElement | null = null;
+  private shopTestBreakableDestroyed: boolean = false;
+  private shopTestBreakableRespawnFrames: number = 0;
+  private runUpgrades: RunUpgrades = {
+    stompReloadOneAmmo: false,
+    deepTankPlusTwoAmmo: false,
+    vampiricGel: false,
+    salvageBreakablesDropGems: false,
+    rapidChamber: false,
+  };
   private worldDoorwaySystem: WorldDoorwaySystem;
   private activeWorldDoorways: WorldDoorway[] = [];
   
@@ -258,6 +303,7 @@ class Game {
     jump: null,
     fall: null,
     shoot: null,
+    hit: null,
   };
   private playerAnimLoaded: Record<PlayerAnimState, boolean> = {
     idle: false,
@@ -265,10 +311,13 @@ class Game {
     jump: false,
     fall: false,
     shoot: false,
+    hit: false,
   };
   private playerAnimState: PlayerAnimState = "idle";
   private playerAnimFrame: number = 0;
   private playerAnimTimer: number = 0;
+  private playerHitAnimFrames: number = 0;
+  private readonly PLAYER_HIT_ANIM_DURATION_FRAMES: number = 18;
   private gemSimpleImg: HTMLImageElement | null = null;
   private gemOutlinedImg: HTMLImageElement | null = null;
   private gemSimpleLoaded: boolean = false;
@@ -277,18 +326,25 @@ class Game {
   private shopHpIconImg: HTMLImageElement | null = null;
   private shopAmmoIconImg: HTMLImageElement | null = null;
   private shopUtilityIconImg: HTMLImageElement | null = null;
+  private shopRapidIconImg: HTMLImageElement | null = null;
+  private shopVampiricIconImg: HTMLImageElement | null = null;
+  private shopSalvageIconImg: HTMLImageElement | null = null;
   private chestIconImg: HTMLImageElement | null = null;
+  private mobileLeftBtnImg: HTMLImageElement | null = null;
+  private mobileRightBtnImg: HTMLImageElement | null = null;
+  private mobileUpBtnImg: HTMLImageElement | null = null;
   private menuCrabImg: HTMLImageElement | null = null;
   private menuCrabFrame: number = 0;
   private readonly DIVER_DRAW_SIZE: number = 64;
-  private readonly PLAYER_FRAME_W: number = 48;
-  private readonly PLAYER_FRAME_H: number = 48;
+  private readonly PLAYER_FRAME_W: number = 32;
+  private readonly PLAYER_FRAME_H: number = 32;
   private readonly PLAYER_ANIMS: Record<PlayerAnimState, PlayerAnimConfig> = {
-    idle: { src: "assets/characters/underwater4/Idle.png", frames: 4, speed: 0.07 },
-    run: { src: "assets/characters/underwater4/Walk.png", frames: 6, speed: 0.11 },
-    jump: { src: "assets/characters/underwater4/Walk2.png", frames: 6, speed: 0.1 },
-    fall: { src: "assets/characters/underwater4/Walk2.png", frames: 6, speed: 0.07 },
-    shoot: { src: "assets/characters/underwater4/Attack.png", frames: 6, speed: 0.15 },
+    idle: { src: "assets/characters/pixel_adventure_virtual_guy/idle.png", frames: 11, speed: 0.1 },
+    run: { src: "assets/characters/pixel_adventure_virtual_guy/run.png", frames: 12, speed: 0.14 },
+    jump: { src: "assets/characters/pixel_adventure_virtual_guy/jump.png", frames: 1, speed: 0.08 },
+    fall: { src: "assets/characters/pixel_adventure_virtual_guy/fall.png", frames: 1, speed: 0.08 },
+    shoot: { src: "assets/characters/pixel_adventure_virtual_guy/double_jump.png", frames: 6, speed: 0.16 },
+    hit: { src: "assets/characters/pixel_adventure_virtual_guy/hit.png", frames: 7, speed: 0.18 },
   };
   
   // Screen shake
@@ -382,7 +438,7 @@ class Game {
   private deathFreezeFrames: number = 0;
   private deathFreezeKiller: { x: number; y: number } | null = null;
   private readonly DEATH_FREEZE_DURATION_FRAMES: number = 180;
-  private readonly CONTACT_HIT_INVULN_FRAMES: number = 54;
+  private readonly CONTACT_HIT_INVULN_FRAMES: number = 120;
   
   // Track previous HP for bubble pop detection
   private previousHp: number = CONFIG.PLAYER_MAX_HP;
@@ -462,7 +518,10 @@ class Game {
     this.cacheHudRefs();
     this.loadHitboxTuning();
     this.loadHitboxLabColliders();
+    this.loadHitboxLabCollidersFromFile(); // async, overrides localStorage if hitbox-colliders.json exists
     this.applyHitboxTuning();
+    this.setupDebugControlOverlay();
+    this.syncDebugControlOverlay();
     
     // Start game loop
     this.gameLoop();
@@ -521,6 +580,7 @@ class Game {
       if (e.code === "KeyP" && !e.repeat) {
         this.debugDrawHitboxes = !this.debugDrawHitboxes;
         console.log(`[Debug] Hitboxes ${this.debugDrawHitboxes ? "ON" : "OFF"}`);
+        this.syncDebugControlOverlay();
         e.preventDefault();
       }
       if (this.gameState !== "playing" && this.gameState !== "shop") return;
@@ -694,6 +754,33 @@ class Game {
     const vv = (window as any).visualViewport;
     return vv ? Math.round(vv.width) : window.innerWidth;
   }
+
+  /** Get CSS display height of the canvas (not the buffer height) */
+  private getDisplayHeight(): number {
+    const vv = (window as any).visualViewport;
+    return vv ? Math.round(vv.height) : window.innerHeight;
+  }
+
+  /** Returns mobile button positions in CSS pixel coordinates */
+  private getMobileButtons() {
+    const w = this.getDisplayWidth();
+    const h = this.getDisplayHeight();
+    const r = 44;
+    const margin = 28;
+    const gap = 18;
+    const clusterY = h - margin - r;
+    return {
+      left:   { cx: margin + r,             cy: clusterY, r },
+      right:  { cx: margin + r * 3 + gap,   cy: clusterY, r },
+      action: { cx: w - margin - r,         cy: clusterY, r },
+    };
+  }
+
+  private inCircle(x: number, y: number, btn: { cx: number; cy: number; r: number }): boolean {
+    const dx = x - btn.cx;
+    const dy = y - btn.cy;
+    return dx * dx + dy * dy <= btn.r * btn.r;
+  }
   
   private updateInputFromTouches(): void {
     // Reset input
@@ -701,49 +788,20 @@ class Game {
     this.input.right = false;
     this.input.shoot = false;
     this.input.jump = false;
-    
-    // Use CSS pixel screen width (not buffer width which is DPR-scaled)
-    const screenWidth = this.getDisplayWidth();
-    const leftZone = screenWidth * 0.33;
-    const rightZone = screenWidth * 0.67;
-    
+
+    const btns = this.getMobileButtons();
     for (const touch of this.touches.values()) {
-      // Left third = move left
-      if (touch.x < leftZone) {
-        this.input.left = true;
-      } 
-      // Right third = move right
-      else if (touch.x > rightZone) {
-        this.input.right = true;
-      } 
-      // Center third = tap action (jump if grounded, shoot if airborne)
-      else {
-        // Set both - player controller will decide based on grounded state
-        this.input.jump = true;
-        this.input.shoot = true;
-      }
+      if (this.inCircle(touch.x, touch.y, btns.left))   this.input.left = true;
+      if (this.inCircle(touch.x, touch.y, btns.right))  this.input.right = true;
+      if (this.inCircle(touch.x, touch.y, btns.action)) { this.input.jump = true; this.input.shoot = true; }
     }
   }
   
   private handleMouseInput(clientX: number, clientY: number): void {
-    // Use CSS pixel screen width (not buffer width which is DPR-scaled)
-    const screenWidth = this.getDisplayWidth();
-    const leftZone = screenWidth * 0.33;
-    const rightZone = screenWidth * 0.67;
-    
-    // Left third = move left
-    if (clientX < leftZone) {
-      this.input.left = true;
-    } 
-    // Right third = move right
-    else if (clientX > rightZone) {
-      this.input.right = true;
-    } 
-    // Center third = tap action (jump if grounded, shoot if airborne)
-    else {
-      this.input.jump = true;
-      this.input.shoot = true;
-    }
+    const btns = this.getMobileButtons();
+    if (this.inCircle(clientX, clientY, btns.left))   this.input.left = true;
+    if (this.inCircle(clientX, clientY, btns.right))  this.input.right = true;
+    if (this.inCircle(clientX, clientY, btns.action)) { this.input.jump = true; this.input.shoot = true; }
   }
 
   private clearInputState(): void {
@@ -785,6 +843,7 @@ class Game {
     
     // Position HP bar and ammo slider centered between wall edge and screen edge
     this.positionSideBars();
+    this.layoutHpBubbles();
     
     // Reinitialize dither pattern for new canvas size
     this.initDitherPattern();
@@ -808,14 +867,16 @@ class Game {
     const rightCenter = rightWallScreenEdge + (rightEdge - rightWallScreenEdge) / 2;
     
     if (hpBar) {
-      hpBar.style.left = `${leftCenter - 7}px`; // 7 = half of 14px width
+      const hpWidth = hpBar.clientWidth || 87;
+      const hpOffsetX = Math.round(hpWidth * this.HP_FRAME_CENTER_BIAS_X_RATIO);
+      hpBar.style.left = "0px";
       hpBar.style.top = "50%";
-      hpBar.style.transform = "translateY(-50%)";
+      hpBar.style.transform = `translate(${hpOffsetX}px, -50%)`;
     }
     
     if (ammoSlider) {
-      ammoSlider.style.left = `${rightCenter - 7}px`; // 7 = half of 14px width
-      ammoSlider.style.right = "auto";
+      ammoSlider.style.left = "auto";
+      ammoSlider.style.right = "0px";
       ammoSlider.style.top = "50%";
       ammoSlider.style.transform = "translateY(-50%)";
     }
@@ -839,7 +900,10 @@ class Game {
   private syncHpBubbles(maxHp: number): void {
     if (!this.hudRefs.hpBar) return;
     const existing = this.hudRefs.hpBubbles.length;
-    if (existing === maxHp) return;
+    if (existing === maxHp) {
+      this.layoutHpBubbles();
+      return;
+    }
 
     this.hudRefs.hpBar.innerHTML = "";
     for (let hp = maxHp - 1; hp >= 0; hp--) {
@@ -849,7 +913,37 @@ class Game {
       this.hudRefs.hpBar.appendChild(bubble);
     }
     this.hudRefs.hpBubbles = Array.from(this.hudRefs.hpBar.querySelectorAll(".hp-bubble")) as HTMLElement[];
+    this.layoutHpBubbles();
     this.previousHp = this.playerController.getPlayer().hp;
+  }
+
+  private layoutHpBubbles(): void {
+    if (!this.hudRefs.hpBar) return;
+    const count = this.hudRefs.hpBubbles.length;
+    if (count <= 0) return;
+
+    const frameHeight = this.hudRefs.hpBar.clientHeight || 216;
+    const frameWidth = this.hudRefs.hpBar.clientWidth || 87;
+    const cssBubbleSize = Number.parseFloat(
+      getComputedStyle(this.hudRefs.hpBar).getPropertyValue("--hp-heart-size")
+    ) || 44;
+    // Keep hearts large, but shrink only when max HP grows so they still fit.
+    const maxByHeight = Math.floor((frameHeight * 0.9) / count);
+    // Respect frame width so hearts stay centered with a few pixels side padding on mobile.
+    const maxByWidth = Math.floor(frameWidth * this.HP_HEART_INNER_WIDTH_RATIO);
+    const bubbleSize = this.clamp(Math.min(cssBubbleSize, maxByHeight, maxByWidth), 24, 56);
+    const minContent = count * bubbleSize;
+    const targetContent = Math.max(minContent, Math.floor(frameHeight * 0.9));
+    const gapRaw = count > 1 ? (targetContent - minContent) / (count - 1) : 0;
+    const gap = this.clamp(gapRaw, 0, 4);
+    const contentHeight = minContent + (count - 1) * gap;
+    const pad = Math.max(0, Math.floor((frameHeight - contentHeight) / 2));
+
+    this.hudRefs.hpBar.style.justifyContent = "flex-start";
+    this.hudRefs.hpBar.style.setProperty("--hp-heart-size", `${bubbleSize}px`);
+    this.hudRefs.hpBar.style.gap = `${Math.round(gap)}px`;
+    this.hudRefs.hpBar.style.paddingTop = `${pad}px`;
+    this.hudRefs.hpBar.style.paddingBottom = `${pad}px`;
   }
 
   private syncAmmoSliderSegments(maxAmmo: number): void {
@@ -1066,7 +1160,7 @@ class Game {
     };
     this.breakableGroundImg.src = "assets/breakable_ground.png";
 
-    // Load wall tile textures (seaside cave set)
+    // Load wall tile textures
     this.wallTileLeftImg = new Image();
     this.wallTileLeftImg.onload = () => {
       console.log("[Game] Wall tile LEFT loaded");
@@ -1174,11 +1268,47 @@ class Game {
     };
     this.shopUtilityIconImg.src = "assets/shop-icons/stomp_utility_spritesheet.png";
 
+    this.shopRapidIconImg = new Image();
+    this.shopRapidIconImg.onload = () => {
+      console.log("[Game] Shop rapid chamber icon loaded");
+    };
+    this.shopRapidIconImg.src = "assets/shop-icons/rapid_chamber.png";
+
+    this.shopVampiricIconImg = new Image();
+    this.shopVampiricIconImg.onload = () => {
+      console.log("[Game] Shop vampiric gel icon loaded");
+    };
+    this.shopVampiricIconImg.src = "assets/shop-icons/heart_red.png";
+
+    this.shopSalvageIconImg = new Image();
+    this.shopSalvageIconImg.onload = () => {
+      console.log("[Game] Shop salvage bonus icon loaded");
+    };
+    this.shopSalvageIconImg.src = "assets/shop-icons/salvage_bonus.png";
+
     this.chestIconImg = new Image();
     this.chestIconImg.onload = () => {
       console.log("[Game] Chest icon loaded");
     };
     this.chestIconImg.src = "assets/shop-icons/chest_closed.png";
+
+    this.mobileLeftBtnImg = new Image();
+    this.mobileLeftBtnImg.onload = () => {
+      console.log("[Game] Mobile left button icon loaded");
+    };
+    this.mobileLeftBtnImg.src = "assets/ui/mobile_left.png";
+
+    this.mobileRightBtnImg = new Image();
+    this.mobileRightBtnImg.onload = () => {
+      console.log("[Game] Mobile right button icon loaded");
+    };
+    this.mobileRightBtnImg.src = "assets/ui/mobile_right.png";
+
+    this.mobileUpBtnImg = new Image();
+    this.mobileUpBtnImg.onload = () => {
+      console.log("[Game] Mobile up button icon loaded");
+    };
+    this.mobileUpBtnImg.src = "assets/ui/mobile_up.png";
     
     // Load menu crab sprite sheet (4 frames, 96x96 per frame)
     this.menuCrabImg = new Image();
@@ -1221,7 +1351,7 @@ class Game {
     };
     this.hurtSpriteSquid.src = "assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/2/Hurt.png";
   }
-  
+
   private loadAudio(): void {
     this.loadingMusicAudio = new Audio("assets/sfx/underwater-ambience.mp3");
     this.loadingMusicAudio.loop = true;
@@ -1346,7 +1476,7 @@ class Game {
   
   private playLaserSound(): void {
     if (!this.settings.fx) return;
-    this.playSfx(this.laserBuffer, this.UNIFORM_SFX_VOLUME);
+    this.playSfx(this.laserBuffer, this.UNIFORM_SFX_VOLUME * 0.35);
   }
 
   private playGemSound(): void {
@@ -1461,12 +1591,14 @@ class Game {
   }
 
   private applyPlayerDamage(killerX: number, killerY: number): void {
+    if (this.debugDrawHitboxes && this.debugInvincible) return;
     if (this.powerUpManager.hasPowerUp("SHIELD")) return;
     if (this.playerController.isInvulnerable()) return;
     const player = this.playerController.getPlayer();
     this.worldDoorwaySystem.preloadForDepth(player.y);
     this.playerController.takeDamage();
     player.invulnerable = Math.max(player.invulnerable, this.CONTACT_HIT_INVULN_FRAMES);
+    this.playerHitAnimFrames = this.PLAYER_HIT_ANIM_DURATION_FRAMES;
     this.spawnDamageText(player.x, player.y - player.height * 0.6, "-1");
     this.playHurtSound();
     if (this.playerController.isDead()) {
@@ -1503,12 +1635,12 @@ class Game {
 
   private playBlastSound(): void {
     if (!this.settings.fx) return;
-    this.playSfx(this.blastBuffer, this.UNIFORM_SFX_VOLUME);
+    this.playSfx(this.blastBuffer, this.UNIFORM_SFX_VOLUME * 0.35);
   }
 
   private playLightningSound(): void {
     if (!this.settings.fx) return;
-    this.playSfx(this.lightningBuffer, this.UNIFORM_SFX_VOLUME);
+    this.playSfx(this.lightningBuffer, this.UNIFORM_SFX_VOLUME * 0.35);
   }
 
   private playShieldSound(): void {
@@ -1837,7 +1969,30 @@ class Game {
   private onPlayerShoot(): void {
     // Query powerup manager for special shot effects
     this.lastShotEffects = this.powerUpManager.onPlayerShoot();
-    
+
+    // Show ammo depletion feedback when the last bullet is spent.
+    const player = this.playerController.getPlayer();
+    if (player.ammo <= 0) {
+      this.spawnDamageText(player.x, player.y - player.height * 0.8, "Empty!");
+    }
+
+    // Laser shots replace normal bubble bullets entirely.
+    if (this.lastShotEffects.triggerLaser) {
+      const bullets = this.playerController.getBullets();
+      if (bullets.length > 0) {
+        this.playerController.removeBullet(bullets.length - 1);
+      }
+      this.powerUpManager.spawnLaserBeam(
+        player.x,
+        player.y,
+        this.cameraY + CONFIG.INTERNAL_HEIGHT + 100
+      );
+      
+      // Play laser sound
+      this.playLaserSound();
+      return;
+    }
+
     // Tag the bullet that was just created with powerup flags
     this.playerController.tagLastBullet(
       this.lastShotEffects.triggerBlast && this.powerUpManager.hasPowerUp("BLAST"),
@@ -1846,24 +2001,6 @@ class Game {
     
     // Play bullet sound
     this.playBulletSound();
-
-    // Show ammo depletion feedback when the last bullet is spent.
-    const player = this.playerController.getPlayer();
-    if (player.ammo <= 0) {
-      this.spawnDamageText(player.x, player.y - player.height * 0.8, "Empty!");
-    }
-    
-    // If laser is active, fire a laser beam immediately
-    if (this.lastShotEffects.triggerLaser) {
-      this.powerUpManager.spawnLaserBeam(
-        player.x,
-        player.y + player.height / 2,
-        this.cameraY + CONFIG.INTERNAL_HEIGHT + 100
-      );
-      
-      // Play laser sound
-      this.playLaserSound();
-    }
   }
   
   private updateScreenShake(): void {
@@ -1940,38 +2077,8 @@ class Game {
       return;
     }
     try {
-      const parsed = JSON.parse(saved) as Record<string, Partial<LabCollider>>;
-      const next: Record<string, LabCollider> = {};
-      for (const [frameId, raw] of Object.entries(parsed)) {
-        if (!raw || typeof raw !== "object") continue;
-        if (raw.type === "rect") {
-          const x = Number(raw.x);
-          const y = Number(raw.y);
-          const width = Number(raw.width);
-          const height = Number(raw.height);
-          if ([x, y, width, height].some((n) => !Number.isFinite(n))) continue;
-          next[frameId] = {
-            type: "rect",
-            x: Math.round(x),
-            y: Math.round(y),
-            width: Math.max(1, Math.round(width)),
-            height: Math.max(1, Math.round(height)),
-          };
-          continue;
-        }
-        if (raw.type === "circle") {
-          const cx = Number(raw.cx);
-          const cy = Number(raw.cy);
-          const radius = Number(raw.radius);
-          if ([cx, cy, radius].some((n) => !Number.isFinite(n))) continue;
-          next[frameId] = {
-            type: "circle",
-            cx: Math.round(cx),
-            cy: Math.round(cy),
-            radius: Math.max(1, Math.round(radius)),
-          };
-        }
-      }
+      const parsed = JSON.parse(saved) as Record<string, unknown>;
+      const next = this.parseHitboxLabPayload(parsed);
       this.hitboxLabColliders = next;
       this.hitboxLabLoadedCount = Object.keys(next).length;
       console.log(`[HitboxLab] Loaded ${this.hitboxLabLoadedCount} frame colliders`);
@@ -1980,6 +2087,71 @@ class Game {
       this.hitboxLabLoadedCount = 0;
       console.warn(`[HitboxLab] Failed to parse '${this.HITBOX_LAB_STORAGE_KEY}'`);
     }
+  }
+
+  private async loadHitboxLabCollidersFromFile(): Promise<void> {
+    try {
+      const res = await fetch(`./hitbox-colliders.json?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const parsed = await res.json() as Record<string, unknown>;
+      const next = this.parseHitboxLabPayload(parsed);
+      this.hitboxLabColliders = next;
+      this.hitboxLabLoadedCount = Object.keys(next).length;
+      console.log(`[HitboxLab] Loaded ${this.hitboxLabLoadedCount} frame colliders from project file`);
+    } catch {
+      // hitbox-colliders.json not found - localStorage version stays active
+    }
+  }
+
+  private sanitizeLabCollider(raw: unknown): LabCollider | null {
+    if (!raw || typeof raw !== "object") return null;
+    const candidate = raw as Partial<LabCollider>;
+    if (candidate.type === "rect") {
+      const x = Number(candidate.x);
+      const y = Number(candidate.y);
+      const width = Number(candidate.width);
+      const height = Number(candidate.height);
+      if ([x, y, width, height].some((n) => !Number.isFinite(n))) return null;
+      return {
+        type: "rect",
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.max(1, Math.round(width)),
+        height: Math.max(1, Math.round(height)),
+      };
+    }
+    if (candidate.type === "circle") {
+      const cx = Number(candidate.cx);
+      const cy = Number(candidate.cy);
+      const radius = Number(candidate.radius);
+      if ([cx, cy, radius].some((n) => !Number.isFinite(n))) return null;
+      return {
+        type: "circle",
+        cx: Math.round(cx),
+        cy: Math.round(cy),
+        radius: Math.max(1, Math.round(radius)),
+      };
+    }
+    return null;
+  }
+
+  private parseHitboxLabPayload(payload: Record<string, unknown>): Record<string, LabCollider | LabColliderZoneSet> {
+    const next: Record<string, LabCollider | LabColliderZoneSet> = {};
+    for (const [frameId, raw] of Object.entries(payload)) {
+      const direct = this.sanitizeLabCollider(raw);
+      if (direct) {
+        next[frameId] = direct;
+        continue;
+      }
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      const rawSet = raw as { safe?: unknown; unsafe?: unknown };
+      const safe = this.sanitizeLabCollider(rawSet.safe);
+      const unsafe = this.sanitizeLabCollider(rawSet.unsafe);
+      if (safe || unsafe) {
+        next[frameId] = { safe: safe ?? undefined, unsafe: unsafe ?? undefined };
+      }
+    }
+    return next;
   }
 
   private saveHitboxTuning(): void {
@@ -2037,7 +2209,7 @@ class Game {
       input.dataset.hitboxKey = key;
       input.addEventListener("input", () => {
         const next = Number(input.value);
-        (this.hitboxTuning as Record<string, number>)[key] = next;
+        this.hitboxTuning[key] = next;
         value.textContent = step < 1 ? next.toFixed(2) : String(Math.round(next));
         this.applyHitboxTuning();
       });
@@ -2100,6 +2272,58 @@ class Game {
 
     document.body.appendChild(panel);
     this.hitboxPanelEl = panel;
+  }
+
+  private setupDebugControlOverlay(): void {
+    const wrap = document.createElement("div");
+    wrap.style.position = "fixed";
+    wrap.style.left = "10px";
+    wrap.style.top = "10px";
+    wrap.style.zIndex = "9999";
+    wrap.style.padding = "8px 10px";
+    wrap.style.background = "rgba(0,0,0,0.78)";
+    wrap.style.border = "1px solid rgba(180,235,255,0.8)";
+    wrap.style.borderRadius = "8px";
+    wrap.style.color = "#dff8ff";
+    wrap.style.font = "12px monospace";
+    wrap.style.display = "none";
+    wrap.style.pointerEvents = "auto";
+
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+    label.style.cursor = "pointer";
+    label.textContent = "Invincible";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = this.debugInvincible;
+    checkbox.addEventListener("change", () => {
+      this.debugInvincible = checkbox.checked;
+      console.log(`[Debug] Invincible ${this.debugInvincible ? "ON" : "OFF"}`);
+    });
+
+    label.prepend(checkbox);
+    wrap.appendChild(label);
+
+    const lightingLabel = document.createElement("div");
+    lightingLabel.style.marginTop = "8px";
+    lightingLabel.style.opacity = "0.95";
+    lightingLabel.textContent = "";
+    wrap.appendChild(lightingLabel);
+
+    document.body.appendChild(wrap);
+    this.debugControlEl = wrap;
+    this.debugLightingLabelEl = lightingLabel;
+  }
+
+  private syncDebugControlOverlay(): void {
+    if (!this.debugControlEl) return;
+    this.debugControlEl.style.display = this.debugDrawHitboxes ? "block" : "none";
+    if (this.debugLightingLabelEl) {
+      this.debugLightingLabelEl.textContent = "Lighting: Gradient Lantern";
+    }
   }
 
   private syncHitboxTunerPanelInputs(): void {
@@ -2203,7 +2427,16 @@ class Game {
     this.selectedRoomItemId = null;
     this.roomItems = [];
     this.roomPowerupPickup = null;
-    this.runUpgrades = { stompReloadOneAmmo: false };
+    this.shopTestBreakableDestroyed = false;
+    this.shopTestBreakableRespawnFrames = 0;
+    this.runUpgrades = {
+      stompReloadOneAmmo: false,
+      deepTankPlusTwoAmmo: false,
+      vampiricGel: false,
+      salvageBreakablesDropGems: false,
+      rapidChamber: false,
+    };
+    this.playerController.setShootCooldownFrames(CONFIG.SHOOT_COOLDOWN);
     this.activeWorldDoorways = [];
     this.worldDoorwaySystem.reset();
     this.clearPlatformChunkCache();
@@ -2238,6 +2471,31 @@ class Game {
     document.getElementById("ammo-slider")?.classList.remove("hidden");
     document.getElementById("hp-bar")?.classList.remove("hidden");
     document.getElementById("powerup-bar")?.classList.add("hidden");
+
+    if (this.SHOP_TEST_MODE || this.SIDE_TEST_MODE) {
+      console.log("[startGame]", "Shop test mode enabled");
+      this.gems = this.SHOP_TEST_MODE ? 999 : 120;
+      const player = this.playerController.getPlayer();
+      player.hp = Math.max(1, player.maxHp - 1);
+      this.previousHp = player.hp;
+      this.roomEntryContext = {
+        returnX: player.x,
+        returnY: player.y,
+        returnVx: 0,
+        returnVy: 0,
+      };
+      this.stopLoadingMusic();
+      this.stopGameOverMusic();
+      this.stopAmbience();
+      this.stopShopMusic();
+      this.enterSpecialRoom("shop", "left");
+      if (this.SHOP_TEST_MODE) {
+        this.powerUpManager.grantPowerUp("BLAST");
+        this.triggerPowerUpAnnouncement("BLAST");
+      }
+      this.updateHUD();
+      return;
+    }
     
     // Start ambience music
     this.stopLoadingMusic();
@@ -2279,6 +2537,9 @@ class Game {
   
   private update(): void {
     this.frameCount++;
+    if (this.playerHitAnimFrames > 0) {
+      this.playerHitAnimFrames--;
+    }
     if (this.roomTransitionLockFrames > 0) {
       this.roomTransitionLockFrames--;
     }
@@ -2291,6 +2552,7 @@ class Game {
     } else if (this.gameState === "shop") {
       this.updateSpecialRoomState();
     }
+    this.updateScreenShake();
   }
 
   private updatePlayingState(): void {
@@ -2485,6 +2747,8 @@ class Game {
       }
     }
 
+    this.updateShopTestBreakableRespawn();
+
     this.updateDroppedGems();
     const playerRect = this.playerController.getRect();
     for (let i = this.droppedGems.length - 1; i >= 0; i--) {
@@ -2495,12 +2759,16 @@ class Game {
       if (this.checkGemPickup(playerRect, gem)) {
         gem.collected = true;
         const comboMultiplier = this.playerController.getComboMultiplier();
-        const points = gem.value * comboMultiplier;
-        this.score += points;
-        this.scoreGems += points;
-        this.gems++;
-        this.gemCollectCount++;
-        this.playGemSound();
+        if (this.isHeartPickup(gem)) {
+          this.collectHeartPickup(gem);
+        } else {
+          const points = gem.value * comboMultiplier;
+          this.score += points;
+          this.scoreGems += points;
+          this.gems++;
+          this.gemCollectCount++;
+          this.playGemSound();
+        }
         this.releaseDroppedGem(i);
       }
     }
@@ -2559,6 +2827,25 @@ class Game {
     const corridorH = entrance.height;
     add(corridorX, corridorY - 6, corridorW, 6, true);
     add(corridorX, corridorY + corridorH - 6 - CONFIG.WALL_BLOCK_SIZE, corridorW, 6, true);
+    add(corridorX, corridorY + corridorH - CONFIG.WALL_BLOCK_SIZE, corridorW, CONFIG.WALL_BLOCK_SIZE);
+
+    if (this.isShopTestRoomActive()) {
+      const lowerPlatform = this.getShopTestLowerPlatformRect();
+      add(lowerPlatform.x, lowerPlatform.y, lowerPlatform.width, lowerPlatform.height);
+      if (!this.shopTestBreakableDestroyed) {
+        const breakable = this.getShopTestBreakableRect();
+        segments.push({
+          x: breakable.x,
+          y: breakable.y,
+          width: breakable.width,
+          height: breakable.height,
+          isWall: true,
+          breakable: true,
+          hp: 1,
+          chunkIndex: -1,
+        });
+      }
+    }
 
     return segments;
   }
@@ -2579,37 +2866,157 @@ class Game {
       rectA.y + rectA.height > rectB.y;
   }
 
-  private createShopRoomItems(): RoomItem[] {
-    const itemWidth = 44;
-    const itemHeight = 44;
-    const floorTop = this.SHOP_ROOM_BOTTOM - CONFIG.WALL_BLOCK_SIZE;
-    const itemY = floorTop - itemHeight - 8;
+  private buildShopItemPool(itemWidth: number, itemHeight: number, itemY: number): RoomItem[] {
     return [
       {
         id: "hp_up",
         name: "+1 MAX HP",
         description: "Increase maximum HP by 1 and heal 1 HP",
-        cost: this.SHOP_ITEM_COST,
+        cost: this.SHOP_HP_UP_COST,
         soldOut: false,
-        rect: { x: 130, y: itemY, width: itemWidth, height: itemHeight },
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
       },
       {
         id: "ammo_up",
         name: "+1 MAX AMMO",
         description: "Increase max ammo by 1 and reload 1 ammo",
-        cost: this.SHOP_ITEM_COST,
+        cost: this.SHOP_AMMO_UP_COST,
         soldOut: false,
-        rect: { x: 202, y: itemY, width: itemWidth, height: itemHeight },
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
       },
       {
         id: "stomp_reload",
         name: "STOMP RELOAD",
         description: "Jumping on enemy heads reloads 1 ammo",
-        cost: this.SHOP_ITEM_COST,
+        cost: this.SHOP_STOMP_RELOAD_COST,
         soldOut: this.runUpgrades.stompReloadOneAmmo,
-        rect: { x: 274, y: itemY, width: itemWidth, height: itemHeight },
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "deep_tank",
+        name: "DEEP TANK",
+        description: "Increase max ammo by 2 and reload 2 ammo",
+        cost: this.SHOP_DEEP_TANK_COST,
+        soldOut: this.runUpgrades.deepTankPlusTwoAmmo,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "vampiric_gel",
+        name: "LIFESTEAL CHANCE",
+        description: "5% chance to spawn a heart on enemy kill",
+        cost: this.SHOP_VAMPIRIC_GEL_COST,
+        soldOut: this.runUpgrades.vampiricGel,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "salvage_bonus",
+        name: "SALVAGE BONUS",
+        description: "Breakable blocks can spawn bonus gems",
+        cost: this.SHOP_SALVAGE_BONUS_COST,
+        soldOut: this.runUpgrades.salvageBreakablesDropGems,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
+      },
+      {
+        id: "rapid_chamber",
+        name: "RAPID CHAMBER",
+        description: "Fire rate increased while airborne",
+        cost: this.SHOP_RAPID_CHAMBER_COST,
+        soldOut: this.runUpgrades.rapidChamber,
+        rect: { x: 0, y: itemY, width: itemWidth, height: itemHeight },
       },
     ];
+  }
+
+  private createShopRoomItems(): RoomItem[] {
+    const itemWidth = 40;
+    const itemHeight = 40;
+    const itemGap = 12;
+    const floorTop = this.SHOP_ROOM_BOTTOM - CONFIG.WALL_BLOCK_SIZE;
+    const itemY = floorTop - itemHeight - 8;
+    const roomMidX = (this.SHOP_ROOM_LEFT + this.SHOP_ROOM_RIGHT) * 0.5;
+    const shownCount = 3;
+    const rowWidth = shownCount * itemWidth + (shownCount - 1) * itemGap;
+    const rowStartX = roomMidX - rowWidth * 0.5;
+    const pool = this.buildShopItemPool(itemWidth, itemHeight, itemY);
+    const available = pool.filter((item) => !item.soldOut);
+    const candidates = (available.length >= shownCount ? available : pool).slice();
+
+    // Fisher-Yates shuffle for unbiased random kiosk selection.
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = candidates[i];
+      candidates[i] = candidates[j];
+      candidates[j] = tmp;
+    }
+
+    return candidates.slice(0, shownCount).map((item, idx) => ({
+      ...item,
+      rect: {
+        x: rowStartX + idx * (itemWidth + itemGap),
+        y: itemY,
+        width: itemWidth,
+        height: itemHeight,
+      },
+    }));
+  }
+
+  private createShopTestRoomItems(): RoomItem[] {
+    const itemWidth = 40;
+    const itemHeight = 40;
+    const itemGap = 12;
+    const floorTop = this.SHOP_ROOM_BOTTOM - CONFIG.WALL_BLOCK_SIZE;
+    const bottomRowY = floorTop - itemHeight - 8;
+    const topRowY = bottomRowY - itemHeight - 12;
+    const roomMidX = (this.SHOP_ROOM_LEFT + this.SHOP_ROOM_RIGHT) * 0.5;
+    const topRowCount = 4;
+    const bottomRowCount = 3;
+    const topRowWidth = topRowCount * itemWidth + (topRowCount - 1) * itemGap;
+    const bottomRowWidth = bottomRowCount * itemWidth + (bottomRowCount - 1) * itemGap;
+    const topRowStartX = roomMidX - topRowWidth * 0.5;
+    const bottomRowStartX = roomMidX - bottomRowWidth * 0.5;
+    const pool = this.buildShopItemPool(itemWidth, itemHeight, topRowY);
+    const topRow = pool.slice(0, 4).map((item, idx) => ({
+      ...item,
+      rect: { x: topRowStartX + idx * (itemWidth + itemGap), y: topRowY, width: itemWidth, height: itemHeight },
+    }));
+    const bottomRow = pool.slice(4).map((item, idx) => ({
+      ...item,
+      rect: { x: bottomRowStartX + idx * (itemWidth + itemGap), y: bottomRowY, width: itemWidth, height: itemHeight },
+    }));
+    return topRow.concat(bottomRow);
+  }
+
+  private isShopTestRoomActive(): boolean {
+    return this.SHOP_TEST_MODE && this.currentRoomType === "shop";
+  }
+
+  private getShopTestLowerPlatformRect(): { x: number; y: number; width: number; height: number } {
+    const width = 184;
+    const height = 16;
+    const wallThickness = CONFIG.WALL_BLOCK_SIZE;
+    const floorTop = this.SHOP_ROOM_BOTTOM - wallThickness;
+    const x = (this.SHOP_ROOM_LEFT + this.SHOP_ROOM_RIGHT) * 0.5 - width * 0.5;
+    const y = floorTop - 64;
+    return { x, y, width, height };
+  }
+
+  private getShopTestBreakableRect(): { x: number; y: number; width: number; height: number } {
+    const lower = this.getShopTestLowerPlatformRect();
+    const width = 28;
+    const height = 22;
+    const x = lower.x + (lower.width - width) * 0.5;
+    const y = lower.y - height;
+    return { x, y, width, height };
+  }
+
+  private updateShopTestBreakableRespawn(): void {
+    if (!this.isShopTestRoomActive()) return;
+    if (!this.shopTestBreakableDestroyed) return;
+    if (this.shopTestBreakableRespawnFrames > 0) {
+      this.shopTestBreakableRespawnFrames--;
+      return;
+    }
+    this.shopTestBreakableDestroyed = false;
   }
 
   private createChestRoomItems(): RoomItem[] {
@@ -2650,6 +3057,10 @@ class Game {
     this.roomPowerupPickup = null;
     if (roomType === "shop") {
       this.roomItems = this.createShopRoomItems();
+      if (this.SHOP_TEST_MODE) {
+        this.shopTestBreakableDestroyed = false;
+        this.shopTestBreakableRespawnFrames = 0;
+      }
     } else if (roomType === "chest") {
       this.roomItems = this.createChestRoomItems();
     } else {
@@ -2678,6 +3089,7 @@ class Game {
     this.selectedRoomItemId = null;
     this.roomItems = [];
     this.roomPowerupPickup = null;
+    this.shopTestBreakableRespawnFrames = 0;
 
     const player = this.playerController.getPlayer();
     const returnX = this.roomEntryContext ? this.roomEntryContext.returnX : player.x;
@@ -2790,6 +3202,19 @@ class Game {
       player.ammo = Math.max(player.ammo, Math.min(player.maxAmmo, beforeAmmo + 1));
     } else if (item.id === "stomp_reload") {
       this.runUpgrades.stompReloadOneAmmo = true;
+    } else if (item.id === "deep_tank") {
+      this.runUpgrades.deepTankPlusTwoAmmo = true;
+      const beforeAmmo = this.playerController.getPlayer().ammo;
+      this.playerController.addMaxAmmo(2);
+      const player = this.playerController.getPlayer();
+      player.ammo = Math.max(player.ammo, Math.min(player.maxAmmo, beforeAmmo + 2));
+    } else if (item.id === "vampiric_gel") {
+      this.runUpgrades.vampiricGel = true;
+    } else if (item.id === "salvage_bonus") {
+      this.runUpgrades.salvageBreakablesDropGems = true;
+    } else if (item.id === "rapid_chamber") {
+      this.runUpgrades.rapidChamber = true;
+      this.playerController.setShootCooldownFrames(5);
     } else if (item.id === "chest_cache") {
       this.triggerChestGemBurst(item.rect.x + item.rect.width / 2, item.rect.y + item.rect.height / 2);
       this.playTreasureRingSound();
@@ -3141,7 +3566,7 @@ class Game {
 
     if (nearestFloor) {
       gem.y = nearestFloor.y - halfH - 4;
-      gem.vy = Math.min(gem.vy, -3.2);
+      gem.vy = Math.min(gem.vy ?? 0, -3.2);
     }
 
     const pushRight = nearestLeftGap <= nearestRightGap;
@@ -3318,10 +3743,22 @@ class Game {
     // Check collision with platforms (destroy bullet on any contact)
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bullet = bullets[i];
+      const bulletRect = this.centeredEntityToRect(bullet);
       const nearbyPlatforms = this.getPlatformsNearRect(bullet.x, bullet.y, bullet.width, bullet.height, 4);
       
       for (const platform of nearbyPlatforms) {
-        if (this.checkCollision(bullet, platform)) {
+        if (this.checkCollision(bulletRect, platform)) {
+          const impactX = bullet.x;
+          const impactY = bullet.y;
+
+          // Blast shots should explode on terrain impact too, not only enemy impact.
+          if (bullet.isBlast && this.powerUpManager.hasPowerUp("BLAST")) {
+            this.powerUpManager.spawnBlastExplosion(impactX, impactY);
+            this.playBlastSound();
+            this.addScreenShake(8);
+            this.triggerHaptic("medium");
+          }
+
           if (platform.breakable) {
             // Damage breakable platform
             platform.hp--;
@@ -3340,6 +3777,7 @@ class Game {
     const bulletsAfterPlatforms = this.playerController.getBullets();
     for (let i = bulletsAfterPlatforms.length - 1; i >= 0; i--) {
       const bullet = bulletsAfterPlatforms[i];
+      const bulletRect = this.centeredEntityToRect(bullet);
       
       for (let j = this.activeEnemies.length - 1; j >= 0; j--) {
         const enemy = this.activeEnemies[j];
@@ -3348,14 +3786,17 @@ class Game {
         if (enemy instanceof PufferEnemy) {
           const { cx, cy, radius } = this.getPufferCollisionCircle(enemy);
           bulletHitEnemy = this.rectCircleOverlap(
-            { x: bullet.x, y: bullet.y, width: bullet.width, height: bullet.height },
+            bulletRect,
             cx,
             cy,
             radius
           );
         } else {
-          const enemyRect = this.getEnemyCollisionRect(enemy);
-          bulletHitEnemy = this.checkCollision(bullet, enemyRect);
+          const unsafeZone = this.getEnemyCollisionRect(enemy);
+          const safeZone = this.getEnemySafeZoneRect(enemy);
+          bulletHitEnemy =
+            this.checkCollision(bulletRect, unsafeZone) ||
+            (safeZone !== null && this.checkCollision(bulletRect, safeZone));
         }
 
         if (bulletHitEnemy) {
@@ -3370,7 +3811,7 @@ class Game {
           }
           
           // Trigger blast explosion if blast powerup shot
-          if (this.lastShotEffects.triggerBlast && this.powerUpManager.hasPowerUp("BLAST")) {
+          if (bullet.isBlast && this.powerUpManager.hasPowerUp("BLAST")) {
             this.powerUpManager.spawnBlastExplosion(hitX, hitY);
             this.playBlastSound();
             this.addScreenShake(8);
@@ -3378,7 +3819,7 @@ class Game {
           }
           
           // Trigger lightning chain if lightning powerup shot
-          if (this.lastShotEffects.triggerLightning && this.powerUpManager.hasPowerUp("LIGHTNING")) {
+          if (bullet.isLightning && this.powerUpManager.hasPowerUp("LIGHTNING")) {
             this.triggerLightningChain(hitX, hitY);
             this.addScreenShake(5);
             this.triggerHaptic("light");
@@ -3519,23 +3960,55 @@ class Game {
     this.addScreenShake(2);
 
     // Remove platform from its chunk
-    const chunk = this.levelSpawner.getChunk(platform.chunkIndex);
-    const index = chunk.platforms.indexOf(platform);
-    if (index !== -1) {
-      chunk.platforms.splice(index, 1);
-      this.markChunkPlatformCacheDirty(platform.chunkIndex);
-      this.rebuildPlatformBuckets();
+    if (platform.chunkIndex >= 0) {
+      const chunk = this.levelSpawner.getChunk(platform.chunkIndex);
+      const index = chunk.platforms.indexOf(platform);
+      if (index !== -1) {
+        chunk.platforms.splice(index, 1);
+        this.markChunkPlatformCacheDirty(platform.chunkIndex);
+        this.rebuildPlatformBuckets();
+      }
+    } else if (this.isShopTestRoomActive()) {
+      this.shopTestBreakableDestroyed = true;
+      this.shopTestBreakableRespawnFrames = this.SHOP_TEST_BREAKABLE_RESPAWN_FRAMES;
     }
     
     // Award some score for breaking blocks
     this.score += 2;
     this.scoreBreakables += 2;
     this.breakableDestroyCount++;
+    if (this.runUpgrades.salvageBreakablesDropGems && Math.random() < this.SALVAGE_BREAKABLE_GEM_CHANCE) {
+      const isLargeGem = Math.random() < 0.2;
+      const gemSize = isLargeGem ? 18 : 14;
+      const gemValue = isLargeGem ? CONFIG.SCORE_PER_GEM * 2 : CONFIG.SCORE_PER_GEM;
+      this.droppedGems.push({
+        x: cx + (Math.random() - 0.5) * 10,
+        y: cy - 8,
+        width: gemSize,
+        height: gemSize,
+        value: gemValue,
+        collected: false,
+        chunkIndex: platform.chunkIndex,
+        bobOffset: Math.random() * Math.PI * 2,
+        dropped: true,
+        vx: (Math.random() - 0.5) * 2.8,
+        vy: -(2 + Math.random() * 1.8),
+        life: 0,
+        settled: false,
+        settleFrames: 0,
+        fadeTimer: 0,
+        collectDelay: 14,
+        isLarge: isLargeGem,
+      });
+    }
     this.triggerHaptic("light");
   }
   
   private resolveCollisions(): void {
     const player = this.playerController.getPlayer();
+    // Capture vy BEFORE platform resolution so stomp detection isn't broken
+    // by stopVertical() zeroing vy before the enemy collision check runs.
+    const vyBeforeResolve = player.vy;
     const prevX = player.x - player.vx;
     const prevY = player.y - player.vy;
     const minLandingOverlap = player.width * 0.5;
@@ -3726,19 +4199,40 @@ class Game {
           }
           continue;
         }
-      } else if (!this.checkCollision(playerRect, this.getEnemyCollisionRect(enemy))) {
+      } else {
+        const unsafeZone = this.getEnemyCollisionRect(enemy);
+        const overlapsUnsafe = this.checkCollision(playerRect, unsafeZone);
+        const safeFromLab = this.getEnemySafeZoneRect(enemy);
+        const safeBandHeight = Math.max(10, unsafeZone.height * 0.42);
+        const safeZone = safeFromLab ?? {
+          x: unsafeZone.x + 2,
+          y: unsafeZone.y - 2,
+          width: Math.max(4, unsafeZone.width - 4),
+          height: safeBandHeight + 4,
+        };
+        const overlapsSafeZone =
+          playerRect.x < safeZone.x + safeZone.width &&
+          playerRect.x + playerRect.width > safeZone.x &&
+          playerRect.y < safeZone.y + safeZone.height &&
+          playerRect.y + playerRect.height > safeZone.y;
+
+        if (!overlapsUnsafe && !overlapsSafeZone) {
+          continue;
+        }
+
+        const prevBottom = (playerRect.y - vyBeforeResolve) + playerRect.height;
+        const cameFromAbove = prevBottom <= safeZone.y + Math.max(8, safeZone.height * 0.5);
+        const stompedFromTop = vyBeforeResolve > 0 && overlapsSafeZone && cameFromAbove;
+
+        if (stompedFromTop) {
+          this.bounceOnEnemy(enemy, i);
+        } else if (overlapsUnsafe && !this.playerController.isInvulnerable()) {
+          this.applyPlayerDamage(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+        }
         continue;
       }
-      
-      // Player bounces if falling downward (vy > 0 means moving down)
-      // This is the primary stomp mechanic - if player is falling, they stomp
-      if (player.vy > 0) {
-        // Bounce mechanic - player lands on enemy from above
-        this.bounceOnEnemy(enemy, i);
-      } else if (!this.playerController.isInvulnerable()) {
-        // Player takes damage only if moving up or stationary
-        this.applyPlayerDamage(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
-      }
+
+      // Puffers keep their existing special behavior above.
     }
 
     // Weed stomp bounce (no score, no combo). Drops one gem.
@@ -3791,12 +4285,16 @@ class Game {
       if (this.checkGemPickup(playerRect, gem)) {
         gem.collected = true;
         const comboMultiplier = this.playerController.getComboMultiplier();
-        const points = gem.value * comboMultiplier;
-        this.score += points;
-        this.scoreGems += points;
-        this.gems++;
-        this.gemCollectCount++;
-        this.playGemSound();
+        if (this.isHeartPickup(gem)) {
+          this.collectHeartPickup(gem);
+        } else {
+          const points = gem.value * comboMultiplier;
+          this.score += points;
+          this.scoreGems += points;
+          this.gems++;
+          this.gemCollectCount++;
+          this.playGemSound();
+        }
         this.releaseDroppedGem(i);
       }
     }
@@ -3812,6 +4310,22 @@ class Game {
       playerRect.y < gemTop + gem.height &&
       playerRect.y + playerRect.height > gemTop
     );
+  }
+
+  private isHeartPickup(gem: Gem): boolean {
+    return gem.value <= 0;
+  }
+
+  private collectHeartPickup(gem: Gem): void {
+    const player = this.playerController.getPlayer();
+    if (player.hp < player.maxHp) {
+      player.hp = Math.min(player.maxHp, player.hp + 1);
+      this.previousHp = player.hp;
+      this.triggerHaptic("success");
+    } else {
+      this.triggerHaptic("light");
+    }
+    this.playGemSound();
   }
   
   private bounceOnEnemy(enemy: BaseEnemy, index: number): void {
@@ -4187,9 +4701,11 @@ class Game {
   
   private processBlastCollisions(): void {
     const explosions = this.powerUpManager.getBlastExplosions();
+    const blastedBreakables = new Set<Platform>();
     
     for (const exp of explosions) {
       if (exp.frame !== 5) continue; // Only deal damage on frame 5 (middle of expansion)
+      const radiusSq = exp.maxRadius * exp.maxRadius;
       
       for (let i = this.activeEnemies.length - 1; i >= 0; i--) {
         const enemy = this.activeEnemies[i];
@@ -4204,6 +4720,21 @@ class Game {
             this.killEnemy(enemy, i);
           }
         }
+      }
+
+      // Blast utility role: instantly clear any breakables caught in the blast radius.
+      for (let i = this.activePlatforms.length - 1; i >= 0; i--) {
+        const platform = this.activePlatforms[i];
+        if (!platform.breakable || blastedBreakables.has(platform)) continue;
+
+        const closestX = Math.max(platform.x, Math.min(exp.x, platform.x + platform.width));
+        const closestY = Math.max(platform.y, Math.min(exp.y, platform.y + platform.height));
+        const dx = exp.x - closestX;
+        const dy = exp.y - closestY;
+        if (dx * dx + dy * dy > radiusSq) continue;
+
+        blastedBreakables.add(platform);
+        this.destroyPlatform(platform);
       }
     }
   }
@@ -4322,6 +4853,12 @@ class Game {
     this.score += points;
     this.scoreEnemies += points;
     this.enemyKillCount++;
+    if (this.runUpgrades.vampiricGel) {
+      const player = this.playerController.getPlayer();
+      if (player.hp < player.maxHp && Math.random() < this.VAMPIRIC_GEL_HEAL_CHANCE) {
+        this.spawnLifestealHeartDrop(cx, cy, enemy.chunkIndex);
+      }
+    }
     
     // Small screen shake on enemy death
     this.addScreenShake(3);
@@ -4537,6 +5074,29 @@ class Game {
       isLarge: false,
     });
   }
+
+  private spawnLifestealHeartDrop(x: number, y: number, chunkIndex: number): void {
+    const heartSize = 16;
+    this.droppedGems.push({
+      x: x + (Math.random() - 0.5) * 10,
+      y: y - 8,
+      width: heartSize,
+      height: heartSize,
+      value: 0,
+      collected: false,
+      chunkIndex,
+      bobOffset: Math.random() * Math.PI * 2,
+      dropped: true,
+      vx: (Math.random() - 0.5) * 1.6,
+      vy: -(1.6 + Math.random() * 1.2),
+      life: 0,
+      settled: false,
+      settleFrames: 0,
+      fadeTimer: 0,
+      collectDelay: 8,
+      isLarge: false,
+    });
+  }
   
   private spawnHurtAnimation(x: number, y: number, width: number, height: number, color: string, direction: number, spriteType: "shark" | "crab" | "squid" | "puffer"): void {
     this.hurtAnimations.push({
@@ -4603,10 +5163,12 @@ class Game {
       
       if (!sprite || !spriteLoaded) {
         // Fallback: draw a simple flash effect if sprite not loaded
+        const lifeT = (anim.frame + anim.frameTimer) / Math.max(1, anim.maxFrames);
+        const popScale = 1 + 0.1 * Math.max(0, 1 - lifeT / 0.45);
         ctx.save();
         ctx.fillStyle = `rgba(255, 100, 100, ${0.8 - anim.frame * 0.3})`;
         ctx.beginPath();
-        ctx.arc(anim.x, anim.y, anim.width * 0.6, 0, Math.PI * 2);
+        ctx.arc(anim.x, anim.y, anim.width * 0.6 * popScale, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         continue;
@@ -4619,7 +5181,10 @@ class Game {
       const sy = 0;
       
       // Scale to match enemy size (roughly)
-      const scale = Math.max(anim.width, anim.height) / frameWidth * 1.5;
+      const baseScale = Math.max(anim.width, anim.height) / frameWidth * 1.5;
+      const lifeT = (anim.frame + anim.frameTimer) / Math.max(1, anim.maxFrames);
+      const popScale = 1 + 0.1 * Math.max(0, 1 - lifeT / 0.45);
+      const scale = baseScale * popScale;
       const drawWidth = frameWidth * scale;
       const drawHeight = frameHeight * scale;
       
@@ -4733,7 +5298,17 @@ class Game {
     if (this.hudRefs.ammoSliderFill) {
       const ammoPercent = (player.ammo / player.maxAmmo) * 100;
       if (ammoPercent !== this.prevHudAmmoPercent) {
-        this.hudRefs.ammoSliderFill.style.height = `${ammoPercent}%`;
+        const slider = document.getElementById("ammo-slider");
+        let trackHeight = 70;
+        if (slider) {
+          const cssTrackHeight = getComputedStyle(slider).getPropertyValue("--ammo-track-height").trim();
+          const parsed = Number.parseFloat(cssTrackHeight);
+          if (Number.isFinite(parsed) && parsed > 0) {
+            trackHeight = parsed;
+          }
+        }
+        const nextHeight = Math.round((trackHeight * ammoPercent) / 100);
+        this.hudRefs.ammoSliderFill.style.height = `${nextHeight}px`;
         this.prevHudAmmoPercent = ammoPercent;
       }
     }
@@ -4756,17 +5331,21 @@ class Game {
   }
   
   private checkCollision(a: Entity, b: Entity): boolean {
-    const ax = "width" in a && a.x < CONFIG.INTERNAL_WIDTH / 2 ? a.x : a.x - (a.width || 0) / 2;
-    const ay = a.y - (a.height || 0) / 2;
-    const bx = b.x;
-    const by = b.y;
-    
     return (
-      ax < bx + b.width &&
-      ax + a.width > bx &&
-      ay < by + b.height &&
-      ay + a.height > by
+      a.x < b.x + b.width &&
+      a.x + a.width > b.x &&
+      a.y < b.y + b.height &&
+      a.y + a.height > b.y
     );
+  }
+
+  private centeredEntityToRect(e: Entity): Entity {
+    return {
+      x: e.x - e.width / 2,
+      y: e.y - e.height / 2,
+      width: e.width,
+      height: e.height,
+    };
   }
 
   private getLabRectFromFrame(
@@ -4777,9 +5356,10 @@ class Game {
     drawH: number,
     frameW: number,
     frameH: number,
-    flipX: boolean = false
+    flipX: boolean = false,
+    zone?: "safe" | "unsafe"
   ): { x: number; y: number; width: number; height: number } | null {
-    const collider = this.hitboxLabColliders[frameId];
+    const collider = this.getLabColliderForZone(frameId, zone);
     if (!collider || collider.type !== "rect") return null;
     const sx = drawW / frameW;
     const sy = drawH / frameH;
@@ -4800,9 +5380,10 @@ class Game {
     drawH: number,
     frameW: number,
     frameH: number,
-    flipX: boolean = false
+    flipX: boolean = false,
+    zone?: "safe" | "unsafe"
   ): { cx: number; cy: number; radius: number } | null {
-    const collider = this.hitboxLabColliders[frameId];
+    const collider = this.getLabColliderForZone(frameId, zone);
     if (!collider || collider.type !== "circle") return null;
     const sx = drawW / frameW;
     const sy = drawH / frameH;
@@ -4812,6 +5393,18 @@ class Game {
       cy: drawY + collider.cy * sy,
       radius: Math.max(1, collider.radius * Math.min(sx, sy)),
     };
+  }
+
+  private getLabColliderForZone(frameId: string, zone?: "safe" | "unsafe"): LabCollider | null {
+    const entry = this.hitboxLabColliders[frameId];
+    if (!entry) return null;
+    if ("type" in entry) {
+      if (zone === "safe") return null;
+      return entry;
+    }
+    if (zone === "safe") return entry.safe ?? null;
+    if (zone === "unsafe") return entry.unsafe ?? null;
+    return entry.unsafe ?? entry.safe ?? null;
   }
 
   private getPufferCollisionCircle(enemy: PufferEnemy): { cx: number; cy: number; radius: number } {
@@ -4847,7 +5440,8 @@ class Game {
     drawH: number,
     frameW: number,
     frameH: number,
-    flipX: boolean = false
+    flipX: boolean = false,
+    zone?: "safe" | "unsafe"
   ): { x: number; y: number; width: number; height: number } | null {
     const exact = this.getLabRectFromFrame(
       `${sourceKey}#${frameIndex}`,
@@ -4857,7 +5451,8 @@ class Game {
       drawH,
       frameW,
       frameH,
-      flipX
+      flipX,
+      zone
     );
     if (exact) return exact;
     return this.getLabRectFromFrame(
@@ -4868,7 +5463,8 @@ class Game {
       drawH,
       frameW,
       frameH,
-      flipX
+      flipX,
+      zone
     );
   }
 
@@ -4922,7 +5518,8 @@ class Game {
         spriteDrawRect.height,
         spriteFrameSize.width,
         spriteFrameSize.height,
-        enemy.direction < 0
+        enemy.direction < 0,
+        "unsafe"
       );
       if (fromLab) return fromLab;
     }
@@ -4951,6 +5548,31 @@ class Game {
       width,
       height,
     };
+  }
+
+  private getEnemySafeZoneRect(enemy: BaseEnemy): { x: number; y: number; width: number; height: number } | null {
+    const spriteDrawRect = enemy.getSpriteDrawRect();
+    const spriteFrameSize = enemy.getSpriteFrameSize();
+    if (!spriteDrawRect || !spriteFrameSize) return null;
+
+    let sourceKey = "";
+    if (enemy.type === "STATIC") sourceKey = "crab_idle";
+    else if (enemy.type === "HORIZONTAL") sourceKey = "shark_walk";
+    else if (enemy.type === "EXPLODER") sourceKey = "squid_walk";
+    if (!sourceKey) return null;
+
+    return this.getLabRectWithFallback(
+      sourceKey,
+      enemy.getAnimationFrameIndex(),
+      spriteDrawRect.x,
+      spriteDrawRect.y,
+      spriteDrawRect.width,
+      spriteDrawRect.height,
+      spriteFrameSize.width,
+      spriteFrameSize.height,
+      enemy.direction < 0,
+      "safe"
+    );
   }
 
   private rectCircleOverlap(rect: { x: number; y: number; width: number; height: number }, cx: number, cy: number, radius: number): boolean {
@@ -5030,9 +5652,6 @@ class Game {
   private draw(): void {
     const ctx = this.ctx;
     
-    // Update screen shake
-    this.updateScreenShake();
-    
     // Clear canvas with ocean base
     ctx.fillStyle = "#0a2a50";
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -5084,6 +5703,7 @@ class Game {
       // Draw bullets (bubbles)
       this.drawBullets();
       this.drawEnemyBullets();
+      this.drawLaserBeams();
       
       // Draw powerup orbs
       this.drawPowerUpOrbs();
@@ -5101,21 +5721,18 @@ class Game {
         this.drawDebugHitboxes();
       }
       this.drawPowerUpBarAbovePlayer();
-      if (this.deathFreezeFrames > 0) {
-        this.drawDeathFreezeHighlight();
-      }
-      
+
       // Draw powerup effects (on top of player)
       this.drawShields();
       this.drawBlastExplosions();
       this.drawLightningChains();
-      this.drawLaserBeams();
       
       ctx.restore();
     } else if (this.gameState === "shop") {
       this.drawSpecialRoom();
       this.drawGems();
       this.drawBullets();
+      this.drawLaserBeams();
       this.drawPlayer();
       if (this.debugDrawHitboxes) {
         this.drawDebugHitboxes();
@@ -5124,11 +5741,14 @@ class Game {
       this.drawShields();
       this.drawBlastExplosions();
       this.drawLightningChains();
-      this.drawLaserBeams();
       this.drawSpecialRoomOverlay();
     }
     
     ctx.restore();
+
+    if (this.gameState === "playing") {
+      this.drawDebugSelectableLighting();
+    }
 
     // Draw touch zones overlay OUTSIDE the scale transform so it fills the full screen
     if ((this.gameState === "playing" || this.gameState === "shop") && this.isMobile) {
@@ -5139,8 +5759,68 @@ class Game {
       this.drawWorldDoorwayDebugOverlay();
     }
     
+    // Death freeze spotlight — drawn after ALL transforms are restored, in screen space
+    if (this.deathFreezeFrames > 0) {
+      this.drawDeathFreezeHighlight();
+    }
+
     // Apply dithering effect as post-process
     this.applyDithering();
+  }
+
+  private drawDebugSelectableLighting(): void {
+    if (this.deathFreezeFrames > 0) return;
+    const player = this.playerController.getPlayer();
+    const screenX = (player.x + this.screenShakeX) * this.scale + this.offsetX;
+    const screenY = (player.y - this.cameraY + this.screenShakeY) * this.scale + this.offsetY;
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    this.drawLightingLanternVignette(ctx, screenX, screenY, w, h);
+  }
+
+  // Continuous falloff from diver: bright core, gradually darker with distance.
+  private drawLightingLanternVignette(
+    ctx: CanvasRenderingContext2D,
+    screenX: number,
+    screenY: number,
+    w: number,
+    h: number
+  ): void {
+    // Explicit light boundary: bright inside this radius, then fast falloff.
+    const lightRadius = 96 * this.scale;
+    const c0 = Math.hypot(screenX, screenY);
+    const c1 = Math.hypot(w - screenX, screenY);
+    const c2 = Math.hypot(screenX, h - screenY);
+    const c3 = Math.hypot(w - screenX, h - screenY);
+    const maxDistToCorner = Math.max(c0, c1, c2, c3) * 1.03;
+    const edgeRatio = Math.min(0.9, lightRadius / Math.max(1, maxDistToCorner));
+
+    ctx.save();
+    const radial = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, maxDistToCorner);
+    // Harder profile:
+    // 1) Nearly clear inside radius
+    // 2) Darkness starts right at edgeRatio
+    // 3) Reaches heavy darkness quickly after edge
+    const ramp1 = Math.min(0.96, edgeRatio + 0.12);
+    const ramp2 = Math.min(0.98, edgeRatio + 0.36);
+    radial.addColorStop(0, "rgba(5, 14, 26, 0.00)");
+    radial.addColorStop(Math.max(0, edgeRatio - 0.02), "rgba(5, 14, 26, 0.02)");
+    radial.addColorStop(edgeRatio, "rgba(5, 14, 26, 0.08)");
+    radial.addColorStop(ramp1, "rgba(5, 14, 26, 0.58)");
+    radial.addColorStop(ramp2, "rgba(5, 14, 26, 0.75)");
+    radial.addColorStop(1, "rgba(5, 14, 26, 0.82)");
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, w, h);
+
+    const depthGrad = ctx.createLinearGradient(0, 0, 0, h);
+    depthGrad.addColorStop(0, "rgba(3, 10, 18, 0.00)");
+    depthGrad.addColorStop(0.5, "rgba(3, 10, 18, 0.06)");
+    depthGrad.addColorStop(1, "rgba(3, 10, 18, 0.16)");
+    ctx.fillStyle = depthGrad;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
   }
 
   private drawWorldDoorways(): void {
@@ -5319,22 +5999,23 @@ class Game {
     const wallThickness = CONFIG.WALL_BLOCK_SIZE;
 
     const wallSegments: Platform[] = [];
-    const addWall = (x: number, y: number, width: number, height: number): void => {
+    const addWall = (x: number, y: number, width: number, height: number, isWall: boolean = true): void => {
       if (width <= 0 || height <= 0) return;
       wallSegments.push({
         x,
         y,
         width,
         height,
-        isWall: true,
+        isWall,
         breakable: false,
         hp: 0,
         chunkIndex: -1,
       });
     };
 
-    addWall(left, top, right - left, wallThickness);
-    addWall(left, bottom - wallThickness, right - left, wallThickness);
+    // Ceiling/floor should use platform texture, not dark wall texture.
+    addWall(left, top, right - left, wallThickness, false);
+    addWall(left, bottom - wallThickness, right - left, wallThickness, false);
 
     const fullVerticalHeight = bottom - top;
     if (this.currentRoomEntranceSide === "left") {
@@ -5347,8 +6028,27 @@ class Game {
       addWall(right - wallThickness, entrance.y + entrance.height, wallThickness, bottom - (entrance.y + entrance.height));
     }
 
+    if (this.isShopTestRoomActive()) {
+      const lowerPlatform = this.getShopTestLowerPlatformRect();
+      addWall(lowerPlatform.x, lowerPlatform.y, lowerPlatform.width, lowerPlatform.height);
+    }
+
     for (const wall of wallSegments) {
       this.drawPlatformGeometry(ctx, wall);
+    }
+
+    if (this.isShopTestRoomActive() && !this.shopTestBreakableDestroyed) {
+      const breakable = this.getShopTestBreakableRect();
+      this.drawPlatformGeometry(ctx, {
+        x: breakable.x,
+        y: breakable.y,
+        width: breakable.width,
+        height: breakable.height,
+        isWall: true,
+        breakable: true,
+        hp: 1,
+        chunkIndex: -1,
+      });
     }
 
     // Tunnel styling inside shop: flat strips (same style as outside tunnel).
@@ -5385,7 +6085,7 @@ class Game {
       y: interiorTunnelFloor.y + interiorTunnelFloor.height,
       width: interiorTunnelW,
       height: CONFIG.WALL_BLOCK_SIZE,
-      isWall: true,
+      isWall: false,
       breakable: false,
       hp: 0,
       chunkIndex: -1,
@@ -5448,6 +6148,7 @@ class Game {
       ctx.lineWidth = item.id === this.selectedRoomItemId ? 2.4 : 1.4;
       ctx.strokeRect(item.rect.x, item.rect.y, item.rect.width, item.rect.height);
     }
+
   }
 
   private drawShopItemIcon(item: RoomItem): void {
@@ -5467,8 +6168,20 @@ class Game {
       return;
     }
 
-    if (item.id === "ammo_up" && this.shopAmmoIconImg && this.shopAmmoIconImg.complete) {
+    if ((item.id === "ammo_up" || item.id === "deep_tank") && this.shopAmmoIconImg && this.shopAmmoIconImg.complete) {
       ctx.drawImage(this.shopAmmoIconImg, iconX, iconY, iconSize, iconSize);
+      if (item.id === "deep_tank") {
+        ctx.fillStyle = "rgba(255, 246, 210, 0.98)";
+        ctx.strokeStyle = "rgba(14, 24, 38, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.font = "7px 'Press Start 2P'";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        const tx = iconX + iconSize - 1;
+        const ty = iconY + iconSize - 1;
+        ctx.strokeText("2x", tx, ty);
+        ctx.fillText("2x", tx, ty);
+      }
       ctx.restore();
       return;
     }
@@ -5486,6 +6199,24 @@ class Game {
         iconSize,
         iconSize
       );
+      ctx.restore();
+      return;
+    }
+
+    if (item.id === "rapid_chamber" && this.shopRapidIconImg && this.shopRapidIconImg.complete) {
+      ctx.drawImage(this.shopRapidIconImg, iconX, iconY, iconSize, iconSize);
+      ctx.restore();
+      return;
+    }
+
+    if (item.id === "vampiric_gel" && this.shopVampiricIconImg && this.shopVampiricIconImg.complete) {
+      ctx.drawImage(this.shopVampiricIconImg, iconX, iconY, iconSize, iconSize);
+      ctx.restore();
+      return;
+    }
+
+    if (item.id === "salvage_bonus" && this.shopSalvageIconImg && this.shopSalvageIconImg.complete) {
+      ctx.drawImage(this.shopSalvageIconImg, iconX, iconY, iconSize, iconSize);
       ctx.restore();
       return;
     }
@@ -5514,6 +6245,29 @@ class Game {
     ctx.arc(item.rect.x + item.rect.width / 2, item.rect.y + item.rect.height / 2, iconSize * 0.33, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+  }
+
+  private getShopKioskExplainer(item: RoomItem): string {
+    switch (item.id) {
+      case "hp_up":
+        return "+1 max HP, heal +1";
+      case "ammo_up":
+        return "+1 max ammo, +1 ammo";
+      case "stomp_reload":
+        return "Stomp reloads +1 ammo";
+      case "deep_tank":
+        return "+2 max ammo, +2 ammo";
+      case "vampiric_gel":
+        return "5% chance to drop a heart";
+      case "salvage_bonus":
+        return "Breakables can drop gems";
+      case "rapid_chamber":
+        return "Faster airborne fire";
+      case "chest_cache":
+        return "Open for gem burst";
+      default:
+        return "";
+    }
   }
 
   private drawSpecialRoomOverlay(): void {
@@ -5548,7 +6302,7 @@ class Game {
     }
 
     const panelWidth = Math.min(236, popupMaxWidth);
-    const panelHeight = selected ? (selected.cost > 0 ? 68 : 76) : 40;
+    const panelHeight = selected ? (selected.cost > 0 ? 96 : 104) : 40;
     const shakeX = this.roomNoFundsTimer > 0 ? Math.sin(this.frameCount * 0.85) * 4 : 0;
     const panelX = popupLeft + (popupMaxWidth - panelWidth) * 0.5 + shakeX;
     const panelY = this.SHOP_ROOM_TOP + 48;
@@ -5561,6 +6315,33 @@ class Game {
         out = out.slice(0, -1);
       }
       return `${out}...`;
+    };
+    const wrapText = (text: string, maxWidth: number, maxLines: number): string[] => {
+      const words = text.split(/\s+/).filter((w) => w.length > 0);
+      if (words.length === 0) return [""];
+      const lines: string[] = [];
+      let current = words[0];
+      for (let i = 1; i < words.length; i++) {
+        const candidate = `${current} ${words[i]}`;
+        if (ctx.measureText(candidate).width <= maxWidth) {
+          current = candidate;
+        } else {
+          lines.push(current);
+          current = words[i];
+          if (lines.length >= maxLines - 1) break;
+        }
+      }
+      const usedWordCount = lines.join(" ").split(/\s+/).filter((w) => w.length > 0).length;
+      const remainingWords = words.slice(usedWordCount);
+      let lastLine = remainingWords.join(" ");
+      if (ctx.measureText(lastLine).width > maxWidth) {
+        while (lastLine.length > 3 && ctx.measureText(`${lastLine}...`).width > maxWidth) {
+          lastLine = lastLine.slice(0, -1);
+        }
+        lastLine = `${lastLine}...`;
+      }
+      lines.push(lastLine);
+      return lines.slice(0, maxLines);
     };
 
     ctx.fillStyle = "rgba(6, 22, 40, 0.88)";
@@ -5587,22 +6368,28 @@ class Game {
     ctx.fillStyle = "rgba(235, 248, 255, 0.98)";
     ctx.font = "9px 'Press Start 2P'";
     ctx.fillText(fitText(selected.name, panelWidth - 20), panelX + 10, panelY + 30);
+    ctx.fillStyle = "rgba(192, 230, 255, 0.95)";
+    const explainer = this.getShopKioskExplainer(selected);
+    const explainerText = explainer.length > 0 ? explainer.toUpperCase() : selected.description.toUpperCase();
+    const explainerLines = wrapText(explainerText, panelWidth - 20, 2);
+    for (let i = 0; i < explainerLines.length; i++) {
+      ctx.fillText(explainerLines[i], panelX + 10, panelY + 44 + i * 10);
+    }
+    const infoBottomY = panelY + 44 + (explainerLines.length - 1) * 10;
+    const costRowY = infoBottomY + 13;
+    const actionRowY = selected.cost <= 0 ? costRowY + 12 : costRowY;
 
     if (selected.cost > 0) {
       if (this.gemSimpleImg && this.gemSimpleImg.complete) {
-        ctx.drawImage(this.gemSimpleImg, panelX + 10, panelY + 37, 12, 12);
+        ctx.drawImage(this.gemSimpleImg, panelX + 10, costRowY - 6, 12, 12);
       }
       ctx.fillStyle = "rgba(255, 232, 160, 0.98)";
-      ctx.fillText(`x ${selected.cost}`, panelX + 26, panelY + 43);
-    } else {
-      ctx.fillStyle = "rgba(192, 230, 255, 0.95)";
-      const descWidth = panelWidth - 20;
-      ctx.fillText(fitText(selected.description.toUpperCase(), descWidth), panelX + 10, panelY + 44);
+      ctx.fillText(`x ${selected.cost}`, panelX + 26, costRowY);
     }
 
     if (selected.soldOut) {
       ctx.fillStyle = "rgba(255, 190, 110, 0.95)";
-      ctx.fillText("SOLD OUT", panelX + panelWidth - 96, panelY + 43);
+      ctx.fillText("SOLD OUT", panelX + panelWidth - 96, costRowY);
     } else if (selected.cost <= 0 || this.gems >= selected.cost) {
       ctx.fillStyle = "rgba(200, 255, 210, 0.95)";
       const actionLabel = selected.id === "chest_cache"
@@ -5613,12 +6400,11 @@ class Game {
       const actionText = selected.cost <= 0 ? `PRESS ACTION: ${actionLabel}` : actionLabel;
       const actionWidth = ctx.measureText(actionText).width;
       const actionX = Math.max(panelX + 10, panelX + panelWidth - actionWidth - rightInset);
-      const actionY = selected.cost <= 0 ? panelY + 60 : panelY + 43;
-      ctx.fillText(actionText, actionX, actionY);
+      ctx.fillText(actionText, actionX, actionRowY);
     } else {
       ctx.fillStyle = "rgba(255, 120, 120, 0.95)";
       const msg = this.roomNoFundsTimer > 0 ? "NOT ENOUGH GEMS" : "INSUFFICIENT GEMS";
-      ctx.fillText(msg, panelX + panelWidth - 164, panelY + 43);
+      ctx.fillText(msg, panelX + panelWidth - 164, costRowY);
     }
   }
 
@@ -5630,12 +6416,18 @@ class Game {
       (this.DEATH_FREEZE_DURATION_FRAMES - this.deathFreezeFrames) /
       this.DEATH_FREEZE_DURATION_FRAMES;
     const pulse = 0.65 + Math.sin(this.frameCount * 0.2) * 0.35;
-    const viewTop = this.cameraY - 32;
-    const viewHeight = CONFIG.INTERNAL_HEIGHT + 64;
-    const viewLeft = -32;
-    const viewWidth = CONFIG.INTERNAL_WIDTH + 64;
+    const zoom = this.getDeathFreezeZoom();
 
-    ctx.save();
+    // Convert a game-space point to canvas buffer pixel coordinates.
+    // Must account for the death-freeze zoom applied around the player.
+    const toScreen = (gx: number, gy: number) => {
+      const zx = (gx - p.x) * zoom + p.x;
+      const zy = (gy - p.y) * zoom + p.y;
+      return {
+        x: (zx + this.screenShakeX) * this.scale + this.offsetX,
+        y: (zy - this.cameraY + this.screenShakeY) * this.scale + this.offsetY,
+      };
+    };
 
     const diverRadius = Math.max(this.DIVER_DRAW_SIZE * 0.46, Math.max(p.width, p.height) + 16);
     const threatRadius = 36;
@@ -5652,32 +6444,37 @@ class Game {
       focusRadius = Math.max(52, dist * 0.5 + Math.max(diverRadius, threatRadius) + 16);
     }
 
-    ctx.fillStyle = `rgba(4, 12, 22, ${0.32 + freezeProgress * 0.12})`;
+    const sf = toScreen(focusX, focusY);
+    const screenRadius = focusRadius * zoom * this.scale;
+
+    ctx.save();
+
+    // Full-canvas darkness with spotlight cutout, covering letterbox strips too
+    ctx.fillStyle = `rgba(4, 12, 22, ${0.55 + freezeProgress * 0.25})`;
     ctx.beginPath();
-    ctx.rect(viewLeft, viewTop, viewWidth, viewHeight);
-    ctx.moveTo(focusX + focusRadius, focusY);
-    ctx.arc(focusX, focusY, focusRadius, 0, Math.PI * 2);
+    ctx.rect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.arc(sf.x, sf.y, screenRadius, 0, Math.PI * 2);
     ctx.fill("evenodd");
 
-    // Single circular boundary around the hit event focus.
-    const outlineRadius = focusRadius + pulse * 2.1;
-    const dash = 5;
-    const gap = 7;
+    // Dashed outline ring
+    const outlineRadius = screenRadius + pulse * 2.1 * this.scale;
+    const dash = 5 * this.scale;
+    const gap = 7 * this.scale;
     const pattern = dash + gap;
     const dashOffset = -((this.frameCount * 0.8) % pattern);
     ctx.strokeStyle = "rgba(255, 235, 190, 0.92)";
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 2.4 * this.scale;
     ctx.lineCap = "round";
     ctx.setLineDash([dash, gap]);
     ctx.lineDashOffset = dashOffset;
     ctx.beginPath();
-    ctx.arc(focusX, focusY, outlineRadius, 0, Math.PI * 2);
+    ctx.arc(sf.x, sf.y, outlineRadius, 0, Math.PI * 2);
     ctx.stroke();
-    // Second phase-shifted pass hides the visible seam on one side of the loop.
+    // Phase-shifted second pass hides the seam
     ctx.strokeStyle = "rgba(255, 245, 210, 0.42)";
     ctx.lineDashOffset = dashOffset - pattern * 0.5;
     ctx.beginPath();
-    ctx.arc(focusX, focusY, outlineRadius, 0, Math.PI * 2);
+    ctx.arc(sf.x, sf.y, outlineRadius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
@@ -5693,8 +6490,8 @@ class Game {
     const crabW = 96 * crabScale;
     const crabH = 96 * crabScale;
     const crabX = CONFIG.INTERNAL_WIDTH / 2 - crabW / 2;
-    // Keep crab and diver below the instruction block area
-    const crabY = CONFIG.INTERNAL_HEIGHT - crabH - 20;
+    // Push characters to the very bottom so they don't overlap HTML text
+    const crabY = CONFIG.INTERNAL_HEIGHT - crabH + 10;
     
     // Draw bobbing character above the crab
     if (this.playerAnimLoaded.idle && this.playerAnimImages.idle) {
@@ -5900,7 +6697,11 @@ class Game {
         } else if (platform.isWall) {
           // Left-most column uses LEFT tile, right-most column uses RIGHT tile.
           // This removes the vertical seam on the inner edge of right-side walls.
-          if (bx === 0) {
+          if (blocksX === 1) {
+            tile = platform.x + platform.width * 0.5 >= CONFIG.INTERNAL_WIDTH * 0.5
+              ? this.wallTileRightImg
+              : this.wallTileLeftImg;
+          } else if (bx === 0) {
             tile = this.wallTileLeftImg;
           } else if (bx === blocksX - 1) {
             tile = this.wallTileRightImg;
@@ -5920,6 +6721,28 @@ class Game {
         }
 
         drawTile(tile, blockX, blockY, blockW, blockH, rotation);
+      }
+    }
+  }
+
+  private drawTiledImageRect(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): void {
+    if (!img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return;
+    const tileW = 32;
+    const tileH = 32;
+    for (let ty = y; ty < y + height; ty += tileH) {
+      for (let tx = x; tx < x + width; tx += tileW) {
+        const dw = Math.min(tileW, x + width - tx);
+        const dh = Math.min(tileH, y + height - ty);
+        const sw = Math.max(1, Math.floor((dw / tileW) * img.naturalWidth));
+        const sh = Math.max(1, Math.floor((dh / tileH) * img.naturalHeight));
+        ctx.drawImage(img, 0, 0, sw, sh, tx, ty, dw, dh);
       }
     }
   }
@@ -6027,6 +6850,30 @@ class Game {
 
     for (const gem of this.droppedGems) {
       if (gem.collected) continue;
+
+      if (this.isHeartPickup(gem)) {
+        const heartIcon = this.shopVampiricIconImg ?? this.shopHpIconImg;
+        if (heartIcon && heartIcon.complete) {
+          this.ctx.drawImage(
+            heartIcon,
+            gem.x - gem.width / 2,
+            gem.y - gem.height / 2,
+            gem.width,
+            gem.height
+          );
+        } else {
+          ctx.save();
+          ctx.translate(gem.x, gem.y);
+          ctx.fillStyle = "rgba(255, 122, 150, 0.95)";
+          ctx.beginPath();
+          ctx.moveTo(0, gem.height * 0.36);
+          ctx.bezierCurveTo(-gem.width * 0.6, -gem.height * 0.1, -gem.width * 0.5, -gem.height * 0.55, 0, -gem.height * 0.22);
+          ctx.bezierCurveTo(gem.width * 0.5, -gem.height * 0.55, gem.width * 0.6, -gem.height * 0.1, 0, gem.height * 0.36);
+          ctx.fill();
+          ctx.restore();
+        }
+        continue;
+      }
 
       const sprite = gem.isLarge ? this.gemOutlinedImg : this.gemSimpleImg;
       const spriteLoaded = gem.isLarge ? this.gemOutlinedLoaded : this.gemSimpleLoaded;
@@ -6509,11 +7356,11 @@ class Game {
     ctx.fillStyle = "rgba(180, 235, 255, 0.95)";
     ctx.fillText(`LAB ${this.hitboxLabLoadedCount}`, 8, 12);
 
-    // Enemy hitboxes
-    ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
-    ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
+    // Enemy hitboxes (unsafe = red, safe stomp zone = green)
     for (const enemy of this.activeEnemies) {
       if (enemy instanceof PufferEnemy) {
+        ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
+        ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
         const { cx, cy, radius } = this.getPufferCollisionCircle(enemy);
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -6523,12 +7370,29 @@ class Game {
         ctx.fillText("PUFFER", cx - radius, cy - radius - 2);
         ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
       } else {
-        const rect = this.getEnemyCollisionRect(enemy);
-        ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-        ctx.fillStyle = "rgba(255, 90, 90, 0.95)";
-        ctx.fillText(enemy.type, rect.x, rect.y - 2);
+        const unsafe = this.getEnemyCollisionRect(enemy);
+        const safeBandHeight = Math.max(10, unsafe.height * 0.42);
+        const safe = this.getEnemySafeZoneRect(enemy) ?? {
+          x: unsafe.x + 2,
+          y: unsafe.y - 2,
+          width: Math.max(4, unsafe.width - 4),
+          height: safeBandHeight + 4,
+        };
+
+        ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
         ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
+        ctx.fillRect(unsafe.x, unsafe.y, unsafe.width, unsafe.height);
+        ctx.strokeRect(unsafe.x, unsafe.y, unsafe.width, unsafe.height);
+
+        ctx.strokeStyle = "rgba(40, 255, 120, 0.95)";
+        ctx.fillStyle = "rgba(40, 255, 120, 0.16)";
+        ctx.fillRect(safe.x, safe.y, safe.width, safe.height);
+        ctx.strokeRect(safe.x, safe.y, safe.width, safe.height);
+
+        ctx.fillStyle = "rgba(255, 90, 90, 0.95)";
+        ctx.fillText(enemy.type, unsafe.x, unsafe.y - 2);
+        ctx.fillStyle = "rgba(40, 255, 120, 0.95)";
+        ctx.fillText("SAFE", safe.x, safe.y - 2);
       }
     }
 
@@ -6650,7 +7514,9 @@ class Game {
     // Draw animated underwater character sprite
     if (this.playerAnimLoaded.idle && this.playerAnimImages.idle) {
       let animState: PlayerAnimState = "idle";
-      if (!p.grounded) {
+      if (this.playerHitAnimFrames > 0) {
+        animState = "hit";
+      } else if (!p.grounded) {
         animState = p.vy > 1.2 ? "fall" : "jump";
         if (this.playerController.isCurrentlyShooting()) {
           animState = "shoot";
@@ -6969,36 +7835,13 @@ class Game {
     
     for (const exp of explosions) {
       ctx.save();
-      
-      // Outer shockwave ring
-      ctx.strokeStyle = info.color.replace("1)", `${exp.alpha * 0.6})`).replace("#ff6633", `rgba(255, 102, 51, ${exp.alpha * 0.6})`);
-      const ringColor = `rgba(255, 102, 51, ${exp.alpha * 0.6})`;
-      ctx.strokeStyle = ringColor;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      // Inner fire gradient
-      const gradient = ctx.createRadialGradient(exp.x, exp.y, 0, exp.x, exp.y, exp.radius);
-      gradient.addColorStop(0, `rgba(255, 200, 100, ${exp.alpha * 0.5})`);
-      gradient.addColorStop(0.4, `rgba(255, 102, 51, ${exp.alpha * 0.3})`);
-      gradient.addColorStop(0.7, `rgba(255, 50, 0, ${exp.alpha * 0.15})`);
-      gradient.addColorStop(1, `rgba(255, 50, 0, 0)`);
-      ctx.fillStyle = gradient;
+
+      // Solid filled radius for clearer gameplay readability.
+      ctx.fillStyle = `rgba(255, 102, 51, ${Math.max(0.12, exp.alpha * 0.35)})`;
       ctx.beginPath();
       ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Bright center flash
-      if (exp.frame < 8) {
-        const flashAlpha = (1 - exp.frame / 8) * 0.7;
-        ctx.fillStyle = `rgba(255, 255, 200, ${flashAlpha})`;
-        ctx.beginPath();
-        ctx.arc(exp.x, exp.y, exp.radius * 0.3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      
+
       ctx.restore();
     }
   }
@@ -7129,35 +7972,79 @@ class Game {
   
   private drawTouchZones(): void {
     const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    const leftZone = w * 0.33;
-    const rightZone = w * 0.67;
-    
-    // Semi-transparent zone indicators - full screen
-    ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
-    
-    // Left zone (move left)
-    ctx.fillRect(0, 0, leftZone, h);
-    
-    // Right zone (move right)
-    ctx.fillRect(rightZone, 0, w - rightZone, h);
-    
-    // Center zone (tap action - jump/shoot)
-    ctx.fillStyle = "rgba(0, 255, 0, 0.03)";
-    ctx.fillRect(leftZone, 0, rightZone - leftZone, h);
-    
-    // Zone labels - scale font for DPR
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const fontSize = Math.round(10 * dpr);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-    ctx.font = `${fontSize}px 'Press Start 2P'`;
-    ctx.textAlign = "center";
-    
-    const labelY = h - Math.round(20 * dpr);
-    ctx.fillText("LEFT", w * 0.165, labelY);
-    ctx.fillText("TAP", w * 0.5, labelY);
-    ctx.fillText("RIGHT", w * 0.835, labelY);
+    const btns = this.getMobileButtons();
+
+    this.drawMobileButton(ctx, btns.left.cx * dpr,   btns.left.cy * dpr,   btns.left.r * dpr,   this.input.left,  "left");
+    this.drawMobileButton(ctx, btns.right.cx * dpr,  btns.right.cy * dpr,  btns.right.r * dpr,  this.input.right, "right");
+    this.drawMobileButton(ctx, btns.action.cx * dpr, btns.action.cy * dpr, btns.action.r * dpr, this.input.jump || this.input.shoot, "action");
+  }
+
+  private drawMobileButton(
+    ctx: CanvasRenderingContext2D,
+    cx: number, cy: number, r: number,
+    active: boolean,
+    type: "left" | "right" | "action"
+  ): void {
+    ctx.save();
+    const btnImg =
+      type === "left"
+        ? this.mobileLeftBtnImg
+        : type === "right"
+          ? this.mobileRightBtnImg
+          : this.mobileUpBtnImg;
+    const imgReady = !!btnImg && btnImg.complete && btnImg.naturalWidth > 0;
+
+    if (imgReady) {
+      const drawSize = r * 2.2;
+      const drawX = cx - drawSize / 2;
+      const drawY = cy - drawSize / 2;
+      if (active) {
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.globalAlpha = 0.88;
+      }
+      ctx.drawImage(btnImg as HTMLImageElement, drawX, drawY, drawSize, drawSize);
+      if (active) {
+        // Rectangular press highlight to match square button art.
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        const pad = drawSize * 0.14;
+        ctx.fillRect(drawX + pad, drawY + pad, drawSize - pad * 2, drawSize - pad * 2);
+      }
+      ctx.restore();
+      return;
+    }
+
+    // Fallback vector control if icon failed to load.
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = active ? "rgba(255, 255, 255, 0.30)" : "rgba(0, 0, 0, 0.50)";
+    ctx.fill();
+    ctx.strokeStyle = active ? "rgba(255, 255, 255, 0.85)" : "rgba(255, 255, 255, 0.30)";
+    ctx.lineWidth = Math.max(2, r * 0.06);
+    ctx.stroke();
+
+    ctx.fillStyle = active ? "rgba(255, 255, 255, 1.0)" : "rgba(255, 255, 255, 0.65)";
+    const a = r * 0.42;
+    ctx.beginPath();
+    if (type === "left") {
+      ctx.moveTo(cx - a, cy);
+      ctx.lineTo(cx + a * 0.55, cy - a);
+      ctx.lineTo(cx + a * 0.55, cy + a);
+    } else if (type === "right") {
+      ctx.moveTo(cx + a, cy);
+      ctx.lineTo(cx - a * 0.55, cy - a);
+      ctx.lineTo(cx - a * 0.55, cy + a);
+    } else {
+      ctx.moveTo(cx, cy - a);
+      ctx.lineTo(cx + a, cy + a * 0.55);
+      ctx.lineTo(cx - a, cy + a * 0.55);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
   }
   
   private gameLoop(timestamp: number = 0): void {
@@ -7214,3 +8101,4 @@ if (document.readyState === "loading") {
 } else {
   initGame();
 }
+
