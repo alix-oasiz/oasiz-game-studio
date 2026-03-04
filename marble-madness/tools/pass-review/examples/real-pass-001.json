@@ -1,0 +1,16 @@
+{
+  "passId": "helix-real-pass-001",
+  "title": "Helix Real Pass 001",
+  "summary": "First real review pass using agent debug minimal spawn and camera presets.",
+  "screenshots": [
+    { "label": "Overview", "path": "screenshots/agent-debug-overview.png" },
+    { "label": "Side", "path": "screenshots/agent-debug-side.png" },
+    { "label": "Top", "path": "screenshots/agent-debug-top.png" }
+  ],
+  "reasoning": "I used the new agent debug mode (K spawn + camera presets) to produce quick wide-angle captures. The current helix still does not match the toy yet: curvature is present but vertical loop structure and multi-level overlap are not there. This is a baseline real pass before the next geometry iteration.",
+  "nextSteps": [
+    "Increase helix vertical separation and add second revolution option",
+    "Shape entry/exit transitions to mimic toy loop connectors",
+    "Capture and republish pass 002 for approve/decline"
+  ]
+}

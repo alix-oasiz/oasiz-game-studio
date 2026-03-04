@@ -276,6 +276,85 @@
         letter-spacing: 0.06em;
       }
 
+      .settings-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .settings-tab-btn {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        background: rgba(10, 20, 44, 0.74);
+        color: #dce8ff;
+        padding: 7px 12px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+      }
+
+      .settings-tab-btn[data-active="true"] {
+        background: linear-gradient(180deg, #74bcff, #3a79df);
+        color: #ffffff;
+      }
+
+      .settings-pane {
+        display: block;
+      }
+
+      .designer-intro {
+        margin: 0 0 10px;
+        color: #d3e3ff;
+        font-size: 0.84rem;
+        line-height: 1.4;
+      }
+
+      .designer-list {
+        display: grid;
+        gap: 8px;
+        max-height: 280px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+
+      .designer-row {
+        display: grid;
+        grid-template-columns: 58px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .designer-row-label {
+        color: #d5e4ff;
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      .designer-select {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        background: rgba(12, 24, 53, 0.92);
+        color: #ecf3ff;
+        padding: 8px 10px;
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+
+      .designer-actions {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .designer-meta {
+        color: #bfd4fb;
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+      }
+
       .setting-row {
         display: flex;
         justify-content: space-between;
@@ -343,6 +422,10 @@
           right: 12px;
           bottom: 22px;
         }
+
+        .desktop-only {
+          display: none !important;
+        }
       }
 
       @media (pointer: fine) {
@@ -396,18 +479,103 @@
       <div id="settings-modal" class="overlay settings-modal hidden">
         <div class="settings-card">
           <h2 class="settings-title">Settings</h2>
-          <div class="setting-row">
-            <div class="setting-label">Music</div>
-            <button id="toggle-music" class="toggle-btn" data-enabled="true">ON</button>
+          <div class="settings-tabs desktop-only">
+            <button id="settings-tab-audio" class="settings-tab-btn" data-active="true">Audio</button>
+            <button id="settings-tab-designer" class="settings-tab-btn" data-active="false">Level Designer</button>
+            <button id="settings-tab-repeat" class="settings-tab-btn" data-active="false">Repeat Type</button>
+            <button id="settings-tab-obstacles" class="settings-tab-btn" data-active="false">Obstacles</button>
+            <button id="settings-tab-debug" class="settings-tab-btn" data-active="false">Debug</button>
           </div>
-          <div class="setting-row">
-            <div class="setting-label">FX</div>
-            <button id="toggle-fx" class="toggle-btn" data-enabled="true">ON</button>
+
+          <div id="settings-pane-audio" class="settings-pane">
+            <div class="setting-row">
+              <div class="setting-label">Music</div>
+              <button id="toggle-music" class="toggle-btn" data-enabled="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">FX</div>
+              <button id="toggle-fx" class="toggle-btn" data-enabled="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Haptics</div>
+              <button id="toggle-haptics" class="toggle-btn" data-enabled="true">ON</button>
+            </div>
           </div>
-          <div class="setting-row">
-            <div class="setting-label">Haptics</div>
-            <button id="toggle-haptics" class="toggle-btn" data-enabled="true">ON</button>
+
+          <div id="settings-pane-designer" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Choose the middle platforms for the next run, then spawn directly into that layout.
+            </p>
+            <div id="designer-list" class="designer-list"></div>
+            <div class="designer-actions">
+              <div id="designer-meta" class="designer-meta">Middle platforms: 0</div>
+              <button id="designer-spawn" class="button">Spawn Designed Level</button>
+            </div>
           </div>
+
+          <div id="settings-pane-repeat" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Pick one platform type and spawn a debug run with 3 repeated middle platforms.
+            </p>
+            <div class="designer-row">
+              <div class="designer-row-label">Type</div>
+              <select id="designer-repeat-select" class="designer-select"></select>
+            </div>
+            <div class="designer-actions">
+              <div id="designer-repeat-meta" class="designer-meta">Middle platforms: 3</div>
+              <button id="designer-repeat-spawn" class="button">Spawn Repeated Level</button>
+            </div>
+          </div>
+
+          <div id="settings-pane-obstacles" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Choose one obstacle type and spawn a flat-only obstacle test run.
+            </p>
+            <div class="designer-row">
+              <div class="designer-row-label">Type</div>
+              <select id="obstacle-focus-select" class="designer-select">
+                <option value="horizontal_blocker">Horizontal Blocker</option>
+                <option value="rotator_x">Rotator X</option>
+                <option value="pinball_bouncer">Pinball Bouncer</option>
+                <option value="bouncy_pad">Bouncy Pad</option>
+              </select>
+            </div>
+            <div class="designer-actions">
+              <div class="designer-meta">Map: Flat-only middle platforms</div>
+              <button id="obstacle-focus-spawn" class="button">Spawn Obstacle Test</button>
+            </div>
+          </div>
+
+          <div id="settings-pane-debug" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Visualize platform geometry and spawn a minimal straight test level.
+            </p>
+            <div class="setting-row">
+              <div class="setting-label">Track Mesh Wireframe</div>
+              <button id="debug-track-wire-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Physics Mesh Wireframe</div>
+              <button id="debug-physics-wire-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Cloud Count Overlay</div>
+              <button id="debug-cloud-count-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Physics Panel</div>
+              <button id="debug-physics-panel-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Thud Trace</div>
+              <button id="debug-thud-trace-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="designer-actions">
+              <div class="designer-meta">Preset: Flat -> Ramp -> Long Flat (No Obstacles)</div>
+              <button id="debug-cube-level-spawn" class="button">Spawn Cube Test Level</button>
+            </div>
+          </div>
+
           <div class="modal-actions">
             <button id="settings-close" class="button">Close</button>
           </div>

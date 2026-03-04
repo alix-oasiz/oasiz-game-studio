@@ -49,6 +49,8 @@ This file defines the shared language for track generation so prompts map to det
 - `flat`: Neutral slope.
 - `slope_down_soft`: Mild negative y gradient.
 - `slope_down_steep`: Strong negative y gradient.
+- `spiral_down_left`: Full-revolution descending spiral biased to the left.
+- `spiral_down_right`: Full-revolution descending spiral biased to the right.
 - `detour_left_short`: Short lateral offset left while still moving forward.
 - `detour_right_short`: Short lateral offset right while still moving forward.
 - `bottleneck`: Reduced track width.
