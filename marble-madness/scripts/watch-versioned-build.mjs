@@ -125,6 +125,10 @@ function readBuildVersion() {
   }
 }
 
+function logBuildVersion(context) {
+  console.log("[BuildVersion]", context + " " + readBuildVersion());
+}
+
 function shouldWatchFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (!ext) {
@@ -256,7 +260,7 @@ async function runBuildPipeline(triggerPath) {
   ignoreUntil = Date.now() + SELF_WRITE_GUARD_MS;
   log("WatchFlow", "Change detected at " + triggerPath);
   log("WatchFlow", "Running version bump + build");
-  log("WatchFlow", "Build version before bump: " + readBuildVersion());
+  logBuildVersion("Before bump:");
 
   const bumpCode = await runCommand(nodeCmd, [versionBumpScript]);
   if (bumpCode !== 0) {
@@ -268,17 +272,15 @@ async function runBuildPipeline(triggerPath) {
     }
     return;
   }
-  log("WatchFlow", "Expected build version: " + readBuildVersion());
+  logBuildVersion("After bump:");
 
   const buildCode = await runCommand(nodeCmd, [viteCli, "build"]);
   if (buildCode === 0) {
-    log("WatchFlow", "Build succeeded at version " + readBuildVersion());
+    logBuildVersion("Build succeeded at version:");
     await restartDevServer();
   } else {
-    log(
-      "WatchFlow",
-      "Build failed at version " + readBuildVersion() + ", dev server left unchanged",
-    );
+    logBuildVersion("Build failed at version:");
+    log("WatchFlow", "Dev server left unchanged after failed build");
   }
 
   isBuilding = false;
@@ -385,7 +387,7 @@ async function main() {
     process.exit(0);
     return;
   }
-  log("WatchFlow", "Current build version: " + readBuildVersion());
+  logBuildVersion("Current build version:");
   startDevServer();
   initWatchers();
 }
