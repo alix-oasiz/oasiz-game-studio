@@ -3160,9 +3160,9 @@ class Game {
     }
     const [p1, p2] = allTypes;
     return [
-      { type: "heart",   cost: 40,  purchased: false },
-      { type: "powerup", powerupType: p1, cost: 80, purchased: false },
-      { type: "powerup", powerupType: p2, cost: 80, purchased: false },
+      { type: "heart",   cost: 15,  purchased: false },
+      { type: "powerup", powerupType: p1, cost: 30, purchased: false },
+      { type: "powerup", powerupType: p2, cost: 30, purchased: false },
     ];
   }
 
