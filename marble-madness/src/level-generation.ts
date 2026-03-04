@@ -2,15 +2,13 @@ export type PlatformType =
   | "start"
   | "flat"
   | "slope_up_steep"
-  | "slope_down_soft"
-  | "slope_down_steep"
   | "spiral_down_left"
   | "spiral_down_right"
   | "detour_left_short"
   | "detour_right_short"
   | "bottleneck"
-  | "gap_short"
-  | "finish_straight";
+  | "jump"
+  | "end";
 
 export interface PlatformSection {
   type: PlatformType;
@@ -23,6 +21,8 @@ export interface PlatformSection {
   detourMagnitude: number;
   lateralOffsetStart: number;
   lateralOffsetEnd: number;
+  spiralEntryLength: number;
+  spiralExitLength: number;
 }
 
 export interface LevelConfig {
@@ -70,6 +70,9 @@ interface LevelConfigInput {
   trackWidth: number;
   downhillSlopeAngle: number;
   uphillSlopeAngle: number;
+  spiralRadius: number;
+  spiralEntryLength: number;
+  spiralExitLength: number;
   forcedMiddleTypes?: PlatformType[] | null;
   randomRange: (min: number, max: number) => number;
 }
@@ -111,15 +114,38 @@ function smooth01(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
+const JUMP_RAMP_PORTION = 0.42;
+const JUMP_GAP_PORTION = 0.24;
+
+function isJumpGapProgressT(t: number): boolean {
+  const gapStart = JUMP_RAMP_PORTION;
+  const gapEnd = JUMP_RAMP_PORTION + JUMP_GAP_PORTION;
+  return t >= gapStart && t < gapEnd;
+}
+
+function hasFloorAtSectionT(section: PlatformSection, t: number): boolean {
+  if (section.type !== "jump") {
+    return section.hasFloor;
+  }
+  return !isJumpGapProgressT(t);
+}
+
+function getJumpSlopeAtT(t: number, uphillSlopeAngle: number): number {
+  if (t < JUMP_RAMP_PORTION) {
+    return uphillSlopeAngle * 0.8;
+  }
+  return 0;
+}
+
 export function getDefaultDesignerMiddleTypes(): PlatformType[] {
   return [
     "bottleneck",
     "detour_left_short",
-    "slope_down_soft",
+    "jump",
     "spiral_down_left",
     "flat",
     "detour_right_short",
-    "slope_down_steep",
+    "jump",
     "bottleneck",
   ];
 }
@@ -127,16 +153,14 @@ export function getDefaultDesignerMiddleTypes(): PlatformType[] {
 export function getPlatformTypeLabel(type: PlatformType): string {
   if (type === "start") return "Start";
   if (type === "flat") return "Flat";
-  if (type === "slope_down_soft") return "Slope Down Soft";
-  if (type === "slope_down_steep") return "Slope Down Steep";
   if (type === "slope_up_steep") return "Slope Up Steep";
   if (type === "spiral_down_left") return "Spiral Down Left";
   if (type === "spiral_down_right") return "Spiral Down Right";
   if (type === "detour_left_short") return "Detour Left";
   if (type === "detour_right_short") return "Detour Right";
   if (type === "bottleneck") return "Bottleneck";
-  if (type === "gap_short") return "Gap Short";
-  if (type === "finish_straight") return "Finish Straight";
+  if (type === "jump") return "Jump";
+  if (type === "end") return "End";
   return type;
 }
 
@@ -145,33 +169,25 @@ export function isSpiralType(type: PlatformType): boolean {
 }
 
 export function isDownwardSlopeType(type: PlatformType): boolean {
-  return (
-    type === "slope_down_soft" ||
-    type === "slope_down_steep" ||
-    isSpiralType(type)
-  );
+  return isSpiralType(type);
 }
 
 function pickMiddlePlatformType(previousType: PlatformType): PlatformType {
-  const canGap = isDownwardSlopeType(previousType);
   const forbidDownward = isDownwardSlopeType(previousType);
   const roll = Math.random();
-  if (canGap && roll < 0.12) {
-    return "gap_short";
+  if (roll < 0.14) {
+    return "jump";
   }
-  if (!forbidDownward && roll < 0.24) {
-    return "slope_down_soft";
-  }
-  if (!forbidDownward && roll < 0.38) {
-    return "slope_down_steep";
-  }
-  if (!forbidDownward && roll < 0.5) {
+  if (!forbidDownward && roll < 0.3) {
     return Math.random() < 0.5 ? "spiral_down_left" : "spiral_down_right";
   }
-  if (roll < 0.62) {
+  if (roll < 0.5) {
     return "bottleneck";
   }
-  return Math.random() < 0.5 ? "detour_left_short" : "detour_right_short";
+  if (roll < 0.75) {
+    return Math.random() < 0.5 ? "detour_left_short" : "detour_right_short";
+  }
+  return "flat";
 }
 
 function createPlatformSection(
@@ -180,10 +196,16 @@ function createPlatformSection(
   zEnd: number,
   settings: Pick<
     LevelConfigInput,
-    "trackWidth" | "downhillSlopeAngle" | "uphillSlopeAngle" | "randomRange"
+    | "trackWidth"
+    | "downhillSlopeAngle"
+    | "uphillSlopeAngle"
+    | "spiralRadius"
+    | "spiralEntryLength"
+    | "spiralExitLength"
+    | "randomRange"
   >,
 ): PlatformSection {
-  if (type === "start" || type === "flat" || type === "finish_straight") {
+  if (type === "start" || type === "flat" || type === "end") {
     return {
       type,
       zStart,
@@ -195,20 +217,8 @@ function createPlatformSection(
       detourMagnitude: 0,
       lateralOffsetStart: 0,
       lateralOffsetEnd: 0,
-    };
-  }
-  if (type === "slope_down_soft") {
-    return {
-      type,
-      zStart,
-      zEnd,
-      slope: settings.downhillSlopeAngle * 0.25,
-      width: settings.trackWidth,
-      hasFloor: true,
-      detourDirection: 1,
-      detourMagnitude: 0,
-      lateralOffsetStart: 0,
-      lateralOffsetEnd: 0,
+      spiralEntryLength: 0,
+      spiralExitLength: 0,
     };
   }
   if (type === "slope_up_steep") {
@@ -223,23 +233,16 @@ function createPlatformSection(
       detourMagnitude: 0,
       lateralOffsetStart: 0,
       lateralOffsetEnd: 0,
-    };
-  }
-  if (type === "slope_down_steep") {
-    return {
-      type,
-      zStart,
-      zEnd,
-      slope: settings.downhillSlopeAngle * 0.5,
-      width: settings.trackWidth,
-      hasFloor: true,
-      detourDirection: 1,
-      detourMagnitude: 0,
-      lateralOffsetStart: 0,
-      lateralOffsetEnd: 0,
+      spiralEntryLength: 0,
+      spiralExitLength: 0,
     };
   }
   if (isSpiralType(type)) {
+    const spiralRadius = clamp(
+      settings.spiralRadius,
+      settings.trackWidth * 0.65,
+      settings.trackWidth * 4.2,
+    );
     return {
       type,
       zStart,
@@ -248,9 +251,11 @@ function createPlatformSection(
       width: settings.trackWidth * 1.04,
       hasFloor: true,
       detourDirection: type === "spiral_down_left" ? -1 : 1,
-      detourMagnitude: settings.randomRange(32, 52),
+      detourMagnitude: spiralRadius,
       lateralOffsetStart: 0,
       lateralOffsetEnd: 0,
+      spiralEntryLength: Math.max(0, settings.spiralEntryLength),
+      spiralExitLength: Math.max(0, settings.spiralExitLength),
     };
   }
   if (type === "bottleneck") {
@@ -265,20 +270,24 @@ function createPlatformSection(
       detourMagnitude: 0,
       lateralOffsetStart: 0,
       lateralOffsetEnd: 0,
+      spiralEntryLength: 0,
+      spiralExitLength: 0,
     };
   }
-  if (type === "gap_short") {
+  if (type === "jump") {
     return {
       type,
       zStart,
       zEnd,
       slope: 0,
       width: settings.trackWidth,
-      hasFloor: false,
+      hasFloor: true,
       detourDirection: 1,
       detourMagnitude: 0,
       lateralOffsetStart: 0,
       lateralOffsetEnd: 0,
+      spiralEntryLength: 0,
+      spiralExitLength: 0,
     };
   }
   return {
@@ -292,6 +301,8 @@ function createPlatformSection(
     detourMagnitude: settings.randomRange(2.6, 6.8),
     lateralOffsetStart: 0,
     lateralOffsetEnd: 0,
+    spiralEntryLength: 0,
+    spiralExitLength: 0,
   };
 }
 
@@ -317,27 +328,15 @@ function applySectionLateralOffsets(
 export function createRandomLevelConfig(input: LevelConfigInput): LevelConfig {
   const customMiddleTypes = (input.forcedMiddleTypes ?? []).slice();
   const useCustomMiddle = customMiddleTypes.length > 0;
-  const targetPlatformCount = Math.min(24, 4 + input.loopsCompleted);
+  const targetPlatformCount = 4 + input.loopsCompleted;
   const middleCount = useCustomMiddle
     ? customMiddleTypes.length
     : Math.max(0, targetPlatformCount - 2);
   const platformCount = middleCount + 2;
   const sections: PlatformSection[] = [];
 
-  const startLength = input.randomRange(24, 32);
-  const finishLength = input.randomRange(24, 34);
-  const usableLength = Math.max(
-    40,
-    input.startZ - input.finishZ - startLength - finishLength,
-  );
-
-  const weights: number[] = [];
-  let weightSum = 0;
-  for (let i = 0; i < middleCount; i += 1) {
-    const weight = input.randomRange(1.15, 2.1);
-    weights.push(weight);
-    weightSum += weight;
-  }
+  const startLength = 24;
+  const finishLength = 24;
 
   let currentZ = input.startZ;
   const startSectionEnd = currentZ - startLength;
@@ -348,14 +347,11 @@ export function createRandomLevelConfig(input: LevelConfigInput): LevelConfig {
 
   let previousType: PlatformType = "start";
   for (let i = 0; i < middleCount; i += 1) {
-    let length = Math.max(
-      15,
-      (weights[i] / Math.max(0.001, weightSum)) * usableLength,
-    );
+    let length = input.randomRange(18, 34);
     let type: PlatformType = useCustomMiddle
       ? customMiddleTypes[i] ?? "flat"
       : pickMiddlePlatformType(previousType);
-    if (type === "finish_straight") {
+    if (type === "end") {
       type = "flat";
     }
     if (
@@ -368,37 +364,26 @@ export function createRandomLevelConfig(input: LevelConfigInput): LevelConfig {
     if (
       !useCustomMiddle &&
       isSpiralType(type) &&
-      currentZ - (input.finishZ + finishLength) < 160
+      i > middleCount - 2
     ) {
       type = "bottleneck";
     }
-    if (
-      !useCustomMiddle &&
-      type === "gap_short" &&
-      !isDownwardSlopeType(previousType)
-    ) {
-      type = "slope_down_soft";
-    }
     if (isSpiralType(type)) {
-      length = input.randomRange(120, 170);
+      const spiralRadius = clamp(
+        input.spiralRadius,
+        input.trackWidth * 0.65,
+        input.trackWidth * 4.2,
+      );
+      const spiralCircumference = Math.PI * 2 * spiralRadius;
+      length = Math.max(
+        40,
+        input.spiralEntryLength + spiralCircumference + input.spiralExitLength,
+      );
     }
-    if (type === "gap_short") {
-      length = input.randomRange(10, 15);
-      const launchIndex = sections.length - 1;
-      if (launchIndex < 1) {
-        type = "slope_down_soft";
-      } else if (sections[launchIndex].type !== "slope_up_steep") {
-        const launchSection = sections[launchIndex];
-        sections[launchIndex] = createPlatformSection(
-          "slope_up_steep",
-          launchSection.zStart,
-          launchSection.zEnd,
-          input,
-        );
-      }
+    if (type === "jump") {
+      length = input.randomRange(26, 36);
     }
-
-    const zEnd = Math.max(input.finishZ + finishLength, currentZ - length);
+    const zEnd = currentZ - Math.max(15, length);
     sections.push(createPlatformSection(type, currentZ, zEnd, input));
     previousType = type;
     currentZ = zEnd;
@@ -415,15 +400,16 @@ export function createRandomLevelConfig(input: LevelConfigInput): LevelConfig {
     );
   }
 
+  const dynamicFinishZ = currentZ - finishLength;
   sections.push(
-    createPlatformSection("finish_straight", currentZ, input.finishZ, input),
+    createPlatformSection("end", currentZ, dynamicFinishZ, input),
   );
   applySectionLateralOffsets(sections, input.trackWidth);
 
   return {
     platformCount,
     sections,
-    fireworkZ: input.finishZ + 12,
+    fireworkZ: dynamicFinishZ + 12,
   };
 }
 
@@ -450,8 +436,12 @@ export function getSectionProgressT(section: PlatformSection, z: number): number
 
 export function getSpiralRadius(section: PlatformSection): number {
   const sectionLength = Math.max(0.001, section.zStart - section.zEnd);
-  const maxStableRadius = (sectionLength / (Math.PI * 2)) * 1.08;
-  return Math.max(6, Math.min(section.detourMagnitude, maxStableRadius));
+  const spiralArcLength = Math.max(
+    0.001,
+    sectionLength - section.spiralEntryLength - section.spiralExitLength,
+  );
+  const maxStableRadius = (spiralArcLength / (Math.PI * 2)) * 1.08;
+  return Math.max(1.5, Math.min(section.detourMagnitude, maxStableRadius));
 }
 
 export function sampleSpiralProgressT(
@@ -478,22 +468,24 @@ export function sampleTrackCenterAtSectionT(
     const direction = section.type === "spiral_down_left" ? -1 : 1;
     const radius = getSpiralRadius(section);
     const spinAngle = Math.PI + Math.PI * 2 * t;
-    const axisX = lerp(
-      section.lateralOffsetStart,
-      section.lateralOffsetEnd,
-      smoothT,
-    ) + direction * radius;
+    const axisX = lerp(section.lateralOffsetStart, section.lateralOffsetEnd, 0.5);
     const axisZ = (section.zStart + section.zEnd) * 0.5;
     const baseSpiralX = axisX + direction * radius * Math.cos(spinAngle);
     const baseSpiralZ = axisZ + radius * Math.sin(spinAngle);
     const targetZ = lerp(section.zStart, section.zEnd, t);
-    const edgeDistance = Math.min(t, 1 - t);
-    const edgeWindow = 0.036;
-    const edgeBlend = edgeDistance < edgeWindow
-      ? smooth01((edgeWindow - edgeDistance) / edgeWindow)
+    const sectionLength = Math.max(0.001, section.zStart - section.zEnd);
+    const entryWindow = clamp(section.spiralEntryLength / sectionLength, 0, 0.45);
+    const exitWindow = clamp(section.spiralExitLength / sectionLength, 0, 0.45);
+    const entryBlend = entryWindow > 0 && t < entryWindow
+      ? smooth01((entryWindow - t) / entryWindow)
       : 0;
-    x = baseSpiralX;
-    z = baseSpiralZ + (targetZ - baseSpiralZ) * edgeBlend;
+    const toEnd = 1 - t;
+    const exitBlend = exitWindow > 0 && toEnd < exitWindow
+      ? smooth01((exitWindow - toEnd) / exitWindow)
+      : 0;
+    const edgeBlend = Math.max(entryBlend, exitBlend);
+    x = lerp(baseSpiralX, baseX, edgeBlend);
+    z = lerp(baseSpiralZ, targetZ, edgeBlend);
   }
   return { x, z };
 }
@@ -527,10 +519,14 @@ export function sampleTrackSlope(
     }
 
     let slope = section.slope;
+    const localT = getSectionProgressT(section, clampedZ);
+    if (section.type === "jump") {
+      slope = getJumpSlopeAtT(localT, uphillSlopeAngle);
+    }
     const prevSection = i > 0 ? sections[i - 1] : null;
     const nextSection = i < sections.length - 1 ? sections[i + 1] : null;
 
-    if (prevSection) {
+    if (prevSection && section.type !== "jump") {
       const toStart = section.zStart - clampedZ;
       if (toStart < slopeBlendDistance) {
         const t = clamp(toStart / Math.max(0.001, slopeBlendDistance), 0, 1);
@@ -538,7 +534,7 @@ export function sampleTrackSlope(
       }
     }
 
-    if (nextSection) {
+    if (nextSection && section.type !== "jump") {
       const toEnd = clampedZ - section.zEnd;
       if (toEnd < slopeBlendDistance) {
         const t = clamp(toEnd / Math.max(0.001, slopeBlendDistance), 0, 1);
@@ -547,8 +543,8 @@ export function sampleTrackSlope(
     }
 
     if (isSpiralType(section.type)) {
-      const localT = sampleSpiralProgressT(section, clampedZ);
-      const extraDrop = Math.sin(localT * Math.PI) * downhillSlopeAngle * 0.04;
+      const spiralT = sampleSpiralProgressT(section, clampedZ);
+      const extraDrop = Math.sin(spiralT * Math.PI) * downhillSlopeAngle * 0.04;
       slope += extraDrop;
     }
 
@@ -572,7 +568,9 @@ export function hasFloorAtZ(
   startZ: number,
   z: number,
 ): boolean {
-  return getSectionAtZ(levelConfig, finishZ, startZ, z).hasFloor;
+  const section = getSectionAtZ(levelConfig, finishZ, startZ, z);
+  const t = getSectionProgressT(section, z);
+  return hasFloorAtSectionT(section, t);
 }
 
 function getArcLengthFromNominalZ(
@@ -650,7 +648,7 @@ export function buildTrackSlices(
         y: currentY,
         tilt,
         width: section.width,
-        hasFloor: section.hasFloor,
+        hasFloor: hasFloorAtSectionT(section, t),
         sectionIndex,
       });
     }

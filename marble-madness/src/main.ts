@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { oasiz } from "@oasiz/sdk";
 import {
@@ -52,7 +53,10 @@ import {
   type RotatorXObstacle,
   type WaveObstacleKind,
 } from "./obstacles";
-import { SoundManager } from "./sound-manager";
+import {
+  SoundManager,
+  type LandingSoundDebugInfo,
+} from "./sound-manager";
 
 const BUILD_VERSION = "0.5.151";
 
@@ -268,6 +272,7 @@ class MarbleMadnessStarter {
   private readonly debugPhysicsWireToggleButton: HTMLButtonElement | null;
   private readonly debugCloudCountToggleButton: HTMLButtonElement | null;
   private readonly debugPhysicsPanelToggleButton: HTMLButtonElement | null;
+  private readonly debugThudTraceToggleButton: HTMLButtonElement | null;
   private readonly debugCubeLevelSpawnButton: HTMLButtonElement | null;
   private readonly hud: HTMLElement;
   private readonly mobileControls: HTMLElement;
@@ -282,6 +287,7 @@ class MarbleMadnessStarter {
   private readonly fpsLabel: HTMLElement;
   private readonly physicsDebugPanel: HTMLPreElement;
   private readonly cloudDebugPanel: HTMLDivElement;
+  private readonly thudDebugPanel: HTMLPreElement;
   private marbleVisuals: MarbleVisualController;
   private steeringAngle = 0;
   private debugFlyMode = false;
@@ -317,7 +323,10 @@ class MarbleMadnessStarter {
   private debugPhysicsWireframeEnabled = false;
   private debugCloudCountOverlayEnabled = false;
   private debugPhysicsPanelEnabled = false;
+  private debugThudTraceEnabled = false;
   private cloudSpriteCount = 0;
+  private thudDebugEntries: string[] = [];
+  private thudTraceFlashTimer = 0;
   private trackWireframeObjects: THREE.LineSegments[] = [];
   private physicsWireframeObjects: THREE.LineSegments[] = [];
 
@@ -399,6 +408,9 @@ class MarbleMadnessStarter {
     this.debugPhysicsPanelToggleButton = document.getElementById(
       "debug-physics-panel-toggle",
     ) as HTMLButtonElement | null;
+    this.debugThudTraceToggleButton = document.getElementById(
+      "debug-thud-trace-toggle",
+    ) as HTMLButtonElement | null;
     this.debugCubeLevelSpawnButton = document.getElementById(
       "debug-cube-level-spawn",
     ) as HTMLButtonElement | null;
@@ -456,6 +468,30 @@ class MarbleMadnessStarter {
     this.cloudDebugPanel.style.display = "none";
     this.cloudDebugPanel.textContent = "Clouds: 0";
     document.body.appendChild(this.cloudDebugPanel);
+    this.thudDebugPanel = document.createElement("pre");
+    this.thudDebugPanel.style.position = "fixed";
+    this.thudDebugPanel.style.left = "16px";
+    this.thudDebugPanel.style.bottom = "84px";
+    this.thudDebugPanel.style.zIndex = "120";
+    this.thudDebugPanel.style.margin = "0";
+    this.thudDebugPanel.style.padding = "8px 10px";
+    this.thudDebugPanel.style.maxWidth = this.isMobile ? "88vw" : "420px";
+    this.thudDebugPanel.style.maxHeight = this.isMobile ? "34vh" : "260px";
+    this.thudDebugPanel.style.overflow = "auto";
+    this.thudDebugPanel.style.whiteSpace = "pre-wrap";
+    this.thudDebugPanel.style.fontFamily =
+      "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    this.thudDebugPanel.style.fontSize = this.isMobile ? "10px" : "11px";
+    this.thudDebugPanel.style.lineHeight = "1.3";
+    this.thudDebugPanel.style.background = "rgba(4, 12, 24, 0.72)";
+    this.thudDebugPanel.style.color = "#cfe6ff";
+    this.thudDebugPanel.style.border = "1px solid rgba(255, 255, 255, 0.2)";
+    this.thudDebugPanel.style.borderRadius = "8px";
+    this.thudDebugPanel.style.pointerEvents = "none";
+    this.thudDebugPanel.style.display = "none";
+    this.thudDebugPanel.style.transition = "color 120ms ease, border-color 120ms ease, background 120ms ease";
+    this.thudDebugPanel.textContent = "Thud trace ready";
+    document.body.appendChild(this.thudDebugPanel);
 
     this.settings = this.loadSettings();
     this.persistentState = this.loadPersistentState();
@@ -1528,12 +1564,14 @@ class MarbleMadnessStarter {
     includeUvs: boolean,
   ): THREE.BufferGeometry {
     const upVector = new THREE.Vector3(0, 1, 0);
-    const ringVertexCount = crossSegments + 1;
     const positions: number[] = [];
     const uvs: number[] = [];
-    const indices: number[] = [];
-
     const rightBySample: THREE.Vector3[] = [];
+    const vBySample: number[] = [];
+    const topRings: THREE.Vector3[][] = [];
+    const bottomRings: THREE.Vector3[][] = [];
+
+    let distanceV = 0;
     for (let i = 0; i < run.length; i += 1) {
       const prev = run[Math.max(0, i - 1)];
       const next = run[Math.min(run.length - 1, i + 1)];
@@ -1550,10 +1588,7 @@ class MarbleMadnessStarter {
         right.normalize();
       }
       rightBySample.push(right);
-    }
 
-    let distanceV = 0;
-    for (let i = 0; i < run.length; i += 1) {
       if (i > 0) {
         const a = run[i - 1];
         const b = run[i];
@@ -1564,34 +1599,130 @@ class MarbleMadnessStarter {
               (a.z - b.z) * (a.z - b.z),
           ) * this.platformUvScaleV;
       }
+      vBySample.push(distanceV);
 
       const sample = run[i];
-      const right = rightBySample[i];
+      const ringTop: THREE.Vector3[] = [];
+      const ringBottom: THREE.Vector3[] = [];
       for (let stripIndex = 0; stripIndex <= crossSegments; stripIndex += 1) {
         const u = stripIndex / crossSegments;
         const localX = (u - 0.5) * sample.width;
         const localY = this.getHalfPipeHeightAtOffset(Math.abs(localX), sample.width);
-        const point = new THREE.Vector3(sample.x, sample.y, sample.z)
+        const topPoint = new THREE.Vector3(sample.x, sample.y, sample.z)
           .addScaledVector(right, localX)
           .add(new THREE.Vector3(0, localY, 0));
-        positions.push(point.x, point.y, point.z);
-        if (includeUvs) {
-          uvs.push(u, distanceV);
-        }
+        const bottomPoint = topPoint.clone().add(new THREE.Vector3(0, -this.trackThickness, 0));
+        ringTop.push(topPoint);
+        ringBottom.push(bottomPoint);
       }
+      topRings.push(ringTop);
+      bottomRings.push(ringBottom);
     }
 
     for (let ringIndex = 0; ringIndex < run.length - 1; ringIndex += 1) {
-      const rowStartA = ringIndex * ringVertexCount;
-      const rowStartB = (ringIndex + 1) * ringVertexCount;
+      const vA = vBySample[ringIndex];
+      const vB = vBySample[ringIndex + 1];
       for (let stripIndex = 0; stripIndex < crossSegments; stripIndex += 1) {
-        const a = rowStartA + stripIndex;
-        const b = rowStartA + stripIndex + 1;
-        const c = rowStartB + stripIndex;
-        const d = rowStartB + stripIndex + 1;
-        indices.push(a, b, c);
-        indices.push(b, d, c);
+        const u0 = stripIndex / crossSegments;
+        const u1 = (stripIndex + 1) / crossSegments;
+        const uvA = new THREE.Vector2(u0, vA);
+        const uvB = new THREE.Vector2(u1, vA);
+        const uvC = new THREE.Vector2(u0, vB);
+        const uvD = new THREE.Vector2(u1, vB);
+
+        const topA = topRings[ringIndex][stripIndex];
+        const topB = topRings[ringIndex][stripIndex + 1];
+        const topC = topRings[ringIndex + 1][stripIndex];
+        const topD = topRings[ringIndex + 1][stripIndex + 1];
+        this.addQuad(positions, uvs, topA, topB, topC, topD, uvA, uvB, uvC, uvD);
+
+        const botA = bottomRings[ringIndex][stripIndex];
+        const botB = bottomRings[ringIndex][stripIndex + 1];
+        const botC = bottomRings[ringIndex + 1][stripIndex];
+        const botD = bottomRings[ringIndex + 1][stripIndex + 1];
+        this.addQuad(positions, uvs, botA, botC, botB, botD, uvA, uvC, uvB, uvD);
       }
+
+      const sideUvA = new THREE.Vector2(0, vA);
+      const sideUvB = new THREE.Vector2(1, vA);
+      const sideUvC = new THREE.Vector2(0, vB);
+      const sideUvD = new THREE.Vector2(1, vB);
+
+      const leftTopA = topRings[ringIndex][0];
+      const leftTopB = topRings[ringIndex + 1][0];
+      const leftBotA = bottomRings[ringIndex][0];
+      const leftBotB = bottomRings[ringIndex + 1][0];
+      this.addQuad(
+        positions,
+        uvs,
+        leftTopA,
+        leftTopB,
+        leftBotA,
+        leftBotB,
+        sideUvA,
+        sideUvC,
+        sideUvB,
+        sideUvD,
+      );
+
+      const last = crossSegments;
+      const rightTopA = topRings[ringIndex][last];
+      const rightTopB = topRings[ringIndex + 1][last];
+      const rightBotA = bottomRings[ringIndex][last];
+      const rightBotB = bottomRings[ringIndex + 1][last];
+      this.addQuad(
+        positions,
+        uvs,
+        rightTopA,
+        rightBotA,
+        rightTopB,
+        rightBotB,
+        sideUvA,
+        sideUvB,
+        sideUvC,
+        sideUvD,
+      );
+    }
+
+    const startV = vBySample[0] ?? 0;
+    const endV = vBySample[vBySample.length - 1] ?? 0;
+    for (let stripIndex = 0; stripIndex < crossSegments; stripIndex += 1) {
+      const u0 = stripIndex / crossSegments;
+      const u1 = (stripIndex + 1) / crossSegments;
+      const startUvA = new THREE.Vector2(u0, startV);
+      const startUvB = new THREE.Vector2(u1, startV);
+      const startUvC = new THREE.Vector2(u0, startV + this.platformUvScaleV);
+      const startUvD = new THREE.Vector2(u1, startV + this.platformUvScaleV);
+      this.addQuad(
+        positions,
+        uvs,
+        topRings[0][stripIndex],
+        bottomRings[0][stripIndex],
+        topRings[0][stripIndex + 1],
+        bottomRings[0][stripIndex + 1],
+        startUvA,
+        startUvC,
+        startUvB,
+        startUvD,
+      );
+
+      const endUvA = new THREE.Vector2(u0, endV);
+      const endUvB = new THREE.Vector2(u1, endV);
+      const endUvC = new THREE.Vector2(u0, endV + this.platformUvScaleV);
+      const endUvD = new THREE.Vector2(u1, endV + this.platformUvScaleV);
+      const lastRing = topRings.length - 1;
+      this.addQuad(
+        positions,
+        uvs,
+        topRings[lastRing][stripIndex],
+        topRings[lastRing][stripIndex + 1],
+        bottomRings[lastRing][stripIndex],
+        bottomRings[lastRing][stripIndex + 1],
+        endUvA,
+        endUvB,
+        endUvC,
+        endUvD,
+      );
     }
 
     const surface = new THREE.BufferGeometry();
@@ -1602,9 +1733,10 @@ class MarbleMadnessStarter {
     if (includeUvs) {
       surface.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     }
-    surface.setIndex(indices);
-    surface.computeVertexNormals();
-    return surface;
+    const welded = mergeVertices(surface, 1e-4);
+    welded.computeVertexNormals();
+    surface.dispose();
+    return welded;
   }
 
   private addPlatformRunMeshes(): void {
@@ -2025,6 +2157,14 @@ class MarbleMadnessStarter {
         ? "ON"
         : "OFF";
     }
+    if (this.debugThudTraceToggleButton) {
+      this.debugThudTraceToggleButton.dataset.enabled = this.debugThudTraceEnabled
+        ? "true"
+        : "false";
+      this.debugThudTraceToggleButton.textContent = this.debugThudTraceEnabled
+        ? "ON"
+        : "OFF";
+    }
   }
 
   private toggleTrackWireframeView(): void {
@@ -2083,6 +2223,20 @@ class MarbleMadnessStarter {
     );
   }
 
+  private toggleThudTraceOverlay(): void {
+    if (this.isMobile) {
+      return;
+    }
+    this.debugThudTraceEnabled = !this.debugThudTraceEnabled;
+    this.updateDebugToolButtons();
+    this.updateThudTraceOverlay();
+    console.log(
+      "[ToggleThudTraceOverlay]",
+      "Thud trace overlay=" +
+        (this.debugThudTraceEnabled ? "on" : "off"),
+    );
+  }
+
   private updateCloudCountOverlay(): void {
     const shouldShow =
       this.gameState === "playing" &&
@@ -2091,6 +2245,57 @@ class MarbleMadnessStarter {
     this.cloudDebugPanel.style.display = shouldShow ? "block" : "none";
     this.cloudDebugPanel.textContent =
       "Cloud Sprites: " + String(this.cloudSpriteCount);
+  }
+
+  private updateThudTraceOverlay(): void {
+    const shouldShow =
+      this.gameState === "playing" &&
+      !this.isMobile &&
+      this.debugThudTraceEnabled;
+    this.thudDebugPanel.style.display = shouldShow ? "block" : "none";
+    this.thudDebugPanel.textContent =
+      this.thudDebugEntries.length > 0
+        ? this.thudDebugEntries.join("\n")
+        : "Thud Trace: waiting for landing events";
+  }
+
+  private recordThudTraceEvent(info: LandingSoundDebugInfo): void {
+    const entry =
+      "t=" +
+      this.runTimeSeconds.toFixed(2) +
+      "s played=" +
+      (info.played ? "yes" : "no") +
+      " reason=" +
+      info.reason +
+      " clip=" +
+      info.clipId +
+      " dur=" +
+      info.clipDurationSeconds.toFixed(3) +
+      "s gain=" +
+      info.gain.toFixed(3) +
+      " impact=" +
+      info.impact.toFixed(3);
+    this.thudDebugEntries.unshift(entry);
+    if (this.thudDebugEntries.length > 6) {
+      this.thudDebugEntries = this.thudDebugEntries.slice(0, 6);
+    }
+    this.updateThudTraceOverlay();
+    this.flashThudTraceOverlay();
+  }
+
+  private flashThudTraceOverlay(): void {
+    this.thudDebugPanel.style.color = "#ffe7aa";
+    this.thudDebugPanel.style.borderColor = "rgba(255, 216, 120, 0.82)";
+    this.thudDebugPanel.style.background = "rgba(52, 33, 4, 0.84)";
+    if (this.thudTraceFlashTimer) {
+      window.clearTimeout(this.thudTraceFlashTimer);
+    }
+    this.thudTraceFlashTimer = window.setTimeout(() => {
+      this.thudDebugPanel.style.color = "#cfe6ff";
+      this.thudDebugPanel.style.borderColor = "rgba(255, 255, 255, 0.2)";
+      this.thudDebugPanel.style.background = "rgba(4, 12, 24, 0.72)";
+      this.thudTraceFlashTimer = 0;
+    }, 180);
   }
 
   private getActiveObstacleKinds(): ObstacleKind[] {
@@ -2414,6 +2619,11 @@ class MarbleMadnessStarter {
       this.soundManager.playUIClick();
       this.triggerLightHaptic();
       this.togglePhysicsDebugPanel();
+    });
+    this.debugThudTraceToggleButton?.addEventListener("click", () => {
+      this.soundManager.playUIClick();
+      this.triggerLightHaptic();
+      this.toggleThudTraceOverlay();
     });
 
     this.bindSettingToggle("toggle-music", "music");
@@ -3105,6 +3315,7 @@ class MarbleMadnessStarter {
     this.settingsModal.classList.add("hidden");
     this.updatePhysicsDebugPanelVisibility();
     this.updateCloudCountOverlay();
+    this.updateThudTraceOverlay();
     this.updateDebugPlatformLabelVisibility();
     this.syncGameplayActivity();
   }
@@ -3283,7 +3494,8 @@ class MarbleMadnessStarter {
           impactSpeed > 3.2 &&
           this.runTimeSeconds - this.lastLandingSfxRunTime > 0.28
         ) {
-          this.soundManager.playHeavyLanding(impactSpeed);
+          const thudInfo = this.soundManager.playHeavyLanding(impactSpeed);
+          this.recordThudTraceEvent(thudInfo);
           this.lastLandingSfxRunTime = this.runTimeSeconds;
         }
         this.airborneSeconds = 0;
