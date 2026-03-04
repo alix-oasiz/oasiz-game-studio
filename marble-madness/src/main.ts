@@ -228,7 +228,8 @@ class MarbleMadnessStarter {
   private designerObstacleFocus: DesignerObstacleFocus = "horizontal_blocker";
   private readonly designerSelectableTypes: PlatformType[] = [
     "flat",
-    "slope_up_steep",
+    "slope_down_soft",
+    "slope_down_steep",
     "spiral_down_left",
     "spiral_down_right",
     "detour_left_short",
@@ -323,7 +324,12 @@ class MarbleMadnessStarter {
   private previousVerticalVelocity = 0;
   private lastLandingSfxRunTime = -999;
   private lastObstacleThudRunTime = -999;
+  private rotatorHitAtById = new Map<string, number>();
+  private rotatorTouchingById = new Map<string, boolean>();
+  private bouncyPadHitAtById = new Map<string, number>();
+  private bouncyPadTouchingById = new Map<string, boolean>();
   private blockerHitAtByIndex = new Map<number, number>();
+  private blockerTouchingByIndex = new Map<number, boolean>();
   private debugTrackWireframeEnabled = false;
   private debugPhysicsWireframeEnabled = false;
   private debugCloudCountOverlayEnabled = false;
@@ -1373,6 +1379,7 @@ class MarbleMadnessStarter {
   private buildHorizontalBlockers(maxPerLevel: number = this.blockerMaxPerLevel): void {
     this.horizontalBlockers = [];
     this.blockerHitAtByIndex.clear();
+    this.blockerTouchingByIndex.clear();
     const blockerLength = this.trackWidth / 3;
     const candidateSections = this.levelConfig.sections
       .map((section, index) => ({ section, index }))
@@ -1383,7 +1390,8 @@ class MarbleMadnessStarter {
         section.type !== "end" &&
         section.type !== "bottleneck" &&
         section.type !== "jump" &&
-        section.type !== "slope_up_steep" &&
+        section.type !== "slope_down_soft" &&
+        section.type !== "slope_down_steep" &&
         section.type !== "spiral_down_left" &&
         section.type !== "spiral_down_right" &&
         section.zStart - section.zEnd > 8,
@@ -2372,6 +2380,10 @@ class MarbleMadnessStarter {
   }
 
   private buildRunObstacles(): void {
+    this.rotatorHitAtById.clear();
+    this.rotatorTouchingById.clear();
+    this.bouncyPadHitAtById.clear();
+    this.bouncyPadTouchingById.clear();
     const activeKinds = this.getActiveObstacleKinds();
     const includeBlockers = activeKinds.includes("horizontal_blocker");
     const isSingleTypeFocus = (this.forcedRunObstacleOrder?.length ?? 0) === 1;
@@ -2381,6 +2393,7 @@ class MarbleMadnessStarter {
     } else {
       this.horizontalBlockers = [];
       this.blockerHitAtByIndex.clear();
+      this.blockerTouchingByIndex.clear();
     }
 
     const waveKinds = activeKinds.filter(
@@ -2563,7 +2576,7 @@ class MarbleMadnessStarter {
     }
     const middleTypes: PlatformType[] = [
       "flat",
-      "slope_up_steep",
+      "slope_down_steep",
       "flat",
       "flat",
       "flat",
@@ -3106,7 +3119,12 @@ class MarbleMadnessStarter {
     this.finishedTimeSeconds = 0;
     this.loopsCompleted = 0;
     this.lastObstacleThudRunTime = -999;
+    this.rotatorHitAtById.clear();
+    this.rotatorTouchingById.clear();
+    this.bouncyPadHitAtById.clear();
+    this.bouncyPadTouchingById.clear();
     this.blockerHitAtByIndex.clear();
+    this.blockerTouchingByIndex.clear();
     const useAgentDebugMinimal = this.agentDebugMinimalMode;
     this.agentDebugMinimalMode = false;
     if (!useAgentDebugMinimal) {
@@ -3134,6 +3152,7 @@ class MarbleMadnessStarter {
     if (useAgentDebugMinimal) {
       this.horizontalBlockers = [];
       this.blockerHitAtByIndex.clear();
+      this.blockerTouchingByIndex.clear();
       this.rotatorObstacles = [];
       this.pinballBouncers = [];
       this.bouncyPads = [];
@@ -3518,8 +3537,13 @@ class MarbleMadnessStarter {
             rotatorObstacles: this.rotatorObstacles,
             bouncyPads: this.bouncyPads,
             pinballBouncers: this.pinballBouncers,
+            rotatorHitAtById: this.rotatorHitAtById,
+            rotatorTouchingById: this.rotatorTouchingById,
+            bouncyPadHitAtById: this.bouncyPadHitAtById,
+            bouncyPadTouchingById: this.bouncyPadTouchingById,
             horizontalBlockers: this.horizontalBlockers,
             blockerHitAtByIndex: this.blockerHitAtByIndex,
+            blockerTouchingByIndex: this.blockerTouchingByIndex,
             bouncerPulseById: this.bouncerPulseById,
             onRotatorHit: (impact) => {
               this.playObstacleThud(impact, "rotator");

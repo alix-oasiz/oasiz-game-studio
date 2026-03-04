@@ -20,7 +20,24 @@ const BOUNCY_PAD_VISUAL_SCALE_Z = 0.62;
 const BOUNCY_PAD_PIVOT_Y = 0.1;
 const BOUNCY_PAD_PADDLE_Y_BASE = 0.24;
 const BOUNCY_PAD_COLLIDER_DEPTH_MULTIPLIER = 1.14;
+const BOUNCY_PAD_SWEEP_ABS_RADIANS = THREE.MathUtils.degToRad(45);
 const OBSTACLE_PHYSICS_WIREFRAME_COLOR = "#4dc8ff";
+const OBSTACLE_THUD_MIN_SPEED = 2.1;
+const OBSTACLE_THUD_COOLDOWN_SECONDS = 0.18;
+const OBSTACLE_THUD_PADDING = 0.08;
+const OBSTACLE_ROTATOR_TAP_MIN_SPEED = 4.6;
+const OBSTACLE_BOUNCY_PAD_TAP_MIN_SPEED = 4.2;
+const OBSTACLE_BLOCKER_TAP_MIN_SPEED = 4.8;
+const OBSTACLE_BLOCKER_TAP_MIN_FORWARD_SPEED = 3.2;
+
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+const tempPoint = new THREE.Vector3();
+const tempLocal = new THREE.Vector3();
+const tempCenter = new THREE.Vector3();
+const tempRotation = new THREE.Quaternion();
+const tempInverseRotation = new THREE.Quaternion();
+const tempEuler = new THREE.Euler();
+const tempVelocityLocal = new THREE.Vector3();
 
 function getPinballBouncerBaseScale(): number {
   return (
@@ -32,6 +49,21 @@ function getPinballBouncerBaseScale(): number {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function getBouncyPadSweepRange(side: "left" | "right"): {
+  startYaw: number;
+  endYaw: number;
+} {
+  return side === "left"
+    ? {
+      startYaw: BOUNCY_PAD_SWEEP_ABS_RADIANS,
+      endYaw: -BOUNCY_PAD_SWEEP_ABS_RADIANS,
+    }
+    : {
+      startYaw: -BOUNCY_PAD_SWEEP_ABS_RADIANS,
+      endYaw: BOUNCY_PAD_SWEEP_ABS_RADIANS,
+    };
 }
 
 function isObstaclePhysicsWireframeEnabled(): boolean {
@@ -63,6 +95,27 @@ function createObstaclePhysicsWireframeMesh(
   wireframe.castShadow = false;
   wireframe.receiveShadow = false;
   return wireframe;
+}
+
+function isPointInsideExpandedOrientedBox(
+  point: THREE.Vector3,
+  center: THREE.Vector3,
+  rotation: THREE.Quaternion,
+  halfX: number,
+  halfY: number,
+  halfZ: number,
+  padding: number,
+): boolean {
+  tempInverseRotation.copy(rotation).invert();
+  tempLocal.copy(point).sub(center).applyQuaternion(tempInverseRotation);
+  const px = halfX + padding;
+  const py = halfY + padding;
+  const pz = halfZ + padding;
+  return (
+    Math.abs(tempLocal.x) <= px &&
+    Math.abs(tempLocal.y) <= py &&
+    Math.abs(tempLocal.z) <= pz
+  );
 }
 
 function updateObstacleWireframeVisibility(
@@ -150,8 +203,21 @@ export interface ObstacleInteractionHost {
   runTimeSeconds: number;
   marbleRadius: number;
   marbleBody: RAPIER.RigidBody | null;
+  rotatorObstacles: RotatorXObstacle[];
+  bouncyPads: BouncyPadObstacle[];
   pinballBouncers: PinballBouncerObstacle[];
+  rotatorHitAtById: Map<string, number>;
+  rotatorTouchingById: Map<string, boolean>;
+  bouncyPadHitAtById: Map<string, number>;
+  bouncyPadTouchingById: Map<string, boolean>;
+  horizontalBlockers: TrackPhysicsHorizontalBlocker[];
+  blockerHitAtByIndex: Map<number, number>;
+  blockerTouchingByIndex: Map<number, boolean>;
   bouncerPulseById: Map<string, number>;
+  onRotatorHit?: (impact: number) => void;
+  onBouncyPadHit?: (impact: number) => void;
+  onHorizontalBlockerHit?: (impact: number) => void;
+  onPinballBouncerHit?: () => void;
 }
 
 export interface WaveObstacleSection {
@@ -260,7 +326,7 @@ interface TrackRunPhysicsPoint {
   width: number;
 }
 
-interface TrackPhysicsHorizontalBlocker {
+export interface TrackPhysicsHorizontalBlocker {
   x: number;
   y: number;
   z: number;
@@ -462,8 +528,10 @@ export function buildWaveObstacles(
         section.hasFloor &&
         section.type !== "start" &&
         section.type !== "end" &&
+        section.type !== "bottleneck" &&
         section.type !== "jump" &&
-        section.type !== "slope_up_steep" &&
+        section.type !== "slope_down_soft" &&
+        section.type !== "slope_down_steep" &&
         section.type !== "spiral_down_left" &&
         section.type !== "spiral_down_right" &&
         section.zStart - section.zEnd > 10,
@@ -758,10 +826,7 @@ export function addWaveObstacleMeshes(host: WaveObstacleMeshHost): void {
     );
     guardWireframe.position.set(0, -0.04, 0);
     group.add(guardWireframe);
-    const startYaw =
-      pad.side === "left"
-        ? THREE.MathUtils.degToRad(8)
-        : -THREE.MathUtils.degToRad(8);
+    const { startYaw } = getBouncyPadSweepRange(pad.side);
     pivot.rotation.y = startYaw;
     group.add(base);
     group.add(anchorStem);
@@ -822,6 +887,167 @@ export function applyObstacleInteractions(host: ObstacleInteractionHost): void {
   }
 
   const marblePosition = host.marbleBody.translation();
+  tempPoint.set(marblePosition.x, marblePosition.y, marblePosition.z);
+  const marbleVelocity = host.marbleBody.linvel();
+  const marbleSpeed = Math.sqrt(
+    marbleVelocity.x * marbleVelocity.x +
+      marbleVelocity.y * marbleVelocity.y +
+      marbleVelocity.z * marbleVelocity.z,
+  );
+
+  if (marbleSpeed >= OBSTACLE_THUD_MIN_SPEED) {
+    for (const rotator of host.rotatorObstacles) {
+      const wasTouching = host.rotatorTouchingById.get(rotator.id) === true;
+      const lastRotatorHit = host.rotatorHitAtById.get(rotator.id) ?? -999;
+      tempCenter.set(rotator.x, rotator.y, rotator.z);
+      tempRotation.setFromEuler(tempEuler.set(-rotator.tilt, rotator.angle, 0));
+      let hitRotator = false;
+      for (let i = 0; i < 4; i += 1) {
+        const localAngle = Math.PI * 0.25 + (i / 4) * Math.PI * 2;
+        const armRotation = new THREE.Quaternion()
+          .setFromAxisAngle(UP_AXIS, localAngle)
+          .premultiply(tempRotation);
+        const hitArm = isPointInsideExpandedOrientedBox(
+          tempPoint,
+          tempCenter,
+          armRotation,
+          rotator.armLength,
+          rotator.height * 0.48,
+          rotator.armThickness * 0.5,
+          host.marbleRadius + OBSTACLE_THUD_PADDING,
+        );
+        if (hitArm) {
+          hitRotator = true;
+          break;
+        }
+      }
+      if (!hitRotator) {
+        if (wasTouching) {
+          host.rotatorTouchingById.delete(rotator.id);
+        }
+        continue;
+      }
+      host.rotatorTouchingById.set(rotator.id, true);
+      if (wasTouching) {
+        continue;
+      }
+      if (host.runTimeSeconds - lastRotatorHit < OBSTACLE_THUD_COOLDOWN_SECONDS) {
+        continue;
+      }
+      if (marbleSpeed < OBSTACLE_ROTATOR_TAP_MIN_SPEED) {
+        continue;
+      }
+      host.rotatorHitAtById.set(rotator.id, host.runTimeSeconds);
+      host.onRotatorHit?.(Math.max(2.8, marbleSpeed * 0.92));
+    }
+
+    for (const pad of host.bouncyPads) {
+      const wasTouching = host.bouncyPadTouchingById.get(pad.id) === true;
+      const lastPadHit = host.bouncyPadHitAtById.get(pad.id) ?? -999;
+      const sideSign = pad.side === "left" ? 1 : -1;
+      const paddleRadius = Math.max(0.2, pad.paddleWidth * 0.42);
+      const paddleBodyLength = Math.max(0.24, pad.paddleLength - paddleRadius * 2);
+      const paddleCapsuleHalfLength = paddleBodyLength * 0.5 + paddleRadius;
+      const paddleHalfLength = paddleCapsuleHalfLength * BOUNCY_PAD_VISUAL_SCALE_Y * 0.98;
+      const paddleHalfHeight = paddleRadius * BOUNCY_PAD_VISUAL_SCALE_X * 0.94;
+      const paddleHalfDepth =
+        paddleRadius * BOUNCY_PAD_VISUAL_SCALE_Z * 1.08 * BOUNCY_PAD_COLLIDER_DEPTH_MULTIPLIER;
+      const paddleCenterY =
+        BOUNCY_PAD_PIVOT_Y +
+        BOUNCY_PAD_PADDLE_Y_BASE -
+        paddleRadius * (BOUNCY_PAD_VISUAL_SCALE_X - 1);
+      const paddleReach = pad.paddleLength * BOUNCY_PAD_REACH_RATIO;
+      tempRotation.setFromEuler(tempEuler.set(-pad.tilt, pad.sweepAngle, 0));
+      tempCenter
+        .set(sideSign * paddleReach, paddleCenterY, 0)
+        .applyQuaternion(tempRotation);
+      tempCenter.x += pad.x;
+      tempCenter.y += pad.y;
+      tempCenter.z += pad.z;
+      const hitPad = isPointInsideExpandedOrientedBox(
+        tempPoint,
+        tempCenter,
+        tempRotation,
+        paddleHalfLength,
+        paddleHalfHeight,
+        paddleHalfDepth,
+        host.marbleRadius + OBSTACLE_THUD_PADDING,
+      );
+      if (!hitPad) {
+        if (wasTouching) {
+          host.bouncyPadTouchingById.delete(pad.id);
+        }
+        continue;
+      }
+      host.bouncyPadTouchingById.set(pad.id, true);
+      if (wasTouching) {
+        continue;
+      }
+      if (host.runTimeSeconds - lastPadHit < OBSTACLE_THUD_COOLDOWN_SECONDS) {
+        continue;
+      }
+      if (marbleSpeed < OBSTACLE_BOUNCY_PAD_TAP_MIN_SPEED) {
+        continue;
+      }
+      host.bouncyPadHitAtById.set(pad.id, host.runTimeSeconds);
+      host.onBouncyPadHit?.(Math.max(2.6, marbleSpeed * 0.84));
+    }
+
+    for (let blockerIndex = 0; blockerIndex < host.horizontalBlockers.length; blockerIndex += 1) {
+      const blocker = host.horizontalBlockers[blockerIndex];
+      const wasTouching = host.blockerTouchingByIndex.get(blockerIndex) === true;
+      const lastBlockerHit = host.blockerHitAtByIndex.get(blockerIndex) ?? -999;
+      if (host.runTimeSeconds - lastBlockerHit < OBSTACLE_THUD_COOLDOWN_SECONDS) {
+        continue;
+      }
+      tempCenter.set(blocker.x, blocker.y, blocker.z);
+      tempRotation.setFromEuler(tempEuler.set(-blocker.tilt, 0, 0));
+      const hitBlocker = isPointInsideExpandedOrientedBox(
+        tempPoint,
+        tempCenter,
+        tempRotation,
+        blocker.length * 0.5,
+        blocker.height * 0.5,
+        blocker.depth * 0.5,
+        host.marbleRadius + OBSTACLE_THUD_PADDING,
+      );
+      if (!hitBlocker) {
+        if (wasTouching) {
+          host.blockerTouchingByIndex.delete(blockerIndex);
+        }
+        continue;
+      }
+      host.blockerTouchingByIndex.set(blockerIndex, true);
+      if (wasTouching) {
+        continue;
+      }
+      if (marbleSpeed < OBSTACLE_BLOCKER_TAP_MIN_SPEED) {
+        continue;
+      }
+      tempInverseRotation.copy(tempRotation).invert();
+      tempVelocityLocal
+        .set(marbleVelocity.x, marbleVelocity.y, marbleVelocity.z)
+        .applyQuaternion(tempInverseRotation);
+      const forwardImpactSpeed = Math.abs(tempVelocityLocal.z);
+      const lateralImpactSpeed = Math.abs(tempVelocityLocal.x);
+      const verticalImpactSpeed = Math.abs(tempVelocityLocal.y);
+      const strongestImpactSpeed = Math.max(
+        forwardImpactSpeed,
+        lateralImpactSpeed,
+        verticalImpactSpeed * 0.65,
+      );
+      if (
+        strongestImpactSpeed < OBSTACLE_BLOCKER_TAP_MIN_SPEED ||
+        forwardImpactSpeed < OBSTACLE_BLOCKER_TAP_MIN_FORWARD_SPEED
+      ) {
+        continue;
+      }
+      host.blockerHitAtByIndex.set(blockerIndex, host.runTimeSeconds);
+      host.onHorizontalBlockerHit?.(Math.max(2.4, marbleSpeed * 0.8));
+      break;
+    }
+  }
+
   for (const bouncer of host.pinballBouncers) {
     if (
       host.runTimeSeconds - bouncer.lastHitAt <
@@ -910,6 +1136,7 @@ export function applyObstacleInteractions(host: ObstacleInteractionHost): void {
     );
     bouncer.lastHitAt = host.runTimeSeconds;
     host.bouncerPulseById.set(bouncer.id, 1.35);
+    host.onPinballBouncerHit?.();
   }
 }
 
@@ -1134,10 +1361,7 @@ export function createTrackPhysicsBodies(context: TrackPhysicsContext): void {
   }
 
   for (const pad of context.bouncyPads) {
-    const startYaw =
-      pad.side === "left"
-        ? THREE.MathUtils.degToRad(8)
-        : -THREE.MathUtils.degToRad(8);
+    const { startYaw } = getBouncyPadSweepRange(pad.side);
     pad.sweepAngle = startYaw;
     const padRotation = new THREE.Quaternion().setFromEuler(
       new THREE.Euler(-pad.tilt, pad.sweepAngle, 0),
@@ -1224,12 +1448,7 @@ export function updateWaveObstacleAnimation(host: ObstacleAnimationHost): void {
 
   for (const pad of host.bouncyPads) {
     const cycle = 0.5 + 0.5 * Math.sin(host.runTimeSeconds * pad.sweepSpeed + pad.phase);
-    const startYaw =
-      pad.side === "left"
-        ? THREE.MathUtils.degToRad(8)
-        : -THREE.MathUtils.degToRad(8);
-    const endYaw =
-      pad.side === "left" ? -Math.PI * 0.5 : Math.PI * 0.5;
+    const { startYaw, endYaw } = getBouncyPadSweepRange(pad.side);
     const targetSweepAngle = THREE.MathUtils.lerp(startYaw, endYaw, cycle);
     const maxStep = BOUNCY_PAD_MAX_ANGULAR_SPEED * host.fixedStep;
     const angleDelta = THREE.MathUtils.clamp(
