@@ -290,6 +290,7 @@ export class Game {
           for (const otherId of affected) {
             const other = players[otherId];
             if (other && other.alive) {
+              other.territory.invalidateCache();
               this.renderer.updateTerritory(other.id, this.territoryGrid, other.color);
             }
           }
