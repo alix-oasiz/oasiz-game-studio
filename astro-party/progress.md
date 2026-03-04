@@ -33,6 +33,40 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 ## Milestone Journal
 
+## 2026-03-04 - Server Docker hardening + pinned Node/npm deployment baseline
+
+- Scope:
+  - Hardened server container build/runtime path for GCP deployment and pinned local/remote/container toolchain versions for deterministic `npm ci`.
+- Key changes:
+  - `server/Dockerfile`:
+    - pinned Node/npm (`22.19.0` / `11.6.0`) across all stages
+    - switched dependency installs to deterministic `npm ci`
+    - added container healthcheck (`/healthz`)
+    - kept runtime entry with `--env-file-if-exists=.env` support
+  - `.dockerignore`:
+    - added root docker context hygiene to exclude dependencies/build artifacts/logs/.env from image context
+  - `server/package.json`, `server/.nvmrc`, `server/.npmrc`:
+    - added explicit toolchain contract and engine enforcement (`engine-strict=true`)
+  - `server/src/index.ts`:
+    - added graceful shutdown flow on `SIGTERM`/`SIGINT` using `gameServer.gracefullyShutdown(false)` and HTTP server close
+  - `server/README.md`:
+    - documented pinned toolchain baseline, Docker build/run commands, local smoke tests, and production env recommendations
+  - `ARCHITECTURE.md`:
+    - recorded server toolchain pinning + Docker build-context ownership in build pipeline contract
+    - documented current process-local room-code registry ownership and scaling constraint
+- Outcome:
+  - server deploy path now has an explicit deterministic environment contract and safer shutdown behavior during restarts/rollouts.
+  - local/remote/container mismatch risk for `npm ci` is reduced through version pinning and enforcement.
+- Validation:
+  - `astro-party/server`: `npm run typecheck` passed.
+  - `astro-party/server`: `npm run build` passed.
+  - `astro-party/server`: `npm ci --dry-run` passed.
+  - `astro-party`: `bun run typecheck` failed in this workspace (`tsc` not found).
+  - `astro-party`: `bun run build` failed in this workspace (`vite` not found).
+  - Docker image build command could not run in this workspace because Docker daemon is not running (`dockerDesktopLinuxEngine` pipe unavailable).
+- Architecture outcome:
+  - changed (server toolchain/container constraints recorded in `ARCHITECTURE.md`).
+
 ## 2026-03-04 - Agent doc cleanup activity (governance pass)
 
 - Scope:

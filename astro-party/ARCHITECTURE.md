@@ -82,6 +82,7 @@ Audio:
 
 - `server/src/rooms/*`: authoritative Colyseus room/session behavior.
 - `server/src/index.ts`: server bootstrap, transport config, HTTP routes, Colyseus monitor mounting/auth gate, and ops stats endpoint wiring.
+- `server/src/http/roomCodeRegistry.ts`: process-local room-code lookup map (single-instance/sticky-routing assumption until externalized store is introduced).
 - `server/src/monitoring/*`: in-process operational counters/rate tracking and RTT summaries for `/ops/stats`.
 - `server/src/*` HTTP endpoints: matchmaking, health checks, and ops stats.
 - `server/loadtest/*`: synthetic client harnesses (`roomcode`, `lobbyfill`, capacity sweep orchestrator) and observed-run tooling (`run-observed-loadtest.ps1`, `astro-observe.sh`, parser/index builder).
@@ -152,6 +153,12 @@ Audio processing:
 - `bun run ffmpeg:install`
 - `bun run ffmpeg:check`
 - `bun run process:audio [-- --only <selector>]`
+
+Server container/toolchain baseline:
+- server Node/npm baseline is pinned to:
+  - Node `22.19.0`
+  - npm `11.6.0`
+- server Docker build context is `astro-party` root with Dockerfile `server/Dockerfile` so shared simulation sources are available at build time.
 
 Generated files (do not hand-edit):
 - `shared/geometry/generated/EntitySvgData.ts`

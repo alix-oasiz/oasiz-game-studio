@@ -17,6 +17,35 @@ Authoritative multiplayer backend for Astro Party.
 - Colyseus Monitor (`@colyseus/monitor`)
 - Express (`/healthz`, `/match/create`, `/match/join`)
 
+## Toolchain Baseline (Pinned)
+
+Server install/build/runtime are pinned to:
+
+- Node.js `22.19.0`
+- npm `11.6.0`
+
+Source-of-truth files:
+
+- `server/.nvmrc`
+- `server/package.json` (`engines`, `packageManager`)
+- `server/.npmrc` (`engine-strict=true`)
+
+Why this matters:
+
+- avoids local/remote/container dependency drift
+- makes `npm ci` behavior deterministic across environments
+
+Local setup before install/build:
+
+```bash
+cd astro-party/server
+nvm use
+npm install -g npm@11.6.0
+npm --version
+node --version
+npm ci
+```
+
 ## Run locally
 
 ```bash
@@ -34,6 +63,42 @@ npm run start
 ```
 
 Default port is `2567`.
+
+## Docker (GCP-ready baseline)
+
+Build context must be `astro-party` (not `astro-party/server`) because the Dockerfile copies both `server/` and `shared/`.
+
+Build image:
+
+```bash
+docker build -f astro-party/server/Dockerfile -t astro-party-server:local astro-party
+```
+
+Run container locally:
+
+```bash
+docker run --rm -p 2567:2567 \
+  -e NODE_ENV=production \
+  -e PORT=2567 \
+  -e CORS_ORIGIN=http://localhost:5173 \
+  -e COLYSEUS_MONITOR_ENABLED=false \
+  -e OPS_STATS_ENABLED=false \
+  astro-party-server:local
+```
+
+Local smoke test commands:
+
+```bash
+curl http://127.0.0.1:2567/healthz
+curl -X POST http://127.0.0.1:2567/match/create -H "content-type: application/json" -d "{}"
+```
+
+Container hardening now in Dockerfile:
+
+- multi-stage deterministic install with `npm ci`
+- pinned Node/npm in all stages
+- health check on `/healthz`
+- `.dockerignore` excludes `node_modules`, build artifacts, logs, and `.env`
 
 ## Load testing
 
@@ -371,3 +436,11 @@ Client debug tools are enabled in either case:
 ## Deploy note
 
 `server-deploy-script.txt` contains a PM2-based deployment script used in production workflows.
+
+For container deploys (GCP VM/GKE/Cloud Run):
+
+- inject env vars from platform secrets/config (do not bake `.env` into image)
+- set `COLYSEUS_MONITOR_ENABLED=false` unless intentionally enabled
+- set `OPS_STATS_ENABLED=false` unless intentionally enabled
+- if `OPS_STATS_ENABLED=true`, set `OPS_STATS_TOKEN`
+- current room-code registry is process-local in-memory; run a single server instance (or sticky routing to one instance) until shared presence/room-code storage is introduced.

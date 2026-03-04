@@ -1,0 +1,20 @@
+# VCS and local tooling
+.git
+.gitignore
+.vscode
+.idea
+
+# Dependencies and build output
+node_modules
+**/node_modules
+dist
+**/dist
+
+# Logs and local artifacts
+*.log
+server/loadtest-logs
+server/observed-runs
+
+# Local environment files should never be baked into images
+.env
+**/.env

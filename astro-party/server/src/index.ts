@@ -190,14 +190,6 @@ process.on("exit", (code) => {
   logLifecycle("exit", { code });
 });
 
-process.on("SIGTERM", () => {
-  logLifecycle("signal", { signal: "SIGTERM" });
-});
-
-process.on("SIGINT", () => {
-  logLifecycle("signal", { signal: "SIGINT" });
-});
-
 const app = express();
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
@@ -223,6 +215,53 @@ const gameServer = new Server({
 });
 
 gameServer.define("astro_party", AstroPartyRoom);
+
+let shutdownInProgress = false;
+
+function stopHttpServer(): Promise<void> {
+  if (!httpServer.listening) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    httpServer.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function handleShutdownSignal(signal: "SIGTERM" | "SIGINT"): Promise<void> {
+  logLifecycle("signal", { signal });
+  if (shutdownInProgress) {
+    return;
+  }
+  shutdownInProgress = true;
+  console.log(
+    "[Server.lifecycle]",
+    JSON.stringify({ event: "gracefulShutdownStart", signal, bootId }),
+  );
+  try {
+    await gameServer.gracefullyShutdown(false);
+    await stopHttpServer();
+    logLifecycle("gracefulShutdownComplete", { signal });
+    process.exit(0);
+  } catch (error) {
+    console.error("[Server] Graceful shutdown failed", error);
+    logLifecycle("gracefulShutdownFailed", { signal });
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => {
+  void handleShutdownSignal("SIGTERM");
+});
+
+process.on("SIGINT", () => {
+  void handleShutdownSignal("SIGINT");
+});
 
 if (monitorEnabled) {
   const monitorMiddleware = monitor();
