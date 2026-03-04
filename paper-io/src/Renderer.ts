@@ -5,7 +5,7 @@ import { type TerritoryGrid } from './Territory.ts';
 const TERRITORY_Y = 0.03;
 const TERRITORY_HEIGHT = 0.14;
 const TRAIL_Y = 0.22;
-const CELL_SIZE = 0.15;
+const CELL_SIZE = 0.12;
 const BORDER_WIDTH = 1.0;
 
 export class Renderer {
@@ -374,6 +374,23 @@ export class Renderer {
       if (bc < cols - 1) { const ni = br * cols + bc + 1;       if (field[ni] && distField[ni] > nd) { distField[ni] = nd; bfsQ.push(br, bc + 1); } }
     }
 
+    // --- Smooth the binary field for interpolated marching squares ---
+    const smooth = new Float32Array(cols * rows);
+    for (let i = 0; i < field.length; i++) smooth[i] = field[i];
+    for (let pass = 0; pass < 3; pass++) {
+      const src = Float32Array.from(smooth);
+      for (let r = 1; r < rows - 1; r++) {
+        for (let c = 1; c < cols - 1; c++) {
+          const i = r * cols + c;
+          smooth[i] = (
+            src[i - cols - 1] + src[i - cols] + src[i - cols + 1] +
+            src[i - 1] + src[i] + src[i + 1] +
+            src[i + cols - 1] + src[i + cols] + src[i + cols + 1]
+          ) / 9;
+        }
+      }
+    }
+
     // --- Build mesh with height gradient (raised plateau with beveled edges) ---
     const verts: number[] = [];
     const indices: number[] = [];
@@ -404,22 +421,27 @@ export class Renderer {
       indices.push(addVert(x0, z0), addVert(x1, z1), addVert(x2, z2));
     };
 
+    const ISO = 0.5;
+    const isoLerp = (a: number, b: number, va: number, vb: number): number => {
+      const d = vb - va;
+      if (Math.abs(d) < 0.001) return (a + b) * 0.5;
+      return a + (ISO - va) / d * (b - a);
+    };
+
     for (let r = 0; r < rows - 1; r++) {
       for (let c = 0; c < cols - 1; c++) {
-        const tl = field[r * cols + c];
-        const tr = field[r * cols + (c + 1)];
-        const brc = field[(r + 1) * cols + (c + 1)];
-        const bl = field[(r + 1) * cols + c];
+        const vTL = smooth[r * cols + c];
+        const vTR = smooth[r * cols + (c + 1)];
+        const vBR = smooth[(r + 1) * cols + (c + 1)];
+        const vBL = smooth[(r + 1) * cols + c];
 
-        const config = (tl << 3) | (tr << 2) | (brc << 1) | bl;
+        const config = ((vTL >= ISO ? 1 : 0) << 3) | ((vTR >= ISO ? 1 : 0) << 2) | ((vBR >= ISO ? 1 : 0) << 1) | (vBL >= ISO ? 1 : 0);
         if (config === 0) continue;
 
         const x0 = minX + c * CELL_SIZE;
         const x1 = minX + (c + 1) * CELL_SIZE;
         const z0 = minZ + r * CELL_SIZE;
         const z1 = minZ + (r + 1) * CELL_SIZE;
-        const mx = (x0 + x1) / 2;
-        const mz = (z0 + z1) / 2;
 
         if (config === 15) {
           addTri(x0, z0, x1, z0, x1, z1);
@@ -427,10 +449,11 @@ export class Renderer {
           continue;
         }
 
-        const tmx = mx, tmz = z0;
-        const rmx = x1, rmz = mz;
-        const bmx = mx, bmz = z1;
-        const lmx = x0, lmz = mz;
+        // Interpolated edge crossings for smooth contours
+        const tmx = isoLerp(x0, x1, vTL, vTR), tmz = z0;
+        const rmx = x1, rmz = isoLerp(z0, z1, vTR, vBR);
+        const bmx = isoLerp(x0, x1, vBL, vBR), bmz = z1;
+        const lmx = x0, lmz = isoLerp(z0, z1, vTL, vBL);
 
         switch (config) {
           case 1: addTri(x0, z1, lmx, lmz, bmx, bmz); break;

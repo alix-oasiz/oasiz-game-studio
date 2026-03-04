@@ -1,7 +1,7 @@
 import { type Vec2, START_RADIUS, MAP_SIZE, MAP_HALF } from './constants.ts';
 import { pointInPolygon } from './Collision.ts';
 
-const GRID_CELL = 0.25;
+const GRID_CELL = 0.2;
 const GRID_SIZE = Math.ceil(MAP_SIZE / GRID_CELL);
 
 export class TerritoryGrid {
