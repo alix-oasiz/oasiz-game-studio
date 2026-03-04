@@ -25,37 +25,65 @@ const SPAWN_Y     = 500;
 const WORLD_W     = 800;
 const WORLD_H     = 4000;
 
-// ─── Rock definitions — tighter spacing so hammer can reach ─────────────────
-// Rocks are ~60-80px apart vertically with small horizontal offsets (≤120px)
-// so the hammer (150px range) can always reach the next one.
-const ROCK_DEFS = [
-  // Starting platform
-  { x: 400, y: 560, w: 500, h: 40 },
-  // Ascending — tight zigzag
-  { x: 330, y: 490, w: 160, h: 28 },
-  { x: 470, y: 425, w: 150, h: 28 },
-  { x: 340, y: 360, w: 160, h: 28 },
-  { x: 480, y: 295, w: 150, h: 28 },
-  { x: 350, y: 230, w: 160, h: 28 },
-  { x: 460, y: 168, w: 150, h: 28 },
-  { x: 330, y: 108, w: 160, h: 28 },
-  { x: 470, y:  48, w: 150, h: 28 },
-  { x: 350, y: -12, w: 160, h: 28 },
-  { x: 460, y: -72, w: 150, h: 28 },
-  { x: 330, y: -132, w: 160, h: 28 },
-  { x: 470, y: -192, w: 150, h: 28 },
-  { x: 350, y: -252, w: 160, h: 28 },
-  { x: 460, y: -312, w: 150, h: 28 },
-  { x: 330, y: -372, w: 160, h: 28 },
-  { x: 470, y: -432, w: 150, h: 28 },
-  { x: 350, y: -492, w: 160, h: 28 },
-  { x: 460, y: -552, w: 150, h: 28 },
-  { x: 330, y: -612, w: 160, h: 28 },
-  { x: 470, y: -672, w: 150, h: 28 },
-  // Walls
-  { x: 20, y: -200, w: 40, h: 2000 },
-  { x: 780, y: -200, w: 40, h: 2000 },
-];
+// ─── Deterministic pseudo-random ────────────────────────────────────────────
+function seeded(s: number): number {
+  const x = Math.sin(s * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// ─── Rock polygon generation (same technique as Classic mode's makeRock) ────
+interface RockData {
+  cx: number;
+  cy: number;
+  verts: { x: number; y: number }[];  // world-space vertices (convex, wound CCW)
+}
+
+function generateRock(
+  cx: number, cy: number,
+  rx: number, ry: number,
+  n: number, seed: number,
+): RockData {
+  const verts: { x: number; y: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const r = 0.55 + 0.45 * Math.abs(Math.sin(i * 2.7181 + seed));
+    verts.push({
+      x: cx + Math.cos(a) * rx * r,
+      y: cy + Math.sin(a) * ry * r,
+    });
+  }
+  return { cx, cy, verts };
+}
+
+// ─── Build rock layout — procedural, deterministic, reachable ───────────────
+// Each rock is 65-85px above the previous, offset left/right by 60-100px.
+// Diagonal distance between adjacent rocks stays within ~100-130px (< MAX_RANGE).
+function buildRockLayout(): RockData[] {
+  const rocks: RockData[] = [];
+
+  // Wide starting platform
+  rocks.push(generateRock(400, 560, 200, 28, 9, 1.1));
+
+  let curY = 490;
+  let side = -1;
+  for (let i = 0; i < 25; i++) {
+    const hOffset = 60 + seeded(i * 3.1) * 50;           // 60-110px from center
+    const cx = 400 + side * hOffset;
+    const rx = 55 + seeded(i * 5.7 + 10) * 30;           // 55-85px wide
+    const ry = 22 + seeded(i * 7.3 + 20) * 16;           // 22-38px tall
+    const n  = 6 + Math.floor(seeded(i * 11.1 + 30) * 4);// 6-9 vertices
+    const seed = i * 1.37 + 0.5;
+
+    rocks.push(generateRock(cx, curY, rx, ry, n, seed));
+
+    curY -= 65 + seeded(i * 4.9 + 40) * 20;              // 65-85px gap
+    side *= -1;
+  }
+
+  return rocks;
+}
+
+const ROCKS = buildRockLayout();
 
 // ─── Callbacks for HUD ─────────────────────────────────────────────────────
 let onAltitudeUpdate: ((meters: number) => void) | null = null;
@@ -69,43 +97,60 @@ class ClimbScene extends Phaser.Scene {
   private playerBody!: MatterJS.BodyType;
   private hammerPos = { x: SPAWN_X, y: SPAWN_Y - 50 };
   private mouseWorld = { x: SPAWN_X, y: SPAWN_Y };
-  private mouseScreen = { x: 0, y: 0 };  // normalized -1..1 for head look
+  private mouseScreen = { x: 0, y: 0 };
   private rockBodies: MatterJS.BodyType[] = [];
   private gfx!: Phaser.GameObjects.Graphics;
   private maxHeight = 0;
 
-  // Head blinking state (from Head.cs)
+  // Head blinking (Head.cs)
   private blinking = false;
   private blinkTimer = 0;
   private nextBlinkAt = 0;
-  private blinkPhase = 0;  // 0=open, 1=closed1, 2=open1, 3=closed2, 4=done
+  private blinkPhase = 0;
 
   constructor() {
     super({ key: 'ClimbScene' });
   }
 
   create(): void {
+    const MatterLib = (Phaser.Physics.Matter as any).Matter;
+
     this.matter.world.setBounds(0, -WORLD_H + 600, WORLD_W, WORLD_H + 200);
 
-    // Create rocks as static Matter.js bodies
-    for (const def of ROCK_DEFS) {
-      const body = this.matter.add.rectangle(def.x, def.y, def.w, def.h, {
-        isStatic: true,
-        label: 'rock',
-        friction: 0.8,
-        restitution: 0.1,
-      });
+    // ── Create polygon rock bodies from generated vertices ──────────────────
+    for (const rock of ROCKS) {
+      // Convert world-space verts to local (relative to center) for Matter.js
+      const localVerts = rock.verts.map(v => ({
+        x: v.x - rock.cx,
+        y: v.y - rock.cy,
+      }));
+
+      const body = MatterLib.Bodies.fromVertices(
+        rock.cx, rock.cy, [localVerts],
+        { isStatic: true, label: 'rock', friction: 0.8, restitution: 0.1 },
+      ) as MatterJS.BodyType;
+
+      // fromVertices may shift the center — correct position back
+      MatterLib.Body.setPosition(body, { x: rock.cx, y: rock.cy });
+      this.matter.world.add(body);
       this.rockBodies.push(body);
     }
 
+    // Walls (rectangles — boundary only)
+    const leftWall = this.matter.add.rectangle(20, -200, 40, 2000, {
+      isStatic: true, label: 'rock', friction: 0.5,
+    });
+    const rightWall = this.matter.add.rectangle(780, -200, 40, 2000, {
+      isStatic: true, label: 'rock', friction: 0.5,
+    });
+    this.rockBodies.push(leftWall, rightWall);
+
     // Ground
     this.matter.add.rectangle(WORLD_W / 2, GROUND_Y + 25, WORLD_W + 200, 50, {
-      isStatic: true,
-      label: 'ground',
-      friction: 0.9,
+      isStatic: true, label: 'ground', friction: 0.9,
     });
 
-    // Player body (dynamic circle)
+    // Player body
     this.playerBody = this.matter.add.circle(SPAWN_X, SPAWN_Y, BODY_R, {
       label: 'player',
       friction: 0.4,
@@ -116,10 +161,8 @@ class ClimbScene extends Phaser.Scene {
 
     this.hammerPos.x = SPAWN_X;
     this.hammerPos.y = SPAWN_Y - 60;
-
     this.gfx = this.add.graphics();
 
-    // Initialize blink timer (Head.cs: Random.Range(0, 10))
     this.nextBlinkAt = Math.random() * 10000;
     this.blinkTimer = 0;
 
@@ -127,11 +170,9 @@ class ClimbScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       this.mouseWorld.x = pointer.worldX;
       this.mouseWorld.y = pointer.worldY;
-      // Normalized screen position for head look (Head.cs)
       this.mouseScreen.x = (pointer.x / this.scale.width) * 2.0 - 1.0;
       this.mouseScreen.y = (pointer.y / this.scale.height) * 2.0 - 1.0;
     });
-
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.mouseWorld.x = pointer.worldX;
       this.mouseWorld.y = pointer.worldY;
@@ -145,81 +186,103 @@ class ClimbScene extends Phaser.Scene {
     const bx = body.position.x;
     const by = body.position.y;
 
-    // ── 1. Compute mouseVec (clamped offset from screen center to mouse) ────
-    // PlayerControl.cs: mouseVec = ClampMagnitude(mouse - center, maxRange)
+    // ── 1. mouseVec (PlayerControl.cs) ──────────────────────────────────────
     const cam = this.cameras.main;
-    const screenCenterWorld = {
-      x: cam.scrollX + cam.width / 2,
-      y: cam.scrollY + cam.height / 2,
-    };
-    const rawDx = this.mouseWorld.x - screenCenterWorld.x;
-    const rawDy = this.mouseWorld.y - screenCenterWorld.y;
+    const scx = cam.scrollX + cam.width / 2;
+    const scy = cam.scrollY + cam.height / 2;
+    const rawDx = this.mouseWorld.x - scx;
+    const rawDy = this.mouseWorld.y - scy;
     const rawDist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
     const clampedDist = Math.min(rawDist, MAX_RANGE);
     const mouseVec = rawDist > 0
       ? { x: (rawDx / rawDist) * clampedDist, y: (rawDy / rawDist) * clampedDist }
       : { x: 0, y: 0 };
 
-    // ── 2. Compute hammer target and lerp ───────────────────────────────────
-    // PlayerControl.cs: newHammerPos = body.position + mouseVec
-    // then lerp 20%: newHammerPos = hammerHead.position + (newHammerPos - hammerHead.position) * 0.2
-    const hammerTarget = { x: bx + mouseVec.x, y: by + mouseVec.y };
-    this.hammerPos.x += (hammerTarget.x - this.hammerPos.x) * LERP;
-    this.hammerPos.y += (hammerTarget.y - this.hammerPos.y) * LERP;
-
-    // ── 3. Check if hammer overlaps any rock ────────────────────────────────
+    // ── 2. Gather static bodies for collision queries ─────────────────────
     const MatterLib = (Phaser.Physics.Matter as any).Matter;
     const allBodies = (this.matter.world.localWorld as any).bodies as MatterJS.BodyType[];
     const staticBodies = allBodies.filter(
       (b: MatterJS.BodyType) => b.isStatic && (b.label === 'rock' || b.label === 'ground')
     );
 
-    // Point query + small region for better detection
-    const hammerQuery = MatterLib.Query.point(staticBodies, this.hammerPos);
-    const hammerBounds = {
+    // ── 3. Hammer target + lerp (with solid-rock collision) ─────────────────
+    // Unity's MovePosition is blocked by colliders — hammer can't pass through
+    // rocks.  We replicate this: lerp toward target, but if the new position
+    // is inside a rock, binary-search along the movement to find the surface
+    // contact point and stop there.  This keeps the hammer lodged against the
+    // rock face, which in turn keeps the spring force active and prevents the
+    // player from slipping.
+    const htx = bx + mouseVec.x;
+    const hty = by + mouseVec.y;
+    const prevHx = this.hammerPos.x;
+    const prevHy = this.hammerPos.y;
+    let newHx = prevHx + (htx - prevHx) * LERP;
+    let newHy = prevHy + (hty - prevHy) * LERP;
+
+    // Check if the desired new position is inside a rock body
+    const penetrating = MatterLib.Query.point(staticBodies, { x: newHx, y: newHy });
+    if (penetrating.length > 0) {
+      // Binary search between old (outside) and new (inside) to find surface
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        const mx = prevHx + (newHx - prevHx) * mid;
+        const my = prevHy + (newHy - prevHy) * mid;
+        if (MatterLib.Query.point(staticBodies, { x: mx, y: my }).length > 0) {
+          hi = mid;
+        } else {
+          lo = mid;
+        }
+      }
+      // Place hammer at the last safe (outside) position — right at the surface
+      newHx = prevHx + (newHx - prevHx) * lo;
+      newHy = prevHy + (newHy - prevHy) * lo;
+    }
+
+    this.hammerPos.x = newHx;
+    this.hammerPos.y = newHy;
+
+    // ── 4. Check hammer overlap with rocks (for force application) ──────────
+    // Use a region query (HAMMER_R buffer) so the hammer registers contact
+    // even when sitting right at the surface.
+    const regionHit = MatterLib.Query.region(staticBodies, {
       min: { x: this.hammerPos.x - HAMMER_R, y: this.hammerPos.y - HAMMER_R },
       max: { x: this.hammerPos.x + HAMMER_R, y: this.hammerPos.y + HAMMER_R },
-    };
-    const hammerRegionQuery = MatterLib.Query.region(staticBodies, hammerBounds);
-    const isOverlapping = hammerQuery.length > 0 || hammerRegionQuery.length > 0;
+    });
+    const isOverlapping = regionHit.length > 0;
 
-    // ── 4. Apply force if hammer overlaps rock ──────────────────────────────
-    // PlayerControl.cs: targetBodyPos = hammerHead.position - mouseVec
-    //                   force = (targetBodyPos - body.position) * 80
+    // ── 5. Apply force (PlayerControl.cs) ───────────────────────────────────
     if (isOverlapping) {
-      const targetBodyX = this.hammerPos.x - mouseVec.x;
-      const targetBodyY = this.hammerPos.y - mouseVec.y;
-      const fx = (targetBodyX - bx) * FORCE_MULT;
-      const fy = (targetBodyY - by) * FORCE_MULT;
-      MatterLib.Body.applyForce(body, body.position, { x: fx, y: fy });
-
-      // Clamp velocity (Unity: ClampMagnitude(velocity, 6))
-      const vx = body.velocity.x;
-      const vy = body.velocity.y;
+      const tbx = this.hammerPos.x - mouseVec.x;
+      const tby = this.hammerPos.y - mouseVec.y;
+      MatterLib.Body.applyForce(body, body.position, {
+        x: (tbx - bx) * FORCE_MULT,
+        y: (tby - by) * FORCE_MULT,
+      });
+      const vx = body.velocity.x, vy = body.velocity.y;
       const speed = Math.sqrt(vx * vx + vy * vy);
       if (speed > MAX_SPEED) {
-        const scale = MAX_SPEED / speed;
-        MatterLib.Body.setVelocity(body, { x: vx * scale, y: vy * scale });
+        const s = MAX_SPEED / speed;
+        MatterLib.Body.setVelocity(body, { x: vx * s, y: vy * s });
       }
     }
 
-    // ── 5. Camera follow ────────────────────────────────────────────────────
+    // ── 6. Camera ───────────────────────────────────────────────────────────
     cam.scrollX += (bx - cam.width / 2 - cam.scrollX) * 0.08;
     cam.scrollY += (by - cam.height * 0.6 - cam.scrollY) * 0.08;
 
-    // ── 6. Track altitude ───────────────────────────────────────────────────
-    const altitude = Math.max(0, Math.round((SPAWN_Y - by) / 9));
-    if (altitude > this.maxHeight) this.maxHeight = altitude;
+    // ── 7. Altitude ─────────────────────────────────────────────────────────
+    const alt = Math.max(0, Math.round((SPAWN_Y - by) / 9));
+    if (alt > this.maxHeight) this.maxHeight = alt;
     if (onAltitudeUpdate) onAltitudeUpdate(this.maxHeight);
 
-    // ── 7. Update blink timer (Head.cs) ─────────────────────────────────────
+    // ── 8. Blink ────────────────────────────────────────────────────────────
     this.updateBlink(delta);
 
-    // ── 8. Render ───────────────────────────────────────────────────────────
-    this.renderScene(isOverlapping, mouseVec);
+    // ── 9. Render ───────────────────────────────────────────────────────────
+    this.renderScene(isOverlapping);
   }
 
-  // Head.cs blink coroutine: wait random 0-10s, then blink twice (0.2s each)
   private updateBlink(delta: number): void {
     this.blinkTimer += delta;
     if (!this.blinking) {
@@ -229,7 +292,6 @@ class ClimbScene extends Phaser.Scene {
         this.blinkTimer = 0;
       }
     } else {
-      // Each phase lasts 200ms (0.2s), 4 phases: closed-open-closed-open
       if (this.blinkTimer >= 200) {
         this.blinkTimer = 0;
         this.blinkPhase++;
@@ -243,11 +305,10 @@ class ClimbScene extends Phaser.Scene {
   }
 
   private get isEyesClosed(): boolean {
-    // Closed during phases 0 and 2
     return this.blinking && (this.blinkPhase === 0 || this.blinkPhase === 2);
   }
 
-  private renderScene(hammerOnRock: boolean, mouseVec: { x: number; y: number }): void {
+  private renderScene(hammerOnRock: boolean): void {
     const gfx = this.gfx;
     gfx.clear();
 
@@ -255,9 +316,9 @@ class ClimbScene extends Phaser.Scene {
     const by = this.playerBody.position.y;
     const hx = this.hammerPos.x;
     const hy = this.hammerPos.y;
+    const cam = this.cameras.main;
 
     // ── Background ──────────────────────────────────────────────────────────
-    const cam = this.cameras.main;
     gfx.fillStyle(0x0a0a0f);
     gfx.fillRect(cam.scrollX - 10, cam.scrollY - 10, cam.width + 20, cam.height + 20);
 
@@ -267,91 +328,91 @@ class ClimbScene extends Phaser.Scene {
     gfx.lineStyle(3, 0x4b5563);
     gfx.lineBetween(0, GROUND_Y, WORLD_W, GROUND_Y);
 
-    // ── Rocks ───────────────────────────────────────────────────────────────
-    for (const def of ROCK_DEFS) {
+    // ── Rocks (polygon shapes) ──────────────────────────────────────────────
+    for (const rock of ROCKS) {
+      const v = rock.verts;
+      if (v.length < 3) continue;
+
+      // Fill
       gfx.fillStyle(0x374151);
-      gfx.fillRect(def.x - def.w / 2, def.y - def.h / 2, def.w, def.h);
+      gfx.beginPath();
+      gfx.moveTo(v[0].x, v[0].y);
+      for (let i = 1; i < v.length; i++) gfx.lineTo(v[i].x, v[i].y);
+      gfx.closePath();
+      gfx.fillPath();
+
+      // Edge highlight
       gfx.lineStyle(2, 0x4b5563);
-      gfx.strokeRect(def.x - def.w / 2, def.y - def.h / 2, def.w, def.h);
+      gfx.beginPath();
+      gfx.moveTo(v[0].x, v[0].y);
+      for (let i = 1; i < v.length; i++) gfx.lineTo(v[i].x, v[i].y);
+      gfx.closePath();
+      gfx.strokePath();
+
+      // Top-edge lighter line (topmost two vertices)
+      let topIdx = 0;
+      for (let i = 1; i < v.length; i++) {
+        if (v[i].y < v[topIdx].y) topIdx = i;
+      }
+      const nextIdx = (topIdx + 1) % v.length;
+      const prevIdx = (topIdx - 1 + v.length) % v.length;
       gfx.lineStyle(1, 0x6b7280);
-      gfx.lineBetween(
-        def.x - def.w / 2, def.y - def.h / 2,
-        def.x + def.w / 2, def.y - def.h / 2
-      );
+      gfx.lineBetween(v[prevIdx].x, v[prevIdx].y, v[topIdx].x, v[topIdx].y);
+      gfx.lineBetween(v[topIdx].x, v[topIdx].y, v[nextIdx].x, v[nextIdx].y);
+
+      // Deterministic crack lines
+      gfx.lineStyle(1, 0x1f2937);
+      for (let i = 0; i < 2; i++) {
+        const a = (i * 2.1 + rock.cx * 0.013 + rock.cy * 0.007) % (Math.PI * 2);
+        const len = 12 + ((i * 13 + Math.abs(rock.cx * 0.4)) % 18);
+        gfx.lineBetween(rock.cx, rock.cy,
+          rock.cx + Math.cos(a) * len, rock.cy + Math.sin(a) * len);
+      }
     }
 
     // ── Hands + Arms (Hand.cs) ──────────────────────────────────────────────
-    // Two hands at shoulder positions, arms extend toward hammer handle
-    // Hand.cs: handDir = hammerHandle.position - hand.position
-    //          rotation = FromToRotation(Vector3.down, handDir)
-    const shoulderOffset = BODY_R * 0.7;
+    const shoulderOff = BODY_R * 0.7;
     const shoulderY = by - 2;
-
-    // Hammer handle midpoint (where arms reach toward)
     const handleMidX = bx + (hx - bx) * 0.4;
     const handleMidY = by + (hy - by) * 0.4;
 
-    // Left hand
-    const lhx = bx - shoulderOffset;
-    const lhy = shoulderY;
-    const lDirX = handleMidX - lhx;
-    const lDirY = handleMidY - lhy;
-    const lDist = Math.sqrt(lDirX * lDirX + lDirY * lDirY);
-    const lArmLen = Math.min(lDist, BODY_R * 2.5);
-    const lArmEndX = lhx + (lDirX / (lDist || 1)) * lArmLen;
-    const lArmEndY = lhy + (lDirY / (lDist || 1)) * lArmLen;
+    const drawArm = (sx: number, sy: number) => {
+      const dx = handleMidX - sx, dy = handleMidY - sy;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const armLen = Math.min(d, BODY_R * 2.5);
+      const ex = sx + (dx / d) * armLen;
+      const ey = sy + (dy / d) * armLen;
+      gfx.lineStyle(4, 0x78563d);
+      gfx.lineBetween(sx, sy, ex, ey);
+      const hs = HAND_R + Math.min(2, d * 0.02);
+      gfx.fillStyle(0x9e7b5a);
+      gfx.fillCircle(ex, ey, hs);
+      gfx.lineStyle(1, 0x5a3e28);
+      gfx.strokeCircle(ex, ey, hs);
+      return { x: ex, y: ey };
+    };
+    const lh = drawArm(bx - shoulderOff, shoulderY);
+    const rh = drawArm(bx + shoulderOff, shoulderY);
 
-    // Right hand
-    const rhx = bx + shoulderOffset;
-    const rhy = shoulderY;
-    const rDirX = handleMidX - rhx;
-    const rDirY = handleMidY - rhy;
-    const rDist = Math.sqrt(rDirX * rDirX + rDirY * rDirY);
-    const rArmLen = Math.min(rDist, BODY_R * 2.5);
-    const rArmEndX = rhx + (rDirX / (rDist || 1)) * rArmLen;
-    const rArmEndY = rhy + (rDirY / (rDist || 1)) * rArmLen;
-
-    // Draw arms (lines from shoulders to hands)
-    gfx.lineStyle(4, 0x78563d);
-    gfx.lineBetween(lhx, lhy, lArmEndX, lArmEndY);
-    gfx.lineBetween(rhx, rhy, rArmEndX, rArmEndY);
-
-    // Draw hands (circles at arm ends) — Hand.cs sprite stretch approximation
-    // spriteIndex = clamp(handDir.magnitude * 8, 0, max)
-    const lHandSize = HAND_R + Math.min(2, lDist * 0.02);
-    const rHandSize = HAND_R + Math.min(2, rDist * 0.02);
-    gfx.fillStyle(0x9e7b5a);
-    gfx.fillCircle(lArmEndX, lArmEndY, lHandSize);
-    gfx.fillCircle(rArmEndX, rArmEndY, rHandSize);
-    gfx.lineStyle(1, 0x5a3e28);
-    gfx.strokeCircle(lArmEndX, lArmEndY, lHandSize);
-    gfx.strokeCircle(rArmEndX, rArmEndY, rHandSize);
-
-    // ── Pickaxe handle (line from hands to hammer head) ─────────────────────
-    // Handle goes from between the two hand endpoints to the hammer head
-    const gripX = (lArmEndX + rArmEndX) / 2;
-    const gripY = (lArmEndY + rArmEndY) / 2;
+    // ── Pickaxe handle ──────────────────────────────────────────────────────
+    const gripX = (lh.x + rh.x) / 2;
+    const gripY = (lh.y + rh.y) / 2;
     gfx.lineStyle(5, 0x92400e);
     gfx.lineBetween(gripX, gripY, hx, hy);
 
-    // ── Pickaxe head (does NOT rotate — fixed downward orientation) ─────────
-    // The head always points downward like a real pickaxe, regardless of handle angle
-    const pickW = 20;
-    const pickH = 8;
+    // ── Pickaxe head (fixed orientation — does NOT rotate) ──────────────────
+    const pw = 20, ph = 8;
     gfx.fillStyle(hammerOnRock ? 0xfbbf24 : 0x9ca3af);
-    // Blade pointing down-left
     gfx.beginPath();
-    gfx.moveTo(hx - pickW * 0.6, hy + pickH);     // blade tip left
-    gfx.lineTo(hx - pickW * 0.1, hy - pickH * 0.5); // top left
-    gfx.lineTo(hx + pickW * 0.1, hy - pickH * 0.5); // top right
-    gfx.lineTo(hx + pickW * 0.6, hy + pickH);     // blade tip right
-    gfx.lineTo(hx, hy + pickH * 0.3);              // bottom center notch
+    gfx.moveTo(hx - pw * 0.6, hy + ph);
+    gfx.lineTo(hx - pw * 0.1, hy - ph * 0.5);
+    gfx.lineTo(hx + pw * 0.1, hy - ph * 0.5);
+    gfx.lineTo(hx + pw * 0.6, hy + ph);
+    gfx.lineTo(hx, hy + ph * 0.3);
     gfx.closePath();
     gfx.fillPath();
     gfx.lineStyle(1, 0x374151);
     gfx.strokePath();
-
-    // Hammer glow when touching rock
     if (hammerOnRock) {
       gfx.fillStyle(0xfbbf24, 0.25);
       gfx.fillCircle(hx, hy, HAMMER_R + 6);
@@ -372,63 +433,38 @@ class ClimbScene extends Phaser.Scene {
     gfx.strokeCircle(bx, by, BODY_R);
 
     // ── Head (Head.cs) ──────────────────────────────────────────────────────
-    // Head sits on top of body, looks toward mouse
-    // Head.cs: mouseDir = normalized screen pos (-1..1)
-    //          degrees = atan2(mouseDir.y, abs(mouseDir.x)) clamped ±30°
-    //          flipped = mouseDir.x < 0
     const headX = bx;
-    const headY = by - BODY_R - HEAD_R + 4; // slightly overlapping body top
+    const headY = by - BODY_R - HEAD_R + 4;
     const msx = this.mouseScreen.x;
-    const msy = -this.mouseScreen.y; // flip Y (screen Y is inverted vs Unity)
+    const msy = -this.mouseScreen.y;
     const headFlipped = msx < 0;
-    let headDegrees = (180 / Math.PI) * Math.atan2(msy, Math.abs(msx));
-    headDegrees = Math.max(-30, Math.min(30, headDegrees));
-    const headRadians = (headDegrees * (headFlipped ? -1 : 1)) * (Math.PI / 180);
+    let headDeg = (180 / Math.PI) * Math.atan2(msy, Math.abs(msx));
+    headDeg = Math.max(-30, Math.min(30, headDeg));
 
-    // Head circle
     gfx.fillStyle(0xd4a574);
     gfx.fillCircle(headX, headY, HEAD_R);
     gfx.lineStyle(1, 0x8b6b4a);
     gfx.strokeCircle(headX, headY, HEAD_R);
 
-    // Eyes — positioned based on head rotation and flip
     const eyeOffX = headFlipped ? -3 : 3;
-    const eyeSpacing = 4;
+    const eyeSp = 4;
     const eyeY = headY - 2;
-    const cosR = Math.cos(headRadians);
-    const sinR = Math.sin(headRadians);
-
     if (this.isEyesClosed) {
-      // Closed eyes — horizontal lines
       gfx.lineStyle(1.5, 0x2d1f14);
-      const e1x = headX + eyeOffX - eyeSpacing;
-      const e2x = headX + eyeOffX + eyeSpacing;
-      gfx.lineBetween(e1x - 2, eyeY, e1x + 2, eyeY);
-      gfx.lineBetween(e2x - 2, eyeY, e2x + 2, eyeY);
+      gfx.lineBetween(headX + eyeOffX - eyeSp - 2, eyeY, headX + eyeOffX - eyeSp + 2, eyeY);
+      gfx.lineBetween(headX + eyeOffX + eyeSp - 2, eyeY, headX + eyeOffX + eyeSp + 2, eyeY);
     } else {
-      // Open eyes
       gfx.fillStyle(0xffffff);
-      const e1x = headX + eyeOffX - eyeSpacing;
-      const e2x = headX + eyeOffX + eyeSpacing;
-      gfx.fillCircle(e1x, eyeY, 2.5);
-      gfx.fillCircle(e2x, eyeY, 2.5);
-      // Pupils — shift slightly toward mouse
-      const pupilShift = headFlipped ? -0.8 : 0.8;
+      gfx.fillCircle(headX + eyeOffX - eyeSp, eyeY, 2.5);
+      gfx.fillCircle(headX + eyeOffX + eyeSp, eyeY, 2.5);
+      const ps = headFlipped ? -0.8 : 0.8;
       gfx.fillStyle(0x1a1008);
-      gfx.fillCircle(e1x + pupilShift, eyeY, 1.2);
-      gfx.fillCircle(e2x + pupilShift, eyeY, 1.2);
+      gfx.fillCircle(headX + eyeOffX - eyeSp + ps, eyeY, 1.2);
+      gfx.fillCircle(headX + eyeOffX + eyeSp + ps, eyeY, 1.2);
     }
-
-    // Mouth — small line
     const mouthX = headX + (headFlipped ? -1 : 1);
-    const mouthY = headY + 4;
     gfx.lineStyle(1, 0x5a3020);
-    gfx.lineBetween(mouthX - 2.5, mouthY, mouthX + 2.5, mouthY);
-
-    // Suppress unused vars
-    void cosR;
-    void sinR;
-    void mouseVec;
+    gfx.lineBetween(mouthX - 2.5, headY + 4, mouthX + 2.5, headY + 4);
   }
 
   getMaxHeight(): number {
@@ -460,7 +496,6 @@ export function launchPhaserGame(container: HTMLElement): Phaser.Game {
       mouse: { preventDefaultWheel: true },
     },
   };
-
   return new Phaser.Game(config);
 }
 
