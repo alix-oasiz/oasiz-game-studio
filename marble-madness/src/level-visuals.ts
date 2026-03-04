@@ -9,8 +9,14 @@ export interface FireworkRow {
 interface AddCloudBackdropInput {
   agentDebugHideClouds: boolean;
   minTrackY: number;
+  trackYReference: number;
+  cloudZStart: number;
+  cloudZEnd: number;
   randomRange: (min: number, max: number) => number;
   isCloudPlacementBlocked: (x: number, z: number, cloudRadius: number) => boolean;
+  sampleTrackX: (z: number) => number;
+  getSliceWidthAtZ: (z: number) => number;
+  getTrackSurfaceY: (z: number) => number;
   addLevelObject: (object: THREE.Object3D) => void;
 }
 
@@ -65,9 +71,9 @@ function createCloudTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-export function addCloudBackdrop(input: AddCloudBackdropInput): void {
+export function addCloudBackdrop(input: AddCloudBackdropInput): number {
   if (input.agentDebugHideClouds) {
-    return;
+    return 0;
   }
 
   const cloudGroup = new THREE.Group();
@@ -82,50 +88,126 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): void {
     fog: true,
   });
 
-  const cloudCeilingY = input.minTrackY - 12;
-  const baseCloudY = input.minTrackY - 52;
-  const cloudClusters = [
-    { x: -240, yOffset: 8, z: -30, count: 2, spreadX: 90, spreadY: 12, spreadZ: 70 },
-    { x: 246, yOffset: 12, z: -88, count: 2, spreadX: 94, spreadY: 12, spreadZ: 72 },
-    { x: -236, yOffset: 4, z: -170, count: 2, spreadX: 96, spreadY: 13, spreadZ: 78 },
-    { x: 238, yOffset: 10, z: -236, count: 2, spreadX: 92, spreadY: 12, spreadZ: 74 },
-    { x: 0, yOffset: -10, z: -140, count: 3, spreadX: 230, spreadY: 14, spreadZ: 210 },
-  ];
+  const cloudTopCapY = input.trackYReference - 4;
+  const lowerCloudBaseY = Math.min(input.trackYReference - 64, input.minTrackY - 22);
+  const zTop = Math.max(input.cloudZStart, input.cloudZEnd);
+  const zBottom = Math.min(input.cloudZStart, input.cloudZEnd);
+  const laneSpan = Math.max(1, zTop - zBottom);
+  const laneSteps = Math.max(32, Math.floor(laneSpan / 10));
 
-  for (const cluster of cloudClusters) {
-    for (let i = 0; i < cluster.count; i += 1) {
-      const sprite = new THREE.Sprite(cloudMaterial);
-      const scale = input.randomRange(200, 360);
-      // Keep the full billboard below the track, not just its center point.
-      const maxCenterY = cloudCeilingY - scale * 0.5;
-      const candidateY =
-        baseCloudY +
-        cluster.yOffset +
-        input.randomRange(-cluster.spreadY, cluster.spreadY);
-      const cloudRadius = scale * 0.7;
-      let posX = cluster.x + input.randomRange(-cluster.spreadX, cluster.spreadX);
-      let posZ = cluster.z + input.randomRange(-cluster.spreadZ, cluster.spreadZ);
-      let placed = !input.isCloudPlacementBlocked(posX, posZ, cloudRadius);
-      for (let attempt = 0; attempt < 10 && !placed; attempt += 1) {
-        posX = cluster.x + input.randomRange(-cluster.spreadX, cluster.spreadX);
-        posZ = cluster.z + input.randomRange(-cluster.spreadZ, cluster.spreadZ);
-        placed = !input.isCloudPlacementBlocked(posX, posZ, cloudRadius);
-      }
-      if (!placed) {
-        continue;
-      }
-      sprite.position.set(
-        posX,
-        Math.min(candidateY, maxCenterY),
-        posZ,
+  const tryPlaceCloud = (
+    centerX: number,
+    centerZ: number,
+    scale: number,
+    localTrackY: number,
+    yBase: number,
+    yJitter: number,
+    topCapY: number,
+  ): void => {
+    const sprite = new THREE.Sprite(cloudMaterial);
+    const maxCenterY = topCapY - scale * 0.5;
+    const y = THREE.MathUtils.clamp(
+      yBase + yJitter,
+      localTrackY - 80,
+      maxCenterY,
+    );
+    const cloudRadius = scale * 0.42;
+    let x = centerX;
+    let z = centerZ;
+    let placed = !input.isCloudPlacementBlocked(x, z, cloudRadius);
+    for (let attempt = 0; attempt < 8 && !placed; attempt += 1) {
+      x = centerX + input.randomRange(-18, 18);
+      z = centerZ + input.randomRange(-10, 10);
+      placed = !input.isCloudPlacementBlocked(x, z, cloudRadius);
+    }
+    if (!placed) {
+      return;
+    }
+    sprite.position.set(x, y, z);
+    sprite.scale.set(scale * 1.3, scale, 1);
+    cloudGroup.add(sprite);
+  };
+
+  for (let i = 0; i < laneSteps; i += 1) {
+    const t = i / Math.max(1, laneSteps - 1);
+    const z = THREE.MathUtils.lerp(zTop, zBottom, t);
+    const centerX = input.sampleTrackX(z);
+    const width = input.getSliceWidthAtZ(z);
+    const localTrackY = input.getTrackSurfaceY(z);
+    const sideCloudTopCapY = localTrackY + 48;
+    const deepSideCloudTopCapY = localTrackY + 36;
+    const valleyCloudTopCapY = localTrackY - 6;
+    const valleyHalfWidth = width * 0.5 + 18;
+
+    const leftWallX =
+      centerX - valleyHalfWidth - input.randomRange(8, 30);
+    const rightWallX =
+      centerX + valleyHalfWidth + input.randomRange(8, 30);
+    const wallScaleA = input.randomRange(48, 92);
+    const wallScaleB = input.randomRange(48, 92);
+
+    tryPlaceCloud(
+      leftWallX,
+      z + input.randomRange(-7, 7),
+      wallScaleA,
+      localTrackY,
+      localTrackY + 18,
+      input.randomRange(-12, 8),
+      sideCloudTopCapY,
+    );
+    tryPlaceCloud(
+      rightWallX,
+      z + input.randomRange(-7, 7),
+      wallScaleB,
+      localTrackY,
+      localTrackY + 18,
+      input.randomRange(-12, 8),
+      sideCloudTopCapY,
+    );
+
+    // Depth fill behind side walls to avoid big empty gaps.
+    const leftDepthX =
+      centerX - valleyHalfWidth - input.randomRange(52, 132);
+    const rightDepthX =
+      centerX + valleyHalfWidth + input.randomRange(52, 132);
+    tryPlaceCloud(
+      leftDepthX,
+      z + input.randomRange(-10, 10),
+      input.randomRange(64, 116),
+      localTrackY,
+      localTrackY + 8,
+      input.randomRange(-14, 8),
+      deepSideCloudTopCapY,
+    );
+    tryPlaceCloud(
+      rightDepthX,
+      z + input.randomRange(-10, 10),
+      input.randomRange(64, 116),
+      localTrackY,
+      localTrackY + 8,
+      input.randomRange(-14, 8),
+      deepSideCloudTopCapY,
+    );
+
+    // Lower valley bed clouds to keep some volume below the play lane.
+    if (i % 2 === 0) {
+      const floorX = centerX + input.randomRange(-42, 42);
+      tryPlaceCloud(
+        floorX,
+        z + input.randomRange(-9, 9),
+        input.randomRange(96, 156),
+        localTrackY,
+        Math.min(lowerCloudBaseY, localTrackY - 42),
+        input.randomRange(-12, 10),
+        Math.min(cloudTopCapY, valleyCloudTopCapY),
       );
-      sprite.scale.set(scale * 1.35, scale, 1);
-      cloudGroup.add(sprite);
     }
   }
 
   input.addLevelObject(cloudGroup);
-  console.log("[AddCloudBackdrop]", "Placed sprite cloud backdrop clusters");
+  const placedCount = cloudGroup.children.length;
+  console.log("[AddCloudBackdrop]", "Placed cloud sprites: " + String(placedCount));
+  return placedCount;
 }
 
 export function addFinishTriggerCubes(
