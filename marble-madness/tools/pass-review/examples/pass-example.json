@@ -1,0 +1,24 @@
+{
+  "passId": "helix-pass-example",
+  "title": "Helix Comparison Pass",
+  "summary": "Agent debug camera presets for quick visual comparison",
+  "screenshots": [
+    {
+      "label": "Overview",
+      "path": "screenshots/agent-debug-overview.png"
+    },
+    {
+      "label": "Side",
+      "path": "screenshots/agent-debug-side.png"
+    },
+    {
+      "label": "Top",
+      "path": "screenshots/agent-debug-top.png"
+    }
+  ],
+  "reasoning": "This pass verifies camera presets and minimal helix spawn.",
+  "nextSteps": [
+    "Adjust helix radius/length toward toy reference",
+    "Republish pass with updated screenshots"
+  ]
+}

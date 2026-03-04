@@ -25,3 +25,4 @@ Do not duplicate detailed conventions here.
 - For WSL/local testing where hot reload is unreliable, use `npm run build:versioned:serve` to build then restart Vite on `127.0.0.1:5173` in one command.
 - If local dev shows stale behavior or an old build label, run `npm run dev:restart` to restart the Vite server cleanly.
 - For automatic local testing workflow, use `npm run dev:auto` to watch source changes and run version bump + build + dev server restart automatically.
+- When running build workflows (`build:versioned`, `build:versioned:serve`, or `dev:auto` build cycles), always report the expected `BUILD_VERSION` from `src/main.ts`.

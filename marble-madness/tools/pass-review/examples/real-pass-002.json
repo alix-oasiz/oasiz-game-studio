@@ -1,0 +1,14 @@
+{
+  "passId": "helix-real-pass-002",
+  "title": "Helix Real Pass 002 (Side + Top)",
+  "summary": "Cloud-free capture focused on side and topdown only.",
+  "screenshots": [
+    { "label": "Side View", "path": "screenshots/agent-debug-side-v2.png" },
+    { "label": "Topdown View", "path": "screenshots/agent-debug-top-v2.png" }
+  ],
+  "reasoning": "Clouds are disabled during agent debug captures to avoid occlusion. This pass includes only the two views you care about: side profile and topdown.",
+  "nextSteps": [
+    "If approved: continue helix geometry tuning against toy reference",
+    "If declined: apply your feedback to camera framing or helix shape and republish"
+  ]
+}

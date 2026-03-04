@@ -23,10 +23,12 @@ const WATCH_EXTENSIONS = new Set([
   ".frag",
 ]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git", "test-results", "screenshots"]);
+const LOCK_FILE = path.join(PROJECT_ROOT, ".dev-auto.lock");
 
 const nodeCmd = process.execPath;
 const viteCli = path.join(PROJECT_ROOT, "node_modules", "vite", "bin", "vite.js");
 const versionBumpScript = path.join(PROJECT_ROOT, "scripts", "bump-build-version.mjs");
+const mainTsPath = path.join(PROJECT_ROOT, "src", "main.ts");
 const watchers = [];
 let debounceTimer = null;
 let ignoreUntil = 0;
@@ -35,13 +37,92 @@ let rerunRequested = false;
 let devServer = null;
 let isShuttingDown = false;
 let devRestartTimer = null;
+let lockAcquired = false;
 
 function log(name, message) {
   console.log("[" + name + "]", message);
 }
 
+function isPidRunning(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function acquireLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const raw = fs.readFileSync(LOCK_FILE, "utf8");
+      const existing = JSON.parse(raw);
+      const activePid = Number.parseInt(String(existing?.pid ?? ""), 10);
+      if (isPidRunning(activePid)) {
+        log(
+          "WatchFlow",
+          "Another dev:auto instance is already running (PID " +
+            String(activePid) +
+            "). Exiting.",
+        );
+        return false;
+      }
+    }
+  } catch {
+    // If lock read fails, continue and replace it.
+  }
+
+  fs.writeFileSync(
+    LOCK_FILE,
+    JSON.stringify(
+      {
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  lockAcquired = true;
+  return true;
+}
+
+function releaseLock() {
+  if (!lockAcquired) {
+    return;
+  }
+  try {
+    if (!fs.existsSync(LOCK_FILE)) {
+      return;
+    }
+    const raw = fs.readFileSync(LOCK_FILE, "utf8");
+    const lock = JSON.parse(raw);
+    if (Number(lock?.pid) === process.pid) {
+      fs.unlinkSync(LOCK_FILE);
+    }
+  } catch {
+    // Ignore cleanup errors on shutdown.
+  } finally {
+    lockAcquired = false;
+  }
+}
+
 function toRelative(targetPath) {
   return path.relative(PROJECT_ROOT, targetPath).replaceAll("\\", "/");
+}
+
+function readBuildVersion() {
+  try {
+    const source = fs.readFileSync(mainTsPath, "utf8");
+    const match = source.match(/const BUILD_VERSION = "(\d+\.\d+\.\d+)";/);
+    return match ? match[1] : "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 function shouldWatchFile(filePath) {
@@ -175,6 +256,7 @@ async function runBuildPipeline(triggerPath) {
   ignoreUntil = Date.now() + SELF_WRITE_GUARD_MS;
   log("WatchFlow", "Change detected at " + triggerPath);
   log("WatchFlow", "Running version bump + build");
+  log("WatchFlow", "Build version before bump: " + readBuildVersion());
 
   const bumpCode = await runCommand(nodeCmd, [versionBumpScript]);
   if (bumpCode !== 0) {
@@ -186,13 +268,17 @@ async function runBuildPipeline(triggerPath) {
     }
     return;
   }
+  log("WatchFlow", "Expected build version: " + readBuildVersion());
 
   const buildCode = await runCommand(nodeCmd, [viteCli, "build"]);
   if (buildCode === 0) {
-    log("WatchFlow", "Build succeeded");
+    log("WatchFlow", "Build succeeded at version " + readBuildVersion());
     await restartDevServer();
   } else {
-    log("WatchFlow", "Build failed, dev server left unchanged");
+    log(
+      "WatchFlow",
+      "Build failed at version " + readBuildVersion() + ", dev server left unchanged",
+    );
   }
 
   isBuilding = false;
@@ -290,10 +376,16 @@ async function shutdown() {
     await stopProcessTree(devServer.pid);
   }
   devServer = null;
+  releaseLock();
 }
 
 async function main() {
   log("WatchFlow", "Booting watch workflow");
+  if (!acquireLock()) {
+    process.exit(0);
+    return;
+  }
+  log("WatchFlow", "Current build version: " + readBuildVersion());
   startDevServer();
   initWatchers();
 }
