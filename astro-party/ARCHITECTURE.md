@@ -72,6 +72,8 @@ Audio:
 ## Shared Topology
 
 - `shared/sim/*`: deterministic simulation, game flow, maps, scoring.
+- `shared/sim/modules/simulationCollisionHandlers.ts`: direct overlap collision handlers + map-feature collision helpers.
+- `shared/sim/modules/simulationSweptCollisions.ts`: swept projectile resolution and ship/pilot anti-tunneling guards.
 - `shared/geometry/*`: entity/skin geometry and generated payloads.
 - `shared/assets/*`: source SVG assets for entities/ships/maps/powerups.
 - `shared/types/*` and `shared/game/*`: cross-runtime type contracts.
@@ -140,6 +142,7 @@ Primary mapping locations:
 Client checks:
 - `bun run typecheck`
 - `bun run build`
+- `bun run sim:collision-matrix` (required when collision/scoring hot paths change)
 
 Generation:
 - `bun run generate:entities`

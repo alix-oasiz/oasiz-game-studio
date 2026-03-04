@@ -243,3 +243,22 @@ Durable implementation learnings to avoid repeating known mistakes.
 - Related files:
   - `lag-findings-deep-pass.md`
   - `progress.md`
+
+## 2026-03-04 - Collision hot-path changes need deterministic harness coverage first
+
+- Context:
+  - Collision anti-tunneling work landed across several follow-up milestones (behavior fix, telemetry wiring, allocation gating, and module split).
+- Wrong assumption:
+  - Collision hot-path behavior could be safely evolved first and instrumented/validated later without added churn.
+- Detection signal:
+  - Multiple near-term follow-up milestones were needed to add deterministic verification and then remove avoidable telemetry allocations from gameplay-default paths.
+- Corrected approach:
+  - For shared simulation collision/scoring hot paths, establish deterministic scenario coverage first, then iterate behavior/perf/refactors against that baseline.
+  - Keep telemetry opt-in and guard event object construction behind enabled callbacks/flags.
+- Guardrail:
+  - Do not merge collision/scoring hot-path rewrites without deterministic harness validation and explicit telemetry allocation gating for default runtime.
+- Related files:
+  - `shared/sim/modules/simulationCollisionHandlers.ts`
+  - `shared/sim/modules/simulationSweptCollisions.ts`
+  - `scripts/run-sim-collision-matrix.ts`
+  - `progress.md`

@@ -126,7 +126,7 @@ This file is game-specific guidance for `astro-party/` and is additive to the re
   - server task: `server/README.md`
   - general flow/build task: root `README.md`
 - Check `.agents/learning.md` for related anti-repeat guardrails before coding.
-- For planned prompts, write/update the active task thread first, then append milestone + validation status in `progress.md` on completion.
+- For planned prompts that are multi-step or likely to run beyond ~30 minutes, write/update the active task thread first, then append milestone + validation status in `progress.md` on completion.
 
 ## Readme Contract (Read/Update Rules)
 
@@ -191,12 +191,17 @@ Update when behavior/process changes:
 - Render-wide visual experiments must declare an explicit frame-budget target and a rollback/disable path before iterative tuning on default gameplay rendering.
 - After canonical mode/flow refactors, run a dead-path cleanup sweep in the same delivery window (remove obsolete flags, fallback branches, hidden IDs, and stale docs references).
 - Intermittent lag investigations must lock a capture-condition matrix first (feature flags/tooling/device mode) and tie each finding to those conditions before ranking fixes.
+- Shared simulation collision/scoring hot-path changes must establish deterministic harness coverage first, then run behavior/perf/refactor iterations against that baseline.
+- Optional telemetry for hot paths must be opt-in and must gate event object allocation behind enabled callbacks/flags.
 
 ## Validation Matrix
 
 Always for runtime-impacting changes:
 - `bun run typecheck`
 - `bun run build`
+
+When shared simulation collision/scoring hot paths change:
+- `bun run sim:collision-matrix`
 
 When asset pipelines change:
 - Audio tooling/paths: `bun run ffmpeg:check`
