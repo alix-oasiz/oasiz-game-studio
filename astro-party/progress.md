@@ -1140,3 +1140,12 @@ Condensed on 2026-02-28 to remove repeated micro-iterations and duplicate valida
   - `bun run typecheck` passed.
   - `bun run build` passed.
 
+## 2026-03-04 (Socket pressure guard for cosmetic events)
+- Updated `server/src/rooms/AstroPartyRoom.ts` to route cosmetic broadcasts through per-client buffer-aware fanout:
+  - `evt:sound`, `evt:screen_shake`, `evt:dash_particles` now use `broadcastCosmeticToClients(...)`.
+  - Cosmetic events are skipped for clients whose outbound buffer exceeds `CLIENT_MAX_OUTBOUND_BUFFER_BYTES`.
+- Scope intentionally minimal for deployment branch:
+  - no additional close-context/event-loop instrumentation changes included.
+- Validation:
+  - `astro-party/server`: `npm run typecheck` passed
+  - `astro-party/server`: `npm run build` passed
