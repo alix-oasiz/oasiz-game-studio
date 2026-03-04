@@ -1,199 +1,199 @@
 {
   "player_idle#0": {
     "type": "rect",
-    "x": 0,
-    "y": 5,
-    "width": 24,
+    "x": 10,
+    "y": 11,
+    "width": 11,
     "height": 33
   },
   "player_idle#1": {
     "type": "rect",
-    "x": 0,
-    "y": 5,
-    "width": 24,
+    "x": 10,
+    "y": 11,
+    "width": 11,
     "height": 33
   },
   "player_idle#2": {
     "type": "rect",
-    "x": 0,
-    "y": 5,
-    "width": 24,
+    "x": 10,
+    "y": 11,
+    "width": 11,
     "height": 33
   },
   "player_idle#3": {
     "type": "rect",
-    "x": 0,
-    "y": 5,
-    "width": 24,
+    "x": 10,
+    "y": 11,
+    "width": 11,
     "height": 33
   },
   "player_run#0": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 1,
+    "y": 21,
+    "width": 39,
+    "height": 17
   },
   "player_run#1": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 1,
+    "y": 21,
+    "width": 39,
+    "height": 17
   },
   "player_run#2": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 1,
+    "y": 21,
+    "width": 39,
+    "height": 17
   },
   "player_run#3": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 1,
+    "y": 21,
+    "width": 39,
+    "height": 17
   },
   "player_run#4": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 1,
+    "y": 21,
+    "width": 39,
+    "height": 17
   },
   "player_run#5": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 1,
+    "y": 21,
+    "width": 39,
+    "height": 17
   },
   "player_jump#0": {
     "type": "rect",
-    "x": 8,
+    "x": 16,
     "y": 14,
-    "width": 32,
+    "width": 14,
     "height": 24
   },
   "player_jump#1": {
     "type": "rect",
-    "x": 8,
+    "x": 16,
     "y": 14,
-    "width": 32,
+    "width": 14,
     "height": 24
   },
   "player_jump#2": {
     "type": "rect",
-    "x": 8,
+    "x": 16,
     "y": 14,
-    "width": 32,
+    "width": 14,
     "height": 24
   },
   "player_jump#3": {
     "type": "rect",
-    "x": 8,
+    "x": 16,
     "y": 14,
-    "width": 32,
+    "width": 14,
     "height": 24
   },
   "player_jump#4": {
     "type": "rect",
-    "x": 8,
+    "x": 16,
     "y": 14,
-    "width": 32,
+    "width": 14,
     "height": 24
   },
   "player_jump#5": {
     "type": "rect",
-    "x": 8,
+    "x": 16,
     "y": 14,
-    "width": 32,
+    "width": 14,
     "height": 24
   },
   "player_fall#0": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
   },
   "player_fall#1": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
   },
   "player_fall#2": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
   },
   "player_fall#3": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
   },
   "player_fall#4": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
   },
   "player_fall#5": {
     "type": "rect",
-    "x": 8,
-    "y": 14,
-    "width": 32,
-    "height": 24
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
   },
   "player_shoot#0": {
     "type": "rect",
-    "x": 8,
+    "x": 10,
     "y": 12,
-    "width": 32,
-    "height": 28
+    "width": 12,
+    "height": 31
   },
   "player_shoot#1": {
     "type": "rect",
-    "x": 8,
+    "x": 10,
     "y": 12,
-    "width": 32,
-    "height": 28
+    "width": 12,
+    "height": 31
   },
   "player_shoot#2": {
     "type": "rect",
-    "x": 8,
+    "x": 10,
     "y": 12,
-    "width": 32,
-    "height": 28
+    "width": 12,
+    "height": 31
   },
   "player_shoot#3": {
     "type": "rect",
-    "x": 8,
+    "x": 10,
     "y": 12,
-    "width": 32,
-    "height": 28
+    "width": 12,
+    "height": 31
   },
   "player_shoot#4": {
     "type": "rect",
-    "x": 8,
+    "x": 10,
     "y": 12,
-    "width": 32,
-    "height": 28
+    "width": 12,
+    "height": 31
   },
   "player_shoot#5": {
     "type": "rect",
-    "x": 8,
+    "x": 10,
     "y": 12,
-    "width": 32,
-    "height": 28
+    "width": 12,
+    "height": 31
   },
   "crab_idle#0": {
     "unsafe": {

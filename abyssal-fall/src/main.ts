@@ -114,6 +114,10 @@ type LabCircleCollider = {
 };
 
 type LabCollider = LabRectCollider | LabCircleCollider;
+type LabColliderZoneSet = {
+  safe?: LabCollider;
+  unsafe?: LabCollider;
+};
 
 const DEFAULT_HITBOX_TUNING: HitboxTuning = {
   playerBaseWidth: 30,
@@ -212,7 +216,7 @@ class Game {
   private readonly HITBOX_TUNING_STORAGE_KEY: string = "downwellHitboxTuningV1";
   private readonly HITBOX_LAB_STORAGE_KEY: string = "downwellHitboxLabFramesV1";
   private hitboxTuning: HitboxTuning = { ...DEFAULT_HITBOX_TUNING };
-  private hitboxLabColliders: Record<string, LabCollider> = {};
+  private hitboxLabColliders: Record<string, LabCollider | LabColliderZoneSet> = {};
   private hitboxLabLoadedCount: number = 0;
   private hitboxPanelEl: HTMLDivElement | null = null;
   private hitboxPanelVisible: boolean = false;
@@ -383,6 +387,12 @@ class Game {
   private deathFreezeKiller: { x: number; y: number } | null = null;
   private readonly DEATH_FREEZE_DURATION_FRAMES: number = 180;
   private readonly CONTACT_HIT_INVULN_FRAMES: number = 54;
+  private readonly GAMEPLAY_LIGHTING_ENABLED: boolean = true;
+  private readonly GAMEPLAY_LIGHT_RADIUS: number = 168;
+  private readonly GAMEPLAY_LIGHT_INNER_RATIO: number = 0.24;
+  private readonly GAMEPLAY_LIGHT_FLICKER_AMPLITUDE: number = 0.025;
+  private readonly GAMEPLAY_LIGHT_BASE_ALPHA: number = 0.34;
+  private readonly GAMEPLAY_LIGHT_EDGE_ALPHA: number = 0.26;
   
   // Track previous HP for bubble pop detection
   private previousHp: number = CONFIG.PLAYER_MAX_HP;
@@ -1939,38 +1949,8 @@ class Game {
       return;
     }
     try {
-      const parsed = JSON.parse(saved) as Record<string, Partial<LabCollider>>;
-      const next: Record<string, LabCollider> = {};
-      for (const [frameId, raw] of Object.entries(parsed)) {
-        if (!raw || typeof raw !== "object") continue;
-        if (raw.type === "rect") {
-          const x = Number(raw.x);
-          const y = Number(raw.y);
-          const width = Number(raw.width);
-          const height = Number(raw.height);
-          if ([x, y, width, height].some((n) => !Number.isFinite(n))) continue;
-          next[frameId] = {
-            type: "rect",
-            x: Math.round(x),
-            y: Math.round(y),
-            width: Math.max(1, Math.round(width)),
-            height: Math.max(1, Math.round(height)),
-          };
-          continue;
-        }
-        if (raw.type === "circle") {
-          const cx = Number(raw.cx);
-          const cy = Number(raw.cy);
-          const radius = Number(raw.radius);
-          if ([cx, cy, radius].some((n) => !Number.isFinite(n))) continue;
-          next[frameId] = {
-            type: "circle",
-            cx: Math.round(cx),
-            cy: Math.round(cy),
-            radius: Math.max(1, Math.round(radius)),
-          };
-        }
-      }
+      const parsed = JSON.parse(saved) as Record<string, unknown>;
+      const next = this.parseHitboxLabPayload(parsed);
       this.hitboxLabColliders = next;
       this.hitboxLabLoadedCount = Object.keys(next).length;
       console.log(`[HitboxLab] Loaded ${this.hitboxLabLoadedCount} frame colliders`);
@@ -1983,28 +1963,67 @@ class Game {
 
   private async loadHitboxLabCollidersFromFile(): Promise<void> {
     try {
-      const res = await fetch("./collisions.json");
+      const res = await fetch(`./hitbox-colliders.json?t=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) return;
-      const parsed = await res.json() as Record<string, Partial<LabCollider>>;
-      const next: Record<string, LabCollider> = {};
-      for (const [frameId, raw] of Object.entries(parsed)) {
-        if (!raw || typeof raw !== "object") continue;
-        if (raw.type === "rect") {
-          const x = Number(raw.x), y = Number(raw.y), width = Number(raw.width), height = Number(raw.height);
-          if ([x, y, width, height].some((n) => !Number.isFinite(n))) continue;
-          next[frameId] = { type: "rect", x: Math.round(x), y: Math.round(y), width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) };
-        } else if (raw.type === "circle") {
-          const cx = Number(raw.cx), cy = Number(raw.cy), radius = Number(raw.radius);
-          if ([cx, cy, radius].some((n) => !Number.isFinite(n))) continue;
-          next[frameId] = { type: "circle", cx: Math.round(cx), cy: Math.round(cy), radius: Math.max(1, Math.round(radius)) };
-        }
-      }
+      const parsed = await res.json() as Record<string, unknown>;
+      const next = this.parseHitboxLabPayload(parsed);
       this.hitboxLabColliders = next;
       this.hitboxLabLoadedCount = Object.keys(next).length;
-      console.log(`[HitboxLab] Loaded ${this.hitboxLabLoadedCount} frame colliders from collisions.json`);
+      console.log(`[HitboxLab] Loaded ${this.hitboxLabLoadedCount} frame colliders from project file`);
     } catch {
       // collisions.json not found — localStorage version stays active
     }
+  }
+
+  private sanitizeLabCollider(raw: unknown): LabCollider | null {
+    if (!raw || typeof raw !== "object") return null;
+    const candidate = raw as Partial<LabCollider>;
+    if (candidate.type === "rect") {
+      const x = Number(candidate.x);
+      const y = Number(candidate.y);
+      const width = Number(candidate.width);
+      const height = Number(candidate.height);
+      if ([x, y, width, height].some((n) => !Number.isFinite(n))) return null;
+      return {
+        type: "rect",
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.max(1, Math.round(width)),
+        height: Math.max(1, Math.round(height)),
+      };
+    }
+    if (candidate.type === "circle") {
+      const cx = Number(candidate.cx);
+      const cy = Number(candidate.cy);
+      const radius = Number(candidate.radius);
+      if ([cx, cy, radius].some((n) => !Number.isFinite(n))) return null;
+      return {
+        type: "circle",
+        cx: Math.round(cx),
+        cy: Math.round(cy),
+        radius: Math.max(1, Math.round(radius)),
+      };
+    }
+    return null;
+  }
+
+  private parseHitboxLabPayload(payload: Record<string, unknown>): Record<string, LabCollider | LabColliderZoneSet> {
+    const next: Record<string, LabCollider | LabColliderZoneSet> = {};
+    for (const [frameId, raw] of Object.entries(payload)) {
+      const direct = this.sanitizeLabCollider(raw);
+      if (direct) {
+        next[frameId] = direct;
+        continue;
+      }
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      const rawSet = raw as { safe?: unknown; unsafe?: unknown };
+      const safe = this.sanitizeLabCollider(rawSet.safe);
+      const unsafe = this.sanitizeLabCollider(rawSet.unsafe);
+      if (safe || unsafe) {
+        next[frameId] = { safe: safe ?? undefined, unsafe: unsafe ?? undefined };
+      }
+    }
+    return next;
   }
 
   private saveHitboxTuning(): void {
@@ -2062,7 +2081,7 @@ class Game {
       input.dataset.hitboxKey = key;
       input.addEventListener("input", () => {
         const next = Number(input.value);
-        (this.hitboxTuning as Record<string, number>)[key] = next;
+        this.hitboxTuning[key] = next;
         value.textContent = step < 1 ? next.toFixed(2) : String(Math.round(next));
         this.applyHitboxTuning();
       });
@@ -3167,7 +3186,7 @@ class Game {
 
     if (nearestFloor) {
       gem.y = nearestFloor.y - halfH - 4;
-      gem.vy = Math.min(gem.vy, -3.2);
+      gem.vy = Math.min(gem.vy ?? 0, -3.2);
     }
 
     const pushRight = nearestLeftGap <= nearestRightGap;
@@ -3755,21 +3774,37 @@ class Game {
           }
           continue;
         }
-      } else if (!this.checkCollision(playerRect, this.getEnemyCollisionRect(enemy))) {
-        continue;
-      }
-      
-      // Player bounces if falling downward — use vyBeforeResolve because
-      // platform collision may have zeroed vy before this check runs.
-      if (vyBeforeResolve > 0) {
-        // Bounce mechanic - player lands on enemy from above
-        this.bounceOnEnemy(enemy, i);
-      } else if (!this.playerController.isInvulnerable()) {
-        // Player takes damage only if moving up or stationary
-        this.applyPlayerDamage(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+      } else {
+        const unsafeZone = this.getEnemyCollisionRect(enemy);
+        const overlapsUnsafe = this.checkCollision(playerRect, unsafeZone);
+        const safeFromLab = this.getEnemySafeZoneRect(enemy);
+        const safeBandHeight = Math.max(10, unsafeZone.height * 0.42);
+        const safeZone = safeFromLab ?? {
+          x: unsafeZone.x + 2,
+          y: unsafeZone.y - 2,
+          width: Math.max(4, unsafeZone.width - 4),
+          height: safeBandHeight + 4,
+        };
+        const overlapsSafeZone =
+          playerRect.x < safeZone.x + safeZone.width &&
+          playerRect.x + playerRect.width > safeZone.x &&
+          playerRect.y < safeZone.y + safeZone.height &&
+          playerRect.y + playerRect.height > safeZone.y;
+
+        if (!overlapsUnsafe && !overlapsSafeZone) {
+          continue;
+        }
+        const prevBottom = (playerRect.y - vyBeforeResolve) + playerRect.height;
+        const cameFromAbove = prevBottom <= safeZone.y + Math.max(8, safeZone.height * 0.5);
+        const stompedFromTop = vyBeforeResolve > 0 && overlapsSafeZone && cameFromAbove;
+
+        if (stompedFromTop) {
+          this.bounceOnEnemy(enemy, i);
+        } else if (overlapsUnsafe && !this.playerController.isInvulnerable()) {
+          this.applyPlayerDamage(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+        }
       }
     }
-
     // Weed stomp bounce (no score, no combo). Drops one gem.
     // Weeds act like springy coral: contact from above bounces the player.
     for (let i = this.activeWeeds.length - 1; i >= 0; i--) {
@@ -4806,9 +4841,10 @@ class Game {
     drawH: number,
     frameW: number,
     frameH: number,
-    flipX: boolean = false
+    flipX: boolean = false,
+    zone?: "safe" | "unsafe"
   ): { x: number; y: number; width: number; height: number } | null {
-    const collider = this.hitboxLabColliders[frameId];
+    const collider = this.getLabColliderForZone(frameId, zone);
     if (!collider || collider.type !== "rect") return null;
     const sx = drawW / frameW;
     const sy = drawH / frameH;
@@ -4829,9 +4865,10 @@ class Game {
     drawH: number,
     frameW: number,
     frameH: number,
-    flipX: boolean = false
+    flipX: boolean = false,
+    zone?: "safe" | "unsafe"
   ): { cx: number; cy: number; radius: number } | null {
-    const collider = this.hitboxLabColliders[frameId];
+    const collider = this.getLabColliderForZone(frameId, zone);
     if (!collider || collider.type !== "circle") return null;
     const sx = drawW / frameW;
     const sy = drawH / frameH;
@@ -4841,6 +4878,18 @@ class Game {
       cy: drawY + collider.cy * sy,
       radius: Math.max(1, collider.radius * Math.min(sx, sy)),
     };
+  }
+
+  private getLabColliderForZone(frameId: string, zone?: "safe" | "unsafe"): LabCollider | null {
+    const entry = this.hitboxLabColliders[frameId];
+    if (!entry) return null;
+    if ("type" in entry) {
+      if (zone === "safe") return null;
+      return entry;
+    }
+    if (zone === "safe") return entry.safe ?? null;
+    if (zone === "unsafe") return entry.unsafe ?? null;
+    return entry.unsafe ?? entry.safe ?? null;
   }
 
   private getPufferCollisionCircle(enemy: PufferEnemy): { cx: number; cy: number; radius: number } {
@@ -4876,7 +4925,8 @@ class Game {
     drawH: number,
     frameW: number,
     frameH: number,
-    flipX: boolean = false
+    flipX: boolean = false,
+    zone?: "safe" | "unsafe"
   ): { x: number; y: number; width: number; height: number } | null {
     const exact = this.getLabRectFromFrame(
       `${sourceKey}#${frameIndex}`,
@@ -4886,7 +4936,8 @@ class Game {
       drawH,
       frameW,
       frameH,
-      flipX
+      flipX,
+      zone
     );
     if (exact) return exact;
     return this.getLabRectFromFrame(
@@ -4897,7 +4948,8 @@ class Game {
       drawH,
       frameW,
       frameH,
-      flipX
+      flipX,
+      zone
     );
   }
 
@@ -4951,7 +5003,8 @@ class Game {
         spriteDrawRect.height,
         spriteFrameSize.width,
         spriteFrameSize.height,
-        enemy.direction < 0
+        enemy.direction < 0,
+        "unsafe"
       );
       if (fromLab) return fromLab;
     }
@@ -4980,6 +5033,31 @@ class Game {
       width,
       height,
     };
+  }
+
+  private getEnemySafeZoneRect(enemy: BaseEnemy): { x: number; y: number; width: number; height: number } | null {
+    const spriteDrawRect = enemy.getSpriteDrawRect();
+    const spriteFrameSize = enemy.getSpriteFrameSize();
+    if (!spriteDrawRect || !spriteFrameSize) return null;
+
+    let sourceKey = "";
+    if (enemy.type === "STATIC") sourceKey = "crab_idle";
+    else if (enemy.type === "HORIZONTAL") sourceKey = "shark_walk";
+    else if (enemy.type === "EXPLODER") sourceKey = "squid_walk";
+    if (!sourceKey) return null;
+
+    return this.getLabRectWithFallback(
+      sourceKey,
+      enemy.getAnimationFrameIndex(),
+      spriteDrawRect.x,
+      spriteDrawRect.y,
+      spriteDrawRect.width,
+      spriteDrawRect.height,
+      spriteFrameSize.width,
+      spriteFrameSize.height,
+      enemy.direction < 0,
+      "safe"
+    );
   }
 
   private rectCircleOverlap(rect: { x: number; y: number; width: number; height: number }, cx: number, cy: number, radius: number): boolean {
@@ -5153,6 +5231,10 @@ class Game {
     
     ctx.restore();
 
+    if (this.gameState === "playing" || this.gameState === "shop") {
+      this.drawGameplayLighting();
+    }
+
     // Draw touch zones overlay OUTSIDE the scale transform so it fills the full screen
     if ((this.gameState === "playing" || this.gameState === "shop") && this.isMobile) {
       this.drawTouchZones();
@@ -5169,6 +5251,65 @@ class Game {
 
     // Apply dithering effect as post-process
     this.applyDithering();
+  }
+
+  private drawGameplayLighting(): void {
+    if (!this.GAMEPLAY_LIGHTING_ENABLED) return;
+    if (this.deathFreezeFrames > 0) return;
+
+    const player = this.playerController.getPlayer();
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    const screenX = (player.x + this.screenShakeX) * this.scale + this.offsetX;
+    const screenY = (player.y - this.cameraY + this.screenShakeY) * this.scale + this.offsetY;
+    const pulse = 1 + Math.sin(this.frameCount * 0.08) * this.GAMEPLAY_LIGHT_FLICKER_AMPLITUDE;
+    const lightRadius = this.GAMEPLAY_LIGHT_RADIUS * this.scale * pulse;
+    const innerRadius = lightRadius * this.GAMEPLAY_LIGHT_INNER_RATIO;
+
+    ctx.save();
+
+    // Global water darkness.
+    ctx.fillStyle = `rgba(3, 11, 20, ${this.GAMEPLAY_LIGHT_BASE_ALPHA})`;
+    ctx.fillRect(0, 0, w, h);
+
+    // Carve a soft hole in the darkness around the diver.
+    ctx.globalCompositeOperation = "destination-out";
+    const lightGradient = ctx.createRadialGradient(
+      screenX,
+      screenY,
+      innerRadius,
+      screenX,
+      screenY,
+      lightRadius
+    );
+    lightGradient.addColorStop(0, "rgba(0, 0, 0, 0.95)");
+    lightGradient.addColorStop(0.6, "rgba(0, 0, 0, 0.55)");
+    lightGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = lightGradient;
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, lightRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalCompositeOperation = "source-over";
+
+    // Extra edge vignette keeps corners darker than the center.
+    const vignette = ctx.createRadialGradient(
+      w * 0.5,
+      h * 0.5,
+      Math.min(w, h) * 0.18,
+      w * 0.5,
+      h * 0.5,
+      Math.max(w, h) * 0.72
+    );
+    vignette.addColorStop(0, "rgba(3, 10, 19, 0)");
+    vignette.addColorStop(0.65, `rgba(3, 10, 19, ${this.GAMEPLAY_LIGHT_EDGE_ALPHA * 0.55})`);
+    vignette.addColorStop(1, `rgba(3, 10, 19, ${this.GAMEPLAY_LIGHT_EDGE_ALPHA})`);
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.restore();
   }
 
   private drawWorldDoorways(): void {
@@ -6548,11 +6689,11 @@ class Game {
     ctx.fillStyle = "rgba(180, 235, 255, 0.95)";
     ctx.fillText(`LAB ${this.hitboxLabLoadedCount}`, 8, 12);
 
-    // Enemy hitboxes
-    ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
-    ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
+    // Enemy hitboxes (unsafe = red, safe stomp zone = green)
     for (const enemy of this.activeEnemies) {
       if (enemy instanceof PufferEnemy) {
+        ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
+        ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
         const { cx, cy, radius } = this.getPufferCollisionCircle(enemy);
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -6562,12 +6703,29 @@ class Game {
         ctx.fillText("PUFFER", cx - radius, cy - radius - 2);
         ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
       } else {
-        const rect = this.getEnemyCollisionRect(enemy);
-        ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-        ctx.fillStyle = "rgba(255, 90, 90, 0.95)";
-        ctx.fillText(enemy.type, rect.x, rect.y - 2);
+        const unsafe = this.getEnemyCollisionRect(enemy);
+        const safeBandHeight = Math.max(10, unsafe.height * 0.42);
+        const safe = this.getEnemySafeZoneRect(enemy) ?? {
+          x: unsafe.x + 2,
+          y: unsafe.y - 2,
+          width: Math.max(4, unsafe.width - 4),
+          height: safeBandHeight + 4,
+        };
+
+        ctx.strokeStyle = "rgba(255, 90, 90, 0.95)";
         ctx.fillStyle = "rgba(255, 90, 90, 0.1)";
+        ctx.fillRect(unsafe.x, unsafe.y, unsafe.width, unsafe.height);
+        ctx.strokeRect(unsafe.x, unsafe.y, unsafe.width, unsafe.height);
+
+        ctx.strokeStyle = "rgba(40, 255, 120, 0.95)";
+        ctx.fillStyle = "rgba(40, 255, 120, 0.16)";
+        ctx.fillRect(safe.x, safe.y, safe.width, safe.height);
+        ctx.strokeRect(safe.x, safe.y, safe.width, safe.height);
+
+        ctx.fillStyle = "rgba(255, 90, 90, 0.95)";
+        ctx.fillText(enemy.type, unsafe.x, unsafe.y - 2);
+        ctx.fillStyle = "rgba(40, 255, 120, 0.95)";
+        ctx.fillText("SAFE", safe.x, safe.y - 2);
       }
     }
 
@@ -7271,3 +7429,4 @@ if (document.readyState === "loading") {
 } else {
   initGame();
 }
+
