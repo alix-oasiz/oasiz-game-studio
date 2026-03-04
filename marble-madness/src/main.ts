@@ -151,7 +151,7 @@ class MarbleMadnessStarter {
   private readonly maxSteeringAngle = Math.PI / 4;
   private readonly steeringTurnRate = 5.5;
   private readonly steeringReturnRate = 4.5;
-  private readonly steeringImpulseScale = 0.2;
+  private readonly steeringImpulseScale = 0.26;
   private readonly arrowDriveImpulseScale = 0.11;
   private readonly startMomentumRatio = 0.5;
   private readonly maxHorizontalSpeed = 46.8;
@@ -170,9 +170,12 @@ class MarbleMadnessStarter {
   private readonly downhillSlopeAngle = Math.PI / 4;
   private readonly uphillSlopeAngle = -Math.PI / 4;
   private readonly slopeBlendDistance = 8.5;
-  private readonly spiralRadius = 18;
+  private readonly spiralRadius = 26;
   private readonly spiralEntryLength = 12;
   private readonly spiralExitLength = 12;
+  private readonly spiralInwardBankHeight = 0.34;
+  private readonly spiralSupportPlankThickness = 0.36;
+  private readonly spiralSupportPlankDepth = 0.72;
   private readonly blockerHeight = 1.25;
   private readonly blockerDepth = 0.9;
   private readonly blockerGapWidth = 4.1;
@@ -319,6 +322,8 @@ class MarbleMadnessStarter {
   private airborneSeconds = 0;
   private previousVerticalVelocity = 0;
   private lastLandingSfxRunTime = -999;
+  private lastObstacleThudRunTime = -999;
+  private blockerHitAtByIndex = new Map<number, number>();
   private debugTrackWireframeEnabled = false;
   private debugPhysicsWireframeEnabled = false;
   private debugCloudCountOverlayEnabled = false;
@@ -1367,6 +1372,7 @@ class MarbleMadnessStarter {
 
   private buildHorizontalBlockers(maxPerLevel: number = this.blockerMaxPerLevel): void {
     this.horizontalBlockers = [];
+    this.blockerHitAtByIndex.clear();
     const blockerLength = this.trackWidth / 3;
     const candidateSections = this.levelConfig.sections
       .map((section, index) => ({ section, index }))
@@ -1375,6 +1381,7 @@ class MarbleMadnessStarter {
         section.hasFloor &&
         section.type !== "start" &&
         section.type !== "end" &&
+        section.type !== "bottleneck" &&
         section.type !== "jump" &&
         section.type !== "slope_up_steep" &&
         section.type !== "spiral_down_left" &&
@@ -1558,6 +1565,17 @@ class MarbleMadnessStarter {
     return eased * this.wallHeight;
   }
 
+  private getSpiralBankOffset(sample: TrackSample, localX: number): number {
+    const section = this.levelConfig.sections[sample.sectionIndex];
+    if (!section || !this.isSpiralType(section.type)) {
+      return 0;
+    }
+    const halfWidth = Math.max(0.001, sample.width * 0.5);
+    const normalized = THREE.MathUtils.clamp(localX / halfWidth, -1, 1);
+    const inwardSign = section.type === "spiral_down_left" ? -1 : 1;
+    return -normalized * inwardSign * this.spiralInwardBankHeight;
+  }
+
   private buildRunSurfaceGeometry(
     run: TrackSample[],
     crossSegments: number,
@@ -1607,7 +1625,9 @@ class MarbleMadnessStarter {
       for (let stripIndex = 0; stripIndex <= crossSegments; stripIndex += 1) {
         const u = stripIndex / crossSegments;
         const localX = (u - 0.5) * sample.width;
-        const localY = this.getHalfPipeHeightAtOffset(Math.abs(localX), sample.width);
+        const localY =
+          this.getHalfPipeHeightAtOffset(Math.abs(localX), sample.width) +
+          this.getSpiralBankOffset(sample, localX);
         const topPoint = new THREE.Vector3(sample.x, sample.y, sample.z)
           .addScaledVector(right, localX)
           .add(new THREE.Vector3(0, localY, 0));
@@ -1841,6 +1861,38 @@ class MarbleMadnessStarter {
       column.castShadow = true;
       column.receiveShadow = true;
       this.addLevelObject(column);
+
+      const supportCount = 10;
+      for (let i = 0; i < supportCount; i += 1) {
+        const t = (i + 0.5) / supportCount;
+        const nominalZ = THREE.MathUtils.lerp(section.zStart, section.zEnd, t);
+        const point = this.sampleTrackCenterAtSectionT(section, t, nominalZ);
+        const surfaceY = this.getTrackSurfaceYAtPosition(point.x, point.z);
+        const trackUndersideY = surfaceY - this.trackThickness * 0.9;
+        const start = new THREE.Vector3(columnX, trackUndersideY - 0.32, columnZ);
+        const end = new THREE.Vector3(point.x, trackUndersideY, point.z);
+        const span = end.clone().sub(start);
+        const length = span.length();
+        if (length < 1.2) {
+          continue;
+        }
+        const support = new THREE.Mesh(
+          new THREE.BoxGeometry(
+            length,
+            this.spiralSupportPlankThickness,
+            this.spiralSupportPlankDepth,
+          ),
+          woodMaterial,
+        );
+        support.position.copy(start.clone().add(end).multiplyScalar(0.5));
+        support.quaternion.setFromUnitVectors(
+          new THREE.Vector3(1, 0, 0),
+          span.normalize(),
+        );
+        support.castShadow = true;
+        support.receiveShadow = true;
+        this.addLevelObject(support);
+      }
     }
 
     console.log(
@@ -2283,6 +2335,22 @@ class MarbleMadnessStarter {
     this.flashThudTraceOverlay();
   }
 
+  private playObstacleThud(impact: number, source: string): void {
+    if (this.runTimeSeconds - this.lastObstacleThudRunTime < 0.09) {
+      return;
+    }
+    const clampedImpact = Math.max(2.3, Math.min(16, impact));
+    const thudInfo = this.soundManager.playHeavyLanding(clampedImpact);
+    this.recordThudTraceEvent({
+      ...thudInfo,
+      reason: source + ":" + thudInfo.reason,
+      impact: clampedImpact,
+    });
+    if (thudInfo.played) {
+      this.lastObstacleThudRunTime = this.runTimeSeconds;
+    }
+  }
+
   private flashThudTraceOverlay(): void {
     this.thudDebugPanel.style.color = "#ffe7aa";
     this.thudDebugPanel.style.borderColor = "rgba(255, 216, 120, 0.82)";
@@ -2312,6 +2380,7 @@ class MarbleMadnessStarter {
       this.buildHorizontalBlockers(blockerCap);
     } else {
       this.horizontalBlockers = [];
+      this.blockerHitAtByIndex.clear();
     }
 
     const waveKinds = activeKinds.filter(
@@ -3036,6 +3105,8 @@ class MarbleMadnessStarter {
     this.runTimeSeconds = 0;
     this.finishedTimeSeconds = 0;
     this.loopsCompleted = 0;
+    this.lastObstacleThudRunTime = -999;
+    this.blockerHitAtByIndex.clear();
     const useAgentDebugMinimal = this.agentDebugMinimalMode;
     this.agentDebugMinimalMode = false;
     if (!useAgentDebugMinimal) {
@@ -3062,6 +3133,7 @@ class MarbleMadnessStarter {
     this.buildTrackSlices();
     if (useAgentDebugMinimal) {
       this.horizontalBlockers = [];
+      this.blockerHitAtByIndex.clear();
       this.rotatorObstacles = [];
       this.pinballBouncers = [];
       this.bouncyPads = [];
@@ -3443,8 +3515,24 @@ class MarbleMadnessStarter {
             runTimeSeconds: this.runTimeSeconds,
             marbleRadius: this.marbleRadius,
             marbleBody: this.marbleBody,
+            rotatorObstacles: this.rotatorObstacles,
+            bouncyPads: this.bouncyPads,
             pinballBouncers: this.pinballBouncers,
+            horizontalBlockers: this.horizontalBlockers,
+            blockerHitAtByIndex: this.blockerHitAtByIndex,
             bouncerPulseById: this.bouncerPulseById,
+            onRotatorHit: (impact) => {
+              this.playObstacleThud(impact, "rotator");
+            },
+            onBouncyPadHit: (impact) => {
+              this.playObstacleThud(impact, "bouncy_pad");
+            },
+            onHorizontalBlockerHit: (impact) => {
+              this.playObstacleThud(impact, "horizontal_blocker");
+            },
+            onPinballBouncerHit: () => {
+              this.soundManager.playBouncerBoing();
+            },
           });
           updateWaveObstacleAnimationData({
             fixedStep: this.fixedStep,
@@ -3533,17 +3621,55 @@ class MarbleMadnessStarter {
     this.updateFireworkTriggers();
   }
 
+  private isInsideFinishFrame(position: RAPIER.Vector): boolean {
+    const finishCenterX = this.sampleTrackX(this.finishZ);
+    const finishSurfaceY = this.getTrackSurfaceY(this.finishZ);
+    const frameHalfInnerWidth = this.trackWidth * 0.5 - 1.25;
+    const frameBottomY = finishSurfaceY + 0.05;
+    const frameTopY = finishSurfaceY + 8.15;
+    const xInset = this.marbleRadius * 0.2;
+    const yInset = this.marbleRadius * 0.2;
+    const withinX =
+      Math.abs(position.x - finishCenterX) <= frameHalfInnerWidth - xInset;
+    const withinY =
+      position.y >= frameBottomY + yInset &&
+      position.y <= frameTopY - yInset;
+    return withinX && withinY;
+  }
+
   private updateFireworkTriggers(): void {
     if (this.gameState !== "playing" || !this.marbleBody) {
       return;
     }
-    const marbleZ = this.marbleBody.translation().z;
+    const marblePosition = this.marbleBody.translation();
+    const marbleZ = marblePosition.z;
     for (const row of this.fireworkRows) {
-      if (!row.triggered && marbleZ <= row.activationZ) {
+      if (
+        !row.triggered &&
+        marbleZ <= row.activationZ &&
+        this.isInsideFireworkLane(row, marblePosition)
+      ) {
         row.triggered = true;
         this.spawnFireworks(row.burstPoints);
       }
     }
+  }
+
+  private isInsideFireworkLane(
+    row: FireworkRow,
+    position: RAPIER.Vector,
+  ): boolean {
+    if (row.burstPoints.length < 2) {
+      return false;
+    }
+    const leftX = Math.min(row.burstPoints[0].x, row.burstPoints[1].x);
+    const rightX = Math.max(row.burstPoints[0].x, row.burstPoints[1].x);
+    const xInset = this.marbleRadius * 0.2;
+    const withinX = position.x >= leftX + xInset && position.x <= rightX - xInset;
+    const surfaceY = this.getTrackSurfaceY(row.activationZ);
+    const minY = surfaceY - this.marbleRadius * 0.35;
+    const withinY = position.y >= minY;
+    return withinX && withinY;
   }
 
   private updateCamera(delta: number): void {

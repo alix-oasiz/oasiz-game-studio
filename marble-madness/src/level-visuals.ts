@@ -249,6 +249,20 @@ export function addFinishTriggerCubes(
       new THREE.Vector3(centerX + cubeOffsetX, y + columnHeight * 0.52, z),
     );
 
+    const plankWidth = cubeOffsetX * 2 + 2.0;
+    const plankHeight = 0.7;
+    const plankDepth = 2.0;
+    const plank = new THREE.Mesh(
+      new THREE.BoxGeometry(plankWidth, plankHeight, plankDepth),
+      cubeMaterial,
+    );
+    plank.position.set(
+      centerX,
+      input.getTrackSurfaceY(z) - (plankHeight * 0.5 + 0.45),
+      z,
+    );
+    input.addLevelObject(plank);
+
     rows.push({
       activationZ: z,
       burstPoints: rowBurstPoints,

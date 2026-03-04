@@ -1,8 +1,5 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Line2 } from "three/examples/jsm/lines/Line2.js";
-import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 
 type GameState = "start" | "playing" | "gameOver";
 
@@ -73,6 +70,7 @@ export interface PhysicsHost {
   groundedProbePadding: number;
   getTrackForwardDirectionAtPosition(x: number, z: number): THREE.Vector3;
   getTrackSurfaceYAtPosition(x: number, z: number): number;
+  isInsideFinishFrame(position: RAPIER.Vector): boolean;
   setPhysicsDebug(snapshot: PhysicsDebugSnapshot): void;
   advanceToNextRandomLevel(): void;
   endRun(completed: boolean): void;
@@ -128,9 +126,8 @@ function createSteeringArrowGeometry(
 
 export class MarbleVisualController {
   private readonly steeringArrow: THREE.Mesh;
-  private trailLine: Line2 | null = null;
-  private trailLineGeometry: LineGeometry | null = null;
-  private trailLineMaterial: LineMaterial | null = null;
+  private trailRibbonMesh: THREE.Mesh | null = null;
+  private trailRibbonGeometry: THREE.BufferGeometry | null = null;
   private trailPoints: THREE.Vector3[] = [];
   private trailSpawnSeconds = 0;
   private readonly emptyTrailPositions = [0, 0, 0, 0, 0, 0];
@@ -158,17 +155,23 @@ export class MarbleVisualController {
     this.steeringArrow.receiveShadow = false;
     this.steeringArrow.visible = false;
     this.scene.add(this.steeringArrow);
-    this.ensureTrailLine();
+    this.ensureTrailRibbon();
   }
 
   public resetTrail(): void {
     this.trailPoints = [];
     this.trailSpawnSeconds = 0;
-    if (!this.trailLine) {
-      return;
+    if (this.trailRibbonMesh) {
+      this.trailRibbonMesh.visible = false;
     }
-    this.trailLine.visible = false;
-    this.trailLineGeometry?.setPositions(this.emptyTrailPositions);
+    if (this.trailRibbonGeometry) {
+      this.trailRibbonGeometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(this.emptyTrailPositions, 3),
+      );
+      this.trailRibbonGeometry.setIndex([0, 1, 2, 1, 3, 2]);
+      this.trailRibbonGeometry.computeVertexNormals();
+    }
   }
 
   public update(host: MarbleVisualHost, delta: number): void {
@@ -176,56 +179,95 @@ export class MarbleVisualController {
     this.updateTrail(host, delta);
   }
 
-  private ensureTrailLine(): void {
-    if (this.trailLine && this.trailLineGeometry && this.trailLineMaterial) {
+  private ensureTrailRibbon(): void {
+    if (this.trailRibbonMesh && this.trailRibbonGeometry) {
       return;
     }
-    this.trailLineGeometry = new LineGeometry();
-    this.trailLineMaterial = new LineMaterial({
-      color: "#d8f3ff",
-      linewidth: 0.28,
-      worldUnits: true,
+    this.trailRibbonGeometry = new THREE.BufferGeometry();
+    this.trailRibbonGeometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(this.emptyTrailPositions, 3),
+    );
+    this.trailRibbonGeometry.setIndex([0, 1, 2, 1, 3, 2]);
+    const trailRibbonMaterial = new THREE.MeshBasicMaterial({
+      color: "#7af0f8",
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.34,
+      side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    this.trailLineMaterial.resolution.set(window.innerWidth, window.innerHeight);
-    this.trailLine = new Line2(this.trailLineGeometry, this.trailLineMaterial);
-    this.trailLine.frustumCulled = false;
-    this.trailLine.visible = false;
-    this.scene.add(this.trailLine);
+    this.trailRibbonMesh = new THREE.Mesh(
+      this.trailRibbonGeometry,
+      trailRibbonMaterial,
+    );
+    this.trailRibbonMesh.frustumCulled = false;
+    this.trailRibbonMesh.visible = false;
+    this.scene.add(this.trailRibbonMesh);
   }
 
   private appendTrailPoint(position: THREE.Vector3): void {
-    this.ensureTrailLine();
-    this.trailPoints.push(position.clone().add(new THREE.Vector3(0, 0.18, 0)));
+    const point = position.clone().add(new THREE.Vector3(0, 0.18, 0));
+    this.trailPoints.push(point);
     if (this.trailPoints.length > this.config.trailMaxPoints) {
       this.trailPoints.shift();
     }
-    if (!this.trailLine || !this.trailLineGeometry) {
+    this.refreshRibbonTrail();
+  }
+
+  private refreshRibbonTrail(): void {
+    this.ensureTrailRibbon();
+    if (!this.trailRibbonGeometry || !this.trailRibbonMesh) {
       return;
     }
     const points = this.trailPoints;
     if (points.length < 2) {
-      this.trailLine.visible = false;
+      this.trailRibbonMesh.visible = false;
       return;
     }
+
+    const widthBase = 0.74;
     const positions: number[] = [];
+    const indices: number[] = [];
     for (let i = 0; i < points.length; i += 1) {
-      positions.push(points[i].x, points[i].y, points[i].z);
+      const current = points[i];
+      const next = points[Math.min(points.length - 1, i + 1)];
+      const prev = points[Math.max(0, i - 1)];
+      const tangent = next.clone().sub(prev);
+      if (tangent.lengthSq() < 0.00001) {
+        tangent.set(0, 0, -1);
+      } else {
+        tangent.normalize();
+      }
+      const right = new THREE.Vector3()
+        .crossVectors(tangent, new THREE.Vector3(0, 1, 0))
+        .normalize();
+      const age = i / Math.max(1, points.length - 1);
+      const width = THREE.MathUtils.lerp(widthBase, 0.08, age);
+      const leftPoint = current.clone().add(right.clone().multiplyScalar(width * 0.5));
+      const rightPoint = current.clone().add(right.multiplyScalar(-width * 0.5));
+      positions.push(leftPoint.x, leftPoint.y, leftPoint.z);
+      positions.push(rightPoint.x, rightPoint.y, rightPoint.z);
+      if (i > 0) {
+        const a = (i - 1) * 2;
+        const b = a + 1;
+        const c = i * 2;
+        const d = c + 1;
+        indices.push(a, b, c, b, d, c);
+      }
     }
-    this.trailLineGeometry.setPositions(positions);
-    this.trailLine.computeLineDistances();
-    this.trailLine.visible = points.length >= 2;
+
+    this.trailRibbonGeometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
+    this.trailRibbonGeometry.setIndex(indices);
+    this.trailRibbonGeometry.computeVertexNormals();
+    this.trailRibbonGeometry.computeBoundingSphere();
+    this.trailRibbonMesh.visible = true;
   }
 
   private updateTrail(host: MarbleVisualHost, delta: number): void {
-    if (!this.trailLine) {
-      this.ensureTrailLine();
-    }
-    this.trailLineMaterial?.resolution.set(window.innerWidth, window.innerHeight);
-
     if (host.gameState === "playing") {
       this.trailSpawnSeconds += delta;
       if (this.trailSpawnSeconds >= this.config.trailSpawnInterval) {
@@ -424,6 +466,10 @@ export function stepPhysicsTick(host: PhysicsHost, stepSeconds: number): void {
   );
 
   if (position.z <= host.finishZ) {
+    if (!host.isInsideFinishFrame(position)) {
+      host.endRun(false);
+      return;
+    }
     if (host.endlessMode) {
       host.advanceToNextRandomLevel();
       return;
