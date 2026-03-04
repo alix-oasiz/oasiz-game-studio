@@ -28,6 +28,15 @@
       cursor: none;
     }
 
+    #phaser-container {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      cursor: none;
+    }
+    #phaser-container.hidden { display: none; }
+    #phaser-container canvas { display: block; }
+
     /* ── Overlays ─────────────────────────────────────────────── */
     .overlay {
       position: fixed;
@@ -454,6 +463,7 @@
 <body>
 
   <canvas id="game"></canvas>
+  <div id="phaser-container" class="hidden"></div>
 
   <!-- Custom cursor -->
   <div id="cursor"></div>
@@ -485,8 +495,8 @@
           <div class="physics-card-desc">Click to grip<br>Mouse swings the axe</div>
         </button>
         <button class="physics-card" id="physics2-btn">
-          <div class="physics-card-title">AUTO-GRIP</div>
-          <div class="physics-card-desc">Axe auto-attaches<br>Rotate mouse to climb</div>
+          <div class="physics-card-title">HAMMER</div>
+          <div class="physics-card-desc">Push into rocks to climb<br>Just move the mouse</div>
         </button>
       </div>
     </div>
