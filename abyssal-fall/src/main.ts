@@ -2864,6 +2864,7 @@ class Game {
     this.updateBullets();
     this.powerUpManager.updateVisualsOnly();
     this.updateRoomItemSelection();
+    this.updateChestOffersAffordability();
     this.updateHUD();
   }
 
@@ -3225,17 +3226,36 @@ class Game {
         card.style.setProperty("--offer-accent", info.color);
       }
 
-      costEl.textContent = `${offer.cost}`;
+      const canAfford = this.gems >= offer.cost;
+      // Gem image icon + cost, colored by affordability
+      costEl.innerHTML = `<img src="assets/gem_pink.png" alt="gem" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:2px;">${offer.cost}`;
+      costEl.className = `offer-cost-val ${canAfford ? "affordable" : "unaffordable"}`;
+      card.classList.toggle("offer-cant-buy", !canAfford);
+      card.classList.remove("offer-insufficient");
+      card.style.animationDelay = `${i * 80}ms`;
+
       buyBtn.onclick = null;
       buyBtn.onclick = (e) => {
         e.stopPropagation();
         this.buyChestOffer(i);
       };
-      card.classList.remove("offer-insufficient");
-      card.style.animationDelay = `${i * 80}ms`;
     });
 
     panel.classList.remove("hidden");
+  }
+
+  /** Refresh affordability colors on cards while they're visible (call each frame from shop update). */
+  private updateChestOffersAffordability(): void {
+    if (!this.chestOffers) return;
+    this.chestOffers.forEach((offer, i) => {
+      if (offer.purchased) return;
+      const costEl = document.getElementById(`offer-cost-${i}`);
+      const card   = document.getElementById(`chest-offer-${i}`);
+      if (!costEl || !card) return;
+      const canAfford = this.gems >= offer.cost;
+      costEl.className = `offer-cost-val ${canAfford ? "affordable" : "unaffordable"}`;
+      card.classList.toggle("offer-cant-buy", !canAfford);
+    });
   }
 
   private hideChestOffersUI(): void {
@@ -6336,8 +6356,8 @@ class Game {
 
     // Draw items
     for (const item of this.roomItems) {
-      const isChestDisplay = this.currentRoomType === "chest" && item.id === "chest_cache";
-      if (isChestDisplay) {
+      // Chest is always drawn via icon-only (no yellow box)
+      if (item.id === "chest_cache") {
         this.drawShopItemIcon(item);
         continue;
       }
