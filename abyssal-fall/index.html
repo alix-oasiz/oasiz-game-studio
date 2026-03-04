@@ -191,11 +191,28 @@
             line-height: 2;
         }
 
-        .controls-hint {
-            font-size: 0.65rem;
-            color: rgba(255, 255, 255, 0.4);
-            margin-top: 30px;
-            line-height: 2;
+        .how-to-play {
+            margin-top: 24px;
+            text-align: left;
+            display: inline-block;
+        }
+
+        .how-to-play-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 0.55rem;
+            color: rgba(255, 255, 255, 0.55);
+            line-height: 1.7;
+        }
+
+        .how-to-play-icon {
+            font-size: 0.75rem;
+            min-width: 18px;
+            text-align: center;
+            color: rgba(120, 200, 255, 0.85);
+            margin-top: 1px;
         }
 
         /* Buttons — pixel 3D style, no glow */
@@ -703,7 +720,7 @@
             width: var(--ammo-track-width);
             height: 0;
             background: linear-gradient(90deg, #d72222 0%, #ff2f2f 45%, #c91414 100%);
-            border-radius: 0 0 5px 5px;
+            border-radius: 5px;
             transition: height 0.1s ease;
             box-shadow: inset 0 0 2px rgba(255, 120, 120, 0.6);
             z-index: 2;
@@ -942,7 +959,7 @@
         </button>
 
         <!-- Start Screen -->
-        <div id="start-screen" class="overlay" style="background: linear-gradient(180deg, rgba(0,0,0,0.88) 0%, rgba(4,12,28,0.6) 50%, rgba(0,0,0,0.88) 100%);">
+        <div id="start-screen" class="overlay" style="background: linear-gradient(180deg, rgba(0,0,0,0.88) 0%, rgba(4,12,28,0.6) 50%, rgba(0,0,0,0) 100%);">
             <div class="content">
                 <div class="title-wrapper start-title-animated">
                     <h1 class="game-title">Abyssal<br>Fall</h1>
@@ -957,16 +974,40 @@
                     </div>
                 </div>
                 <p class="subtitle start-subtitle-animated">
-                    Descend into the deep ocean<br>
-                    Shoot creatures below you<br>
-                    Bounce on heads to combo<br>
-                    Dive as deep as you can
+                    Dive as deep as you can!
                 </p>
                 <button class="btn start-btn-animated" id="start-btn">START</button>
-                <p class="controls-hint">
-                    Left/Right buttons to move<br>
-                    Right button to jump or shoot
-                </p>
+                <button class="btn start-btn-animated" id="how-to-play-btn">HOW TO PLAY</button>
+            </div>
+        </div>
+
+        <!-- How to Play Screen -->
+        <div id="how-to-play-screen" class="overlay hidden" style="background: linear-gradient(180deg, rgba(0,0,0,0.88) 0%, rgba(4,12,28,0.6) 50%, rgba(0,0,0,0) 100%);">
+            <div class="content">
+                <h1 class="game-title" style="font-size: 1.1rem; margin-bottom: 28px;">HOW TO PLAY</h1>
+                <div class="how-to-play">
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#8592;&#8594;</span>
+                        <span>Left / Right to move</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#8593;</span>
+                        <span>Up / Action to jump &amp; shoot</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#128163;</span>
+                        <span>Land on an enemy's head to stomp it</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#128148;</span>
+                        <span>Side contact hurts you — stay on top!</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#9888;</span>
+                        <span>Beware puffers — they're spiky, shoot them instead!</span>
+                    </div>
+                </div>
+                <button class="btn" id="how-to-play-back-btn" style="margin-top: 28px;">BACK</button>
             </div>
         </div>
 

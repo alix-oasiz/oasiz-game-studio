@@ -559,6 +559,15 @@ class Game {
     document.getElementById("restart-btn")?.addEventListener("click", tryStartFromUi);
     
     // Settings button
+    document.getElementById("how-to-play-btn")?.addEventListener("click", () => {
+      document.getElementById("start-screen")?.classList.add("hidden");
+      document.getElementById("how-to-play-screen")?.classList.remove("hidden");
+    });
+    document.getElementById("how-to-play-back-btn")?.addEventListener("click", () => {
+      document.getElementById("how-to-play-screen")?.classList.add("hidden");
+      document.getElementById("start-screen")?.classList.remove("hidden");
+    });
+
     document.getElementById("settings-btn")?.addEventListener("click", () => {
       this.triggerHaptic("light");
       this.openSettings();
@@ -3204,6 +3213,7 @@ class Game {
     const previous = this.selectedRoomItemId;
     this.selectedRoomItemId = null;
     for (const item of this.roomItems) {
+      if (item.id === "heart_pickup") continue;
       if (this.isRectOverlapping(playerRect, item.rect)) {
         this.selectedRoomItemId = item.id;
         break;
