@@ -36,4 +36,9 @@ music/
 */src/sfx/
 */src/music/
 
+# abyssal-fall game-specific override — track its assets + sfx
+!abyssal-fall/public/
+!abyssal-fall/public/assets/
+!abyssal-fall/public/assets/**
+
 
