@@ -601,7 +601,16 @@ async function init(): Promise<void> {
       return;
     }
     if (!demoController?.isDemoActive()) {
-      game.clearTouchLayout();
+      const isGameplayPhase =
+        currentPhase === "MATCH_INTRO" ||
+        currentPhase === "COUNTDOWN" ||
+        currentPhase === "PLAYING" ||
+        currentPhase === "ROUND_END";
+      if (isGameplayPhase) {
+        game.updateTouchLayout();
+      } else {
+        game.clearTouchLayout();
+      }
       return;
     }
     const demoState = demoController.getState();
@@ -884,6 +893,7 @@ async function init(): Promise<void> {
       const previousPhase = currentPhase;
       currentPhase = phase;
       syncScreenToPhase(phase, true, previousPhase);
+      syncDemoTouchLayoutForState();
       if (phase === "MATCH_INTRO" && previousPhase !== "MATCH_INTRO") {
         startLiveMatchPlayerIntro();
       }

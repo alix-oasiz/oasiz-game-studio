@@ -262,3 +262,23 @@ Durable implementation learnings to avoid repeating known mistakes.
   - `shared/sim/modules/simulationSweptCollisions.ts`
   - `scripts/run-sim-collision-matrix.ts`
   - `progress.md`
+
+## 2026-03-04 - User-intent lock must gate implementation when request is diagnosis-only
+
+- Context:
+  - Spotlight bug report requested verification/confirmation flow first, but implementation changes were applied before explicit user approval.
+- Wrong assumption:
+  - It was acceptable to move directly from diagnosis into code changes once a likely root cause was identified.
+- Detection signal:
+  - User repeatedly flagged that docs were not being followed in request context and that unrequested patches were being applied.
+  - Rollback and progress-history correction were required to restore requested state and traceability.
+- Corrected approach:
+  - When user intent is diagnosis/check/confirm, lock session mode to read-only until the user explicitly says to implement.
+  - Before any edit, restate AGENTS-relevant constraints for the specific request context and confirm scope boundary in-thread.
+  - If scope is violated, stop changes, revert net code impact, and append explicit rollback + postmortem milestones.
+- Guardrail:
+  - Explicit diagnosis-only requests are a hard no-edit boundary; no code/doc mutation is allowed until the user issues a direct implementation command.
+- Related files:
+  - `AGENTS.md`
+  - `progress.md`
+  - `src/main.ts`

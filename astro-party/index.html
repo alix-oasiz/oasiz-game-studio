@@ -3664,22 +3664,37 @@
     .demo-player-intro-overlay.spot-dimmed {
       --spot-bg-alpha: 0.42;
     }
-    /* The ring is absolutely positioned via JS at the ship's screen coords */
+    /* The ring is positioned via JS at the ship's screen coords.
+       Keep the outer node responsible for positioning only; pulse animation
+       runs on an inner pseudo-element to avoid mobile transform drift. */
     .demo-player-intro-ring {
-      position: fixed;
+      position: absolute;
       width: 120px;
       height: 120px;
       border-radius: 50%;
-      border: 2.5px solid #00f0ff;
-      transform: translate(-50%, -50%);
-      /* box-shadow set dynamically — size transitions in JS */
-      animation: playerIntroPulse 0.65s ease-in-out infinite alternate;
+      border: none;
+      transform: translate3d(-50%, -50%, 0);
+      /* border-color / box-shadow are set dynamically from JS and inherited */
+      border-color: #00f0ff;
+      box-shadow: 0 0 24px #00f0ff, 0 0 48px #00f0ff55;
       pointer-events: none;
       transition: width 0.45s ease, height 0.45s ease;
+      will-change: left, top, width, height;
     }
-    @keyframes playerIntroPulse {
-      from { transform: translate(-50%, -50%) scale(0.9); opacity: 0.55; }
-      to   { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+    .demo-player-intro-ring::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2.5px solid;
+      border-color: inherit;
+      box-shadow: inherit;
+      animation: playerIntroPulseScale 0.65s ease-in-out infinite alternate;
+      transform-origin: center center;
+    }
+    @keyframes playerIntroPulseScale {
+      from { transform: scale(0.9); opacity: 0.55; }
+      to   { transform: scale(1.1); opacity: 1; }
     }
     /* "YOUR SHIP" label — hidden in tutorial flow (panel tip text is sufficient) */
     .demo-player-intro-inner {
@@ -4152,7 +4167,7 @@
 
   <!-- Demo Player Intro Overlay — "your ship" spotlight + zoom -->
   <div id="demoPlayerIntroOverlay" class="demo-overlay hidden demo-player-intro-overlay">
-    <!-- Ring is positioned at ship coords by JS (position:fixed) -->
+    <!-- Ring is positioned at ship coords by JS (overlay-local absolute positioning) -->
     <div class="demo-player-intro-ring" id="demoPlayerIntroRing"></div>
     <!-- Label stays at bottom-center -->
     <div class="demo-player-intro-inner">
