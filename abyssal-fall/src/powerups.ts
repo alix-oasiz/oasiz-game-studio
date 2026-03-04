@@ -77,7 +77,7 @@ export const POWERUP_CONSTANTS = {
   
   // Blast
   BLAST_EVERY_N_SHOTS: 3,        // Every 3rd shot triggers blast
-  BLAST_RADIUS: 240,             // Explosion radius (3x larger)
+  BLAST_RADIUS: 75,              // Explosion radius
   BLAST_DAMAGE: 1,               // Damage to nearby enemies
   
   // Laser
@@ -96,14 +96,14 @@ export const POWERUP_CONSTANTS = {
   LIGHTNING_EVERY_N_SHOTS: 4,    // Every 4th shot triggers chain
   LIGHTNING_RADIUS: 100,         // Chain radius
   LIGHTNING_MAX_CHAINS: 3,       // Max enemies to chain to
-  LIGHTNING_DAMAGE: 1,           // Damage per chain
+  LIGHTNING_DAMAGE: 2,           // Damage per chain
 };
 
 // Powerup display info
 export const POWERUP_INFO: Record<PowerUpType, { name: string; description: string; color: string; glowColor: string }> = {
   BLAST: {
     name: "BLAST",
-    description: "Every shot explodes on impact",
+    description: "Explosions shatter breakables",
     color: "#ff6633",
     glowColor: "rgba(255, 102, 51, 0.6)",
   },
@@ -121,7 +121,7 @@ export const POWERUP_INFO: Record<PowerUpType, { name: string; description: stri
   },
   LIGHTNING: {
     name: "LIGHTNING",
-    description: "Every shot chains to enemies",
+    description: "Chains between enemies for heavy damage",
     color: "#ffee33",
     glowColor: "rgba(255, 238, 51, 0.6)",
   },

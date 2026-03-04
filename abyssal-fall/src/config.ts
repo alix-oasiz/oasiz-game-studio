@@ -39,6 +39,14 @@ export const CONFIG = {
   PLAYER_MAX_HP: 4,
   PLAYER_MAX_AMMO: 8,
   PLAYER_INVULNERABLE_FRAMES: 24,
+
+  // Wall slide & wall/rolling jump
+  WALL_SLIDE_MAX_SPEED: 2,       // max downward speed while wall sliding
+  WALL_JUMP_VY: -12,             // upward force for wall jump (stronger than normal -10)
+  WALL_JUMP_VX: 5,               // horizontal kick away from wall on wall jump
+  ROLLING_JUMP_VY: -13,          // upward force for rolling jump (higher than normal -10)
+  ROLLING_JUMP_VX_BONUS: 2,      // extra forward speed during rolling jump arc
+  ROLLING_JUMP_ANIM_FRAMES: 30,  // frames the rolling jump animation plays for
   
   // Shooting
   BULLET_SPEED: 12,
