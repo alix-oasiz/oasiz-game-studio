@@ -401,3 +401,43 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
   - `astro-party`: `bun run build` passed.
 - Architecture outcome:
   - no change required.
+
+## 2026-03-04 - Platform runtime flag wiring for join/code visibility
+
+- Scope:
+  - Added centralized platform-runtime detection and used it to hide manual join UI on start screen and lobby room-code display when running inside platform runtime.
+- Changes:
+  - `src/platform/oasizBridge.ts`:
+    - added `isPlatformRuntime()` using SDK-injected identity signals (`gameId` primary, plus `roomCode`/`playerName`/`playerAvatar` fallback).
+  - `src/ui/startScreen.ts`:
+    - wired `isPlatformRuntime()` to hide `Join Room`.
+    - guarded `showJoinSection()` so manual join flow cannot open in platform runtime.
+  - `src/ui/lobby.ts`:
+    - wired `isPlatformRuntime()` to suppress `.lobby-room` visibility and room-code text updates in platform runtime.
+- Outcome:
+  - Manual room-code join entry points are hidden on platform while remaining available off-platform.
+  - Lobby room-code block is hidden on platform in online flow.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - Platform detection refinement + hidden-control safety guard
+
+- Scope:
+  - Refined platform-runtime detection signal set and hardened hidden room-code interaction path.
+- Changes:
+  - `src/platform/oasizBridge.ts`:
+    - removed `playerAvatar` from `isPlatformRuntime()` fallbacks.
+    - current detection: `gameId` primary, `roomCode`/`playerName` fallback.
+  - `src/ui/lobby.ts`:
+    - copy room-code action now early-returns when platform runtime is active, matching hidden room-code UI behavior.
+- Outcome:
+  - Platform detection now matches the requested minimal signal set.
+  - Hidden room-code controls cannot trigger side effects in platform runtime.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.

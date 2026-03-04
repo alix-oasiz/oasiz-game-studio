@@ -35,6 +35,20 @@ export function getPlayerName(): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function hasInjectedString(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return value.trim().length > 0;
+}
+
+export function isPlatformRuntime(): boolean {
+  if (hasInjectedString(oasiz.gameId)) {
+    return true;
+  }
+  return (
+    hasInjectedString(oasiz.roomCode) || hasInjectedString(oasiz.playerName)
+  );
+}
+
 export function submitScore(score: number): void {
   oasiz.submitScore(score);
 }

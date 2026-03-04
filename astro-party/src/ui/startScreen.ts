@@ -2,7 +2,10 @@ import { Game } from "../Game";
 import { elements } from "./elements";
 import { createUIFeedback } from "../feedback/uiFeedback";
 import { AudioManager } from "../AudioManager";
-import { getPlayerName as getPlatformPlayerName } from "../platform/oasizBridge";
+import {
+  getPlayerName as getPlatformPlayerName,
+  isPlatformRuntime,
+} from "../platform/oasizBridge";
 
 export interface StartScreenUI {
   resetStartButtons: (replayTitleIntro?: boolean) => void;
@@ -34,6 +37,8 @@ export function createStartScreenUI(
   let forceTitleTriggerRafId = 0;
   let introVisualTimer: ReturnType<typeof setTimeout> | null = null;
   let titleIntroRunToken = 0;
+
+  elements.joinRoomBtn.style.display = isPlatform ? "none" : "inline-flex";
 
   function cancelTitleAudioSync(): void {
     if (forceTitleTriggerRafId !== 0) {
@@ -153,6 +158,7 @@ export function createStartScreenUI(
   }
 
   function showJoinSection(): void {
+    if (isPlatform) return;
     elements.mainButtons.style.display = "none";
     elements.joinSection.classList.add("active");
     elements.roomCodeInput.value = "";
@@ -170,6 +176,7 @@ export function createStartScreenUI(
     elements.createRoomBtn.textContent = "Create Room";
     elements.localMatchBtn.textContent = "Local Match";
     elements.submitJoinBtn.textContent = "Join";
+    elements.joinRoomBtn.style.display = isPlatform ? "none" : "inline-flex";
     hideJoinSection();
     if (replayTitleIntro) {
       playTitleIntro();

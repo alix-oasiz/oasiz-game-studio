@@ -5,6 +5,7 @@ import { getMapDefinition, isMapAllowedForRuleset } from "../../shared/sim/maps.
 import { renderMapPreviewOnCanvas } from "./mapPreview";
 import { escapeHtml } from "./text";
 import { createUIFeedback } from "../feedback/uiFeedback";
+import { isPlatformRuntime } from "../platform/oasizBridge";
 
 export interface LobbyUI {
   updateLobbyUI: (players: PlayerData[]) => void;
@@ -36,6 +37,7 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     "ENDLESS_RESPAWN",
   ];
   const mapPickerCards = new Map<MapId, HTMLButtonElement>();
+  const isPlatform = isPlatformRuntime();
 
   function beginAddButtonAction(): boolean {
     const now = performance.now();
@@ -67,12 +69,12 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     ) as HTMLElement | null;
     if (!roomContainer) return;
     const isLocal = game.getSessionMode() === "local";
-    roomContainer.style.display = isLocal ? "none" : "flex";
+    roomContainer.style.display = isLocal || isPlatform ? "none" : "flex";
   }
 
   function updateRoomCode(code: string): void {
     updateRoomCodeVisibility();
-    if (game.getSessionMode() === "local") {
+    if (game.getSessionMode() === "local" || isPlatform) {
       elements.roomCodeDisplay.textContent = "----";
       return;
     }
@@ -463,7 +465,7 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
   }
 
   elements.copyCodeBtn.addEventListener("click", () => {
-    if (game.getSessionMode() === "local") return;
+    if (game.getSessionMode() === "local" || isPlatform) return;
     const code = game.getRoomCode();
     if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
       feedback.error();
