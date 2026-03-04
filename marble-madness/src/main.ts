@@ -1,7 +1,44 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { stepPhysicsTick, type PhysicsHost } from "./physics";
+import {
+  buildTrackSlices as buildTrackSlicesData,
+  createRandomLevelConfig as createRandomLevelConfigData,
+  getDefaultDesignerMiddleTypes as getDefaultDesignerMiddleTypesData,
+  getPlatformTypeLabel as getPlatformTypeLabelData,
+  getSectionAtZ as getSectionAtZData,
+  getSectionProgressT as getSectionProgressTData,
+  getSpiralRadius as getSpiralRadiusData,
+  hasFloorAtZ as hasFloorAtZData,
+  isDownwardSlopeType as isDownwardSlopeTypeData,
+  isSpiralType as isSpiralTypeData,
+  sampleSpiralProgressT as sampleSpiralProgressTData,
+  sampleTrackCenterAtSectionT as sampleTrackCenterAtSectionTData,
+  sampleTrackSlope as sampleTrackSlopeData,
+  sampleTrackWidth as sampleTrackWidthData,
+  sampleTrackX as sampleTrackXData,
+  type LevelConfig,
+  type PlatformSection,
+  type PlatformType,
+  type TrackSample,
+  type TrackSlice,
+} from "./level-generation";
+import {
+  addCloudBackdrop as addCloudBackdropVisual,
+  addFinishTriggerCubes as addFinishTriggerCubesVisual,
+  type FireworkRow,
+} from "./level-visuals";
+import {
+  createRunObstacleOrder,
+  updateWaveObstacleAnimation as updateWaveObstacleAnimationData,
+  type BouncyPadObstacle,
+  type ObstacleBase,
+  type ObstacleKind,
+  type PinballBouncerObstacle,
+  type RotatorXObstacle,
+} from "./obstacles";
 
-const BUILD_VERSION = "0.5.59";
+const BUILD_VERSION = "0.5.109";
 
 type GameState = "start" | "playing" | "gameOver";
 type HapticType = "light" | "medium" | "heavy" | "success" | "error";
@@ -17,77 +54,14 @@ interface PersistedState {
   runsCompleted?: number;
 }
 
-interface TrackSample {
-  z: number;
-  x: number;
-  y: number;
-  tilt: number;
-  width: number;
-  hasFloor: boolean;
-}
-
-interface TrackSlice {
-  zStart: number;
-  zEnd: number;
-  xStart: number;
-  xEnd: number;
-  yStart: number;
-  yEnd: number;
-  centerZ: number;
-  centerX: number;
-  centerY: number;
-  length: number;
-  tilt: number;
-  width: number;
-  hasFloor: boolean;
-}
-
 interface FireworkParticle {
   mesh: THREE.Mesh;
   velocity: THREE.Vector3;
   life: number;
 }
 
-interface FireworkRow {
-  activationZ: number;
-  burstPoints: THREE.Vector3[];
-  triggered: boolean;
-}
-
-type PlatformType =
-  | "flat"
-  | "slope_up_steep"
-  | "slope_down_soft"
-  | "slope_down_steep"
-  | "spiral_down_left"
-  | "spiral_down_right"
-  | "detour_left_short"
-  | "detour_right_short"
-  | "bottleneck"
-  | "gap_short"
-  | "finish_straight";
-
-interface PlatformSection {
-  type: PlatformType;
-  zStart: number;
-  zEnd: number;
-  slope: number;
-  width: number;
-  hasFloor: boolean;
-  detourDirection: -1 | 1;
-  detourMagnitude: number;
-  lateralOffsetStart: number;
-  lateralOffsetEnd: number;
-}
-
-interface LevelConfig {
-  platformCount: number;
-  sections: PlatformSection[];
-  enemyPackCenterZ: number;
-  fireworkZ: number;
-}
-
 interface HorizontalBlocker {
+  s: number;
   x: number;
   y: number;
   z: number;
@@ -95,51 +69,6 @@ interface HorizontalBlocker {
   height: number;
   depth: number;
   tilt: number;
-}
-
-type ObstacleKind = "rotator_x" | "pinball_bouncer" | "bouncy_pad";
-
-interface ObstacleBase {
-  id: string;
-  kind: ObstacleKind;
-  x: number;
-  y: number;
-  z: number;
-  tilt: number;
-  radius: number;
-}
-
-interface RotatorXObstacle extends ObstacleBase {
-  kind: "rotator_x";
-  side: "left" | "right";
-  armLength: number;
-  armThickness: number;
-  height: number;
-  spinSpeed: number;
-  spinDir: 1 | -1;
-  angle: number;
-  lastHitAt: number;
-}
-
-interface PinballBouncerObstacle extends ObstacleBase {
-  kind: "pinball_bouncer";
-  columnHeight: number;
-  capRadius: number;
-  bounceImpulse: number;
-  lastHitAt: number;
-}
-
-interface BouncyPadObstacle extends ObstacleBase {
-  kind: "bouncy_pad";
-  side: "left" | "right";
-  paddleLength: number;
-  paddleWidth: number;
-  sweepAmplitude: number;
-  sweepSpeed: number;
-  phase: number;
-  sweepAngle: number;
-  launchImpulse: number;
-  lastHitAt: number;
 }
 
 declare global {
@@ -457,9 +386,9 @@ class MarbleMadnessStarter {
   private readonly maxRunSeconds = 60;
   private readonly marbleRadius = 1;
   private readonly enemyMarbleRadius = 0.95;
-  private readonly enemyMarbleCount = 20;
+  private readonly enemyMarbleCount = 0;
   private readonly startFlickSpeed = 16;
-  private readonly nudgeImpulse = 1.35;
+  private readonly nudgeImpulse = 1.2;
   private readonly downhillImpulse = 0.06;
   private readonly enemyImpulseMultiplier = 0.7;
   private readonly playerCollisionSteerImpulse = 0.2;
@@ -467,11 +396,16 @@ class MarbleMadnessStarter {
   private readonly enemyBulldozeForwardImpulse = 0.9;
   private readonly playerContactUpwardVelocityCap = 4.2;
   private readonly enemyContactUpwardVelocityCap = 16;
+  private readonly groundedProbePadding = 0.34;
+  private readonly airControlMultiplier = 0.45;
+  private readonly obstacleAirborneVerticalScale = 0.35;
+  private readonly obstacleRisingVerticalScale = 0.5;
+  private readonly obstaclePlayerUpwardVelocityCap = 3.8;
   private readonly maxSteeringAngle = Math.PI / 4;
   private readonly steeringTurnRate = 5.5;
   private readonly steeringReturnRate = 4.5;
-  private readonly steeringImpulseScale = 0.22;
-  private readonly arrowDriveImpulseScale = 0.14;
+  private readonly steeringImpulseScale = 0.2;
+  private readonly arrowDriveImpulseScale = 0.11;
   private readonly enemyForwardImpulseRatio = 0.8;
   private readonly enemyMaxForwardSpeed = 24;
   private readonly enemyKnockScore = 100;
@@ -482,11 +416,11 @@ class MarbleMadnessStarter {
   private readonly steeringArrowHeadWidth = 1.18;
   private readonly speedMultiplier = 18;
   private readonly trackStep = 0.9;
-  private readonly wallHeight = 2.8;
+  private readonly wallHeight = 2.38;
   private readonly wallThickness = 0.8;
   private readonly halfPipeFlatWidthRatio = 0.56;
   private readonly halfPipeRenderSegments = 16;
-  private readonly halfPipePhysicsSegments = 8;
+  private readonly halfPipePhysicsSegments = 16;
   private readonly downhillSlopeAngle = Math.PI / 4;
   private readonly uphillSlopeAngle = -Math.PI / 4;
   private readonly slopeBlendDistance = 8.5;
@@ -519,6 +453,9 @@ class MarbleMadnessStarter {
   private readonly endlessMode = true;
   private readonly trackSamples: TrackSample[] = [];
   private readonly trackSlices: TrackSlice[] = [];
+  private readonly sectionArcRanges: Array<{ sStart: number; sEnd: number }> = [];
+  private trackArcLength = 0;
+  private fireworkTriggerS = 0;
   private fireworkTriggerZ = -186;
   private levelConfig: LevelConfig;
   private levelObjects: THREE.Object3D[] = [];
@@ -600,6 +537,11 @@ class MarbleMadnessStarter {
   private debugLastMouseY = 0;
   private readonly debugFlyPosition = new THREE.Vector3();
   private debugPlatformLabels: THREE.Sprite[] = [];
+  private debugBoundaryMarkers: THREE.Line[] = [];
+  private agentDebugMinimalMode = false;
+  private agentDebugSpawnPending = false;
+  private agentDebugCameraMode: "overview" | "side" | "top" = "overview";
+  private agentDebugHideClouds = false;
 
   private soundManager: SoundManager;
 
@@ -883,31 +825,11 @@ class MarbleMadnessStarter {
   }
 
   private getDefaultDesignerMiddleTypes(): PlatformType[] {
-    return [
-      "bottleneck",
-      "detour_left_short",
-      "slope_down_soft",
-      "spiral_down_left",
-      "flat",
-      "detour_right_short",
-      "slope_down_steep",
-      "bottleneck",
-    ];
+    return getDefaultDesignerMiddleTypesData();
   }
 
   private getPlatformTypeLabel(type: PlatformType): string {
-    if (type === "flat") return "Flat";
-    if (type === "slope_down_soft") return "Slope Down Soft";
-    if (type === "slope_down_steep") return "Slope Down Steep";
-    if (type === "slope_up_steep") return "Slope Up Steep";
-    if (type === "spiral_down_left") return "Spiral Down Left";
-    if (type === "spiral_down_right") return "Spiral Down Right";
-    if (type === "detour_left_short") return "Detour Left";
-    if (type === "detour_right_short") return "Detour Right";
-    if (type === "bottleneck") return "Bottleneck";
-    if (type === "gap_short") return "Gap Short";
-    if (type === "finish_straight") return "Finish Straight";
-    return type;
+    return getPlatformTypeLabelData(type);
   }
 
   private isDesignerSelectableType(value: string): value is PlatformType {
@@ -915,511 +837,301 @@ class MarbleMadnessStarter {
   }
 
   private isSpiralType(type: PlatformType): boolean {
-    return type === "spiral_down_left" || type === "spiral_down_right";
+    return isSpiralTypeData(type);
   }
 
   private isDownwardSlopeType(type: PlatformType): boolean {
-    return (
-      type === "slope_down_soft" ||
-      type === "slope_down_steep" ||
-      this.isSpiralType(type)
-    );
-  }
-
-  private pickMiddlePlatformType(previousType: PlatformType): PlatformType {
-    const canGap = this.isDownwardSlopeType(previousType);
-    const forbidDownward = this.isDownwardSlopeType(previousType);
-    const roll = Math.random();
-    if (canGap && roll < 0.12) {
-      return "gap_short";
-    }
-    if (!forbidDownward && roll < 0.24) {
-      return "slope_down_soft";
-    }
-    if (!forbidDownward && roll < 0.38) {
-      return "slope_down_steep";
-    }
-    if (!forbidDownward && roll < 0.5) {
-      return Math.random() < 0.5 ? "spiral_down_left" : "spiral_down_right";
-    }
-    if (roll < 0.62) {
-      return "bottleneck";
-    }
-    return Math.random() < 0.5 ? "detour_left_short" : "detour_right_short";
-  }
-
-  private createPlatformSection(
-    type: PlatformType,
-    zStart: number,
-    zEnd: number,
-  ): PlatformSection {
-    if (type === "flat" || type === "finish_straight") {
-      return {
-        type,
-        zStart,
-        zEnd,
-        slope: 0,
-        width: this.trackWidth,
-        hasFloor: true,
-        detourDirection: 1,
-        detourMagnitude: 0,
-        lateralOffsetStart: 0,
-        lateralOffsetEnd: 0,
-      };
-    }
-    if (type === "slope_down_soft") {
-      return {
-        type,
-        zStart,
-        zEnd,
-        slope: this.downhillSlopeAngle,
-        width: this.trackWidth,
-        hasFloor: true,
-        detourDirection: 1,
-        detourMagnitude: 0,
-        lateralOffsetStart: 0,
-        lateralOffsetEnd: 0,
-      };
-    }
-    if (type === "slope_up_steep") {
-      return {
-        type,
-        zStart,
-        zEnd,
-        slope: this.uphillSlopeAngle,
-        width: this.trackWidth,
-        hasFloor: true,
-        detourDirection: 1,
-        detourMagnitude: 0,
-        lateralOffsetStart: 0,
-        lateralOffsetEnd: 0,
-      };
-    }
-    if (type === "slope_down_steep") {
-      return {
-        type,
-        zStart,
-        zEnd,
-        slope: this.downhillSlopeAngle,
-        width: this.trackWidth,
-        hasFloor: true,
-        detourDirection: 1,
-        detourMagnitude: 0,
-        lateralOffsetStart: 0,
-        lateralOffsetEnd: 0,
-      };
-    }
-    if (this.isSpiralType(type)) {
-      return {
-        type,
-        zStart,
-        zEnd,
-        slope: this.downhillSlopeAngle * 0.86,
-        width: this.trackWidth * 1.04,
-        hasFloor: true,
-        detourDirection: type === "spiral_down_left" ? -1 : 1,
-        detourMagnitude: this.randomRange(6.2, 8.2),
-        lateralOffsetStart: 0,
-        lateralOffsetEnd: 0,
-      };
-    }
-    if (type === "bottleneck") {
-      return {
-        type,
-        zStart,
-        zEnd,
-        slope: 0,
-        width: this.randomRange(5.8, 8.4),
-        hasFloor: true,
-        detourDirection: 1,
-        detourMagnitude: 0,
-        lateralOffsetStart: 0,
-        lateralOffsetEnd: 0,
-      };
-    }
-    if (type === "gap_short") {
-      return {
-        type,
-        zStart,
-        zEnd,
-        slope: 0,
-        width: this.trackWidth,
-        hasFloor: false,
-        detourDirection: 1,
-        detourMagnitude: 0,
-        lateralOffsetStart: 0,
-        lateralOffsetEnd: 0,
-      };
-    }
-    return {
-      type,
-      zStart,
-      zEnd,
-      slope: 0,
-      width: this.trackWidth,
-      hasFloor: true,
-      detourDirection: type === "detour_left_short" ? -1 : 1,
-      detourMagnitude: this.randomRange(2.6, 6.8),
-      lateralOffsetStart: 0,
-      lateralOffsetEnd: 0,
-    };
-  }
-
-  private applySectionLateralOffsets(sections: PlatformSection[]): void {
-    let currentOffset = 0;
-    const maxOffset = this.trackWidth * 0.62;
-    for (const section of sections) {
-      section.lateralOffsetStart = currentOffset;
-      if (
-        section.type === "detour_left_short" ||
-        section.type === "detour_right_short"
-      ) {
-        const delta = section.detourDirection * section.detourMagnitude * 0.52;
-        currentOffset = THREE.MathUtils.clamp(
-          currentOffset + delta,
-          -maxOffset,
-          maxOffset,
-        );
-      }
-      section.lateralOffsetEnd = currentOffset;
-    }
+    return isDownwardSlopeTypeData(type);
   }
 
   private createRandomLevelConfig(
     forcedMiddleTypes: PlatformType[] | null = null,
   ): LevelConfig {
-    const customMiddleTypes = (forcedMiddleTypes ?? []).slice();
-    const useCustomMiddle = customMiddleTypes.length > 0;
-    const targetPlatformCount = Math.min(24, 4 + this.loopsCompleted);
-    const middleCount = useCustomMiddle
-      ? customMiddleTypes.length
-      : Math.max(0, targetPlatformCount - 2);
-    const platformCount = middleCount + 2;
-    const sections: PlatformSection[] = [];
-
-    const startLength = this.randomRange(24, 32);
-    const finishLength = this.randomRange(24, 34);
-    const usableLength = Math.max(
-      40,
-      this.startZ -
-        this.finishZ -
-        startLength -
-        finishLength,
-    );
-    const weights: number[] = [];
-    let weightSum = 0;
-    for (let i = 0; i < middleCount; i += 1) {
-      const weight = this.randomRange(1.15, 2.1);
-      weights.push(weight);
-      weightSum += weight;
-    }
-
-    let currentZ = this.startZ;
-    const startSectionEnd = currentZ - startLength;
-    sections.push(
-      this.createPlatformSection("flat", currentZ, startSectionEnd),
-    );
-    currentZ = startSectionEnd;
-
-    let previousType: PlatformType = "flat";
-    const typeLog: string[] = ["flat"];
-    for (let i = 0; i < middleCount; i += 1) {
-      let length = Math.max(
-        15,
-        (weights[i] / Math.max(0.001, weightSum)) * usableLength,
-      );
-      let type: PlatformType = useCustomMiddle
-        ? customMiddleTypes[i] ?? "flat"
-        : this.pickMiddlePlatformType(previousType);
-      if (type === "finish_straight") {
-        type = "flat";
-      }
-      if (
-        !useCustomMiddle &&
-        this.isDownwardSlopeType(type) &&
-        this.isDownwardSlopeType(previousType)
-      ) {
-        type = Math.random() < 0.5 ? "bottleneck" : "flat";
-      }
-      if (
-        !useCustomMiddle &&
-        this.isSpiralType(type) &&
-        currentZ - (this.finishZ + finishLength) < 42
-      ) {
-        type = "bottleneck";
-      }
-      if (
-        !useCustomMiddle &&
-        type === "gap_short" &&
-        !this.isDownwardSlopeType(previousType)
-      ) {
-        type = "slope_down_soft";
-      }
-      if (this.isSpiralType(type)) {
-        // Spiral sections need enough z-length to complete a full revolution.
-        length = this.randomRange(34, 44);
-      }
-      if (type === "gap_short") {
-        // Keep short gaps jumpable at higher speed while preserving longer section pacing.
-        length = this.randomRange(10, 15);
-
-        const launchIndex = sections.length - 1;
-        if (launchIndex < 1) {
-          type = "slope_down_soft";
-        } else if (sections[launchIndex].type !== "slope_up_steep") {
-          const launchSection = sections[launchIndex];
-          sections[launchIndex] = this.createPlatformSection(
-            "slope_up_steep",
-            launchSection.zStart,
-            launchSection.zEnd,
-          );
-          typeLog[launchIndex] = "slope_up_steep";
-        }
-      }
-      const zEnd = Math.max(this.finishZ + finishLength, currentZ - length);
-      sections.push(this.createPlatformSection(type, currentZ, zEnd));
-      typeLog.push(type);
-      previousType = type;
-      currentZ = zEnd;
-    }
-
-    if (!useCustomMiddle && sections.length > 1) {
-      const lastMiddleIndex = sections.length - 1;
-      const lastMiddle = sections[lastMiddleIndex];
-      sections[lastMiddleIndex] = this.createPlatformSection(
-        "flat",
-        lastMiddle.zStart,
-        lastMiddle.zEnd,
-      );
-      typeLog[lastMiddleIndex] = "flat";
-    }
-
-    sections.push(
-      this.createPlatformSection("finish_straight", currentZ, this.finishZ),
-    );
-    typeLog.push("finish_straight");
-    this.applySectionLateralOffsets(sections);
-
-    const enemyAnchorSection =
-      sections[Math.min(Math.max(0, sections.length - 2), 1)] ?? sections[0];
-    const enemyPackCenterZ = enemyAnchorSection
-      ? (enemyAnchorSection.zStart + enemyAnchorSection.zEnd) * 0.5
-      : this.startZ - startLength * 0.5;
-
-    const fireworkZ = this.finishZ + 12;
+    const levelConfig = createRandomLevelConfigData({
+      loopsCompleted: this.loopsCompleted,
+      startZ: this.startZ,
+      finishZ: this.finishZ,
+      trackWidth: this.trackWidth,
+      downhillSlopeAngle: this.downhillSlopeAngle,
+      uphillSlopeAngle: this.uphillSlopeAngle,
+      forcedMiddleTypes,
+      randomRange: (min: number, max: number) => this.randomRange(min, max),
+    });
+    const typeLog = levelConfig.sections.map((section) => section.type);
+    const mode = forcedMiddleTypes && forcedMiddleTypes.length > 0
+      ? "custom"
+      : "random";
     console.log(
       "[CreateRandomLevelConfig]",
-      "platformCount=" +
-        String(platformCount) +
-        " mode=" +
-        (useCustomMiddle ? "custom" : "random") +
-        " types=" +
+      "platformCount=" + String(levelConfig.platformCount) + " mode=" + mode + " types=" +
         typeLog.join(" > "),
     );
-    return {
-      platformCount,
-      sections,
-      enemyPackCenterZ,
-      fireworkZ,
-    };
+    return levelConfig;
   }
 
   private getSectionAtZ(z: number): PlatformSection {
-    const clampedZ = THREE.MathUtils.clamp(z, this.finishZ, this.startZ);
-    for (const section of this.levelConfig.sections) {
-      if (clampedZ <= section.zStart && clampedZ >= section.zEnd) {
-        return section;
-      }
-    }
-    return this.levelConfig.sections[this.levelConfig.sections.length - 1];
+    return getSectionAtZData(this.levelConfig, this.finishZ, this.startZ, z);
+  }
+
+  private getSectionProgressT(section: PlatformSection, z: number): number {
+    return getSectionProgressTData(section, z);
+  }
+
+  private getSpiralRadius(section: PlatformSection): number {
+    return getSpiralRadiusData(section);
+  }
+
+  private sampleSpiralProgressT(section: PlatformSection, z: number): number {
+    return sampleSpiralProgressTData(section, z);
   }
 
   private sampleTrackX(z: number): number {
-    const section = this.getSectionAtZ(z);
-    const sectionLength = Math.max(0.001, section.zStart - section.zEnd);
-    const t = THREE.MathUtils.clamp((section.zStart - z) / sectionLength, 0, 1);
-    const smoothT = this.smooth01(t);
-    const baseX = THREE.MathUtils.lerp(
-      section.lateralOffsetStart,
-      section.lateralOffsetEnd,
-      smoothT,
-    );
-    if (!this.isSpiralType(section.type)) {
-      return baseX;
-    }
+    return sampleTrackXData(this.levelConfig, this.finishZ, this.startZ, z);
+  }
 
-    const direction = section.type === "spiral_down_left" ? -1 : 1;
-    const radius = Math.max(4.8, section.detourMagnitude);
-    const spinAngle = smoothT * Math.PI * 2;
-    const spiralOffset = direction * radius * Math.sin(spinAngle);
-    return baseX + spiralOffset;
+  private sampleTrackCenterAtSectionT(
+    section: PlatformSection,
+    t: number,
+    nominalZ: number,
+  ): { x: number; z: number } {
+    return sampleTrackCenterAtSectionTData(section, t, nominalZ);
+  }
+
+  private getTrackSampleAtArcLength(s: number): TrackSample {
+    if (this.trackSamples.length === 0) {
+      return {
+        s: 0,
+        nominalZ: this.startZ,
+        z: this.startZ,
+        x: 0,
+        y: this.trackCenterY + this.trackThickness * 0.5,
+        tilt: 0,
+        width: this.trackWidth,
+        hasFloor: true,
+        sectionIndex: 0,
+      };
+    }
+    if (s <= 0) {
+      return this.trackSamples[0];
+    }
+    if (s >= this.trackArcLength) {
+      return this.trackSamples[this.trackSamples.length - 1];
+    }
+    let low = 0;
+    let high = this.trackSamples.length - 1;
+    while (low <= high) {
+      const mid = Math.floor((low + high) * 0.5);
+      const value = this.trackSamples[mid].s;
+      if (value < s) {
+        low = mid + 1;
+      } else if (value > s) {
+        high = mid - 1;
+      } else {
+        return this.trackSamples[mid];
+      }
+    }
+    const upperIndex = THREE.MathUtils.clamp(low, 1, this.trackSamples.length - 1);
+    const lower = this.trackSamples[upperIndex - 1];
+    const upper = this.trackSamples[upperIndex];
+    const span = Math.max(0.0001, upper.s - lower.s);
+    const t = THREE.MathUtils.clamp((s - lower.s) / span, 0, 1);
+    return {
+      s,
+      nominalZ: THREE.MathUtils.lerp(lower.nominalZ, upper.nominalZ, t),
+      z: THREE.MathUtils.lerp(lower.z, upper.z, t),
+      x: THREE.MathUtils.lerp(lower.x, upper.x, t),
+      y: THREE.MathUtils.lerp(lower.y, upper.y, t),
+      tilt: THREE.MathUtils.lerp(lower.tilt, upper.tilt, t),
+      width: THREE.MathUtils.lerp(lower.width, upper.width, t),
+      hasFloor: lower.hasFloor && upper.hasFloor,
+      sectionIndex: t < 0.5 ? lower.sectionIndex : upper.sectionIndex,
+    };
+  }
+
+  private getNearestTrackSampleIndex(x: number, z: number): number {
+    if (this.trackSamples.length === 0) {
+      return 0;
+    }
+    let bestIndex = 0;
+    let bestDistanceSq = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < this.trackSamples.length; i += 1) {
+      const sample = this.trackSamples[i];
+      const dx = sample.x - x;
+      const dz = sample.z - z;
+      const distanceSq = dx * dx + dz * dz;
+      if (distanceSq < bestDistanceSq) {
+        bestDistanceSq = distanceSq;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
+  private getNearestTrackSample(x: number, z: number): TrackSample {
+    const index = this.getNearestTrackSampleIndex(x, z);
+    return this.trackSamples[index] ?? this.getTrackSampleAtArcLength(0);
+  }
+
+  private getTrackSurfaceYAtArcLength(s: number): number {
+    return this.getTrackSampleAtArcLength(s).y;
+  }
+
+  private getTrackWidthAtArcLength(s: number): number {
+    return this.getTrackSampleAtArcLength(s).width;
+  }
+
+  private hasFloorAtArcLength(s: number): boolean {
+    return this.getTrackSampleAtArcLength(s).hasFloor;
+  }
+
+  private getTrackTiltAtArcLength(s: number): number {
+    const sample = this.getTrackSampleAtArcLength(s);
+    return sample.tilt;
+  }
+
+  private getTrackForwardDirectionAtArcLength(s: number): THREE.Vector3 {
+    const step = 2.4;
+    const clampedS = THREE.MathUtils.clamp(s, 0, this.trackArcLength);
+    const a = this.getTrackSampleAtArcLength(clampedS);
+    const nextS = THREE.MathUtils.clamp(clampedS + step, 0, this.trackArcLength);
+    const prevS = THREE.MathUtils.clamp(clampedS - step, 0, this.trackArcLength);
+    const b = nextS > clampedS
+      ? this.getTrackSampleAtArcLength(nextS)
+      : this.getTrackSampleAtArcLength(prevS);
+    const directionSign = nextS > clampedS ? 1 : -1;
+    const forward = new THREE.Vector3(
+      (b.x - a.x) * directionSign,
+      0,
+      (b.z - a.z) * directionSign,
+    );
+    if (forward.lengthSq() < 0.0001) {
+      return new THREE.Vector3(0, 0, -1);
+    }
+    return forward.normalize();
+  }
+
+  private getTrackForwardDirectionAtPosition(x: number, z: number): THREE.Vector3 {
+    const nearest = this.getNearestTrackSample(x, z);
+    return this.getTrackForwardDirectionAtArcLength(nearest.s);
+  }
+
+  private getArcLengthFromNominalZ(nominalZ: number): number {
+    if (this.trackSamples.length === 0) {
+      return 0;
+    }
+    let bestIndex = 0;
+    let bestDelta = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < this.trackSamples.length; i += 1) {
+      const delta = Math.abs(this.trackSamples[i].nominalZ - nominalZ);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestIndex = i;
+      }
+    }
+    return this.trackSamples[bestIndex].s;
   }
 
   private sampleTrackSlope(z: number): number {
-    const sections = this.levelConfig.sections;
-    const clampedZ = THREE.MathUtils.clamp(z, this.finishZ, this.startZ);
-    for (let i = 0; i < sections.length; i += 1) {
-      const section = sections[i];
-      if (!(clampedZ <= section.zStart && clampedZ >= section.zEnd)) {
-        continue;
-      }
-
-      let slope = section.slope;
-      const prevSection = i > 0 ? sections[i - 1] : null;
-      const nextSection = i < sections.length - 1 ? sections[i + 1] : null;
-
-      if (prevSection) {
-        const toStart = section.zStart - clampedZ;
-        if (toStart < this.slopeBlendDistance) {
-          const t = THREE.MathUtils.clamp(
-            toStart / Math.max(0.001, this.slopeBlendDistance),
-            0,
-            1,
-          );
-          slope = THREE.MathUtils.lerp(
-            prevSection.slope,
-            section.slope,
-            this.smooth01(t),
-          );
-        }
-      }
-
-      if (nextSection) {
-        const toEnd = clampedZ - section.zEnd;
-        if (toEnd < this.slopeBlendDistance) {
-          const t = THREE.MathUtils.clamp(
-            toEnd / Math.max(0.001, this.slopeBlendDistance),
-            0,
-            1,
-          );
-          slope = THREE.MathUtils.lerp(
-            nextSection.slope,
-            slope,
-            this.smooth01(t),
-          );
-        }
-      }
-
-      if (this.isSpiralType(section.type)) {
-        const sectionLength = Math.max(0.001, section.zStart - section.zEnd);
-        const localT = THREE.MathUtils.clamp(
-          (section.zStart - clampedZ) / sectionLength,
-          0,
-          1,
-        );
-        const extraDrop = Math.sin(localT * Math.PI) * this.downhillSlopeAngle * 0.12;
-        slope += extraDrop;
-      }
-
-      return slope;
-    }
-    return 0;
+    return sampleTrackSlopeData(
+      this.levelConfig,
+      this.finishZ,
+      this.startZ,
+      z,
+      this.slopeBlendDistance,
+      this.uphillSlopeAngle,
+      this.downhillSlopeAngle,
+    );
   }
 
   private sampleTrackWidth(z: number): number {
-    const section = this.getSectionAtZ(z);
-    return section.width;
+    return sampleTrackWidthData(this.levelConfig, this.finishZ, this.startZ, z);
   }
 
   private hasFloorAtZ(z: number): boolean {
-    const section = this.getSectionAtZ(z);
-    return section.hasFloor;
+    return hasFloorAtZData(this.levelConfig, this.finishZ, this.startZ, z);
   }
 
   private buildTrackSlices(): void {
+    const result = buildTrackSlicesData({
+      levelConfig: this.levelConfig,
+      startZ: this.startZ,
+      finishZ: this.finishZ,
+      trackCenterY: this.trackCenterY,
+      trackThickness: this.trackThickness,
+      trackWidth: this.trackWidth,
+      trackStep: this.trackStep,
+      slopeBlendDistance: this.slopeBlendDistance,
+      uphillSlopeAngle: this.uphillSlopeAngle,
+      downhillSlopeAngle: this.downhillSlopeAngle,
+      fireworkTriggerZ: this.fireworkTriggerZ,
+      loseY: this.loseY,
+      loseBoundaryDrop: this.loseBoundaryDrop,
+    });
     this.trackSamples.length = 0;
+    this.trackSamples.push(...result.trackSamples);
     this.trackSlices.length = 0;
-
-    let currentZ = this.startZ;
-    let currentY = this.trackCenterY + this.trackThickness * 0.5;
-    while (currentZ >= this.finishZ) {
-      const tilt = this.sampleTrackSlope(currentZ);
-      const x = this.sampleTrackX(currentZ);
-      const width = this.sampleTrackWidth(currentZ);
-      const hasFloor = this.hasFloorAtZ(currentZ);
-      this.trackSamples.push({
-        z: currentZ,
-        x,
-        y: currentY,
-        tilt,
-        width,
-        hasFloor,
-      });
-
-      const nextZ = currentZ - this.trackStep;
-      const dz = currentZ - nextZ;
-      const nextTilt = this.sampleTrackSlope(nextZ);
-      const midTilt = THREE.MathUtils.lerp(tilt, nextTilt, 0.5);
-      currentY -= Math.tan(midTilt) * dz;
-      currentZ = nextZ;
-    }
-
-    // Smooth vertical profile so flat-to-slope transitions feel continuous instead of stepped.
-    for (let pass = 0; pass < 2; pass += 1) {
-      const smoothedY: number[] = this.trackSamples.map((sample) => sample.y);
-      for (let i = 1; i < this.trackSamples.length - 1; i += 1) {
-        const prev = this.trackSamples[i - 1].y;
-        const center = this.trackSamples[i].y;
-        const next = this.trackSamples[i + 1].y;
-        smoothedY[i] = (prev + center * 2 + next) * 0.25;
-      }
-      for (let i = 1; i < this.trackSamples.length - 1; i += 1) {
-        this.trackSamples[i].y = smoothedY[i];
-      }
-    }
-
-    for (let i = 0; i < this.trackSamples.length - 1; i += 1) {
-      const a = this.trackSamples[i];
-      const b = this.trackSamples[i + 1];
-      const length = Math.max(1, Math.abs(a.z - b.z));
-      const tilt = Math.atan2(a.y - b.y, length);
-      this.trackSlices.push({
-        zStart: a.z,
-        zEnd: b.z,
-        xStart: a.x,
-        xEnd: b.x,
-        yStart: a.y,
-        yEnd: b.y,
-        centerZ: (a.z + b.z) * 0.5,
-        centerX: (a.x + b.x) * 0.5,
-        centerY: (a.y + b.y) * 0.5 - this.trackThickness * 0.5,
-        length,
-        tilt,
-        width: (a.width + b.width) * 0.5,
-        hasFloor: a.hasFloor && b.hasFloor,
-      });
-    }
-
-    const floorSamples = this.trackSamples.filter((sample) => sample.hasFloor);
-    const minFloorY = floorSamples.reduce(
-      (minY, sample) => Math.min(minY, sample.y),
-      Number.POSITIVE_INFINITY,
-    );
-    if (Number.isFinite(minFloorY)) {
-      this.currentLoseY = Math.min(
-        this.loseY,
-        minFloorY - this.loseBoundaryDrop,
-      );
-    } else {
-      this.currentLoseY = this.loseY;
-    }
-
+    this.trackSlices.push(...result.trackSlices);
+    this.sectionArcRanges.length = 0;
+    this.sectionArcRanges.push(...result.sectionArcRanges);
+    this.trackArcLength = result.trackArcLength;
+    this.fireworkTriggerS = result.fireworkTriggerS;
+    this.currentLoseY = result.currentLoseY;
     console.log("[BuildTrackSlices]", "Generated tile course slices");
   }
 
   private getSliceAtZ(z: number): TrackSlice {
-    const clampedZ = THREE.MathUtils.clamp(z, this.finishZ, this.startZ);
-    const slice = this.trackSlices.find(
-      (entry) => clampedZ <= entry.zStart && clampedZ >= entry.zEnd,
-    );
-    if (slice) {
-      return slice;
+    if (this.trackSlices.length === 0) {
+      return {
+        sStart: 0,
+        sEnd: 0,
+        zStart: this.startZ,
+        zEnd: this.startZ - this.trackStep,
+        xStart: 0,
+        xEnd: 0,
+        yStart: this.trackCenterY,
+        yEnd: this.trackCenterY,
+        centerZ: this.startZ - this.trackStep * 0.5,
+        centerX: 0,
+        centerY: this.trackCenterY - this.trackThickness * 0.5,
+        length: this.trackStep,
+        horizontalLength: this.trackStep,
+        tilt: 0,
+        yaw: 0,
+        width: this.trackWidth,
+        hasFloor: true,
+      };
     }
-    return this.trackSlices[this.trackSlices.length - 1];
+    let best = this.trackSlices[0];
+    let bestDelta = Number.POSITIVE_INFINITY;
+    for (const slice of this.trackSlices) {
+      const delta = Math.abs(slice.centerZ - z);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        best = slice;
+      }
+    }
+    return best;
   }
 
   private getTrackTiltAtZ(z: number): number {
-    return this.getSliceAtZ(z).tilt;
+    return this.getTrackTiltAtArcLength(this.getArcLengthFromNominalZ(z));
+  }
+
+  private getStartSpawnArcLength(): number {
+    const firstFloorSectionIndex = this.levelConfig.sections.findIndex((section) =>
+      section.hasFloor
+    );
+    if (firstFloorSectionIndex < 0) {
+      return 0;
+    }
+    const arcRange = this.sectionArcRanges[firstFloorSectionIndex];
+    if (!arcRange) {
+      return 0;
+    }
+    if (arcRange.sEnd <= arcRange.sStart) {
+      return arcRange.sStart;
+    }
+    return (arcRange.sStart + arcRange.sEnd) * 0.5;
   }
 
   private setupSceneVisuals(): void {
@@ -1441,6 +1153,7 @@ class MarbleMadnessStarter {
     this.addLevelObject(sunLight);
 
     this.addPlatformRunMeshes();
+    this.addSpiralSupportColumns();
     this.addHorizontalBlockerMeshes();
     this.addWaveObstacleMeshes();
 
@@ -1516,6 +1229,7 @@ class MarbleMadnessStarter {
 
     this.addCloudBackdrop();
     this.addFinishTriggerCubes();
+    this.addDebugBoundaryMarkers();
     this.addDebugPlatformLabels();
   }
 
@@ -1629,18 +1343,79 @@ class MarbleMadnessStarter {
     );
   }
 
+  private createDebugBoundaryMarker(z: number, width: number): THREE.Line {
+    const centerX = this.sampleTrackX(z);
+    const y = this.getTrackSurfaceY(z) + 0.22;
+    const half = width * 0.56 + this.wallThickness * 0.25;
+    const points = [
+      new THREE.Vector3(centerX - half, y, z),
+      new THREE.Vector3(centerX + half, y, z),
+    ];
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineDashedMaterial({
+      color: "#ff3b3b",
+      dashSize: 0.7,
+      gapSize: 0.45,
+      linewidth: 1,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(geometry, material);
+    line.computeLineDistances();
+    line.renderOrder = 30;
+    return line;
+  }
+
+  private addDebugBoundaryMarkers(): void {
+    this.debugBoundaryMarkers = [];
+    if (this.isMobile) {
+      return;
+    }
+
+    const boundaries = new Map<string, { z: number; width: number }>();
+    for (const section of this.levelConfig.sections) {
+      const startKey = section.zStart.toFixed(3);
+      const endKey = section.zEnd.toFixed(3);
+      if (!boundaries.has(startKey)) {
+        boundaries.set(startKey, { z: section.zStart, width: section.width });
+      }
+      if (!boundaries.has(endKey)) {
+        boundaries.set(endKey, { z: section.zEnd, width: section.width });
+      }
+    }
+
+    for (const boundary of boundaries.values()) {
+      const marker = this.createDebugBoundaryMarker(boundary.z, boundary.width);
+      this.debugBoundaryMarkers.push(marker);
+      this.addLevelObject(marker);
+    }
+
+    this.updateDebugPlatformLabelVisibility();
+    console.log(
+      "[AddDebugBoundaryMarkers]",
+      "Debug boundaries added: " + String(this.debugBoundaryMarkers.length),
+    );
+  }
+
   private updateDebugPlatformLabelVisibility(): void {
     const visible = this.debugFlyMode && this.gameState === "playing";
     for (const label of this.debugPlatformLabels) {
       label.visible = visible;
+    }
+    for (const marker of this.debugBoundaryMarkers) {
+      marker.visible = visible;
     }
   }
 
   private buildHorizontalBlockers(): void {
     this.horizontalBlockers = [];
     const blockerLength = this.trackWidth / 3;
-    const candidateSections = this.levelConfig.sections.filter(
-      (section) =>
+    const candidateSections = this.levelConfig.sections
+      .map((section, index) => ({ section, index }))
+      .filter(
+        ({ section }) =>
         section.hasFloor &&
         section.type !== "finish_straight" &&
         section.type !== "gap_short" &&
@@ -1650,10 +1425,10 @@ class MarbleMadnessStarter {
         section.type !== "spiral_down_left" &&
         section.type !== "spiral_down_right" &&
         section.zStart - section.zEnd > 8,
-    );
+      );
 
-    let lastBlockerZ = Number.POSITIVE_INFINITY;
-    for (const section of candidateSections) {
+    let lastBlockerS = Number.NEGATIVE_INFINITY;
+    for (const entry of candidateSections) {
       if (this.horizontalBlockers.length >= this.blockerMaxPerLevel) {
         break;
       }
@@ -1661,33 +1436,38 @@ class MarbleMadnessStarter {
         continue;
       }
 
-      const zMin = section.zEnd + 3;
-      const zMax = section.zStart - 3;
-      if (zMax <= zMin) {
+      const arcRange = this.sectionArcRanges[entry.index];
+      if (!arcRange) {
         continue;
       }
-      const z = this.randomRange(zMin, zMax);
-      if (Math.abs(lastBlockerZ - z) < this.blockerMinSpacing) {
+      const sMin = arcRange.sStart + 3;
+      const sMax = arcRange.sEnd - 3;
+      if (sMax <= sMin) {
         continue;
       }
-      if (z > this.startZ - this.obstacleStartSafeDistance) {
+      const s = this.randomRange(sMin, sMax);
+      if (Math.abs(lastBlockerS - s) < this.blockerMinSpacing) {
         continue;
       }
-      if (z < this.finishZ + this.obstacleFinishSafeDistance) {
+      if (s < this.obstacleStartSafeDistance) {
         continue;
       }
-      if (Math.abs(z - this.fireworkTriggerZ) < 10) {
+      if (this.trackArcLength - s < this.obstacleFinishSafeDistance) {
+        continue;
+      }
+      if (Math.abs(s - this.fireworkTriggerS) < 10) {
         continue;
       }
 
-      const widthAtZ = this.sampleTrackWidth(z);
-      const usableInnerWidth = widthAtZ - this.blockerSideMargin * 2;
+      const sample = this.getTrackSampleAtArcLength(s);
+      const widthAtS = sample.width;
+      const usableInnerWidth = widthAtS - this.blockerSideMargin * 2;
       if (usableInnerWidth <= this.blockerGapWidth + blockerLength + 0.4) {
         continue;
       }
 
-      const innerLeft = -widthAtZ * 0.5 + this.blockerSideMargin;
-      const innerRight = widthAtZ * 0.5 - this.blockerSideMargin;
+      const innerLeft = -widthAtS * 0.5 + this.blockerSideMargin;
+      const innerRight = widthAtS * 0.5 - this.blockerSideMargin;
 
       const placeLeftSegment = Math.random() < 0.5;
       const segmentLeft = placeLeftSegment
@@ -1700,13 +1480,15 @@ class MarbleMadnessStarter {
         continue;
       }
 
-      const x = this.sampleTrackX(z) + (segmentLeft + segmentRight) * 0.5;
+      const z = sample.z;
+      const x = sample.x + (segmentLeft + segmentRight) * 0.5;
       const y =
-        this.getTrackSurfaceY(z) +
+        this.getTrackSurfaceYAtPosition(x, z) +
         this.trackThickness * 0.5 +
         this.blockerHeight * 0.5;
-      const tilt = this.getTrackTiltAtZ(z);
+      const tilt = this.getTrackTiltAtArcLength(s);
       this.horizontalBlockers.push({
+        s,
         x,
         y,
         z,
@@ -1715,7 +1497,7 @@ class MarbleMadnessStarter {
         depth: this.blockerDepth,
         tilt,
       });
-      lastBlockerZ = z;
+      lastBlockerS = s;
     }
     console.log(
       "[BuildHorizontalBlockers]",
@@ -1749,13 +1531,7 @@ class MarbleMadnessStarter {
   }
 
   private initializeRunObstacleOrder(): void {
-    this.runObstacleOrder = ["rotator_x", "pinball_bouncer", "bouncy_pad"];
-    for (let i = this.runObstacleOrder.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const tmp = this.runObstacleOrder[i];
-      this.runObstacleOrder[i] = this.runObstacleOrder[j];
-      this.runObstacleOrder[j] = tmp;
-    }
+    this.runObstacleOrder = createRunObstacleOrder();
     console.log(
       "[InitializeRunObstacleOrder]",
       "Run obstacle order=" + this.runObstacleOrder.join(","),
@@ -1775,8 +1551,10 @@ class MarbleMadnessStarter {
     const wave = this.loopsCompleted + 1;
     const activeTypeCount = THREE.MathUtils.clamp(wave, 1, 3);
     const activeKinds = this.runObstacleOrder.slice(0, activeTypeCount);
-    const candidateSections = this.levelConfig.sections.filter(
-      (section) =>
+    const candidateSections = this.levelConfig.sections
+      .map((section, index) => ({ section, index }))
+      .filter(
+        ({ section }) =>
         section.hasFloor &&
         section.type !== "finish_straight" &&
         section.type !== "gap_short" &&
@@ -1786,7 +1564,7 @@ class MarbleMadnessStarter {
         section.type !== "spiral_down_left" &&
         section.type !== "spiral_down_right" &&
         section.zStart - section.zEnd > 10,
-    );
+      );
 
     if (candidateSections.length === 0 || activeKinds.length === 0) {
       console.log(
@@ -1812,18 +1590,22 @@ class MarbleMadnessStarter {
           candidateSections[
             Math.floor(Math.random() * candidateSections.length)
           ];
-        const zMin = Math.max(
-          section.zEnd + 3,
-          this.finishZ + this.obstacleFinishSafeDistance,
-        );
-        const zMax = Math.min(
-          section.zStart - 3,
-          this.startZ - this.obstacleStartSafeDistance,
-        );
-        if (zMax <= zMin) {
+        const arcRange = this.sectionArcRanges[section.index];
+        if (!arcRange) {
           continue;
         }
-        const anchorZ = this.randomRange(zMin, zMax);
+        const sMin = Math.max(
+          arcRange.sStart + 3,
+          this.obstacleStartSafeDistance,
+        );
+        const sMax = Math.min(
+          arcRange.sEnd - 3,
+          this.trackArcLength - this.obstacleFinishSafeDistance,
+        );
+        if (sMax <= sMin) {
+          continue;
+        }
+        const anchorS = this.randomRange(sMin, sMax);
         const clusterSize = Math.min(
           targetCount - placedCount,
           3 + Math.floor(Math.random() * 3),
@@ -1831,8 +1613,8 @@ class MarbleMadnessStarter {
         let clusterPlaced = 0;
 
         for (let i = 0; i < clusterSize; i += 1) {
-          const z = anchorZ - i * this.obstacleClusterSpacing;
-          const obstacle = this.tryCreateWaveObstacle(kind, z, placed);
+          const s = anchorS + i * this.obstacleClusterSpacing;
+          const obstacle = this.tryCreateWaveObstacle(kind, s, placed);
           if (!obstacle) {
             continue;
           }
@@ -1865,27 +1647,29 @@ class MarbleMadnessStarter {
 
   private tryCreateWaveObstacle(
     kind: ObstacleKind,
-    z: number,
+    s: number,
     existing: ObstacleBase[],
   ): ObstacleBase | null {
-    if (Math.abs(z - this.fireworkTriggerZ) < 12) {
+    if (Math.abs(s - this.fireworkTriggerS) < 12) {
       return null;
     }
-    if (z > this.startZ - this.obstacleStartSafeDistance) {
+    if (s < this.obstacleStartSafeDistance) {
       return null;
     }
-    if (z < this.finishZ + this.obstacleFinishSafeDistance) {
+    if (this.trackArcLength - s < this.obstacleFinishSafeDistance) {
       return null;
     }
-    if (!this.hasFloorAtZ(z)) {
+    if (!this.hasFloorAtArcLength(s)) {
       return null;
     }
-    if (Math.abs(this.getTrackTiltAtZ(z)) > 0.08) {
+    if (Math.abs(this.getTrackTiltAtArcLength(s)) > 0.08) {
       return null;
     }
 
-    const centerX = this.sampleTrackX(z);
-    const width = this.sampleTrackWidth(z);
+    const sample = this.getTrackSampleAtArcLength(s);
+    const centerX = sample.x;
+    const centerZ = sample.z;
+    const width = sample.width;
     const innerHalf = width * 0.5 - this.wallThickness - 0.8;
     if (innerHalf < 2.2) {
       return null;
@@ -1906,10 +1690,11 @@ class MarbleMadnessStarter {
       obstacle = {
         id: this.nextObstacleId(kind),
         kind,
+        s,
         x,
-        y: this.getTrackSurfaceY(z) + this.rotatorHeight * 0.5 + 0.12,
-        z,
-        tilt: this.getTrackTiltAtZ(z),
+        y: this.getTrackSurfaceYAtPosition(x, centerZ) + this.rotatorHeight * 0.5 + 0.12,
+        z: centerZ,
+        tilt: this.getTrackTiltAtArcLength(s),
         radius: this.rotatorArmLength + 1.1,
         side,
         armLength: this.rotatorArmLength,
@@ -1928,13 +1713,14 @@ class MarbleMadnessStarter {
       obstacle = {
         id: this.nextObstacleId(kind),
         kind,
+        s,
         x,
         y:
-          this.getTrackSurfaceY(z) +
+          this.getTrackSurfaceYAtPosition(x, centerZ) +
           this.bouncerColumnHeight +
           this.bouncerCapRadius * 0.45,
-        z,
-        tilt: this.getTrackTiltAtZ(z),
+        z: centerZ,
+        tilt: this.getTrackTiltAtArcLength(s),
         radius: this.bouncerCapRadius + 0.72,
         columnHeight: this.bouncerColumnHeight,
         capRadius: this.bouncerCapRadius,
@@ -1948,11 +1734,12 @@ class MarbleMadnessStarter {
       obstacle = {
         id: this.nextObstacleId(kind),
         kind,
+        s,
         side,
         x,
-        y: this.getTrackSurfaceY(z) + this.marbleRadius * 0.75,
-        z,
-        tilt: this.getTrackTiltAtZ(z),
+        y: this.getTrackSurfaceYAtPosition(x, centerZ) + this.marbleRadius * 0.75,
+        z: centerZ,
+        tilt: this.getTrackTiltAtArcLength(s),
         radius: this.bouncyPadLength * 0.66,
         paddleLength: this.bouncyPadLength,
         paddleWidth: this.bouncyPadWidth,
@@ -2222,77 +2009,86 @@ class MarbleMadnessStarter {
   private buildRunGeometry(run: TrackSample[]): {
     surface: THREE.BufferGeometry;
   } {
-    const surfacePos: number[] = [];
-    const surfaceUv: number[] = [];
+    const upVector = new THREE.Vector3(0, 1, 0);
+    const ringVertexCount = this.halfPipeRenderSegments + 1;
+    const positions: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+
+    const rightBySample: THREE.Vector3[] = [];
+    for (let i = 0; i < run.length; i += 1) {
+      const prev = run[Math.max(0, i - 1)];
+      const next = run[Math.min(run.length - 1, i + 1)];
+      const tangent = new THREE.Vector3(next.x - prev.x, 0, next.z - prev.z);
+      if (tangent.lengthSq() < 0.0001) {
+        tangent.set(0, 0, -1);
+      } else {
+        tangent.normalize();
+      }
+      const right = new THREE.Vector3().crossVectors(tangent, upVector);
+      if (right.lengthSq() < 0.0001) {
+        right.set(1, 0, 0);
+      } else {
+        right.normalize();
+      }
+      rightBySample.push(right);
+    }
 
     let distanceV = 0;
-    for (let i = 0; i < run.length - 1; i += 1) {
-      const a = run[i];
-      const b = run[i + 1];
-      const segDistance = Math.sqrt(
-        (a.x - b.x) * (a.x - b.x) +
-          (a.y - b.y) * (a.y - b.y) +
-          (a.z - b.z) * (a.z - b.z),
-      );
-      const nextDistanceV = distanceV + segDistance * this.platformUvScaleV;
+    for (let i = 0; i < run.length; i += 1) {
+      if (i > 0) {
+        const a = run[i - 1];
+        const b = run[i];
+        distanceV +=
+          Math.sqrt(
+            (a.x - b.x) * (a.x - b.x) +
+              (a.y - b.y) * (a.y - b.y) +
+              (a.z - b.z) * (a.z - b.z),
+          ) * this.platformUvScaleV;
+      }
 
+      const sample = run[i];
+      const right = rightBySample[i];
+      for (
+        let stripIndex = 0;
+        stripIndex <= this.halfPipeRenderSegments;
+        stripIndex += 1
+      ) {
+        const u = stripIndex / this.halfPipeRenderSegments;
+        const localX = (u - 0.5) * sample.width;
+        const localY = this.getHalfPipeHeightAtOffset(Math.abs(localX), sample.width);
+        const point = new THREE.Vector3(sample.x, sample.y, sample.z)
+          .addScaledVector(right, localX)
+          .add(new THREE.Vector3(0, localY, 0));
+        positions.push(point.x, point.y, point.z);
+        uvs.push(u, distanceV);
+      }
+    }
+
+    for (let ringIndex = 0; ringIndex < run.length - 1; ringIndex += 1) {
+      const rowStartA = ringIndex * ringVertexCount;
+      const rowStartB = (ringIndex + 1) * ringVertexCount;
       for (
         let stripIndex = 0;
         stripIndex < this.halfPipeRenderSegments;
         stripIndex += 1
       ) {
-        const u0 = stripIndex / this.halfPipeRenderSegments;
-        const u1 = (stripIndex + 1) / this.halfPipeRenderSegments;
-
-        const localX0A = (u0 - 0.5) * a.width;
-        const localX1A = (u1 - 0.5) * a.width;
-        const localX0B = (u0 - 0.5) * b.width;
-        const localX1B = (u1 - 0.5) * b.width;
-
-        const pointA0 = new THREE.Vector3(
-          a.x + localX0A,
-          a.y + this.getHalfPipeHeightAtOffset(Math.abs(localX0A), a.width),
-          a.z,
-        );
-        const pointA1 = new THREE.Vector3(
-          a.x + localX1A,
-          a.y + this.getHalfPipeHeightAtOffset(Math.abs(localX1A), a.width),
-          a.z,
-        );
-        const pointB0 = new THREE.Vector3(
-          b.x + localX0B,
-          b.y + this.getHalfPipeHeightAtOffset(Math.abs(localX0B), b.width),
-          b.z,
-        );
-        const pointB1 = new THREE.Vector3(
-          b.x + localX1B,
-          b.y + this.getHalfPipeHeightAtOffset(Math.abs(localX1B), b.width),
-          b.z,
-        );
-
-        this.addQuad(
-          surfacePos,
-          surfaceUv,
-          pointA0,
-          pointA1,
-          pointB0,
-          pointB1,
-          new THREE.Vector2(u0, distanceV),
-          new THREE.Vector2(u1, distanceV),
-          new THREE.Vector2(u0, nextDistanceV),
-          new THREE.Vector2(u1, nextDistanceV),
-        );
+        const a = rowStartA + stripIndex;
+        const b = rowStartA + stripIndex + 1;
+        const c = rowStartB + stripIndex;
+        const d = rowStartB + stripIndex + 1;
+        indices.push(a, b, c);
+        indices.push(b, d, c);
       }
-
-      distanceV = nextDistanceV;
     }
 
     const surface = new THREE.BufferGeometry();
     surface.setAttribute(
       "position",
-      new THREE.Float32BufferAttribute(surfacePos, 3),
+      new THREE.Float32BufferAttribute(positions, 3),
     );
-    surface.setAttribute("uv", new THREE.Float32BufferAttribute(surfaceUv, 2));
+    surface.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    surface.setIndex(indices);
     surface.computeVertexNormals();
 
     return { surface };
@@ -2313,134 +2109,82 @@ class MarbleMadnessStarter {
     );
   }
 
-  private createCloudTexture(): THREE.CanvasTexture {
-    const size = 128;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return new THREE.CanvasTexture(canvas);
+  private addSpiralSupportColumns(): void {
+    const spiralSections = this.levelConfig.sections.filter((section) =>
+      this.isSpiralType(section.type),
+    );
+    if (spiralSections.length === 0) {
+      return;
     }
 
-    ctx.clearRect(0, 0, size, size);
-    const blobs = [
-      { x: 46, y: 66, r: 28 },
-      { x: 73, y: 55, r: 26 },
-      { x: 86, y: 72, r: 23 },
-      { x: 30, y: 78, r: 20 },
-    ];
-    for (const blob of blobs) {
-      const grad = ctx.createRadialGradient(
-        blob.x,
-        blob.y,
-        4,
-        blob.x,
-        blob.y,
-        blob.r,
-      );
-      grad.addColorStop(0, "rgba(255, 255, 255, 0.96)");
-      grad.addColorStop(0.75, "rgba(246, 251, 255, 0.72)");
-      grad.addColorStop(1, "rgba(237, 246, 255, 0)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(blob.x, blob.y, blob.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
-  }
-
-  private addCloudBackdrop(): void {
-    const cloudGroup = new THREE.Group();
-    const cloudTexture = this.createCloudTexture();
-    const cloudMaterial = new THREE.SpriteMaterial({
-      map: cloudTexture,
-      color: "#ffffff",
-      transparent: true,
-      opacity: 0.93,
-      depthWrite: false,
-      depthTest: true,
-      fog: true,
+    const woodMaterial = new THREE.MeshStandardMaterial({
+      color: "#8d643f",
+      roughness: 0.76,
+      metalness: 0.04,
+      emissive: "#2a1a0f",
+      emissiveIntensity: 0.08,
     });
 
-    const cloudClusters = [
-      { x: -240, y: -78, z: -30, count: 2, spreadX: 90, spreadY: 12, spreadZ: 70 },
-      { x: 246, y: -74, z: -88, count: 2, spreadX: 94, spreadY: 12, spreadZ: 72 },
-      { x: -236, y: -82, z: -170, count: 2, spreadX: 96, spreadY: 13, spreadZ: 78 },
-      { x: 238, y: -76, z: -236, count: 2, spreadX: 92, spreadY: 12, spreadZ: 74 },
-      { x: 0, y: -94, z: -140, count: 3, spreadX: 230, spreadY: 14, spreadZ: 210 },
-    ];
-
-    for (const cluster of cloudClusters) {
-      for (let i = 0; i < cluster.count; i += 1) {
-        const sprite = new THREE.Sprite(cloudMaterial);
-        sprite.position.set(
-          cluster.x + this.randomRange(-cluster.spreadX, cluster.spreadX),
-          cluster.y + this.randomRange(-cluster.spreadY, cluster.spreadY),
-          cluster.z + this.randomRange(-cluster.spreadZ, cluster.spreadZ),
-        );
-        const scale = this.randomRange(200, 360);
-        sprite.scale.set(scale * 1.35, scale, 1);
-        cloudGroup.add(sprite);
+    for (const section of spiralSections) {
+      const direction = section.type === "spiral_down_left" ? -1 : 1;
+      const radius = this.getSpiralRadius(section);
+      const columnX = section.lateralOffsetStart + direction * radius;
+      const columnZ = (section.zStart + section.zEnd) * 0.5;
+      let minY = Number.POSITIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+      const sampleCount = 24;
+      for (let i = 0; i <= sampleCount; i += 1) {
+        const t = i / sampleCount;
+        const nominalZ = THREE.MathUtils.lerp(section.zStart, section.zEnd, t);
+        const point = this.sampleTrackCenterAtSectionT(section, t, nominalZ);
+        const y = this.getTrackSurfaceYAtPosition(point.x, point.z);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
       }
-    }
 
-    this.addLevelObject(cloudGroup);
-    console.log("[AddCloudBackdrop]", "Placed sprite cloud backdrop clusters");
-  }
-
-  private addFinishTriggerCubes(): void {
-    const cubeMaterial = this.trackMaterial.clone();
-    cubeMaterial.emissive = new THREE.Color("#29456a");
-    cubeMaterial.emissiveIntensity = 0.22;
-    cubeMaterial.roughness = 0.62;
-    cubeMaterial.metalness = 0.04;
-    const platformWidth = this.getSliceAtZ(this.fireworkTriggerZ).width;
-    const cubeOffsetX = platformWidth * 0.5 + this.wallThickness + 1.4;
-    const columnHeight = 4.0;
-    const rowOffsets = [10, 0, -10];
-    this.fireworkRows = [];
-
-    for (const rowOffset of rowOffsets) {
-      const z = this.fireworkTriggerZ + rowOffset;
-      const centerX = this.sampleTrackX(z);
-      const y = this.getTrackSurfaceY(z) + columnHeight * 0.5;
-      const rowBurstPoints: THREE.Vector3[] = [];
-      const leftColumn = new THREE.Mesh(
-        new THREE.BoxGeometry(1.6, columnHeight, 1.6),
-        cubeMaterial,
+      const baseY = minY - 7.2;
+      const topY = maxY + 3.6;
+      const height = Math.max(10, topY - baseY);
+      const radiusOuter = Math.max(2.4, Math.min(5.6, radius * 0.18));
+      const column = new THREE.Mesh(
+        new THREE.CylinderGeometry(radiusOuter, radiusOuter * 1.04, height, 24),
+        woodMaterial,
       );
-      leftColumn.position.set(centerX - cubeOffsetX, y, z);
-      this.addLevelObject(leftColumn);
-      rowBurstPoints.push(
-        new THREE.Vector3(centerX - cubeOffsetX, y + columnHeight * 0.52, z),
-      );
-
-      const rightColumn = new THREE.Mesh(
-        new THREE.BoxGeometry(1.6, columnHeight, 1.6),
-        cubeMaterial,
-      );
-      rightColumn.position.set(centerX + cubeOffsetX, y, z);
-      this.addLevelObject(rightColumn);
-      rowBurstPoints.push(
-        new THREE.Vector3(centerX + cubeOffsetX, y + columnHeight * 0.52, z),
-      );
-
-      this.fireworkRows.push({
-        activationZ: z,
-        burstPoints: rowBurstPoints,
-        triggered: false,
-      });
+      column.position.set(columnX, baseY + height * 0.5, columnZ);
+      column.castShadow = true;
+      column.receiveShadow = true;
+      this.addLevelObject(column);
     }
 
     console.log(
-      "[AddFinishTriggerCubes]",
-      "Added 3-row edge columns for confetti triggers",
+      "[AddSpiralSupportColumns]",
+      "Added spiral columns: " + String(spiralSections.length),
     );
+  }
+
+  private addCloudBackdrop(): void {
+    const minTrackY = this.trackSamples.reduce(
+      (minY, sample) => Math.min(minY, sample.y),
+      Number.POSITIVE_INFINITY,
+    );
+    addCloudBackdropVisual({
+      agentDebugHideClouds: this.agentDebugHideClouds,
+      minTrackY: Number.isFinite(minTrackY) ? minTrackY : this.trackCenterY,
+      randomRange: (min: number, max: number) => this.randomRange(min, max),
+      addLevelObject: (object: THREE.Object3D) => this.addLevelObject(object),
+    });
+  }
+
+  private addFinishTriggerCubes(): void {
+    this.fireworkRows = addFinishTriggerCubesVisual({
+      trackMaterial: this.trackMaterial,
+      fireworkTriggerZ: this.fireworkTriggerZ,
+      wallThickness: this.wallThickness,
+      getSliceWidthAtZ: (z: number) => this.getSliceAtZ(z).width,
+      sampleTrackX: (z: number) => this.sampleTrackX(z),
+      getTrackSurfaceY: (z: number) => this.getTrackSurfaceY(z),
+      addLevelObject: (object: THREE.Object3D) => this.addLevelObject(object),
+    });
   }
 
   private spawnFireworks(burstPoints: THREE.Vector3[]): void {
@@ -2509,6 +2253,23 @@ class MarbleMadnessStarter {
 
     const physicsSlices = this.buildPhysicsSlices();
     for (const slice of physicsSlices) {
+      const center = new THREE.Vector3(slice.centerX, slice.centerY, slice.centerZ);
+      const tangent = new THREE.Vector3(
+        slice.xEnd - slice.xStart,
+        slice.yEnd - slice.yStart,
+        slice.zEnd - slice.zStart,
+      ).normalize();
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      let right = new THREE.Vector3().crossVectors(tangent, worldUp);
+      if (right.lengthSq() < 0.0001) {
+        right = new THREE.Vector3(1, 0, 0);
+      } else {
+        right.normalize();
+      }
+      const up = new THREE.Vector3().crossVectors(right, tangent).normalize();
+      const baseRotation = new THREE.Quaternion().setFromRotationMatrix(
+        new THREE.Matrix4().makeBasis(right, up, tangent),
+      );
       for (
         let stripIndex = 0;
         stripIndex < this.halfPipePhysicsSegments;
@@ -2531,15 +2292,21 @@ class MarbleMadnessStarter {
           localY1 - localY0,
           Math.max(0.001, stripWidth),
         );
-        const stripRotation = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(-slice.tilt, 0, crossTilt),
+        const crossRotation = new THREE.Quaternion().setFromAxisAngle(
+          tangent,
+          crossTilt,
         );
+        const stripRotation = crossRotation.multiply(baseRotation.clone());
+        const stripCenter = center
+          .clone()
+          .addScaledVector(right, (localX0 + localX1) * 0.5)
+          .addScaledVector(up, (localY0 + localY1) * 0.5);
 
         const stripBodyDesc = RAPIER.RigidBodyDesc.fixed()
           .setTranslation(
-            slice.centerX + (localX0 + localX1) * 0.5,
-            slice.centerY + (localY0 + localY1) * 0.5,
-            slice.centerZ,
+            stripCenter.x,
+            stripCenter.y,
+            stripCenter.z,
           )
           .setRotation({
             x: stripRotation.x,
@@ -2580,7 +2347,7 @@ class MarbleMadnessStarter {
         blocker.depth * 0.5,
       )
         .setFriction(0.95)
-        .setRestitution(0.02);
+        .setRestitution(0);
       this.world.createCollider(blockerCollider, blockerBody);
     }
 
@@ -2617,7 +2384,7 @@ class MarbleMadnessStarter {
             w: localRot.w,
           })
           .setFriction(0.72)
-          .setRestitution(0.04);
+          .setRestitution(0);
         this.world.createCollider(collider, body);
       }
       this.obstacleBodyById.set(rotator.id, body);
@@ -2643,11 +2410,11 @@ class MarbleMadnessStarter {
         0.24,
       )
         .setFriction(0.6)
-        .setRestitution(0.14);
+        .setRestitution(0);
       const capCollider = RAPIER.ColliderDesc.ball(bouncer.capRadius)
         .setTranslation(0, bouncer.columnHeight * 0.52, 0)
         .setFriction(0.55)
-        .setRestitution(0.24);
+        .setRestitution(0);
       this.world.createCollider(columnCollider, body);
       this.world.createCollider(capCollider, body);
       this.obstacleBodyById.set(bouncer.id, body);
@@ -2669,7 +2436,7 @@ class MarbleMadnessStarter {
       this.trackRigidBodies.push(body);
       const baseCollider = RAPIER.ColliderDesc.cuboid(0.4, 0.16, 0.4)
         .setFriction(0.64)
-        .setRestitution(0.08);
+        .setRestitution(0);
       this.world.createCollider(baseCollider, body);
       this.obstacleBodyById.set(pad.id, body);
     }
@@ -2677,70 +2444,27 @@ class MarbleMadnessStarter {
   }
 
   private buildPhysicsSlices(): TrackSlice[] {
-    const slices = this.trackSlices.filter((slice) => slice.hasFloor);
-    const grouped: TrackSlice[] = [];
-    const chunkSize = 4;
-    let i = 0;
-    while (i < slices.length) {
-      const first = slices[i];
-      let last = first;
-      let sumWidth = 0;
-      let sumCenterX = 0;
-      let count = 0;
-      for (let j = i; j < Math.min(i + chunkSize, slices.length); j += 1) {
-        const current = slices[j];
-        if (
-          count > 0 &&
-          Math.abs(last.zEnd - current.zStart) > this.trackStep * 1.5
-        ) {
-          break;
-        }
-        last = current;
-        sumWidth += current.width;
-        sumCenterX += current.centerX;
-        count += 1;
-      }
-      const zStart = first.zStart;
-      const zEnd = last.zEnd;
-      const length = Math.max(0.001, Math.abs(zStart - zEnd));
-      const yStart = first.yStart;
-      const yEnd = last.yEnd;
-      grouped.push({
-        zStart,
-        zEnd,
-        xStart: first.xStart,
-        xEnd: last.xEnd,
-        yStart,
-        yEnd,
-        centerZ: (zStart + zEnd) * 0.5,
-        centerX: sumCenterX / Math.max(1, count),
-        centerY: (yStart + yEnd) * 0.5 - this.trackThickness * 0.5,
-        length,
-        tilt: Math.atan2(yStart - yEnd, length),
-        width: sumWidth / Math.max(1, count),
-        hasFloor: true,
-      });
-      i += count;
-    }
-    return grouped;
+    return this.trackSlices.filter((slice) => slice.hasFloor);
   }
 
   private createMarblePhysics(): void {
     if (!this.world) {
       return;
     }
+    const spawnS = this.getStartSpawnArcLength();
+    const startSample = this.getTrackSampleAtArcLength(spawnS);
 
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(0, this.getTrackSurfaceY(this.startZ) + 2.2, this.startZ)
-      .setLinearDamping(0.04)
-      .setAngularDamping(0.03)
+      .setTranslation(startSample.x, startSample.y + 2.2, startSample.z)
+      .setLinearDamping(0.07)
+      .setAngularDamping(0.05)
       .setCanSleep(false)
       .setCcdEnabled(true);
 
     this.marbleBody = this.world.createRigidBody(bodyDesc);
 
     const collider = RAPIER.ColliderDesc.ball(this.marbleRadius)
-      .setFriction(0.9)
+      .setFriction(0.85)
       .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Average)
       .setRestitution(0)
       .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min)
@@ -2754,6 +2478,8 @@ class MarbleMadnessStarter {
     if (!this.world) {
       return;
     }
+    const spawnS = this.getStartSpawnArcLength();
+    const startSample = this.getTrackSampleAtArcLength(spawnS);
 
     const geometry = new THREE.SphereGeometry(this.enemyMarbleRadius, 20, 16);
     this.enemyMarbleMeshes = [];
@@ -2767,9 +2493,9 @@ class MarbleMadnessStarter {
 
       const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
         .setTranslation(
-          0,
-          this.getTrackSurfaceY(this.startZ) + this.enemyMarbleRadius + 2,
-          this.startZ - 8,
+          startSample.x,
+          startSample.y + this.enemyMarbleRadius + 2,
+          startSample.z - 8,
         )
         .setLinearDamping(0.02)
         .setAngularDamping(0.02)
@@ -2797,24 +2523,27 @@ class MarbleMadnessStarter {
       return;
     }
 
-    const startX = this.sampleTrackX(this.startZ);
-    const groupCenterZ = this.levelConfig.enemyPackCenterZ;
+    const groupCenterS = this.getArcLengthFromNominalZ(this.levelConfig.enemyPackCenterZ);
     const columns = 10;
     const spacingX = 1.08;
     const spacingZ = 1.15;
     for (let i = 0; i < this.enemyMarbleBodies.length; i += 1) {
       const col = i % columns;
       const row = Math.floor(i / columns);
-      const x = startX + (col - (columns - 1) * 0.5) * spacingX;
-      const z = groupCenterZ - row * spacingZ;
-      const y = this.getTrackSurfaceY(z) + this.enemyMarbleRadius + 0.75;
+      const s = THREE.MathUtils.clamp(groupCenterS + row * spacingZ, 0, this.trackArcLength);
+      const rowSample = this.getTrackSampleAtArcLength(s);
+      const x = rowSample.x + (col - (columns - 1) * 0.5) * spacingX;
+      const z = rowSample.z;
+      const y =
+        this.getTrackSurfaceYAtPosition(x, z) + this.enemyMarbleRadius + 0.75;
       const body = this.enemyMarbleBodies[i];
+      const forward = this.getTrackForwardDirectionAtArcLength(s);
       body.setTranslation({ x, y, z }, true);
       body.setLinvel(
         {
-          x: 0,
+          x: forward.x * this.startFlickSpeed * this.enemyForwardImpulseRatio,
           y: 0,
-          z: -this.startFlickSpeed * this.enemyForwardImpulseRatio,
+          z: forward.z * this.startFlickSpeed * this.enemyForwardImpulseRatio,
         },
         true,
       );
@@ -3018,11 +2747,36 @@ class MarbleMadnessStarter {
   private bindInput(): void {
     window.addEventListener("keydown", (event) => {
       const key = event.key.toLowerCase();
+      if (key === "k" && !event.repeat) {
+        this.spawnAgentDebugHelixLayout("left");
+        return;
+      }
+      if (key === "l" && !event.repeat) {
+        this.spawnAgentDebugHelixLayout("right");
+        return;
+      }
       if (key === "p" && !event.repeat) {
         this.toggleDebugFlyMode();
         return;
       }
+      if ((key === "1" || key === "2" || key === "3") && !event.repeat) {
+        if (this.gameState !== "playing") {
+          return;
+        }
+        this.agentDebugCameraMode =
+          key === "1" ? "overview" : key === "2" ? "side" : "top";
+        if (!this.debugFlyMode) {
+          this.toggleDebugFlyMode();
+        }
+        this.focusDebugHelixView(this.agentDebugCameraMode);
+        return;
+      }
       if (this.debugFlyMode) {
+        if (key === "o" && !event.repeat) {
+          this.agentDebugCameraMode = "overview";
+          this.focusDebugHelixView("overview");
+          return;
+        }
         this.setDebugMovementKey(key, true);
         return;
       }
@@ -3154,6 +2908,102 @@ class MarbleMadnessStarter {
     console.log("[ToggleDebugFlyMode]", "Disabled debug fly camera");
   }
 
+  private spawnAgentDebugHelixLayout(direction: "left" | "right"): void {
+    const spiralType: PlatformType =
+      direction === "left" ? "spiral_down_left" : "spiral_down_right";
+    this.customMiddlePlatformTypes = [spiralType];
+    this.agentDebugMinimalMode = true;
+    this.agentDebugSpawnPending = true;
+    this.agentDebugCameraMode = "overview";
+    this.agentDebugHideClouds = true;
+    this.startRun();
+    console.log(
+      "[SpawnAgentDebugHelixLayout]",
+      "Spawned minimal helix layout type=" + spiralType,
+    );
+  }
+
+  private focusDebugHelixView(
+    mode: "overview" | "side" | "top" = "overview",
+  ): void {
+    if (!this.debugFlyMode) {
+      return;
+    }
+
+    const spiralSection = this.levelConfig.sections.find((section) =>
+      this.isSpiralType(section.type),
+    );
+    if (!spiralSection) {
+      return;
+    }
+
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    let minZ = Number.POSITIVE_INFINITY;
+    let maxZ = Number.NEGATIVE_INFINITY;
+    const sampleCount = 28;
+    for (let i = 0; i <= sampleCount; i += 1) {
+      const t = i / sampleCount;
+      const z = THREE.MathUtils.lerp(spiralSection.zStart, spiralSection.zEnd, t);
+      const x = this.sampleTrackX(z);
+      const y = this.getTrackSurfaceY(z);
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+    }
+
+    const centerX = (minX + maxX) * 0.5;
+    const centerY = (minY + maxY) * 0.5;
+    const centerZ = (minZ + maxZ) * 0.5;
+    const spanX = Math.max(6, maxX - minX);
+    const spanY = Math.max(4, maxY - minY);
+    const spanZ = Math.max(6, maxZ - minZ);
+
+    if (mode === "side") {
+      this.debugFlyPosition.set(
+        centerX + Math.max(26, spanX * 2.2),
+        centerY + spanY * 0.38 + 8.5,
+        centerZ + spanZ * 0.08,
+      );
+    } else if (mode === "top") {
+      this.debugFlyPosition.set(
+        centerX,
+        maxY + Math.max(spanX, spanZ) * 2.1 + 44,
+        centerZ + spanZ * 0.08,
+      );
+    } else {
+      this.debugFlyPosition.set(
+        centerX + spanX * 1.08 + 18,
+        centerY + spanY * 0.92 + 28,
+        centerZ + spanZ * 1.66 + 28,
+      );
+    }
+    this.camera.position.copy(this.debugFlyPosition);
+    const lookTarget = new THREE.Vector3(centerX, centerY, centerZ);
+    this.camera.lookAt(lookTarget);
+    const lookDir = lookTarget.clone().sub(this.debugFlyPosition).normalize();
+    this.debugYaw = Math.atan2(lookDir.x, -lookDir.z);
+    this.debugPitch = Math.asin(THREE.MathUtils.clamp(lookDir.y, -1, 1));
+    this.updateDebugPlatformLabelVisibility();
+    console.log("[FocusDebugHelixView]", "Framed helix view mode=" + mode);
+  }
+
+  private applyAgentDebugPostSpawn(): void {
+    if (!this.agentDebugSpawnPending || this.gameState !== "playing") {
+      return;
+    }
+    this.agentDebugSpawnPending = false;
+    if (!this.debugFlyMode) {
+      this.toggleDebugFlyMode();
+    }
+    this.focusDebugHelixView(this.agentDebugCameraMode);
+  }
+
   private bindHoldControl(id: string, isLeft: boolean): void {
     const button = document.getElementById(id);
     if (!(button instanceof HTMLButtonElement)) {
@@ -3264,6 +3114,11 @@ class MarbleMadnessStarter {
     this.runTimeSeconds = 0;
     this.finishedTimeSeconds = 0;
     this.loopsCompleted = 0;
+    const useAgentDebugMinimal = this.agentDebugMinimalMode;
+    this.agentDebugMinimalMode = false;
+    if (!useAgentDebugMinimal) {
+      this.agentDebugHideClouds = false;
+    }
     const useCustomMiddle =
       Array.isArray(this.customMiddlePlatformTypes) &&
       this.customMiddlePlatformTypes.length > 0;
@@ -3276,8 +3131,15 @@ class MarbleMadnessStarter {
     this.clearLevelVisuals();
     this.clearTrackPhysics();
     this.buildTrackSlices();
-    this.buildHorizontalBlockers();
-    this.buildWaveObstacles();
+    if (useAgentDebugMinimal) {
+      this.horizontalBlockers = [];
+      this.rotatorObstacles = [];
+      this.pinballBouncers = [];
+      this.bouncyPads = [];
+    } else {
+      this.buildHorizontalBlockers();
+      this.buildWaveObstacles();
+    }
     this.setupSceneVisuals();
     this.createTrackPhysics();
     this.enemyKnockouts = 0;
@@ -3295,6 +3157,7 @@ class MarbleMadnessStarter {
     this.resetMarble();
     this.updateHud();
     this.applyUiForState();
+    this.applyAgentDebugPostSpawn();
     this.soundManager.playStartLaunch();
     console.log(
       "[StartRun]",
@@ -3302,7 +3165,8 @@ class MarbleMadnessStarter {
         (this.endlessMode ? "endless" : "classic") +
         " mode with " +
         (useCustomMiddle ? "custom" : "random") +
-        " layout",
+        " layout" +
+        (useAgentDebugMinimal ? " (agent debug minimal)" : ""),
     );
   }
 
@@ -3335,6 +3199,18 @@ class MarbleMadnessStarter {
           ) {
             node.material.dispose();
           }
+        } else if (node instanceof THREE.Line) {
+          if (node.geometry) {
+            node.geometry.dispose();
+          }
+          const lineMaterial = node.material;
+          if (Array.isArray(lineMaterial)) {
+            for (const material of lineMaterial) {
+              material.dispose();
+            }
+          } else if (lineMaterial) {
+            lineMaterial.dispose();
+          }
         } else if (node instanceof THREE.Sprite) {
           const spriteMaterial = node.material;
           if (spriteMaterial.map) {
@@ -3346,6 +3222,7 @@ class MarbleMadnessStarter {
     }
     this.levelObjects = [];
     this.debugPlatformLabels = [];
+    this.debugBoundaryMarkers = [];
     this.fireworkRows = [];
     this.obstacleMeshById.clear();
     this.bouncyPadPaddleById.clear();
@@ -3407,9 +3284,7 @@ class MarbleMadnessStarter {
     this.finishedTimeSeconds = this.runTimeSeconds;
 
     if (finished) {
-      const score =
-        this.calculateScore(this.finishedTimeSeconds) +
-        this.enemyKnockouts * this.enemyKnockScore;
+      const score = this.calculateScore(this.finishedTimeSeconds);
       this.resultLabel.textContent =
         "Finish time: " +
         this.finishedTimeSeconds.toFixed(2) +
@@ -3420,12 +3295,8 @@ class MarbleMadnessStarter {
       this.triggerHaptic("success");
     } else {
       this.loopsCompleted = 0;
-      const score = this.enemyKnockouts * this.enemyKnockScore;
-      this.resultLabel.textContent =
-        "Run failed. Knocked off: " +
-        String(this.enemyKnockouts) +
-        " | Score: " +
-        String(score);
+      const score = 0;
+      this.resultLabel.textContent = "Run failed. Score: 0";
       this.submitFinalScore(score);
       this.soundManager.playFallOff();
       this.triggerHaptic("error");
@@ -3500,10 +3371,14 @@ class MarbleMadnessStarter {
       return;
     }
 
-    const startX = this.sampleTrackX(this.startZ);
-    const startY = this.getTrackSurfaceY(this.startZ) + this.marbleRadius + 0.8;
+    const spawnS = this.getStartSpawnArcLength();
+    const startSample = this.getTrackSampleAtArcLength(spawnS);
+    const startX = startSample.x;
+    const startZ = startSample.z;
+    const startY =
+      this.getTrackSurfaceYAtArcLength(spawnS) + this.marbleRadius + 0.8;
     this.marbleBody.setTranslation(
-      { x: startX, y: startY, z: this.startZ },
+      { x: startX, y: startY, z: startZ },
       true,
     );
     this.marbleBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -3511,7 +3386,7 @@ class MarbleMadnessStarter {
     this.marbleBody.wakeUp();
     this.steeringAngle = 0;
 
-    this.marbleMesh.position.set(startX, startY, this.startZ);
+    this.marbleMesh.position.set(startX, startY, startZ);
     this.marbleMesh.quaternion.identity();
     this.resetEnemyMarbles();
     this.syncEnemyMarbleMeshes();
@@ -3525,8 +3400,9 @@ class MarbleMadnessStarter {
     for (let i = 0; i < this.trackSamples.length - 1; i += 1) {
       const a = this.trackSamples[i];
       const b = this.trackSamples[i + 1];
-      if (clampedZ <= a.z && clampedZ >= b.z) {
-        const t = (a.z - clampedZ) / Math.max(0.0001, a.z - b.z);
+      if (clampedZ <= a.nominalZ && clampedZ >= b.nominalZ) {
+        const t =
+          (a.nominalZ - clampedZ) / Math.max(0.0001, a.nominalZ - b.nominalZ);
         return THREE.MathUtils.lerp(a.y, b.y, t);
       }
     }
@@ -3536,9 +3412,10 @@ class MarbleMadnessStarter {
   }
 
   private getTrackSurfaceYAtPosition(x: number, z: number): number {
-    const centerX = this.sampleTrackX(z);
-    const width = this.sampleTrackWidth(z);
-    const baseY = this.getTrackSurfaceY(z);
+    const nearest = this.getNearestTrackSample(x, z);
+    const centerX = nearest.x;
+    const width = nearest.width;
+    const baseY = nearest.y;
     const bankOffset = this.getHalfPipeHeightAtOffset(
       Math.abs(x - centerX),
       width,
@@ -3578,6 +3455,9 @@ class MarbleMadnessStarter {
       this.accumulator += delta;
       while (this.accumulator >= this.fixedStep) {
         this.stepPhysics(this.fixedStep);
+        if (this.gameState === "playing") {
+          this.updateWaveObstacleAnimation();
+        }
         this.accumulator -= this.fixedStep;
       }
     }
@@ -3598,437 +3478,36 @@ class MarbleMadnessStarter {
   }
 
   private stepPhysics(stepSeconds: number): void {
-    if (!this.world || !this.marbleBody) {
-      return;
-    }
-
-    if (this.gameState === "playing") {
-      this.runTimeSeconds += stepSeconds;
-
-      const inputAxis = Number(this.inputRight) - Number(this.inputLeft);
-      const targetSteeringAngle = -inputAxis * this.maxSteeringAngle;
-      const steeringLerp = Math.min(
-        1,
-        stepSeconds *
-          (inputAxis === 0 ? this.steeringReturnRate : this.steeringTurnRate),
-      );
-      this.steeringAngle = THREE.MathUtils.lerp(
-        this.steeringAngle,
-        targetSteeringAngle,
-        steeringLerp,
-      );
-
-      const positionBeforeStep = this.marbleBody.translation();
-      const surfaceYBeforeStep = this.getTrackSurfaceYAtPosition(
-        positionBeforeStep.x,
-        positionBeforeStep.z,
-      );
-      const inAirBeforeStep =
-        positionBeforeStep.y > surfaceYBeforeStep + this.marbleRadius + 0.3;
-      const airControlMultiplier = inAirBeforeStep ? 0.5 : 1;
-      const forwardDirection = this.getTrackForwardDirection(
-        positionBeforeStep.z,
-      );
-      const steerDirection = forwardDirection
-        .clone()
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.steeringAngle);
-      const steeringDirection = steerDirection.clone().normalize();
-      const steeringImpulse =
-        this.nudgeImpulse *
-        this.speedMultiplier *
-        this.steeringImpulseScale *
-        airControlMultiplier;
-      if (inputAxis !== 0) {
-        this.marbleBody.applyImpulse(
-          {
-            x: steeringDirection.x * steeringImpulse,
-            y: 0,
-            z: steeringDirection.z * steeringImpulse,
-          },
-          true,
-        );
-      }
-      const driveImpulse =
-        this.nudgeImpulse *
-        this.speedMultiplier *
-        this.arrowDriveImpulseScale *
-        airControlMultiplier;
-      this.marbleBody.applyImpulse(
-        {
-          x: steeringDirection.x * driveImpulse,
-          y: 0,
-          z: steeringDirection.z * driveImpulse,
-        },
-        true,
-      );
-      const enemyForwardImpulse = driveImpulse * this.enemyForwardImpulseRatio;
-      for (let i = 0; i < this.enemyMarbleBodies.length; i += 1) {
-        if (this.enemyKnockedOff[i]) {
-          continue;
-        }
-        const enemyBody = this.enemyMarbleBodies[i];
-        enemyBody.applyImpulse({ x: 0, y: 0, z: -enemyForwardImpulse }, true);
-        const enemyVelocity = enemyBody.linvel();
-        if (enemyVelocity.z < -this.enemyMaxForwardSpeed) {
-          enemyBody.setLinvel(
-            {
-              x: enemyVelocity.x,
-              y: enemyVelocity.y,
-              z: -this.enemyMaxForwardSpeed,
-            },
-            true,
-          );
-        }
-      }
-
-      const prevVelocity = this.marbleBody.linvel();
-      this.world.step();
-
-      const position = this.marbleBody.translation();
-      let velocity = this.marbleBody.linvel();
-
-      const speed = Math.sqrt(
-        velocity.x * velocity.x + velocity.z * velocity.z,
-      );
-      const surfaceY = this.getTrackSurfaceYAtPosition(position.x, position.z);
-      const inAir = position.y > surfaceY + this.marbleRadius + 0.3;
-      this.soundManager.updateLocomotion(speed, inAir);
-
-      if (prevVelocity.y < -12 && velocity.y > -2) {
-        this.soundManager.playHeavyLanding(Math.abs(prevVelocity.y) * 0.05);
-      }
-
-      for (let i = 0; i < this.enemyMarbleBodies.length; i += 1) {
-        if (this.enemyKnockedOff[i]) {
-          continue;
-        }
-        if (this.isEnemyOffPlatform(this.enemyMarbleBodies[i])) {
-          this.markEnemyKnockedOff(i);
-        }
-      }
-
-      // Contacts with enemy marbles should feel like pushing through traffic, not getting launched.
-      const contactRange = this.marbleRadius + this.enemyMarbleRadius + 0.28;
-      const contactRangeSq = contactRange * contactRange;
-      let handledContacts = 0;
-      for (let i = 0; i < this.enemyMarbleBodies.length; i += 1) {
-        if (this.enemyKnockedOff[i]) {
-          continue;
-        }
-        const enemyBody = this.enemyMarbleBodies[i];
-        if (handledContacts >= 3) {
-          break;
-        }
-        const enemyPosition = enemyBody.translation();
-        const deltaX = enemyPosition.x - position.x;
-        const deltaZ = enemyPosition.z - position.z;
-        const distanceSq = deltaX * deltaX + deltaZ * deltaZ;
-        if (distanceSq > contactRangeSq) {
-          continue;
-        }
-        if (
-          Math.abs(enemyPosition.y - position.y) >
-          this.marbleRadius + this.enemyMarbleRadius + 0.7
-        ) {
-          continue;
-        }
-
-        const sideSign = deltaX >= 0 ? 1 : -1;
-        const playerForwardSpeed = Math.max(0, -velocity.z);
-        const impactScale = THREE.MathUtils.clamp(
-          playerForwardSpeed / 28,
-          0.65,
-          2.35,
-        );
-        this.soundManager.playEnemyHit(impactScale);
-        enemyBody.applyImpulse(
-          {
-            x: sideSign * this.enemyBulldozeSideImpulse * impactScale,
-            y: 0.48 * impactScale,
-            z: -this.enemyBulldozeForwardImpulse * impactScale,
-          },
-          true,
-        );
-        const enemyVelocityAfterHit = enemyBody.linvel();
-        if (enemyVelocityAfterHit.y > this.enemyContactUpwardVelocityCap) {
-          enemyBody.setLinvel(
-            {
-              x: enemyVelocityAfterHit.x,
-              y: this.enemyContactUpwardVelocityCap,
-              z: enemyVelocityAfterHit.z,
-            },
-            true,
-          );
-        }
-
-        handledContacts += 1;
-      }
-
-      velocity = this.marbleBody.linvel();
-      if (velocity.y > this.playerContactUpwardVelocityCap) {
-        this.marbleBody.setLinvel(
-          {
-            x: velocity.x,
-            y: this.playerContactUpwardVelocityCap,
-            z: velocity.z,
-          },
-          true,
-        );
-        velocity = this.marbleBody.linvel();
-      }
-
-      this.updateWaveObstacleAnimation();
-      this.applyWaveObstacleImpulses(
-        this.marbleBody,
-        this.marbleRadius,
-        true,
-        velocity,
-      );
-      for (let i = 0; i < this.enemyMarbleBodies.length; i += 1) {
-        if (this.enemyKnockedOff[i]) {
-          continue;
-        }
-        this.applyWaveObstacleImpulses(
-          this.enemyMarbleBodies[i],
-          this.enemyMarbleRadius,
-          false,
-          null,
-        );
-      }
-
-      this.updateSteeringArrowVisual();
-
-      const rotation = this.marbleBody.rotation();
-      this.marbleMesh.position.set(position.x, position.y, position.z);
-      this.marbleMesh.quaternion.set(
-        rotation.x,
-        rotation.y,
-        rotation.z,
-        rotation.w,
-      );
-      this.syncEnemyMarbleMeshes();
-
-      for (const row of this.fireworkRows) {
-        if (!row.triggered && position.z <= row.activationZ) {
-          this.spawnFireworks(row.burstPoints);
-          row.triggered = true;
-          break;
-        }
-      }
-
-      if (position.z <= this.finishZ) {
-        if (this.endlessMode) {
-          this.advanceToNextRandomLevel();
-          return;
-        }
-        this.endRun(true);
-      } else if (
-        position.y < this.currentLoseY ||
-        (!this.endlessMode && this.runTimeSeconds >= this.maxRunSeconds)
-      ) {
-        this.endRun(false);
-      }
-    }
+    stepPhysicsTick(this as unknown as PhysicsHost, stepSeconds);
   }
 
   private updateWaveObstacleAnimation(): void {
-    for (const rotator of this.rotatorObstacles) {
-      rotator.angle += rotator.spinSpeed * rotator.spinDir * this.fixedStep;
-      if (rotator.angle > Math.PI * 2) {
-        rotator.angle -= Math.PI * 2;
-      } else if (rotator.angle < -Math.PI * 2) {
-        rotator.angle += Math.PI * 2;
-      }
-      const mesh = this.obstacleMeshById.get(rotator.id);
-      if (mesh) {
-        mesh.rotation.x = -rotator.tilt;
-        mesh.rotation.y = rotator.angle;
-      }
-      const body = this.obstacleBodyById.get(rotator.id);
-      if (body) {
-        const rotation = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(-rotator.tilt, rotator.angle, 0),
-        );
-        body.setNextKinematicRotation({
-          x: rotation.x,
-          y: rotation.y,
-          z: rotation.z,
-          w: rotation.w,
-        });
-      }
-    }
-
-    for (const pad of this.bouncyPads) {
-      const cycle = 0.5 + 0.5 * Math.sin(this.runTimeSeconds * pad.sweepSpeed + pad.phase);
-      const startYaw =
-        pad.side === "left"
-          ? THREE.MathUtils.degToRad(8)
-          : Math.PI - THREE.MathUtils.degToRad(8);
-      const endYaw =
-        pad.side === "left" ? -Math.PI * 0.5 : Math.PI * 0.5;
-      pad.sweepAngle = THREE.MathUtils.lerp(startYaw, endYaw, cycle);
-      const paddle = this.bouncyPadPaddleById.get(pad.id);
-      if (paddle) {
-        paddle.rotation.y = pad.sweepAngle;
-      }
-    }
-
-    for (const bouncer of this.pinballBouncers) {
-      const cap = this.bouncerCapById.get(bouncer.id);
-      if (!cap) {
-        continue;
-      }
-      const currentPulse = this.bouncerPulseById.get(bouncer.id) ?? 0;
-      const nextPulse = Math.max(0, currentPulse - this.fixedStep * 5.2);
-      this.bouncerPulseById.set(bouncer.id, nextPulse);
-      const targetScale = 1 + nextPulse * 0.22;
-      const lerpFactor = Math.min(1, this.fixedStep * 16);
-      const nextScale = THREE.MathUtils.lerp(
-        cap.scale.x,
-        targetScale,
-        lerpFactor,
-      );
-      cap.scale.setScalar(nextScale);
-    }
-  }
-
-  private applyWaveObstacleImpulses(
-    body: RAPIER.RigidBody,
-    radius: number,
-    isPlayer: boolean,
-    _playerVelocity: RAPIER.Vector | null,
-  ): void {
-    const now = this.runTimeSeconds;
-    const position = body.translation();
-
-    for (const bouncer of this.pinballBouncers) {
-      const dx = position.x - bouncer.x;
-      const dz = position.z - bouncer.z;
-      const range = bouncer.capRadius + radius + 0.52;
-      const rangeSq = range * range;
-      const distanceSq = dx * dx + dz * dz;
-      if (distanceSq > rangeSq) {
-        continue;
-      }
-      if (Math.abs(position.y - bouncer.y) > bouncer.columnHeight + 1.8) {
-        continue;
-      }
-      if (now - bouncer.lastHitAt < 0.18) {
-        continue;
-      }
-      const distance = Math.sqrt(Math.max(0.0001, distanceSq));
-      let normalX = dx / distance;
-      let normalZ = dz / distance;
-      if (distance < 0.08) {
-        const fallback = this.getTrackForwardDirection(bouncer.z)
-          .multiplyScalar(-1)
-          .normalize();
-        normalX = fallback.x;
-        normalZ = fallback.z;
-      }
-      const impulseScale = isPlayer ? 1 : 0.7;
-      const currentVelocity = body.linvel();
-      const outwardSpeed =
-        currentVelocity.x * normalX + currentVelocity.z * normalZ;
-      if (outwardSpeed < 0) {
-        body.setLinvel(
-          {
-            x: currentVelocity.x - normalX * outwardSpeed,
-            y: currentVelocity.y,
-            z: currentVelocity.z - normalZ * outwardSpeed,
-          },
-          true,
-        );
-      }
-      body.applyImpulse(
-        {
-          x: normalX * bouncer.bounceImpulse * impulseScale,
-          y: 2.1 * impulseScale,
-          z: normalZ * bouncer.bounceImpulse * impulseScale,
-        },
-        true,
-      );
-      bouncer.lastHitAt = now;
-      if (isPlayer) {
-        this.bouncerPulseById.set(bouncer.id, 1);
-        this.soundManager.playEnemyHit(0.95);
-        this.triggerHaptic("medium");
-      }
-    }
-
-    for (const pad of this.bouncyPads) {
-      const dx = position.x - pad.x;
-      const dz = position.z - pad.z;
-      const range = pad.paddleLength * 0.55 + radius;
-      const rangeSq = range * range;
-      const distanceSq = dx * dx + dz * dz;
-      if (distanceSq > rangeSq) {
-        continue;
-      }
-      if (Math.abs(position.y - pad.y) > 1.2) {
-        continue;
-      }
-      if (now - pad.lastHitAt < 0.2) {
-        continue;
-      }
-
-      const forward = this.getTrackForwardDirection(pad.z);
-      const inward = new THREE.Vector3(pad.side === "left" ? 1 : -1, 0, 0);
-      const paddleForward = new THREE.Vector3(
-        Math.cos(pad.sweepAngle),
-        0,
-        Math.sin(pad.sweepAngle),
-      ).normalize();
-      const padDirection = forward
-        .clone()
-        .multiplyScalar(1.35)
-        .add(inward.multiplyScalar(0.25))
-        .add(paddleForward.multiplyScalar(0.5))
-        .normalize();
-      const impulseScale = isPlayer ? 1 : 0.74;
-      body.applyImpulse(
-        {
-          x: padDirection.x * pad.launchImpulse * impulseScale,
-          y: 1.6 * impulseScale,
-          z: padDirection.z * pad.launchImpulse * impulseScale,
-        },
-        true,
-      );
-      pad.lastHitAt = now;
-      if (isPlayer) {
-        this.soundManager.playEnemyHit(0.85);
-      }
-    }
-
-    if (isPlayer) {
-      const velocity = body.linvel();
-      if (velocity.y > this.playerContactUpwardVelocityCap) {
-        body.setLinvel(
-          {
-            x: velocity.x,
-            y: this.playerContactUpwardVelocityCap,
-            z: velocity.z,
-          },
-          true,
-        );
-      }
-    }
+    updateWaveObstacleAnimationData({
+      fixedStep: this.fixedStep,
+      runTimeSeconds: this.runTimeSeconds,
+      rotatorObstacles: this.rotatorObstacles,
+      pinballBouncers: this.pinballBouncers,
+      bouncyPads: this.bouncyPads,
+      obstacleMeshById: this.obstacleMeshById,
+      bouncyPadPaddleById: this.bouncyPadPaddleById,
+      bouncerCapById: this.bouncerCapById,
+      bouncerPulseById: this.bouncerPulseById,
+      obstacleBodyById: this.obstacleBodyById,
+    });
   }
 
   private updateCamera(delta: number): void {
     const targetPosition = this.marbleMesh.position;
-
-    const panX = targetPosition.x * 0.5;
-    const followTarget = new THREE.Vector3(
-      panX,
-      targetPosition.y + 24,
-      targetPosition.z + 32.4,
-    );
-    const lookTarget = new THREE.Vector3(
-      panX,
-      targetPosition.y + 0.9,
-      targetPosition.z - 20.4,
-    );
+    const nearest = this.getNearestTrackSample(targetPosition.x, targetPosition.z);
+    const forward = this.getTrackForwardDirectionAtArcLength(nearest.s);
+    const followTarget = targetPosition
+      .clone()
+      .add(new THREE.Vector3(0, 24, 0))
+      .add(forward.clone().multiplyScalar(-32.4));
+    const lookTarget = targetPosition
+      .clone()
+      .add(new THREE.Vector3(0, 0.9, 0))
+      .add(forward.clone().multiplyScalar(20.4));
 
     if (!this.cameraAnchorsInitialized) {
       this.cameraFollowAnchor.copy(followTarget);
@@ -4088,24 +3567,8 @@ class MarbleMadnessStarter {
   }
 
   private getTrackForwardDirection(z: number): THREE.Vector3 {
-    const stepZ = 2.8;
-    const clampedZ = THREE.MathUtils.clamp(z, this.finishZ, this.startZ);
-    const nextZ = THREE.MathUtils.clamp(
-      clampedZ - stepZ,
-      this.finishZ,
-      this.startZ,
-    );
-    const currentX = this.sampleTrackX(clampedZ);
-    const nextX = this.sampleTrackX(nextZ);
-    const forward = new THREE.Vector3(nextX - currentX, 0, nextZ - clampedZ);
-    if (forward.lengthSq() < 0.0001) {
-      return new THREE.Vector3(0, 0, -1);
-    }
-    forward.normalize();
-    if (forward.z > -0.02) {
-      return new THREE.Vector3(0, 0, -1);
-    }
-    return forward;
+    const s = this.getArcLengthFromNominalZ(z);
+    return this.getTrackForwardDirectionAtArcLength(s);
   }
 
   private createSteeringArrowGeometry(
@@ -4146,7 +3609,10 @@ class MarbleMadnessStarter {
     }
 
     const marblePosition = this.marbleBody.translation();
-    const forwardDirection = this.getTrackForwardDirection(marblePosition.z);
+    const forwardDirection = this.getTrackForwardDirectionAtPosition(
+      marblePosition.x,
+      marblePosition.z,
+    );
     const arrowDirection = forwardDirection
       .clone()
       .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.steeringAngle)
@@ -4170,14 +3636,12 @@ class MarbleMadnessStarter {
       ? Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z)
       : 0;
     const currentLevel = this.loopsCompleted + 1;
-    const score = this.enemyKnockouts * this.enemyKnockScore;
     this.timeLabel.textContent =
       "Level: " +
       String(currentLevel) +
       " | Passed: " +
       String(this.loopsCompleted);
-    this.speedLabel.textContent =
-      "Score: " + String(score) + " | Speed: " + speed.toFixed(1);
+    this.speedLabel.textContent = "Speed: " + speed.toFixed(1);
     this.updateLevelProgressUi();
   }
 
@@ -4187,9 +3651,10 @@ class MarbleMadnessStarter {
       position.x,
       position.z,
     );
-    const centerX = this.sampleTrackX(position.z);
+    const nearest = this.getNearestTrackSample(position.x, position.z);
+    const centerX = nearest.x;
     const halfTrack =
-      this.sampleTrackWidth(position.z) * 0.5 + this.enemyMarbleRadius * 0.55;
+      nearest.width * 0.5 + this.enemyMarbleRadius * 0.55;
     const belowTrack = position.y < surfaceY - (this.enemyMarbleRadius + 1.4);
     const outsideTrack =
       Math.abs(position.x - centerX) > halfTrack &&
@@ -4248,19 +3713,20 @@ class MarbleMadnessStarter {
     );
   }
 
-  private calculateLevelProgress(z: number): number {
-    const startZ = this.levelProgressStartZ;
-    const endZ = this.levelProgressEndZ;
-    const totalLength = Math.max(0.001, startZ - endZ);
-    const clampedZ = THREE.MathUtils.clamp(z, endZ, startZ);
-    const traversed = startZ - clampedZ;
-    return THREE.MathUtils.clamp(traversed / totalLength, 0, 1);
+  private calculateLevelProgress(s: number): number {
+    return THREE.MathUtils.clamp(
+      s / Math.max(0.001, this.trackArcLength),
+      0,
+      1,
+    );
   }
 
   private updateLevelProgressUi(): void {
     const marblePosition = this.marbleBody?.translation();
     const progress = marblePosition
-      ? this.calculateLevelProgress(marblePosition.z)
+      ? this.calculateLevelProgress(
+          this.getNearestTrackSample(marblePosition.x, marblePosition.z).s,
+        )
       : 0;
     this.levelProgressMarble.style.left = (progress * 100).toFixed(3) + "%";
   }
