@@ -123,8 +123,58 @@ function buildRockLayout(): RockData[] {
     py  = cy;  // next rock departs from this one's Y, not from a global formula
   }
 
-  // ── Summit — clearly wider so the player knows they made it ───────────────
-  rocks.push(generateRock(px + 65, py - 42, 108, 22, 6, 38.5));
+  // ── Section 1 summit — rest point before the hard part ───────────────────
+  const sumCx = px + 65;
+  const sumCy = py - 42;
+  rocks.push(generateRock(sumCx, sumCy, 108, 22, 6, 38.5));
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Section 2 : Zigzag path — flat slabs alternating LEFT ↔ RIGHT
+  //
+  // Rules:
+  //   • X jumps by PATH_LATERAL (±noise) to one side, then flips.
+  //   • Y rises by PATH_RISE (±noise) per step — purely upward, no dips.
+  //   • Rocks are thin slabs (large rx, tiny ry) so balance is harder.
+  //   • Lateral offset (150-200 px) forces the player to swing and commit;
+  //     it's within reach of the 120 px hammer + 14 px proximity zone
+  //     when the player leans toward the target rock.
+  //   • Seeds are offset by 200 to keep shapes independent of Section 1.
+  // ─────────────────────────────────────────────────────────────────────────
+  const PATH_COUNT         = 14;
+  const PATH_LATERAL_BASE  = 158;  // base lateral jump left or right (px)
+  const PATH_LATERAL_NOISE = 40;   // ±px variation on lateral jump
+  const PATH_RISE_BASE     = 58;   // base upward step per slab (px)
+  const PATH_RISE_NOISE    = 28;   // ±px variation on upward step
+
+  let zpx  = sumCx;
+  let zpy  = sumCy;
+  let side = 1;  // +1 = right, -1 = left; flips every rock
+
+  for (let i = 0; i < PATH_COUNT; i++) {
+    const s = i + 200;  // seed offset — independent shapes from pile section
+
+    // Lateral: always jumps to the current side, then flips
+    const lateral = PATH_LATERAL_BASE + (seeded(s * 3.7 + 10) - 0.5) * 2 * PATH_LATERAL_NOISE;
+    // Rise: always upward (no clamp downward — path must never dip back)
+    const rise    = PATH_RISE_BASE    + (seeded(s * 4.3 + 20) - 0.5) * 2 * PATH_RISE_NOISE;
+
+    const cx = zpx + side * lateral;
+    const cy = zpy - Math.max(30, rise);  // guarantee at least 30 px upward
+
+    // Thin flat slabs — wide enough to hook onto, thin enough to fall off of
+    const rx = 52 + seeded(s * 5.1 + 30) * 32;  // 52 – 84 px
+    const ry =  8 + seeded(s * 3.9 + 40) * 10;  //  8 – 18 px  ← thin!
+    const n  =  5 + Math.floor(seeded(s * 11.3 + 50) * 2);  // 5 or 6 verts
+
+    rocks.push(generateRock(cx, cy, rx, ry, n, s * 1.73 + 0.9));
+
+    zpx   = cx;
+    zpy   = cy;
+    side *= -1;  // flip to opposite side every step
+  }
+
+  // ── Final summit of the zigzag path — the true top ────────────────────────
+  rocks.push(generateRock(zpx, zpy - 55, 130, 20, 6, 99.9));
 
   return rocks;
 }
