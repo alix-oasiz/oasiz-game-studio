@@ -21,17 +21,17 @@ const PPM = 30; // pixels per meter
 // ─── Tweakable config ────────────────────────────────────────────────────────
 const cfg = {
   maxRange:          150,    // max hammer offset (px)
-  forceMult:         0.001,  // N per pixel of direction offset
-  maxSpeed:          15,     // velocity cap (m/s)
+  forceMult:         0.0018, // N per pixel — strong enough to fight real gravity
+  maxSpeed:          12,     // velocity cap (m/s)  ~7.5 px/frame at 60fps
   hammerLerp:        0.2,    // hammer lerp factor
   hammerR:           14,     // hammer overlap radius (px)
-  gravity:           2.4,    // m/s² (tuned to match MatterJS feel)
-  playerFriction:    0.5,
-  playerRestitution: 0.02,
-  playerDensity:     0.002,
-  playerLinearDamp:  0.3,
-  rockFriction:      0.9,
-  rockRestitution:   0.02,
+  gravity:           9.0,    // m/s²  — real-weight feel (real = 9.8)
+  playerFriction:    0.6,
+  playerRestitution: 0.0,    // no bounce — hooks feel solid
+  playerDensity:     0.003,  // slightly heavier body
+  playerLinearDamp:  0.08,   // low: momentum carries naturally, gravity pulls firmly
+  rockFriction:      0.95,
+  rockRestitution:   0.0,
 };
 
 // ─── Fixed constants ─────────────────────────────────────────────────────────
@@ -149,17 +149,17 @@ interface SliderDef { key: keyof typeof cfg; label: string; min: number; max: nu
 
 const SLIDER_DEFS: SliderDef[] = [
   { key: 'maxRange',          label: 'Max Range',        min: 50,     max: 400,  step: 5 },
-  { key: 'forceMult',         label: 'Force Mult',       min: 0.0001, max: 0.01,  step: 0.0001 },
-  { key: 'maxSpeed',          label: 'Max Speed (m/s)',  min: 1,      max: 40,   step: 0.5 },
+  { key: 'forceMult',         label: 'Force Mult',       min: 0.0001, max: 0.005,step: 0.0001 },
+  { key: 'maxSpeed',          label: 'Max Speed (m/s)',  min: 1,      max: 30,   step: 0.5 },
   { key: 'hammerLerp',        label: 'Hammer Lerp',      min: 0.01,   max: 1,    step: 0.01 },
   { key: 'hammerR',           label: 'Hammer Radius',    min: 2,      max: 40,   step: 1 },
-  { key: 'gravity',           label: 'Gravity (m/s²)',   min: 0.1,    max: 20,   step: 0.1 },
+  { key: 'gravity',           label: 'Gravity (m/s²)',   min: 1,      max: 20,   step: 0.5 },
   { key: 'playerFriction',    label: 'Player Friction',  min: 0,      max: 1,    step: 0.01 },
-  { key: 'playerRestitution', label: 'Restitution',      min: 0,      max: 1,    step: 0.01 },
-  { key: 'playerDensity',     label: 'Density',          min: 0.0001, max: 0.02, step: 0.0001 },
-  { key: 'playerLinearDamp',  label: 'Linear Damp',      min: 0,      max: 2,    step: 0.01 },
+  { key: 'playerRestitution', label: 'Restitution',      min: 0,      max: 0.5,  step: 0.01 },
+  { key: 'playerDensity',     label: 'Density',          min: 0.001,  max: 0.02, step: 0.001 },
+  { key: 'playerLinearDamp',  label: 'Linear Damp',      min: 0,      max: 1,    step: 0.01 },
   { key: 'rockFriction',      label: 'Rock Friction',    min: 0,      max: 1,    step: 0.01 },
-  { key: 'rockRestitution',   label: 'Rock Restitution', min: 0,      max: 1,    step: 0.01 },
+  { key: 'rockRestitution',   label: 'Rock Restitution', min: 0,      max: 0.5,  step: 0.01 },
 ];
 
 function createDevPanel(): HTMLElement {
