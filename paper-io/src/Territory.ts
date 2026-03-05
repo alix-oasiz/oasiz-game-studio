@@ -1,5 +1,5 @@
-import { type Vec2, START_RADIUS, MAP_SIZE, MAP_HALF } from './constants.ts';
-import { pointInPolygon } from './Collision.ts';
+import { type Vec2, START_RADIUS, MAP_SIZE, MAP_HALF } from "./constants.ts";
+import { pointInPolygon } from "./Collision.ts";
 
 const GRID_CELL = 0.1;
 const GRID_SIZE = Math.ceil(MAP_SIZE / GRID_CELL);
@@ -16,8 +16,20 @@ export class TerritoryGrid {
 
   toGrid(wx: number, wz: number): [number, number] {
     return [
-      Math.max(0, Math.min(this.size - 1, Math.floor((wx + this.halfMap) / this.cellSize))),
-      Math.max(0, Math.min(this.size - 1, Math.floor((wz + this.halfMap) / this.cellSize))),
+      Math.max(
+        0,
+        Math.min(
+          this.size - 1,
+          Math.floor((wx + this.halfMap) / this.cellSize),
+        ),
+      ),
+      Math.max(
+        0,
+        Math.min(
+          this.size - 1,
+          Math.floor((wz + this.halfMap) / this.cellSize),
+        ),
+      ),
     ];
   }
 
@@ -43,10 +55,18 @@ export class TerritoryGrid {
       this.rasterizeSegment(trail[i], trail[i + 1], playerId, affected);
     }
     // Close the loop: connect last point back to first
-    this.rasterizeSegment(trail[trail.length - 1], trail[0], playerId, affected);
+    this.rasterizeSegment(
+      trail[trail.length - 1],
+      trail[0],
+      playerId,
+      affected,
+    );
 
     // Also fill interior via point-in-polygon for the area enclosed by the trail
-    let minC = this.size, maxC = 0, minR = this.size, maxR = 0;
+    let minC = this.size,
+      maxC = 0,
+      minR = this.size,
+      maxR = 0;
     for (const v of trail) {
       const [gc, gr] = this.toGrid(v.x, v.z);
       if (gc < minC) minC = gc;
@@ -77,11 +97,17 @@ export class TerritoryGrid {
   }
 
   /** Bresenham-style rasterization of a world-space segment into the grid */
-  private rasterizeSegment(a: Vec2, b: Vec2, playerId: number, affected: Set<number>): void {
+  private rasterizeSegment(
+    a: Vec2,
+    b: Vec2,
+    playerId: number,
+    affected: Set<number>,
+  ): void {
     const [c0, r0] = this.toGrid(a.x, a.z);
     const [c1, r1] = this.toGrid(b.x, b.z);
 
-    let c = c0, r = r0;
+    let c = c0,
+      r = r0;
     const dc = Math.abs(c1 - c0);
     const dr = Math.abs(r1 - r0);
     const sc = c0 < c1 ? 1 : -1;
@@ -97,19 +123,32 @@ export class TerritoryGrid {
       }
       if (c === c1 && r === r1) break;
       const e2 = 2 * err;
-      if (e2 > -dr) { err -= dr; c += sc; }
-      if (e2 < dc) { err += dc; r += sr; }
+      if (e2 > -dr) {
+        err -= dr;
+        c += sc;
+      }
+      if (e2 < dc) {
+        err += dc;
+        r += sr;
+      }
     }
   }
 
   initCircle(playerId: number, cx: number, cz: number, radius: number): void {
-    const [minC, minR] = this.toGrid(cx - radius - this.cellSize, cz - radius - this.cellSize);
-    const [maxC, maxR] = this.toGrid(cx + radius + this.cellSize, cz + radius + this.cellSize);
+    const [minC, minR] = this.toGrid(
+      cx - radius - this.cellSize,
+      cz - radius - this.cellSize,
+    );
+    const [maxC, maxR] = this.toGrid(
+      cx + radius + this.cellSize,
+      cz + radius + this.cellSize,
+    );
     const r2 = radius * radius;
     for (let r = minR; r <= maxR; r++) {
       for (let c = minC; c <= maxC; c++) {
         const [wx, wz] = this.toWorld(c, r);
-        const dx = wx - cx, dz = wz - cz;
+        const dx = wx - cx,
+          dz = wz - cz;
         if (dx * dx + dz * dz <= r2) {
           this.data[r * this.size + c] = playerId;
         }
@@ -138,8 +177,13 @@ export class TerritoryGrid {
     return false;
   }
 
-  getBounds(playerId: number): { minC: number; maxC: number; minR: number; maxR: number } | null {
-    let minC = this.size, maxC = -1, minR = this.size, maxR = -1;
+  getBounds(
+    playerId: number,
+  ): { minC: number; maxC: number; minR: number; maxR: number } | null {
+    let minC = this.size,
+      maxC = -1,
+      minR = this.size,
+      maxR = -1;
     for (let r = 0; r < this.size; r++) {
       for (let c = 0; c < this.size; c++) {
         if (this.data[r * this.size + c] === playerId) {
@@ -159,25 +203,61 @@ export class TerritoryGrid {
     const stack: number[] = [];
 
     for (let c = 0; c < sz; c++) {
-      if (this.data[c] !== playerId && !visited[c]) { visited[c] = 1; stack.push(c); }
+      if (this.data[c] !== playerId && !visited[c]) {
+        visited[c] = 1;
+        stack.push(c);
+      }
       const bi = (sz - 1) * sz + c;
-      if (this.data[bi] !== playerId && !visited[bi]) { visited[bi] = 1; stack.push(bi); }
+      if (this.data[bi] !== playerId && !visited[bi]) {
+        visited[bi] = 1;
+        stack.push(bi);
+      }
     }
     for (let r = 1; r < sz - 1; r++) {
       const li = r * sz;
-      if (this.data[li] !== playerId && !visited[li]) { visited[li] = 1; stack.push(li); }
+      if (this.data[li] !== playerId && !visited[li]) {
+        visited[li] = 1;
+        stack.push(li);
+      }
       const ri = r * sz + sz - 1;
-      if (this.data[ri] !== playerId && !visited[ri]) { visited[ri] = 1; stack.push(ri); }
+      if (this.data[ri] !== playerId && !visited[ri]) {
+        visited[ri] = 1;
+        stack.push(ri);
+      }
     }
 
     while (stack.length > 0) {
       const idx = stack.pop()!;
       const r = (idx / sz) | 0;
       const c = idx - r * sz;
-      if (r > 0)      { const ni = idx - sz;    if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
-      if (r < sz - 1) { const ni = idx + sz;    if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
-      if (c > 0)      { const ni = idx - 1;     if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
-      if (c < sz - 1) { const ni = idx + 1;     if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
+      if (r > 0) {
+        const ni = idx - sz;
+        if (!visited[ni] && this.data[ni] !== playerId) {
+          visited[ni] = 1;
+          stack.push(ni);
+        }
+      }
+      if (r < sz - 1) {
+        const ni = idx + sz;
+        if (!visited[ni] && this.data[ni] !== playerId) {
+          visited[ni] = 1;
+          stack.push(ni);
+        }
+      }
+      if (c > 0) {
+        const ni = idx - 1;
+        if (!visited[ni] && this.data[ni] !== playerId) {
+          visited[ni] = 1;
+          stack.push(ni);
+        }
+      }
+      if (c < sz - 1) {
+        const ni = idx + 1;
+        if (!visited[ni] && this.data[ni] !== playerId) {
+          visited[ni] = 1;
+          stack.push(ni);
+        }
+      }
     }
 
     for (let i = 0; i < sz * sz; i++) {
@@ -221,7 +301,8 @@ export class Territory {
 
   computeArea(): number {
     if (this.cachedArea >= 0) return this.cachedArea;
-    this.cachedArea = this.grid.countCells(this.pid) * this.grid.cellSize * this.grid.cellSize;
+    this.cachedArea =
+      this.grid.countCells(this.pid) * this.grid.cellSize * this.grid.cellSize;
     return this.cachedArea;
   }
 
@@ -236,7 +317,8 @@ export class Territory {
     const pid = this.pid;
 
     let bestDist = Infinity;
-    let bestX = p.x, bestZ = p.z;
+    let bestX = p.x,
+      bestZ = p.z;
 
     for (let radius = 0; radius < 80; radius++) {
       let found = false;
@@ -249,9 +331,15 @@ export class Territory {
           if (data[r * sz + c] !== pid) continue;
 
           let boundary = false;
-          if (r === 0 || r === sz - 1 || c === 0 || c === sz - 1) boundary = true;
-          else if (data[(r - 1) * sz + c] !== pid || data[(r + 1) * sz + c] !== pid ||
-                   data[r * sz + c - 1] !== pid || data[r * sz + c + 1] !== pid) boundary = true;
+          if (r === 0 || r === sz - 1 || c === 0 || c === sz - 1)
+            boundary = true;
+          else if (
+            data[(r - 1) * sz + c] !== pid ||
+            data[(r + 1) * sz + c] !== pid ||
+            data[r * sz + c - 1] !== pid ||
+            data[r * sz + c + 1] !== pid
+          )
+            boundary = true;
 
           if (!boundary) continue;
 
@@ -271,12 +359,58 @@ export class Territory {
     return { x: bestX, z: bestZ };
   }
 
+  projectExitPoint(inside: Vec2, outside: Vec2): Vec2 {
+    let a = { x: inside.x, z: inside.z };
+    let b = { x: outside.x, z: outside.z };
+
+    for (let i = 0; i < 12; i++) {
+      const mid = { x: (a.x + b.x) * 0.5, z: (a.z + b.z) * 0.5 };
+      if (this.containsPoint(mid)) a = mid;
+      else b = mid;
+    }
+
+    return { x: (a.x + b.x) * 0.5, z: (a.z + b.z) * 0.5 };
+  }
+
+  getBoundaryTangent(p: Vec2, moveDir: Vec2): Vec2 {
+    const eps = this.grid.cellSize * 2;
+    const gx =
+      this.sampleCoverage(p.x + eps, p.z) - this.sampleCoverage(p.x - eps, p.z);
+    const gz =
+      this.sampleCoverage(p.x, p.z + eps) - this.sampleCoverage(p.x, p.z - eps);
+    const glen = Math.sqrt(gx * gx + gz * gz);
+
+    let tx: number;
+    let tz: number;
+
+    if (glen > 0.0001) {
+      tx = -gz / glen;
+      tz = gx / glen;
+    } else {
+      const dlen =
+        Math.sqrt(moveDir.x * moveDir.x + moveDir.z * moveDir.z) || 1;
+      tx = -moveDir.z / dlen;
+      tz = moveDir.x / dlen;
+    }
+
+    const refTx = -moveDir.z;
+    const refTz = moveDir.x;
+    if (tx * refTx + tz * refTz < 0) {
+      tx = -tx;
+      tz = -tz;
+    }
+
+    return { x: tx, z: tz };
+  }
+
   hasTerritory(): boolean {
     return this.grid.hasAnyCells(this.pid);
   }
 
   getCentroid(): Vec2 {
-    let sx = 0, sz = 0, n = 0;
+    let sx = 0,
+      sz = 0,
+      n = 0;
     const gsz = this.grid.size;
     const data = this.grid.data;
     for (let r = 0; r < gsz; r++) {
@@ -300,5 +434,29 @@ export class Territory {
 
   invalidateCache(): void {
     this.cachedArea = -1;
+  }
+
+  private sampleCoverage(wx: number, wz: number): number {
+    const [centerC, centerR] = this.grid.toGrid(wx, wz);
+    const radius = 2;
+    const sigma2 = this.grid.cellSize * this.grid.cellSize * 4;
+    let weighted = 0;
+    let totalWeight = 0;
+
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        const c = Math.max(0, Math.min(this.grid.size - 1, centerC + dc));
+        const r = Math.max(0, Math.min(this.grid.size - 1, centerR + dr));
+        const [sx, sz] = this.grid.toWorld(c, r);
+        const dx = sx - wx;
+        const dz = sz - wz;
+        const weight = Math.exp(-(dx * dx + dz * dz) / sigma2);
+        if (this.grid.data[r * this.grid.size + c] === this.pid)
+          weighted += weight;
+        totalWeight += weight;
+      }
+    }
+
+    return totalWeight > 0 ? weighted / totalWeight : 0;
   }
 }

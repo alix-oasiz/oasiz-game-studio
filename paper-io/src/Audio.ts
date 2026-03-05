@@ -15,56 +15,65 @@ export class Audio {
   }
 
   private loadSettings(): Settings {
-    const saved = localStorage.getItem('paperio-settings');
+    const saved = localStorage.getItem("paperio-settings");
     return saved ? JSON.parse(saved) : { music: true, fx: true, haptics: true };
   }
 
   private saveSettings(): void {
-    localStorage.setItem('paperio-settings', JSON.stringify(this.settings));
+    localStorage.setItem("paperio-settings", JSON.stringify(this.settings));
   }
 
   private initSettingsUI(): void {
-    const musicToggle = document.getElementById('music-toggle');
-    const fxToggle = document.getElementById('fx-toggle');
-    const hapticsToggle = document.getElementById('haptics-toggle');
-    const musicState = document.getElementById('music-state');
-    const fxState = document.getElementById('fx-state');
-    const hapticsState = document.getElementById('haptics-state');
+    const musicToggle = document.getElementById("music-toggle");
+    const fxToggle = document.getElementById("fx-toggle");
+    const hapticsToggle = document.getElementById("haptics-toggle");
+    const musicState = document.getElementById("music-state");
+    const fxState = document.getElementById("fx-state");
+    const hapticsState = document.getElementById("haptics-state");
 
     const updateUI = () => {
-      musicToggle?.classList.toggle('active', this.settings.music);
-      fxToggle?.classList.toggle('active', this.settings.fx);
-      hapticsToggle?.classList.toggle('active', this.settings.haptics);
-      if (musicState) musicState.textContent = this.settings.music ? 'On' : 'Off';
-      if (fxState) fxState.textContent = this.settings.fx ? 'On' : 'Off';
-      if (hapticsState) hapticsState.textContent = this.settings.haptics ? 'On' : 'Off';
+      musicToggle?.classList.toggle("active", this.settings.music);
+      fxToggle?.classList.toggle("active", this.settings.fx);
+      hapticsToggle?.classList.toggle("active", this.settings.haptics);
+      if (musicState)
+        musicState.textContent = this.settings.music ? "On" : "Off";
+      if (fxState) fxState.textContent = this.settings.fx ? "On" : "Off";
+      if (hapticsState)
+        hapticsState.textContent = this.settings.haptics ? "On" : "Off";
     };
 
     updateUI();
 
-    musicToggle?.addEventListener('click', () => {
+    musicToggle?.addEventListener("click", () => {
       this.settings.music = !this.settings.music;
       this.saveSettings();
       updateUI();
     });
 
-    fxToggle?.addEventListener('click', () => {
+    fxToggle?.addEventListener("click", () => {
       this.settings.fx = !this.settings.fx;
       this.saveSettings();
       updateUI();
     });
 
-    hapticsToggle?.addEventListener('click', () => {
+    hapticsToggle?.addEventListener("click", () => {
       this.settings.haptics = !this.settings.haptics;
       this.saveSettings();
       updateUI();
     });
   }
 
-  triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success' | 'error'): void {
+  triggerHaptic(
+    type: "light" | "medium" | "heavy" | "success" | "error",
+  ): void {
     if (!this.settings.haptics) return;
-    if (typeof (window as unknown as { triggerHaptic?: (t: string) => void }).triggerHaptic === 'function') {
-      (window as unknown as { triggerHaptic: (t: string) => void }).triggerHaptic(type);
+    if (
+      typeof (window as unknown as { triggerHaptic?: (t: string) => void })
+        .triggerHaptic === "function"
+    ) {
+      (
+        window as unknown as { triggerHaptic: (t: string) => void }
+      ).triggerHaptic(type);
     }
   }
 
@@ -75,7 +84,7 @@ export class Audio {
       this.masterGain.gain.value = 0.4;
       this.masterGain.connect(this.ctx.destination);
     }
-    if (this.ctx.state === 'suspended') {
+    if (this.ctx.state === "suspended") {
       this.ctx.resume();
     }
     return this.ctx;
@@ -98,7 +107,10 @@ export class Audio {
     if (frequencies.length > 1) {
       const stepTime = durationMs / 1000 / frequencies.length;
       for (let i = 1; i < frequencies.length; i++) {
-        osc.frequency.linearRampToValueAtTime(frequencies[i], ctx.currentTime + stepTime * (i + 1));
+        osc.frequency.linearRampToValueAtTime(
+          frequencies[i],
+          ctx.currentTime + stepTime * (i + 1),
+        );
       }
     }
 
@@ -112,20 +124,20 @@ export class Audio {
   }
 
   trailTick(): void {
-    this.playTone('square', [220], 30, 0.05);
+    this.playTone("square", [220], 30, 0.05);
   }
 
   territoryCaptured(): void {
-    this.playTone('sine', [440, 660], 120, 0.15);
+    this.playTone("sine", [440, 660], 120, 0.15);
   }
 
   playerDeath(): void {
-    this.playTone('sawtooth', [300, 80], 400, 0.2);
-    this.triggerHaptic('error');
+    this.playTone("sawtooth", [300, 80], 400, 0.2);
+    this.triggerHaptic("error");
   }
 
   enemyDeath(): void {
-    this.playTone('triangle', [600, 300], 200, 0.1);
-    this.triggerHaptic('medium');
+    this.playTone("triangle", [600, 300], 200, 0.1);
+    this.triggerHaptic("medium");
   }
 }

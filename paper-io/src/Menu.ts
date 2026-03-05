@@ -1,6 +1,6 @@
-import * as THREE from 'three';
-import { type Difficulty } from './constants.ts';
-import { SkinSystem, type SkinDef } from './SkinSystem.ts';
+import * as THREE from "three";
+import { type Difficulty } from "./constants.ts";
+import { SkinSystem, type SkinDef } from "./SkinSystem.ts";
 
 export interface MenuConfig {
   botCount: number;
@@ -17,7 +17,11 @@ export class Menu {
   private onPlay: ((config: MenuConfig) => void) | null = null;
   private onPlayAgain: (() => void) | null = null;
   private onMainMenu: (() => void) | null = null;
-  private config: MenuConfig = { botCount: 5, difficulty: 'medium', playerSkinId: 'cyan' };
+  private config: MenuConfig = {
+    botCount: 5,
+    difficulty: "medium",
+    playerSkinId: "cyan",
+  };
   private previewRenderer: THREE.WebGLRenderer | null = null;
   private previewScene: THREE.Scene | null = null;
   private previewCamera: THREE.PerspectiveCamera | null = null;
@@ -26,10 +30,10 @@ export class Menu {
 
   constructor(skinSystem: SkinSystem) {
     this.skinSystem = skinSystem;
-    this.menuScreen = document.getElementById('menu-screen')!;
-    this.gameOverScreen = document.getElementById('game-over')!;
-    this.pauseOverlay = document.getElementById('pause-overlay')!;
-    this.shopModal = document.getElementById('shop-modal')!;
+    this.menuScreen = document.getElementById("menu-screen")!;
+    this.gameOverScreen = document.getElementById("game-over")!;
+    this.pauseOverlay = document.getElementById("pause-overlay")!;
+    this.shopModal = document.getElementById("shop-modal")!;
 
     this.setupMenu();
   }
@@ -37,40 +41,40 @@ export class Menu {
   private setupMenu(): void {
     this.buildShop();
 
-    document.getElementById('play-btn')!.addEventListener('click', () => {
+    document.getElementById("play-btn")!.addEventListener("click", () => {
       this.onPlay?.(this.config);
     });
 
-    document.getElementById('how-to-toggle')!.addEventListener('click', () => {
-      document.getElementById('how-to-content')!.classList.toggle('show');
+    document.getElementById("how-to-toggle")!.addEventListener("click", () => {
+      document.getElementById("how-to-content")!.classList.toggle("show");
     });
 
-    document.getElementById('go-play-again')!.addEventListener('click', () => {
+    document.getElementById("go-play-again")!.addEventListener("click", () => {
       this.hideGameOver();
       this.onPlayAgain?.();
     });
-    document.getElementById('go-main-menu')!.addEventListener('click', () => {
+    document.getElementById("go-main-menu")!.addEventListener("click", () => {
       this.hideGameOver();
       this.onMainMenu?.();
     });
   }
 
   private buildShop(): void {
-    const openBtn = document.getElementById('shop-open-btn');
-    const closeBtn = document.getElementById('shop-close-btn');
+    const openBtn = document.getElementById("shop-open-btn");
+    const closeBtn = document.getElementById("shop-close-btn");
 
-    openBtn?.addEventListener('click', () => {
+    openBtn?.addEventListener("click", () => {
       this.refreshShop();
-      this.shopModal.classList.add('visible');
+      this.shopModal.classList.add("visible");
     });
 
-    closeBtn?.addEventListener('click', () => {
-      this.shopModal.classList.remove('visible');
+    closeBtn?.addEventListener("click", () => {
+      this.shopModal.classList.remove("visible");
     });
 
-    this.shopModal.addEventListener('click', (e) => {
+    this.shopModal.addEventListener("click", (e) => {
       if (e.target === this.shopModal) {
-        this.shopModal.classList.remove('visible');
+        this.shopModal.classList.remove("visible");
       }
     });
 
@@ -93,10 +97,12 @@ export class Menu {
         antialias: true,
         alpha: true,
         preserveDrawingBuffer: true,
-        powerPreference: 'low-power',
+        powerPreference: "low-power",
       });
       this.previewRenderer.setSize(size, size);
-      this.previewRenderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+      this.previewRenderer.setPixelRatio(
+        Math.min(2, window.devicePixelRatio || 1),
+      );
       this.previewRenderer.setClearColor(0x000000, 0);
 
       this.previewScene = new THREE.Scene();
@@ -120,7 +126,7 @@ export class Menu {
   private renderModelPreview(model: THREE.Group): string {
     this.initPreviewRenderer();
     if (!this.previewRenderer || !this.previewScene || !this.previewCamera) {
-      return '';
+      return "";
     }
     const scene = this.previewScene!;
     const camera = this.previewCamera!;
@@ -135,7 +141,7 @@ export class Menu {
     scene.add(clone);
 
     renderer.render(scene, camera);
-    const dataUrl = renderer.domElement.toDataURL('image/png');
+    const dataUrl = renderer.domElement.toDataURL("image/png");
 
     scene.remove(clone);
     return dataUrl;
@@ -158,24 +164,26 @@ export class Menu {
   }
 
   refreshShop(): void {
-    const colorsContainer = document.getElementById('shop-colors')!;
-    const skinsContainer = document.getElementById('shop-skins')!;
+    const colorsContainer = document.getElementById("shop-colors")!;
+    const skinsContainer = document.getElementById("shop-skins")!;
 
-    colorsContainer.innerHTML = '';
-    skinsContainer.innerHTML = '';
+    colorsContainer.innerHTML = "";
+    skinsContainer.innerHTML = "";
 
     for (const skin of this.skinSystem.getColorSkins()) {
-      const btn = document.createElement('button');
-      btn.className = 'shop-color-btn' + (skin.id === this.config.playerSkinId ? ' selected' : '');
+      const btn = document.createElement("button");
+      btn.className =
+        "shop-color-btn" +
+        (skin.id === this.config.playerSkinId ? " selected" : "");
       btn.dataset.skinId = skin.id;
-      btn.setAttribute('aria-label', skin.name);
+      btn.setAttribute("aria-label", skin.name);
 
-      const swatch = document.createElement('span');
-      swatch.className = 'shop-swatch';
+      const swatch = document.createElement("span");
+      swatch.className = "shop-swatch";
       swatch.style.background = skin.colorStr;
       btn.appendChild(swatch);
 
-      btn.addEventListener('click', () => this.selectSkin(skin.id));
+      btn.addEventListener("click", () => this.selectSkin(skin.id));
       colorsContainer.appendChild(btn);
     }
 
@@ -185,30 +193,33 @@ export class Menu {
     ];
 
     for (const skin of allModelAndTexture) {
-      const btn = document.createElement('button');
+      const btn = document.createElement("button");
       const isUnlocked = this.skinSystem.isUnlocked(skin.id);
       const isSelected = skin.id === this.config.playerSkinId;
-      btn.className = 'shop-skin-btn' + (isSelected ? ' selected' : '') + (!isUnlocked ? ' locked' : '');
+      btn.className =
+        "shop-skin-btn" +
+        (isSelected ? " selected" : "") +
+        (!isUnlocked ? " locked" : "");
       btn.dataset.skinId = skin.id;
-      btn.setAttribute('aria-label', skin.name);
+      btn.setAttribute("aria-label", skin.name);
 
-      if (skin.type === 'model') {
+      if (skin.type === "model") {
         const previewUrl = this.getModelPreviewUrl(skin);
         if (previewUrl) {
-          const img = document.createElement('img');
-          img.className = 'skin-preview model-preview';
+          const img = document.createElement("img");
+          img.className = "skin-preview model-preview";
           img.src = previewUrl;
           img.alt = skin.name;
           img.onerror = () => {
-            const fallback = document.createElement('div');
-            fallback.className = 'skin-preview model-preview-placeholder';
+            const fallback = document.createElement("div");
+            fallback.className = "skin-preview model-preview-placeholder";
             fallback.style.background = skin.colorStr;
             img.replaceWith(fallback);
           };
           btn.appendChild(img);
         } else {
-          const placeholder = document.createElement('div');
-          placeholder.className = 'skin-preview model-preview-placeholder';
+          const placeholder = document.createElement("div");
+          placeholder.className = "skin-preview model-preview-placeholder";
           placeholder.style.background = skin.colorStr;
           btn.appendChild(placeholder);
 
@@ -219,8 +230,8 @@ export class Menu {
               const url = this.renderModelPreview(model);
               if (url) {
                 this.previewCache.set(skin.id, url);
-                const img = document.createElement('img');
-                img.className = 'skin-preview model-preview';
+                const img = document.createElement("img");
+                img.className = "skin-preview model-preview";
                 img.src = url;
                 img.alt = skin.name;
                 placeholder.replaceWith(img);
@@ -229,9 +240,9 @@ export class Menu {
           }
         }
       } else {
-        const img = document.createElement('img');
-        img.className = 'skin-preview';
-        img.src = this.skinSystem.getTextureUrl(skin) ?? '';
+        const img = document.createElement("img");
+        img.className = "skin-preview";
+        img.src = this.skinSystem.getTextureUrl(skin) ?? "";
         img.alt = skin.name;
         img.onerror = () => {
           img.remove();
@@ -239,24 +250,26 @@ export class Menu {
         btn.appendChild(img);
       }
 
-      const nameEl = document.createElement('span');
-      nameEl.className = 'skin-name';
+      const nameEl = document.createElement("span");
+      nameEl.className = "skin-name";
       nameEl.textContent = skin.name;
       btn.appendChild(nameEl);
 
       if (!isUnlocked) {
-        const overlay = document.createElement('div');
-        overlay.className = 'skin-lock-overlay';
+        const overlay = document.createElement("div");
+        overlay.className = "skin-lock-overlay";
         overlay.innerHTML =
           '<svg viewBox="0 0 24 24" width="18" height="18" fill="white">' +
           '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/>' +
-          '</svg>' +
-          '<span>' + skin.unlockScore + '% territory</span>';
+          "</svg>" +
+          "<span>" +
+          skin.unlockScore +
+          "% territory</span>";
         btn.appendChild(overlay);
       }
 
       if (isUnlocked) {
-        btn.addEventListener('click', () => this.selectSkin(skin.id));
+        btn.addEventListener("click", () => this.selectSkin(skin.id));
       }
 
       skinsContainer.appendChild(btn);
@@ -266,28 +279,35 @@ export class Menu {
   private selectSkin(skinId: string): void {
     this.config.playerSkinId = skinId;
 
-    document.querySelectorAll('.shop-color-btn, .shop-skin-btn').forEach(btn => {
-      btn.classList.toggle('selected', (btn as HTMLElement).dataset.skinId === skinId);
-    });
+    document
+      .querySelectorAll(".shop-color-btn, .shop-skin-btn")
+      .forEach((btn) => {
+        btn.classList.toggle(
+          "selected",
+          (btn as HTMLElement).dataset.skinId === skinId,
+        );
+      });
 
     this.updatePreview();
   }
 
   private updatePreview(): void {
-    const preview = document.getElementById('shop-preview') as HTMLElement | null;
+    const preview = document.getElementById(
+      "shop-preview",
+    ) as HTMLElement | null;
     if (!preview) return;
 
     const skin = this.skinSystem.getSkin(this.config.playerSkinId);
     if (!skin) return;
 
-    if (skin.type === 'model') {
+    if (skin.type === "model") {
       const url = this.getModelPreviewUrl(skin);
       if (url) {
-        preview.style.background = 'url(' + url + ') center/cover';
-        preview.style.borderRadius = '6px';
+        preview.style.background = "url(" + url + ") center/cover";
+        preview.style.borderRadius = "6px";
       } else {
         preview.style.background = skin.colorStr;
-        preview.style.borderRadius = '6px';
+        preview.style.borderRadius = "6px";
         // Only wait for the model if it hasn't loaded yet
         if (!this.skinSystem.getModel(skin.id)) {
           const modelPromise = this.skinSystem.getModelAsync(skin.id);
@@ -296,17 +316,17 @@ export class Menu {
           }
         }
       }
-    } else if (skin.type === 'texture' && skin.textureUrl) {
+    } else if (skin.type === "texture" && skin.textureUrl) {
       const textureUrl = this.skinSystem.getTextureUrl(skin);
       if (textureUrl) {
-        preview.style.background = 'url(' + textureUrl + ') center/cover';
+        preview.style.background = "url(" + textureUrl + ") center/cover";
       } else {
         preview.style.background = skin.colorStr;
       }
-      preview.style.borderRadius = '6px';
+      preview.style.borderRadius = "6px";
     } else {
       preview.style.background = skin.colorStr;
-      preview.style.borderRadius = '999px';
+      preview.style.borderRadius = "999px";
     }
   }
 
@@ -321,48 +341,55 @@ export class Menu {
   }
 
   showMenu(): void {
-    this.menuScreen.style.display = 'flex';
+    this.menuScreen.style.display = "flex";
     this.refreshShop();
     this.updatePreview();
   }
 
   hideMenu(): void {
-    this.menuScreen.style.display = 'none';
+    this.menuScreen.style.display = "none";
   }
 
-  showGameOver(score: string, rank: string, time: string, unlockedSkins?: SkinDef[]): void {
-    document.getElementById('go-score')!.textContent = score;
-    document.getElementById('go-rank')!.textContent = rank;
-    document.getElementById('go-time')!.textContent = time;
+  showGameOver(
+    score: string,
+    rank: string,
+    time: string,
+    unlockedSkins?: SkinDef[],
+  ): void {
+    document.getElementById("go-score")!.textContent = score;
+    document.getElementById("go-rank")!.textContent = rank;
+    document.getElementById("go-time")!.textContent = time;
 
-    const unlockEl = document.getElementById('go-unlocks');
+    const unlockEl = document.getElementById("go-unlocks");
     if (unlockEl) {
       if (unlockedSkins && unlockedSkins.length > 0) {
-        const names = unlockedSkins.map(s => s.name).join(', ');
+        const names = unlockedSkins.map((s) => s.name).join(", ");
         unlockEl.innerHTML =
           '<svg viewBox="0 0 24 24" width="16" height="16" fill="#E8736C" style="vertical-align:middle;margin-right:4px">' +
           '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/>' +
-          '</svg>' +
-          'Unlocked: <span style="font-weight:700;color:#E8736C">' + names + '</span>';
-        unlockEl.style.display = 'block';
+          "</svg>" +
+          'Unlocked: <span style="font-weight:700;color:#E8736C">' +
+          names +
+          "</span>";
+        unlockEl.style.display = "block";
       } else {
-        unlockEl.style.display = 'none';
+        unlockEl.style.display = "none";
       }
     }
 
-    this.gameOverScreen.classList.add('visible');
+    this.gameOverScreen.classList.add("visible");
   }
 
   hideGameOver(): void {
-    this.gameOverScreen.classList.remove('visible');
+    this.gameOverScreen.classList.remove("visible");
   }
 
   showPause(): void {
-    this.pauseOverlay.classList.add('visible');
+    this.pauseOverlay.classList.add("visible");
   }
 
   hidePause(): void {
-    this.pauseOverlay.classList.remove('visible');
+    this.pauseOverlay.classList.remove("visible");
   }
 
   get currentConfig(): MenuConfig {

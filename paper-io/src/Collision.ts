@@ -1,11 +1,14 @@
-import { type Vec2 } from './constants.ts';
+import { type Vec2 } from "./constants.ts";
 
 /**
  * Test if two line segments (p1→p2) and (p3→p4) intersect.
  * Returns true if they cross (not just touch at endpoints).
  */
 export function segmentsIntersect(
-  p1: Vec2, p2: Vec2, p3: Vec2, p4: Vec2,
+  p1: Vec2,
+  p2: Vec2,
+  p3: Vec2,
+  p4: Vec2,
   epsilon = 1e-8,
 ): boolean {
   const d1x = p2.x - p1.x;
@@ -35,7 +38,7 @@ export function pointInPolygon(point: Vec2, polygon: Vec2[]): boolean {
     const pj = polygon[j];
 
     if (
-      (pi.z > point.z) !== (pj.z > point.z) &&
+      pi.z > point.z !== pj.z > point.z &&
       point.x < ((pj.x - pi.x) * (point.z - pi.z)) / (pj.z - pi.z) + pi.x
     ) {
       inside = !inside;
@@ -63,7 +66,8 @@ export function polygonArea(polygon: Vec2[]): number {
  * skipFirst/skipLast: number of segments to skip from the start/end of the polyline.
  */
 export function segmentIntersectsPolyline(
-  a: Vec2, b: Vec2,
+  a: Vec2,
+  b: Vec2,
   polyline: Vec2[],
   skipFirst = 0,
   skipLast = 0,
@@ -116,7 +120,12 @@ export function nearestPointOnPolygon(point: Vec2, polygon: Vec2[]): Vec2 {
 /**
  * Create a circle polygon approximation.
  */
-export function createCirclePolygon(cx: number, cz: number, radius: number, segments: number): Vec2[] {
+export function createCirclePolygon(
+  cx: number,
+  cz: number,
+  radius: number,
+  segments: number,
+): Vec2[] {
   const points: Vec2[] = [];
   for (let i = 0; i < segments; i++) {
     const angle = (Math.PI * 2 * i) / segments;
@@ -173,8 +182,10 @@ export function subtractPolygonArea(a: Vec2[], b: Vec2[]): number {
 
   for (let i = 0; i < sampleCount; i++) {
     for (let j = 0; j < sampleCount; j++) {
-      const px = bounds.minX + (bounds.maxX - bounds.minX) * (i + 0.5) / sampleCount;
-      const pz = bounds.minZ + (bounds.maxZ - bounds.minZ) * (j + 0.5) / sampleCount;
+      const px =
+        bounds.minX + ((bounds.maxX - bounds.minX) * (i + 0.5)) / sampleCount;
+      const pz =
+        bounds.minZ + ((bounds.maxZ - bounds.minZ) * (j + 0.5)) / sampleCount;
       const p = { x: px, z: pz };
       if (pointInPolygon(p, a)) {
         totalSamples++;
@@ -191,7 +202,10 @@ export function subtractPolygonArea(a: Vec2[], b: Vec2[]): number {
 }
 
 function getPolygonBounds(poly: Vec2[]) {
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  let minX = Infinity,
+    maxX = -Infinity,
+    minZ = Infinity,
+    maxZ = -Infinity;
   for (const p of poly) {
     if (p.x < minX) minX = p.x;
     if (p.x > maxX) maxX = p.x;

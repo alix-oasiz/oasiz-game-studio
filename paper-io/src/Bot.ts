@@ -1,5 +1,12 @@
-import { MAP_RADIUS, BotBehavior, type Difficulty, BOT_DIFFICULTY, type Vec2, dist2 } from './constants.ts';
-import { type PlayerState } from './Player.ts';
+import {
+  MAP_RADIUS,
+  BotBehavior,
+  type Difficulty,
+  BOT_DIFFICULTY,
+  type Vec2,
+  dist2,
+} from "./constants.ts";
+import { type PlayerState } from "./Player.ts";
 
 interface BotAI {
   behavior: BotBehavior;
@@ -8,14 +15,22 @@ interface BotAI {
   ticksSinceChange: number;
   stuckTicks: number;
   lastExpansionAngle: number;
+  config: BotDifficultyConfig;
+}
+
+interface BotDifficultyConfig {
+  maxTrailLen: number;
+  aggression: number;
+  loopSize: number;
+  turnRate: number;
 }
 
 export class BotController {
   private ais: Map<number, BotAI> = new Map();
-  private config: { maxTrailLen: number; aggression: number; loopSize: number; turnRate: number };
+  private baseConfig: BotDifficultyConfig;
 
   constructor(difficulty: Difficulty) {
-    this.config = BOT_DIFFICULTY[difficulty];
+    this.baseConfig = BOT_DIFFICULTY[difficulty];
   }
 
   initBot(player: PlayerState): void {
@@ -26,6 +41,7 @@ export class BotController {
       ticksSinceChange: 0,
       stuckTicks: 0,
       lastExpansionAngle: Math.atan2(player.moveDir.z, player.moveDir.x),
+      config: this.createBotConfig(),
     });
   }
 
@@ -37,7 +53,8 @@ export class BotController {
     ai.ticksSinceChange++;
 
     if (bot.trail.length > 2) {
-      const fleeDist = this.config.loopSize * 0.6;
+      // More aggressive bots tolerate closer enemies before retreating.
+      const fleeDist = ai.config.loopSize * (0.8 - ai.config.aggression * 0.25);
       const fleeDist2 = fleeDist * fleeDist;
       for (const p of allPlayers) {
         if (p.id === bot.id || !p.alive) continue;
@@ -49,7 +66,10 @@ export class BotController {
       }
     }
 
-    if (bot.trail.length > this.config.maxTrailLen && ai.behavior === BotBehavior.EXPAND) {
+    if (
+      bot.trail.length > ai.config.maxTrailLen &&
+      ai.behavior === BotBehavior.EXPAND
+    ) {
       ai.behavior = BotBehavior.RETURN_HOME;
       ai.waypoints = [];
     }
@@ -108,6 +128,8 @@ export class BotController {
   }
 
   private smoothTurn(bot: PlayerState, target: Vec2, dt: number): void {
+    const ai = this.ais.get(bot.id);
+    if (!ai) return;
     const dx = target.x - bot.position.x;
     const dz = target.z - bot.position.z;
     const len = Math.sqrt(dx * dx + dz * dz);
@@ -120,7 +142,7 @@ export class BotController {
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-    const maxTurn = this.config.turnRate * dt;
+    const maxTurn = ai.config.turnRate * dt;
     const turn = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
 
     const newAngle = currentAngle + turn;
@@ -129,7 +151,8 @@ export class BotController {
   }
 
   private chooseExpansionAngle(bot: PlayerState): number {
-    const botDist2 = bot.position.x * bot.position.x + bot.position.z * bot.position.z;
+    const botDist2 =
+      bot.position.x * bot.position.x + bot.position.z * bot.position.z;
     const edgeThreshold = MAP_RADIUS * 0.7;
 
     // Near arena edge: prefer toward center
@@ -153,10 +176,11 @@ export class BotController {
   }
 
   private planSmoothLoop(bot: PlayerState, ai: BotAI): Vec2[] {
-    const baseSize = this.config.loopSize;
+    const baseSize = ai.config.loopSize;
 
-    // 15% chance of an extra-large "power grab" loop
-    const sizeMultiplier = Math.random() < 0.15 ? 1.5 : 1.0;
+    // Aggressive bots are more willing to attempt oversized claims.
+    const sizeMultiplier =
+      Math.random() < 0.08 + ai.config.aggression * 0.22 ? 1.5 : 1.0;
     const size = baseSize * (0.8 + Math.random() * 0.6) * sizeMultiplier;
 
     const angle = this.chooseExpansionAngle(bot);
@@ -182,8 +206,10 @@ export class BotController {
       const t = Math.PI + (i / numPoints) * Math.PI * 2;
       const ct = Math.cos(t);
       const st = Math.sin(t);
-      const px = ecx + ct * (length * 0.5) * forwardX + st * (width * 0.5) * rightX;
-      const pz = ecz + ct * (length * 0.5) * forwardZ + st * (width * 0.5) * rightZ;
+      const px =
+        ecx + ct * (length * 0.5) * forwardX + st * (width * 0.5) * rightX;
+      const pz =
+        ecz + ct * (length * 0.5) * forwardZ + st * (width * 0.5) * rightZ;
       points.push({ x: px, z: pz });
     }
 
@@ -198,5 +224,27 @@ export class BotController {
     }
 
     return points;
+  }
+
+  private createBotConfig(): BotDifficultyConfig {
+    return {
+      maxTrailLen: Math.max(
+        10,
+        Math.round(this.baseConfig.maxTrailLen * this.randomRange(0.8, 1.2)),
+      ),
+      aggression: Math.max(
+        0.05,
+        Math.min(
+          0.95,
+          this.baseConfig.aggression + this.randomRange(-0.15, 0.15),
+        ),
+      ),
+      loopSize: this.baseConfig.loopSize * this.randomRange(0.85, 1.2),
+      turnRate: this.baseConfig.turnRate * this.randomRange(0.85, 1.15),
+    };
+  }
+
+  private randomRange(min: number, max: number): number {
+    return min + Math.random() * (max - min);
   }
 }

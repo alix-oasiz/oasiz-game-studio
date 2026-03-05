@@ -1,4 +1,4 @@
-import { type Vec2 } from './constants.ts';
+import { type Vec2 } from "./constants.ts";
 
 export interface TrailCandidate {
   playerId: number;

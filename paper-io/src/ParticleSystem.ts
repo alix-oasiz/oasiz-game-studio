@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 interface Particle {
   mesh: THREE.Mesh;
@@ -34,9 +34,19 @@ export class ParticleSystem {
       return p;
     }
     // Create new
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 1,
+    });
     const mesh = new THREE.Mesh(this.geo, mat);
-    return { mesh, velocity: new THREE.Vector3(), life: 0, maxLife: 0.4, active: true };
+    return {
+      mesh,
+      velocity: new THREE.Vector3(),
+      life: 0,
+      maxLife: 0.4,
+      active: true,
+    };
   }
 
   spawnDeathBurst(x: number, z: number, color: number): void {
@@ -49,7 +59,11 @@ export class ParticleSystem {
 
       const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
       const speed = 2 + Math.random() * 3;
-      p.velocity.set(Math.cos(angle) * speed, 3 + Math.random() * 4, Math.sin(angle) * speed);
+      p.velocity.set(
+        Math.cos(angle) * speed,
+        3 + Math.random() * 4,
+        Math.sin(angle) * speed,
+      );
 
       this.scene.add(p.mesh);
       this.particles.push(p);

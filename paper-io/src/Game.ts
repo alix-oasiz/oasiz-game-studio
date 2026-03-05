@@ -1,15 +1,30 @@
-import { SPAWN_POINTS, PLAYER_NAMES, BOT_NAMES, MAP_SIZE, type Vec2, dist2 } from './constants.ts';
-import { type PlayerState, createPlayer, computeMovement, clampToArena, sampleTrailPoint, InputHandler } from './Player.ts';
-import { segmentsIntersect } from './Collision.ts';
-import { BotController } from './Bot.ts';
-import { Renderer } from './Renderer.ts';
-import { ParticleSystem } from './ParticleSystem.ts';
-import { Audio } from './Audio.ts';
-import { HUD } from './HUD.ts';
-import { Menu, type MenuConfig } from './Menu.ts';
-import { SpatialHash } from './SpatialHash.ts';
-import { TerritoryGrid } from './Territory.ts';
-import { SkinSystem } from './SkinSystem.ts';
+import {
+  SPAWN_POINTS,
+  PLAYER_NAMES,
+  BOT_NAMES,
+  MAP_SIZE,
+  START_RADIUS,
+  type Vec2,
+  dist2,
+} from "./constants.ts";
+import {
+  type PlayerState,
+  createPlayer,
+  computeMovement,
+  clampToArena,
+  sampleTrailPoint,
+  InputHandler,
+} from "./Player.ts";
+import { segmentsIntersect } from "./Collision.ts";
+import { BotController } from "./Bot.ts";
+import { Renderer } from "./Renderer.ts";
+import { ParticleSystem } from "./ParticleSystem.ts";
+import { Audio } from "./Audio.ts";
+import { HUD } from "./HUD.ts";
+import { Menu, type MenuConfig } from "./Menu.ts";
+import { SpatialHash } from "./SpatialHash.ts";
+import { TerritoryGrid } from "./Territory.ts";
+import { SkinSystem } from "./SkinSystem.ts";
 
 export class Game {
   private renderer: Renderer;
@@ -39,7 +54,7 @@ export class Game {
   private respawnTimers: Map<number, number> = new Map(); // playerId -> time remaining
 
   constructor() {
-    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
     this.renderer = new Renderer(canvas);
     this.particleSystem = new ParticleSystem(this.renderer.scene);
     this.audio = new Audio();
@@ -55,10 +70,11 @@ export class Game {
 
     this.initSettingsModal();
 
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'p' || e.key === 'P') this.togglePause();
-      if ((e.key === 'r' || e.key === 'R') && this.gameOver) this.startGame(this.menu.currentConfig);
-      if (e.key === 'Escape' && this.running) this.showMainMenu();
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "p" || e.key === "P") this.togglePause();
+      if ((e.key === "r" || e.key === "R") && this.gameOver)
+        this.startGame(this.menu.currentConfig);
+      if (e.key === "Escape" && this.running) this.showMainMenu();
     });
 
     this.showMainMenu();
@@ -68,21 +84,21 @@ export class Game {
   private settingsOpen = false;
 
   private initSettingsModal(): void {
-    const settingsBtn = document.getElementById('settings-btn');
-    const settingsModal = document.getElementById('settings-modal');
+    const settingsBtn = document.getElementById("settings-btn");
+    const settingsModal = document.getElementById("settings-modal");
 
-    settingsBtn?.addEventListener('click', () => {
+    settingsBtn?.addEventListener("click", () => {
       this.settingsOpen = !this.settingsOpen;
-      settingsModal?.classList.toggle('visible', this.settingsOpen);
+      settingsModal?.classList.toggle("visible", this.settingsOpen);
       if (this.settingsOpen && this.running && !this.gameOver) {
         this.paused = true;
       }
     });
 
-    settingsModal?.addEventListener('click', (e) => {
+    settingsModal?.addEventListener("click", (e) => {
       if (e.target === settingsModal) {
         this.settingsOpen = false;
-        settingsModal.classList.remove('visible');
+        settingsModal.classList.remove("visible");
         if (this.running && !this.gameOver) {
           this.paused = false;
         }
@@ -94,11 +110,14 @@ export class Game {
     this.stopGame();
     this.menu.showMenu();
     this.hud.hide();
-    document.getElementById('settings-btn')?.classList.add('hidden');
-    const joystick = document.getElementById('joystick-zone');
-    if (joystick) { joystick.classList.add('hidden'); joystick.classList.remove('visible'); }
+    document.getElementById("settings-btn")?.classList.add("hidden");
+    const joystick = document.getElementById("joystick-zone");
+    if (joystick) {
+      joystick.classList.add("hidden");
+      joystick.classList.remove("visible");
+    }
     this.settingsOpen = false;
-    document.getElementById('settings-modal')?.classList.remove('visible');
+    document.getElementById("settings-modal")?.classList.remove("visible");
   }
 
   private startGame(config: MenuConfig): void {
@@ -118,16 +137,28 @@ export class Game {
 
     // Create players with skins
     const total = 1 + config.botCount;
-    const playerSkin = this.skinSystem.getSkin(config.playerSkinId) ?? this.skinSystem.getDefaultSkin();
-    const botSkins = this.skinSystem.getShuffledBotSkins(playerSkin.id, config.botCount);
+    const playerSkin =
+      this.skinSystem.getSkin(config.playerSkinId) ??
+      this.skinSystem.getDefaultSkin();
+    const botSkins = this.skinSystem.getShuffledBotSkins(
+      playerSkin.id,
+      config.botCount,
+    );
 
     for (let i = 0; i < total; i++) {
-      const sp = SPAWN_POINTS[i];
+      const sp = i === 0 ? SPAWN_POINTS[i] : this.pickSpawnPoint(i);
       const skin = i === 0 ? playerSkin : botSkins[i - 1];
       const name = i === 0 ? PLAYER_NAMES[0] : this.pickBotName();
       const player = createPlayer(
-        i, skin.color, skin.colorStr,
-        name, sp.x, sp.z, i === 0, this.territoryGrid, skin.id,
+        i,
+        skin.color,
+        skin.colorStr,
+        name,
+        sp.x,
+        sp.z,
+        i === 0,
+        this.territoryGrid,
+        skin.id,
       );
       this.players.push(player);
 
@@ -135,12 +166,16 @@ export class Game {
       const model = this.skinSystem.getModel(skin.id);
       this.renderer.createAvatar(i, skin.color, name, texture, model);
 
-      if (skin.type === 'model' && !model) {
+      if (skin.type === "model" && !model) {
         const modelPromise = this.skinSystem.getModelAsync(skin.id);
         if (modelPromise) {
           const playerId = i;
           modelPromise.then((loadedModel) => {
-            if (this.running && this.players[playerId]?.alive && loadedModel.children.length > 0) {
+            if (
+              this.running &&
+              this.players[playerId]?.alive &&
+              loadedModel.children.length > 0
+            ) {
               this.renderer.replaceAvatarBody(playerId, loadedModel);
             }
           });
@@ -158,16 +193,21 @@ export class Game {
 
     // HUD, Settings button, joystick
     this.hud.show();
-    document.getElementById('settings-btn')?.classList.remove('hidden');
-    const joystick = document.getElementById('joystick-zone');
+    document.getElementById("settings-btn")?.classList.remove("hidden");
+    const joystick = document.getElementById("joystick-zone");
     if (joystick) {
-      joystick.classList.remove('hidden');
-      joystick.classList.add('visible');
+      joystick.classList.remove("hidden");
+      joystick.classList.add("visible");
     }
 
     // Initial territory + avatar positioning
     for (const p of this.players) {
-      this.renderer.updateTerritory(p.id, this.territoryGrid, p.color);
+      this.renderer.updateTerritory(
+        p.id,
+        this.territoryGrid,
+        p.color,
+        p.skinId,
+      );
       this.renderer.updateAvatar(p.id, p.position, 0);
     }
 
@@ -261,19 +301,29 @@ export class Game {
       // Regenerate territory if it was completely consumed by an enemy capture
       if (p.alive && !p.territory.hasTerritory() && !p.isTrailing) {
         p.territory.initAtSpawn(p.position.x, p.position.z);
-        this.renderer.updateTerritory(p.id, this.territoryGrid, p.color);
+        this.renderer.updateTerritory(
+          p.id,
+          this.territoryGrid,
+          p.color,
+          p.skinId,
+        );
       }
 
       if (wasInTerritory && !nowInTerritory) {
-        p.isTrailing = true;
-        p.trail = [{ x: oldPos.x, z: oldPos.z }];
+        this.beginTrailFromBoundary(p, oldPos, newPos);
       }
 
       // If player is outside territory and not trailing, restart trailing
-      if (!p.isTrailing && !nowInTerritory && p.hasInput && p.territory.hasTerritory()) {
+      if (
+        !p.isTrailing &&
+        !nowInTerritory &&
+        p.hasInput &&
+        p.territory.hasTerritory()
+      ) {
         if (!wasInTerritory) {
           p.isTrailing = true;
           p.trail = [{ x: p.position.x, z: p.position.z }];
+          p.trailStartTangent = null;
         }
       }
 
@@ -291,13 +341,24 @@ export class Game {
             const other = players[otherId];
             if (other && other.alive) {
               other.territory.invalidateCache();
-              this.renderer.updateTerritory(other.id, this.territoryGrid, other.color);
+              this.renderer.updateTerritory(
+                other.id,
+                this.territoryGrid,
+                other.color,
+                other.skinId,
+              );
             }
           }
 
           p.trail = [];
+          p.trailStartTangent = null;
           p.isTrailing = false;
-          this.renderer.updateTerritory(p.id, this.territoryGrid, p.color);
+          this.renderer.updateTerritory(
+            p.id,
+            this.territoryGrid,
+            p.color,
+            p.skinId,
+          );
           this.audio.territoryCaptured();
         }
       }
@@ -307,7 +368,7 @@ export class Game {
       const p = players[pi];
       if (p.alive) {
         this.renderer.updateAvatar(p.id, p.position, this.gameTime, p.moveDir);
-        this.renderer.updateTrail(p.id, p.trail, p.color);
+        this.renderer.updateTrail(p.id, p.trail, p.color, p.trailStartTangent);
       }
     }
 
@@ -323,7 +384,9 @@ export class Game {
       const human = this.human;
       if (human && human.alive) {
         const totalArea = MAP_SIZE * MAP_SIZE;
-        const currentPct = Math.round((human.territory.computeArea() / totalArea) * 100);
+        const currentPct = Math.round(
+          (human.territory.computeArea() / totalArea) * 100,
+        );
         if (currentPct > this.peakPct) this.peakPct = currentPct;
       }
 
@@ -333,17 +396,23 @@ export class Game {
         const p = players[pi];
         if (!p.alive) continue;
         const area = p.territory.computeArea();
-        if (area > bestArea) { bestArea = area; leaderId = p.id; }
+        if (area > bestArea) {
+          bestArea = area;
+          leaderId = p.id;
+        }
       }
       if (leaderId !== this.currentLeaderId) {
         if (this.currentLeaderId >= 0) {
           const previousLeader = this.players[this.currentLeaderId];
           if (previousLeader) {
-            this.renderer.setRingColor(this.currentLeaderId, previousLeader.color);
+            this.renderer.setRingColor(
+              this.currentLeaderId,
+              previousLeader.color,
+            );
           }
         }
         if (leaderId >= 0) {
-          this.renderer.setRingColor(leaderId, 0xFFD700);
+          this.renderer.setRingColor(leaderId, 0xffd700);
         }
         this.currentLeaderId = leaderId;
       }
@@ -369,9 +438,14 @@ export class Game {
   private killPlayer(player: PlayerState): void {
     player.alive = false;
     player.trail = [];
+    player.trailStartTangent = null;
     player.isTrailing = false;
 
-    this.particleSystem.spawnDeathBurst(player.position.x, player.position.z, player.color);
+    this.particleSystem.spawnDeathBurst(
+      player.position.x,
+      player.position.z,
+      player.color,
+    );
     this.renderer.cleanupPlayer(player.id);
     player.territory.clear();
 
@@ -384,10 +458,11 @@ export class Game {
   }
 
   private pickBotName(): string {
-    const available = BOT_NAMES.filter(n => !this.usedBotNames.has(n));
-    const name = available.length > 0
-      ? available[Math.floor(Math.random() * available.length)]
-      : `Bot ${Math.floor(Math.random() * 999)}`;
+    const available = BOT_NAMES.filter((n) => !this.usedBotNames.has(n));
+    const name =
+      available.length > 0
+        ? available[Math.floor(Math.random() * available.length)]
+        : `Bot ${Math.floor(Math.random() * 999)}`;
     this.usedBotNames.add(name);
     return name;
   }
@@ -396,23 +471,86 @@ export class Game {
     this.usedBotNames.delete(name);
   }
 
+  private beginTrailFromBoundary(
+    player: PlayerState,
+    insidePos: Vec2,
+    outsidePos: Vec2,
+  ): void {
+    const exitPoint = player.territory.projectExitPoint(insidePos, outsidePos);
+    const dirX = outsidePos.x - insidePos.x;
+    const dirZ = outsidePos.z - insidePos.z;
+    const dirLen = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
+    const moveDir = { x: dirX / dirLen, z: dirZ / dirLen };
+
+    player.isTrailing = true;
+    player.trail = [exitPoint];
+    player.trailStartTangent = player.territory.getBoundaryTangent(
+      exitPoint,
+      moveDir,
+    );
+  }
+
+  private isSpawnSafe(spawn: Vec2, excludedPlayerId: number): boolean {
+    const sampleRadius = START_RADIUS + 0.75;
+    const offsets: Vec2[] = [
+      { x: 0, z: 0 },
+      { x: sampleRadius, z: 0 },
+      { x: -sampleRadius, z: 0 },
+      { x: 0, z: sampleRadius },
+      { x: 0, z: -sampleRadius },
+      { x: sampleRadius * 0.7, z: sampleRadius * 0.7 },
+      { x: sampleRadius * 0.7, z: -sampleRadius * 0.7 },
+      { x: -sampleRadius * 0.7, z: sampleRadius * 0.7 },
+      { x: -sampleRadius * 0.7, z: -sampleRadius * 0.7 },
+    ];
+
+    for (const player of this.players) {
+      if (!player.alive || player.id === excludedPlayerId) continue;
+      for (const offset of offsets) {
+        if (
+          player.territory.containsPoint({
+            x: spawn.x + offset.x,
+            z: spawn.z + offset.z,
+          })
+        ) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
   private pickSpawnPoint(playerId: number): Vec2 {
-    // Pick spawn point farthest from all alive players
-    let bestSpawn = SPAWN_POINTS[playerId % SPAWN_POINTS.length];
-    let bestMinDist = -1;
+    // Prefer the farthest safe spawn; if every fixed spawn is blocked,
+    // fall back to the farthest spawn so the game never deadlocks.
+    let bestSafeSpawn: Vec2 | null = null;
+    let bestSafeMinDist = -1;
+    let fallbackSpawn = SPAWN_POINTS[playerId % SPAWN_POINTS.length];
+    let fallbackMinDist = -1;
+
     for (const sp of SPAWN_POINTS) {
       let minDist = Infinity;
       for (const p of this.players) {
-        if (!p.alive) continue;
+        if (!p.alive || p.id === playerId) continue;
         const d = dist2(sp, p.position);
         if (d < minDist) minDist = d;
       }
-      if (minDist > bestMinDist) {
-        bestMinDist = minDist;
-        bestSpawn = sp;
+
+      if (minDist > fallbackMinDist) {
+        fallbackMinDist = minDist;
+        fallbackSpawn = sp;
+      }
+
+      if (!this.isSpawnSafe(sp, playerId)) continue;
+
+      if (minDist > bestSafeMinDist) {
+        bestSafeMinDist = minDist;
+        bestSafeSpawn = sp;
       }
     }
-    return bestSpawn;
+
+    return bestSafeSpawn ?? fallbackSpawn;
   }
 
   private respawnBot(player: PlayerState): void {
@@ -429,6 +567,7 @@ export class Game {
     player.position = { x: sp.x, z: sp.z };
     player.moveDir = { x: 1, z: 0 };
     player.trail = [];
+    player.trailStartTangent = null;
     player.isTrailing = false;
     player.hasInput = false;
 
@@ -439,7 +578,12 @@ export class Game {
     // Update renderer
     this.renderer.showAvatar(player.id);
     this.renderer.updateAvatarLabel(player.id, newName);
-    this.renderer.updateTerritory(player.id, this.territoryGrid, player.color);
+    this.renderer.updateTerritory(
+      player.id,
+      this.territoryGrid,
+      player.color,
+      player.skinId,
+    );
     this.renderer.updateAvatar(player.id, player.position, 0);
 
     // Reinit bot AI
@@ -450,7 +594,7 @@ export class Game {
     const human = this.human;
     if (!human) return;
 
-    const alive = this.players.filter(p => p.alive);
+    const alive = this.players.filter((p) => p.alive);
 
     if (!human.alive) {
       this.gameOver = true;
@@ -462,11 +606,14 @@ export class Game {
       const { pct, rank } = this.hud.getHumanScore(this.players);
       const displayPct = Math.max(pct, this.peakPct);
       const newlyUnlocked = this.skinSystem.tryUnlock(this.peakPct);
-      document.getElementById('settings-btn')?.classList.add('hidden');
-      const joystick = document.getElementById('joystick-zone');
-      if (joystick) { joystick.classList.add('hidden'); joystick.classList.remove('visible'); }
+      document.getElementById("settings-btn")?.classList.add("hidden");
+      const joystick = document.getElementById("joystick-zone");
+      if (joystick) {
+        joystick.classList.add("hidden");
+        joystick.classList.remove("visible");
+      }
       this.settingsOpen = false;
-      document.getElementById('settings-modal')?.classList.remove('visible');
+      document.getElementById("settings-modal")?.classList.remove("visible");
       this.menu.showGameOver(
         `${displayPct}%`,
         `#${rank} of ${this.players.length}`,

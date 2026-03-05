@@ -2302,3 +2302,5 @@ if (backBtn) {
 }
 
 updateUI();
+
+updateUI();
