@@ -5,17 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:auto": "node scripts/watch-versioned-build.mjs",
     "dev:restart": "bash scripts/restart-dev.sh",
     "dev:restart:bg": "bash scripts/restart-dev-background.sh",
-    "build": "vite build",
-    "build:versioned": "node scripts/bump-build-version.mjs && vite build",
+    "build": "vite build && node scripts/read-build-version.mjs",
+    "build:version": "node scripts/read-build-version.mjs",
+    "build:versioned": "node scripts/bump-build-version.mjs && vite build && node scripts/read-build-version.mjs",
     "build:versioned:serve": "npm run build:versioned && npm run dev:restart",
     "preview": "vite preview",
+    "review:serve": "node tools/pass-review/server.mjs",
+    "review:publish": "node tools/pass-review/publish-pass.mjs",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write 'src/**/*.{ts,tsx,css,html}'"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
+    "@oasiz/sdk": "^1.0.1",
     "three": "^0.181.1"
   },
   "devDependencies": {
