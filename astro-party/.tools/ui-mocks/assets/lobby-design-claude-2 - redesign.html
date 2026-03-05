@@ -181,7 +181,7 @@
     }
     .leave-btn:hover { color: #f87171; background: rgba(220,38,38,0.14); border-color: rgba(248,113,113,0.36); }
 
-    /* ─── BODY — fills all space between topbar and bottom of viewport ─── */
+    /* ─── BODY — fills space between topbar and ctrl-strip; padding-bottom reserves ctrl-strip zone ─── */
     .body {
       flex: 1;
       display: flex;
@@ -189,57 +189,84 @@
       min-height: 0;
       position: relative;
       overflow: hidden;
+      padding-bottom: var(--strip-h);
     }
 
-    /* left edge bleed — fades outer edge of column 1 into --bg */
+    /* left edge bleed — solid in gutter, 30% at card edge, fades out 20px into P1 for smooth blend */
     .body::before {
       content: '';
       position: absolute;
       top: 0; left: 0; bottom: 0;
-      width: 90px;
-      background: linear-gradient(to right, var(--bg) 0%, transparent 100%);
+      width: 120px;
+      background: linear-gradient(to right,
+        var(--bg)              0px,
+        var(--bg)              50px,
+        rgba(6,11,22,0.72)     72px,
+        rgba(6,11,22,0.30)    100px,
+        transparent           120px
+      );
       pointer-events: none;
       z-index: 4;
     }
 
-    /* right edge bleed — fades outer edge of column 4 into --bg */
+    /* right edge bleed — mirrors left */
     .body::after {
       content: '';
       position: absolute;
       top: 0; right: 0; bottom: 0;
-      width: 90px;
-      background: linear-gradient(to left, var(--bg) 0%, transparent 100%);
+      width: 120px;
+      background: linear-gradient(to left,
+        var(--bg)              0px,
+        var(--bg)              50px,
+        rgba(6,11,22,0.72)     72px,
+        rgba(6,11,22,0.30)    100px,
+        transparent           120px
+      );
       pointer-events: none;
       z-index: 4;
     }
 
-    /* bottom bleed — cards fade into the control strip gradient */
+    /* bottom fade — softens card bottoms just above the ctrl-strip zone */
     .body-fade-bottom {
       position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 100px;
+      bottom: var(--strip-h); left: 0; right: 0;
+      height: 90px;
       background: linear-gradient(to bottom, transparent 0%, var(--bg) 100%);
       pointer-events: none;
       z-index: 3;
     }
 
-    /* ─── CARD TRAY — horizontal padding gives edge bleeds room to breathe ─── */
+    /* ─── CARD TRAY — 100px gutter so edge gradient fully fades within the padding zone ─── */
     .card-tray {
       display: flex;
       flex-direction: row;
       align-items: stretch;
       flex: 1;
       min-height: 0;
-      padding: 0 32px;
+      padding: 0 100px;
     }
 
-    /* ─── PLAYER CARD — full-height column ─── */
+    /* ─── PLAYER CARD — full-height column, content centered between topbar and ctrl-strip ─── */
     .pcard {
       flex: 1;
       position: relative;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden; /* default: contain glow within card */
+    }
+
+    /* P1: allow glow to bleed LEFT into padding only — clip right overflow so it doesn't enter P2 */
+    .pcard:first-child {
+      overflow: visible;
+      clip-path: inset(0 0 0 -300px);
+    }
+
+    /* P4: allow glow to bleed RIGHT into padding only — clip left overflow so it doesn't enter P3 */
+    .pcard:last-child {
+      overflow: visible;
+      clip-path: inset(0 -300px 0 0);
     }
 
     /* thin vertical divider between adjacent cards (gradient fade at top/bottom) */
@@ -260,14 +287,13 @@
     }
 
     .pcard--filled {
-      background: linear-gradient(175deg, rgba(var(--pc-rgb), 0.09) 0%, transparent 38%, var(--bg) 55%);
-      transition: background 0.25s ease;
+      background: linear-gradient(to bottom, transparent 0%, var(--bg) 60%);
     }
     .pcard--filled:hover {
-      background: linear-gradient(175deg, rgba(var(--pc-rgb), 0.16) 0%, transparent 38%, var(--bg) 55%);
+      background: linear-gradient(to bottom, transparent 0%, var(--bg) 60%);
     }
     .pcard--filled:hover .card-glow {
-      background: radial-gradient(ellipse at 50% 10%, rgba(var(--pc-rgb), 0.36) 0%, rgba(var(--pc-rgb), 0.1) 40%, transparent 65%);
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.60) 0%, rgba(var(--pc-rgb), 0.18) 45%, transparent 70%);
     }
     .pcard--filled:hover .viewport-ring {
       border-color: rgba(var(--pc-rgb), 0.75);
@@ -281,18 +307,15 @@
 
     .pcard--empty {
       background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      /* centering is handled by pcard base via justify-content: center */
     }
 
-    /* ambient radial color glow from top — radiates player color behind ship */
+    /* ambient radial color glow — single source of player color; bleeds into side padding on P1/P4 */
     .card-glow {
       position: absolute;
-      top: -40px; left: -20%; right: -20%;
-      height: 75%;
-      background: radial-gradient(ellipse at 50% 10%, rgba(var(--pc-rgb), 0.22) 0%, transparent 65%);
+      top: -40px; left: -35%; right: -35%;
+      height: 85%;
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.45) 0%, rgba(var(--pc-rgb), 0.12) 45%, transparent 70%);
       pointer-events: none;
       z-index: 0;
       transition: background 0.25s ease;
@@ -334,25 +357,14 @@
     .tb--local  { background: rgba(251,191,36,0.14); border: 1px solid rgba(251,191,36,0.28); color: #fcd34d; }
     .tb--online { background: rgba(52,211,153,0.13); border: 1px solid rgba(52,211,153,0.26); color: #6ee7b7; }
 
-    /* card main — fills remaining height, centers ship viewport */
+    /* card main — wraps ship viewport, no longer stretches; parent centers the group */
     .card-main {
-      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
-      min-height: 0;
       z-index: 1;
-    }
-
-    /* gradient fade at the bottom of the ship area blending into card-info */
-    .card-scene-fade {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 90px;
-      background: linear-gradient(to bottom, transparent 0%, var(--bg) 100%);
-      pointer-events: none;
-      z-index: 2;
+      width: 100%;
     }
 
     /* ─── SHIP VIEWPORT ─── */
@@ -411,12 +423,13 @@
     .card-info {
       position: relative;
       z-index: 6;
-      padding: 18px 24px 28px;
+      padding: 18px 24px 20px;
       display: flex;
       flex-direction: column;
       transition: transform 0.25s ease;
       gap: 0;
       flex-shrink: 0;
+      width: 100%;
     }
     .card-name {
       font-size: var(--fs-title);
@@ -513,7 +526,8 @@
       height: var(--strip-h);
       display: flex;
       align-items: stretch;
-      background: linear-gradient(to bottom, rgba(6,11,22,0) 0%, rgba(6,11,22,0.9) 22%, rgba(6,11,22,0.97) 100%);
+      background: linear-gradient(to bottom, rgba(6,11,22,0.82) 0%, rgba(6,11,22,0.96) 40%, rgba(6,11,22,0.99) 100%);
+      border-top: 1px solid rgba(255,255,255,0.05);
       z-index: 8;
       pointer-events: none;
     }
@@ -979,7 +993,6 @@ function filledCard(i) {
           <div class="viewport-inner">${shipSVG(color)}</div>
           ${ticksHTML()}
         </div>
-        <div class="card-scene-fade"></div>
       </div>
       <div class="card-info">
         <div class="card-name">${name}</div>
