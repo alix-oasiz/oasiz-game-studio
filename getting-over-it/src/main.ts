@@ -519,103 +519,264 @@ function drawBackground(): void {
   }
 }
 
+function drawKitchenItemCanvas(
+  cx: number, cy: number,
+  w: number, h: number,
+  kind: string,
+): void {
+  const rw = w / 2, rh = h / 2;
+  const sz = Math.min(rw, rh);
+  ctx.save();
+  ctx.lineCap  = 'round';
+  ctx.lineJoin = 'round';
+  switch (kind) {
+    case 'plate': {
+      const r = sz * 0.88;
+      ctx.globalAlpha = 0.08; ctx.fillStyle = '#000000';
+      ctx.beginPath(); ctx.ellipse(cx + 4, cy + 5, r * 1.1, r * 0.225, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1; ctx.fillStyle = '#F8F8F4';
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#1D4ED8'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#2563EB'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.76, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#93C5FD'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.8;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.48, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.5; ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.ellipse(cx - r * 0.28, cy - r * 0.3, r * 0.26, r * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'platter': {
+      const pW = rw * 0.9, pH = rh * 0.76;
+      ctx.globalAlpha = 0.1; ctx.fillStyle = '#000000';
+      ctx.beginPath(); ctx.ellipse(cx + 4, cy + 6, pW * 1.1, pH * 0.225, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1; ctx.fillStyle = '#D4AF37';
+      ctx.beginPath(); ctx.ellipse(cx, cy, pW, pH, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FAF0DC';
+      ctx.beginPath(); ctx.ellipse(cx, cy, pW * 0.86, pH * 0.86, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#C9A227'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.ellipse(cx, cy, pW, pH, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#D4AF37'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(cx, cy, pW * 0.86, pH * 0.86, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.45; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(cx, cy, pW * 0.375, pH * 0.375, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.38; ctx.fillStyle = '#FFEE88';
+      ctx.beginPath(); ctx.ellipse(cx - pW * 0.24, cy - pH * 0.28, pW * 0.24, pH * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'bowl': {
+      const bw = rw * 0.88, bh = rh * 0.82;
+      ctx.globalAlpha = 1; ctx.fillStyle = '#FEF3C7';
+      ctx.beginPath();
+      ctx.moveTo(cx - bw, cy - bh * 0.15);
+      ctx.lineTo(cx + bw, cy - bh * 0.15);
+      ctx.lineTo(cx + bw * 0.52, cy + bh);
+      ctx.lineTo(cx - bw * 0.52, cy + bh);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#D97706'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - bw, cy - bh * 0.15);
+      ctx.lineTo(cx + bw, cy - bh * 0.15);
+      ctx.lineTo(cx + bw * 0.52, cy + bh);
+      ctx.lineTo(cx - bw * 0.52, cy + bh);
+      ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = '#FFF8E0';
+      ctx.beginPath(); ctx.ellipse(cx, cy - bh * 0.15, bw, bh * 0.23, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#D97706'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(cx, cy - bh * 0.15, bw, bh * 0.23, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.4; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(cx, cy - bh * 0.15, bw * 0.65, bh * 0.14, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.45; ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.ellipse(cx - bw * 0.3, cy, bw * 0.225, bh * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'pot': {
+      const pw = rw * 0.74, ph = rh * 0.78;
+      ctx.globalAlpha = 1; ctx.fillStyle = '#4B5563';
+      ctx.beginPath(); ctx.roundRect(cx - pw - 15, cy - 8, 16, 16, 3); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(cx + pw - 1,  cy - 8, 16, 16, 3); ctx.fill();
+      ctx.strokeStyle = '#6B7280'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(cx - pw - 15, cy - 8, 16, 16, 3); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect(cx + pw - 1,  cy - 8, 16, 16, 3); ctx.stroke();
+      ctx.fillStyle = '#374151';
+      ctx.beginPath(); ctx.roundRect(cx - pw, cy - ph, pw * 2, ph * 1.85, 7); ctx.fill();
+      ctx.strokeStyle = '#6B7280'; ctx.lineWidth = 2; ctx.globalAlpha = 0.38;
+      ctx.beginPath(); ctx.moveTo(cx - pw * 0.42, cy - ph * 0.82); ctx.lineTo(cx - pw * 0.42, cy + ph * 0.75); ctx.stroke();
+      ctx.strokeStyle = '#9CA3AF'; ctx.lineWidth = 1; ctx.globalAlpha = 0.22;
+      ctx.beginPath(); ctx.moveTo(cx + pw * 0.12, cy - ph * 0.82); ctx.lineTo(cx + pw * 0.12, cy + ph * 0.75); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#6B7280'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(cx - pw, cy - ph, pw * 2, ph * 1.85, 7); ctx.stroke();
+      ctx.fillStyle = '#4B5563';
+      ctx.beginPath(); ctx.roundRect(cx - pw * 1.1, cy - ph - 13, pw * 2.2, 14, 4); ctx.fill();
+      ctx.strokeStyle = '#374151'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(cx - pw * 1.1, cy - ph - 13, pw * 2.2, 14, 4); ctx.stroke();
+      ctx.fillStyle = '#9CA3AF';
+      ctx.beginPath(); ctx.arc(cx, cy - ph - 20, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#6B7280'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx, cy - ph - 20, 6, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'board': {
+      const bw = rw * 0.88, bh = rh * 0.88;
+      ctx.globalAlpha = 1; ctx.fillStyle = '#A07040';
+      ctx.beginPath(); ctx.roundRect(cx - bw, cy - bh, bw * 2, bh * 2, 9); ctx.fill();
+      ctx.strokeStyle = '#7A5030'; ctx.lineWidth = 1.2; ctx.globalAlpha = 0.48;
+      for (let gy2 = cy - bh * 0.78; gy2 <= cy + bh * 0.78; gy2 += 9) {
+        ctx.beginPath(); ctx.moveTo(cx - bw * 0.86, gy2); ctx.lineTo(cx + bw * 0.86, gy2 + 2); ctx.stroke();
+      }
+      ctx.strokeStyle = '#5C3A1A'; ctx.lineWidth = 1; ctx.globalAlpha = 0.28;
+      ctx.beginPath(); ctx.moveTo(cx - bw * 0.55, cy - bh * 0.78); ctx.lineTo(cx - bw * 0.55, cy + bh * 0.78); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + bw * 0.28, cy - bh * 0.78); ctx.lineTo(cx + bw * 0.28, cy + bh * 0.78); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#7A5230'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.roundRect(cx - bw, cy - bh, bw * 2, bh * 2, 9); ctx.stroke();
+      ctx.fillStyle = '#4A2C0A';
+      ctx.beginPath(); ctx.arc(cx + bw * 0.68, cy - bh * 0.68, 5.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#7A5230'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx + bw * 0.68, cy - bh * 0.68, 5.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.32; ctx.fillStyle = '#C09060';
+      ctx.beginPath(); ctx.ellipse(cx - bw * 0.2, cy - bh * 0.4, bw * 0.25, bh * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'mug': {
+      const mw = sz * 0.72, mh = sz * 0.88;
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#A02020'; ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.ellipse(cx + mw + 13, cy + 2, 11, mh * 0.525, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#D95040';
+      ctx.beginPath();
+      ctx.moveTo(cx - mw, cy - mh);
+      ctx.lineTo(cx + mw, cy - mh);
+      ctx.lineTo(cx + mw * 0.9, cy + mh);
+      ctx.lineTo(cx - mw * 0.9, cy + mh);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#7F1D1D'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - mw, cy - mh);
+      ctx.lineTo(cx + mw, cy - mh);
+      ctx.lineTo(cx + mw * 0.9, cy + mh);
+      ctx.lineTo(cx - mw * 0.9, cy + mh);
+      ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = '#E06050';
+      ctx.beginPath(); ctx.ellipse(cx, cy - mh, mw, mh * 0.19, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#7F1D1D'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(cx, cy - mh, mw, mh * 0.19, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.75; ctx.fillStyle = '#3A1800';
+      ctx.beginPath(); ctx.ellipse(cx, cy - mh, mw * 0.725, mh * 0.125, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.48; ctx.strokeStyle = '#FF9080'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(cx - mw * 0.65, cy - mh * 0.7); ctx.lineTo(cx - mw * 0.65, cy + mh * 0.55); ctx.stroke();
+      break;
+    }
+    case 'pan': {
+      const pr = sz * 0.78;
+      const hl = Math.max(rw, rh) * 0.88;
+      ctx.globalAlpha = 1; ctx.fillStyle = '#2D3748';
+      ctx.beginPath(); ctx.roundRect(cx + pr * 0.75, cy - 7.5, hl - pr * 0.75, 15, 5); ctx.fill();
+      ctx.strokeStyle = '#4B5563'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(cx + pr * 0.75, cy - 7.5, hl - pr * 0.75, 15, 5); ctx.stroke();
+      ctx.fillStyle = '#718096';
+      ctx.beginPath(); ctx.arc(cx + pr * 0.75 + 9,  cy, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + pr * 0.75 + 21, cy, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#4A5568'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx + pr * 0.75 + 9,  cy, 3.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + pr * 0.75 + 21, cy, 3.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#1F2937';
+      ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#2D3748';
+      ctx.beginPath(); ctx.arc(cx, cy, pr * 0.8, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = '#4B5563'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx, cy, pr * 0.55, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.4; ctx.fillStyle = '#718096';
+      ctx.beginPath(); ctx.ellipse(cx - pr * 0.25, cy - pr * 0.28, pr * 0.19, pr * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#6B7280'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'knife': {
+      const kl = rw * 0.9, kh = rh * 0.68;
+      const handleRatio = 0.32;
+      const bladeEnd = cx - kl;
+      const bolsterX = cx + kl * (1 - handleRatio * 2);
+      ctx.globalAlpha = 1; ctx.fillStyle = '#D8D8E4';
+      ctx.beginPath();
+      ctx.moveTo(bladeEnd, cy);
+      ctx.lineTo(bolsterX, cy - kh);
+      ctx.lineTo(bolsterX, cy + kh * 0.6);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#A0A0B0'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bladeEnd, cy);
+      ctx.lineTo(bolsterX, cy - kh);
+      ctx.lineTo(bolsterX, cy + kh * 0.6);
+      ctx.closePath(); ctx.stroke();
+      ctx.globalAlpha = 0.65; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(bladeEnd + 12, cy - kh * 0.28); ctx.lineTo(bolsterX - 8, cy - kh * 0.55); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = '#7A8090';
+      ctx.fillRect(bolsterX - 2, cy - kh, 7, kh * 1.6);
+      ctx.strokeStyle = '#5A6070'; ctx.lineWidth = 1;
+      ctx.strokeRect(bolsterX - 2, cy - kh, 7, kh * 1.6);
+      ctx.fillStyle = '#7C5C3A';
+      ctx.beginPath(); ctx.roundRect(bolsterX + 5, cy - kh * 0.82, kl * handleRatio * 2 - 5, kh * 1.64, 4); ctx.fill();
+      ctx.strokeStyle = '#5A3E22'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(bolsterX + 5, cy - kh * 0.82, kl * handleRatio * 2 - 5, kh * 1.64, 4); ctx.stroke();
+      ctx.fillStyle = '#AAAAAA';
+      ctx.beginPath(); ctx.arc(bolsterX + 14, cy, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bolsterX + 26, cy, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#888888'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(bolsterX + 14, cy, 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bolsterX + 26, cy, 3, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'spoon': {
+      const sl  = rw * 0.9;
+      const sbr = rh * 0.72;
+      const bowlCX    = cx + sl - sbr;
+      const handleEnd = cx - sl;
+      ctx.globalAlpha = 1; ctx.fillStyle = '#C8905A';
+      ctx.beginPath(); ctx.roundRect(handleEnd, cy - rh * 0.18, sl * 1.22, rh * 0.36, 5); ctx.fill();
+      ctx.strokeStyle = '#8B6035'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(handleEnd, cy - rh * 0.18, sl * 1.22, rh * 0.36, 5); ctx.stroke();
+      ctx.fillStyle = '#BD8A50';
+      ctx.beginPath();
+      ctx.moveTo(cx + sl * 0.2, cy - rh * 0.18);
+      ctx.lineTo(cx + sl * 0.2, cy + rh * 0.18);
+      ctx.lineTo(bowlCX - sbr * 0.5, cy + sbr * 0.62);
+      ctx.lineTo(bowlCX - sbr * 0.5, cy - sbr * 0.62);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#C8905A';
+      ctx.beginPath(); ctx.ellipse(bowlCX, cy, sbr, sbr * 0.69, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#8B6035'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(bowlCX, cy, sbr, sbr * 0.69, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.6; ctx.fillStyle = '#E8B878';
+      ctx.beginPath(); ctx.ellipse(bowlCX - sbr * 0.22, cy - sbr * 0.18, sbr * 0.425, sbr * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+  }
+  ctx.restore();
+}
+
 function drawRock(rock: Rock, ri: number): void {
-  const sv  = rock.verts.map(v => w2s(v.x, v.y));
-  const sc  = w2s(rock.cx, rock.cy);
+  const sv     = rock.verts.map(v => w2s(v.x, v.y));
+  const sc     = w2s(rock.cx, rock.cy);
   const svMinX = Math.min(...sv.map(p => p.x));
   const svMaxX = Math.max(...sv.map(p => p.x));
   const svMinY = Math.min(...sv.map(p => p.y));
   const svMaxY = Math.max(...sv.map(p => p.y));
 
-  // ── Assign kitchen item type by rock index ──
   type KItem = 'board'|'plate'|'pot'|'bowl'|'mug'|'pan';
-  let fill = '#F5F5F0', stroke = '#2563EB', sw = 3;
   let kind: KItem = 'plate';
   if (ri === 0) {
-    fill = '#A07040'; stroke = '#7A5230'; sw = 3; kind = 'board';
+    kind = 'board';
   } else {
     switch ((ri - 1) % 6) {
-      case 0: fill = '#F5F5F0'; stroke = '#2563EB'; sw = 3; kind = 'plate'; break;
-      case 1: fill = '#374151'; stroke = '#9CA3AF'; sw = 2; kind = 'pot';   break;
-      case 2: fill = '#FEF3C7'; stroke = '#D97706'; sw = 2; kind = 'bowl';  break;
-      case 3: fill = '#9A6132'; stroke = '#7A4E22'; sw = 2; kind = 'board'; break;
-      case 4: fill = '#D95040'; stroke = '#7F1D1D'; sw = 2; kind = 'mug';   break;
-      case 5: fill = '#1F2937'; stroke = '#6B7280'; sw = 2; kind = 'pan';   break;
+      case 0: kind = 'plate'; break;
+      case 1: kind = 'pot';   break;
+      case 2: kind = 'bowl';  break;
+      case 3: kind = 'board'; break;
+      case 4: kind = 'mug';   break;
+      case 5: kind = 'pan';   break;
     }
   }
 
-  // Draw polygon fill
-  ctx.beginPath();
-  ctx.moveTo(sv[0].x, sv[0].y);
-  for (let i = 1; i < sv.length; i++) ctx.lineTo(sv[i].x, sv[i].y);
-  ctx.closePath();
-  ctx.fillStyle   = fill;
-  ctx.fill();
-  ctx.strokeStyle = stroke;
-  ctx.lineWidth   = sw;
-  ctx.stroke();
-
-  // ── Type-specific decorations ──
-  ctx.save();
-  switch (kind) {
-    case 'plate': {
-      const r = Math.hypot(sc.x - svMinX, sc.y - svMinY) * 0.62;
-      ctx.strokeStyle = stroke;
-      ctx.globalAlpha = 0.75;
-      ctx.lineWidth   = sw;
-      ctx.beginPath(); ctx.arc(sc.x, sc.y, r, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = '#FFFFFF'; ctx.globalAlpha = 0.55; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(sc.x - r * 0.25, sc.y - r * 0.25, r * 0.45, 0, Math.PI * 2); ctx.stroke();
-      break;
-    }
-    case 'pot': {
-      ctx.strokeStyle = '#6B7280'; ctx.lineWidth = 3; ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.moveTo(sc.x - 22, svMinY + 9); ctx.lineTo(sc.x + 22, svMinY + 9); ctx.stroke();
-      ctx.fillStyle = '#9CA3AF';
-      ctx.beginPath(); ctx.arc(sc.x, svMinY + 5, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#4B5563'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(sc.x, svMinY + 5, 5, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#4B5563';
-      ctx.fillRect(svMinX - 10, sc.y - 5, 10, 10);
-      ctx.fillRect(svMaxX,      sc.y - 5, 10, 10);
-      ctx.strokeRect(svMinX - 10, sc.y - 5, 10, 10);
-      ctx.strokeRect(svMaxX,      sc.y - 5, 10, 10);
-      break;
-    }
-    case 'bowl': {
-      ctx.strokeStyle = '#FFFDE8'; ctx.globalAlpha = 0.7; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(sc.x - 4, sc.y - 4, 14, 6, 0, 0, Math.PI * 2); ctx.stroke();
-      break;
-    }
-    case 'board': {
-      ctx.strokeStyle = '#6B4020'; ctx.globalAlpha = 0.45; ctx.lineWidth = 1;
-      for (let gy2 = svMinY + 7; gy2 < svMaxY; gy2 += 7) {
-        ctx.beginPath(); ctx.moveTo(svMinX + 3, gy2); ctx.lineTo(svMaxX - 3, gy2); ctx.stroke();
-      }
-      break;
-    }
-    case 'mug': {
-      const midY = (svMinY + svMaxY) / 2;
-      ctx.strokeStyle = stroke; ctx.lineWidth = 3; ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(svMaxX + 7, midY, 9, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = '#FCA5A5'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(sc.x - 14, svMinY + 5); ctx.lineTo(sc.x + 14, svMinY + 5); ctx.stroke();
-      break;
-    }
-    case 'pan': {
-      const midY = (svMinY + svMaxY) / 2;
-      ctx.fillStyle = '#374151'; ctx.globalAlpha = 1;
-      ctx.beginPath();
-      ctx.roundRect(svMaxX, midY - 5, 28, 10, 3);
-      ctx.fill();
-      ctx.strokeStyle = '#6B7280'; ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.strokeStyle = '#4B5563'; ctx.globalAlpha = 0.5; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(sc.x - 12, sc.y - 6); ctx.lineTo(sc.x + 16, sc.y - 8); ctx.stroke();
-      break;
-    }
-  }
-  ctx.restore();
+  drawKitchenItemCanvas(sc.x, sc.y, svMaxX - svMinX, svMaxY - svMinY, kind);
 }
 
 // ── Hand helper (Hand.cs port, canvas) ───────────────────────────────────────

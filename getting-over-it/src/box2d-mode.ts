@@ -357,6 +357,237 @@ function destroyDevPanel(): void {
   if (devPanelEl) { devPanelEl.remove(); devPanelEl = null; }
 }
 
+// ─── Kitchen item vector drawings ────────────────────────────────────────────
+function drawKitchenItemGfx(
+  gfx: Phaser.GameObjects.Graphics,
+  cx: number, cy: number,
+  w: number, h: number,
+  kind: string,
+): void {
+  const rw = w / 2, rh = h / 2;
+  const sz = Math.min(rw, rh);
+  switch (kind) {
+    case 'plate': {
+      const r = sz * 0.88;
+      gfx.fillStyle(0x000000, 0.08);
+      gfx.fillEllipse(cx + 4, cy + 5, r * 2.2, r * 0.45);
+      gfx.fillStyle(0xF8F8F4);
+      gfx.fillCircle(cx, cy, r);
+      gfx.lineStyle(3, 0x1D4ED8);
+      gfx.strokeCircle(cx, cy, r);
+      gfx.lineStyle(2.5, 0x2563EB);
+      gfx.strokeCircle(cx, cy, r * 0.76);
+      gfx.lineStyle(1.5, 0x93C5FD, 0.8);
+      gfx.strokeCircle(cx, cy, r * 0.48);
+      gfx.fillStyle(0xFFFFFF, 0.5);
+      gfx.fillEllipse(cx - r * 0.28, cy - r * 0.3, r * 0.52, r * 0.24);
+      break;
+    }
+    case 'platter': {
+      const pW = rw * 0.9, pH = rh * 0.76;
+      gfx.fillStyle(0x000000, 0.1);
+      gfx.fillEllipse(cx + 4, cy + 6, pW * 2.2, pH * 0.45);
+      gfx.fillStyle(0xD4AF37);
+      gfx.fillEllipse(cx, cy, pW * 2, pH * 2);
+      gfx.fillStyle(0xFAF0DC);
+      gfx.fillEllipse(cx, cy, pW * 1.72, pH * 1.72);
+      gfx.lineStyle(4, 0xC9A227);
+      gfx.strokeEllipse(cx, cy, pW * 2, pH * 2);
+      gfx.lineStyle(1.5, 0xD4AF37);
+      gfx.strokeEllipse(cx, cy, pW * 1.72, pH * 1.72);
+      gfx.lineStyle(1, 0xD4AF37, 0.45);
+      gfx.strokeEllipse(cx, cy, pW * 0.75, pH * 0.75);
+      gfx.fillStyle(0xFFEE88, 0.38);
+      gfx.fillEllipse(cx - pW * 0.24, cy - pH * 0.28, pW * 0.48, pH * 0.28);
+      break;
+    }
+    case 'bowl': {
+      const bw = rw * 0.88, bh = rh * 0.82;
+      gfx.fillStyle(0xFEF3C7);
+      gfx.beginPath();
+      gfx.moveTo(cx - bw, cy - bh * 0.15);
+      gfx.lineTo(cx + bw, cy - bh * 0.15);
+      gfx.lineTo(cx + bw * 0.52, cy + bh);
+      gfx.lineTo(cx - bw * 0.52, cy + bh);
+      gfx.closePath(); gfx.fillPath();
+      gfx.lineStyle(2, 0xD97706);
+      gfx.beginPath();
+      gfx.moveTo(cx - bw, cy - bh * 0.15);
+      gfx.lineTo(cx + bw, cy - bh * 0.15);
+      gfx.lineTo(cx + bw * 0.52, cy + bh);
+      gfx.lineTo(cx - bw * 0.52, cy + bh);
+      gfx.closePath(); gfx.strokePath();
+      gfx.fillStyle(0xFFF8E0);
+      gfx.fillEllipse(cx, cy - bh * 0.15, bw * 2, bh * 0.46);
+      gfx.lineStyle(2, 0xD97706);
+      gfx.strokeEllipse(cx, cy - bh * 0.15, bw * 2, bh * 0.46);
+      gfx.lineStyle(1.5, 0xD97706, 0.4);
+      gfx.strokeEllipse(cx, cy - bh * 0.15, bw * 1.3, bh * 0.28);
+      gfx.fillStyle(0xFFFFFF, 0.45);
+      gfx.fillEllipse(cx - bw * 0.3, cy, bw * 0.45, bh * 0.2);
+      break;
+    }
+    case 'pot': {
+      const pw = rw * 0.74, ph = rh * 0.78;
+      gfx.fillStyle(0x4B5563);
+      gfx.fillRoundedRect(cx - pw - 15, cy - 8, 16, 16, 3);
+      gfx.fillRoundedRect(cx + pw - 1,  cy - 8, 16, 16, 3);
+      gfx.lineStyle(1.5, 0x6B7280);
+      gfx.strokeRoundedRect(cx - pw - 15, cy - 8, 16, 16, 3);
+      gfx.strokeRoundedRect(cx + pw - 1,  cy - 8, 16, 16, 3);
+      gfx.fillStyle(0x374151);
+      gfx.fillRoundedRect(cx - pw, cy - ph, pw * 2, ph * 1.85, 7);
+      gfx.lineStyle(2, 0x6B7280, 0.38);
+      gfx.lineBetween(cx - pw * 0.42, cy - ph * 0.82, cx - pw * 0.42, cy + ph * 0.75);
+      gfx.lineStyle(1, 0x9CA3AF, 0.22);
+      gfx.lineBetween(cx + pw * 0.12, cy - ph * 0.82, cx + pw * 0.12, cy + ph * 0.75);
+      gfx.lineStyle(2, 0x6B7280);
+      gfx.strokeRoundedRect(cx - pw, cy - ph, pw * 2, ph * 1.85, 7);
+      gfx.fillStyle(0x4B5563);
+      gfx.fillRoundedRect(cx - pw * 1.1, cy - ph - 13, pw * 2.2, 14, 4);
+      gfx.lineStyle(1.5, 0x374151);
+      gfx.strokeRoundedRect(cx - pw * 1.1, cy - ph - 13, pw * 2.2, 14, 4);
+      gfx.fillStyle(0x9CA3AF);
+      gfx.fillCircle(cx, cy - ph - 20, 6);
+      gfx.lineStyle(1.5, 0x6B7280);
+      gfx.strokeCircle(cx, cy - ph - 20, 6);
+      break;
+    }
+    case 'board': {
+      const bw = rw * 0.88, bh = rh * 0.88;
+      gfx.fillStyle(0xA07040);
+      gfx.fillRoundedRect(cx - bw, cy - bh, bw * 2, bh * 2, 9);
+      gfx.lineStyle(1.2, 0x7A5030, 0.48);
+      for (let gy2 = cy - bh * 0.78; gy2 <= cy + bh * 0.78; gy2 += 9)
+        gfx.lineBetween(cx - bw * 0.86, gy2, cx + bw * 0.86, gy2 + 2);
+      gfx.lineStyle(1, 0x5C3A1A, 0.28);
+      gfx.lineBetween(cx - bw * 0.55, cy - bh * 0.78, cx - bw * 0.55, cy + bh * 0.78);
+      gfx.lineBetween(cx + bw * 0.28, cy - bh * 0.78, cx + bw * 0.28, cy + bh * 0.78);
+      gfx.lineStyle(2.5, 0x7A5230);
+      gfx.strokeRoundedRect(cx - bw, cy - bh, bw * 2, bh * 2, 9);
+      gfx.fillStyle(0x4A2C0A);
+      gfx.fillCircle(cx + bw * 0.68, cy - bh * 0.68, 5.5);
+      gfx.lineStyle(1.5, 0x7A5230);
+      gfx.strokeCircle(cx + bw * 0.68, cy - bh * 0.68, 5.5);
+      gfx.fillStyle(0xC09060, 0.32);
+      gfx.fillEllipse(cx - bw * 0.2, cy - bh * 0.4, bw * 0.5, bh * 0.24);
+      break;
+    }
+    case 'mug': {
+      const mw = sz * 0.72, mh = sz * 0.88;
+      gfx.lineStyle(4.5, 0xA02020);
+      gfx.strokeEllipse(cx + mw + 13, cy + 2, 22, mh * 1.05);
+      gfx.fillStyle(0xD95040);
+      gfx.beginPath();
+      gfx.moveTo(cx - mw,       cy - mh);
+      gfx.lineTo(cx + mw,       cy - mh);
+      gfx.lineTo(cx + mw * 0.9, cy + mh);
+      gfx.lineTo(cx - mw * 0.9, cy + mh);
+      gfx.closePath(); gfx.fillPath();
+      gfx.lineStyle(2, 0x7F1D1D);
+      gfx.beginPath();
+      gfx.moveTo(cx - mw,       cy - mh);
+      gfx.lineTo(cx + mw,       cy - mh);
+      gfx.lineTo(cx + mw * 0.9, cy + mh);
+      gfx.lineTo(cx - mw * 0.9, cy + mh);
+      gfx.closePath(); gfx.strokePath();
+      gfx.fillStyle(0xE06050);
+      gfx.fillEllipse(cx, cy - mh, mw * 2, mh * 0.38);
+      gfx.lineStyle(2, 0x7F1D1D);
+      gfx.strokeEllipse(cx, cy - mh, mw * 2, mh * 0.38);
+      gfx.fillStyle(0x3A1800, 0.75);
+      gfx.fillEllipse(cx, cy - mh, mw * 1.45, mh * 0.25);
+      gfx.lineStyle(2.5, 0xFF9080, 0.48);
+      gfx.lineBetween(cx - mw * 0.65, cy - mh * 0.7, cx - mw * 0.65, cy + mh * 0.55);
+      break;
+    }
+    case 'pan': {
+      const pr = sz * 0.78;
+      const hl = Math.max(rw, rh) * 0.88;
+      gfx.fillStyle(0x2D3748);
+      gfx.fillRoundedRect(cx + pr * 0.75, cy - 7.5, hl - pr * 0.75, 15, 5);
+      gfx.lineStyle(1.5, 0x4B5563);
+      gfx.strokeRoundedRect(cx + pr * 0.75, cy - 7.5, hl - pr * 0.75, 15, 5);
+      gfx.fillStyle(0x718096);
+      gfx.fillCircle(cx + pr * 0.75 + 9,  cy, 3.5);
+      gfx.fillCircle(cx + pr * 0.75 + 21, cy, 3.5);
+      gfx.lineStyle(1, 0x4A5568);
+      gfx.strokeCircle(cx + pr * 0.75 + 9,  cy, 3.5);
+      gfx.strokeCircle(cx + pr * 0.75 + 21, cy, 3.5);
+      gfx.fillStyle(0x1F2937);
+      gfx.fillCircle(cx, cy, pr);
+      gfx.fillStyle(0x2D3748);
+      gfx.fillCircle(cx, cy, pr * 0.8);
+      gfx.lineStyle(1.5, 0x4B5563, 0.5);
+      gfx.strokeCircle(cx, cy, pr * 0.55);
+      gfx.fillStyle(0x718096, 0.4);
+      gfx.fillEllipse(cx - pr * 0.25, cy - pr * 0.28, pr * 0.38, pr * 0.2);
+      gfx.lineStyle(2, 0x6B7280);
+      gfx.strokeCircle(cx, cy, pr);
+      break;
+    }
+    case 'knife': {
+      const kl = rw * 0.9, kh = rh * 0.68;
+      const handleRatio = 0.32;
+      const bladeEnd = cx - kl;
+      const bolsterX = cx + kl * (1 - handleRatio * 2);
+      gfx.fillStyle(0xD8D8E4);
+      gfx.beginPath();
+      gfx.moveTo(bladeEnd, cy);
+      gfx.lineTo(bolsterX, cy - kh);
+      gfx.lineTo(bolsterX, cy + kh * 0.6);
+      gfx.closePath(); gfx.fillPath();
+      gfx.lineStyle(1, 0xA0A0B0);
+      gfx.beginPath();
+      gfx.moveTo(bladeEnd, cy);
+      gfx.lineTo(bolsterX, cy - kh);
+      gfx.lineTo(bolsterX, cy + kh * 0.6);
+      gfx.closePath(); gfx.strokePath();
+      gfx.lineStyle(1.5, 0xFFFFFF, 0.65);
+      gfx.lineBetween(bladeEnd + 12, cy - kh * 0.28, bolsterX - 8, cy - kh * 0.55);
+      gfx.fillStyle(0x7A8090);
+      gfx.fillRect(bolsterX - 2, cy - kh, 7, kh * 1.6);
+      gfx.lineStyle(1, 0x5A6070);
+      gfx.strokeRect(bolsterX - 2, cy - kh, 7, kh * 1.6);
+      gfx.fillStyle(0x7C5C3A);
+      gfx.fillRoundedRect(bolsterX + 5, cy - kh * 0.82, kl * handleRatio * 2 - 5, kh * 1.64, 4);
+      gfx.lineStyle(1.5, 0x5A3E22);
+      gfx.strokeRoundedRect(bolsterX + 5, cy - kh * 0.82, kl * handleRatio * 2 - 5, kh * 1.64, 4);
+      gfx.fillStyle(0xAAAAAA);
+      gfx.fillCircle(bolsterX + 14, cy, 3);
+      gfx.fillCircle(bolsterX + 26, cy, 3);
+      gfx.lineStyle(1, 0x888888);
+      gfx.strokeCircle(bolsterX + 14, cy, 3);
+      gfx.strokeCircle(bolsterX + 26, cy, 3);
+      break;
+    }
+    case 'spoon': {
+      const sl  = rw * 0.9;
+      const sbr = rh * 0.72;
+      const bowlCX   = cx + sl - sbr;
+      const handleEnd = cx - sl;
+      gfx.fillStyle(0xC8905A);
+      gfx.fillRoundedRect(handleEnd, cy - rh * 0.18, sl * 1.22, rh * 0.36, 5);
+      gfx.lineStyle(1.5, 0x8B6035);
+      gfx.strokeRoundedRect(handleEnd, cy - rh * 0.18, sl * 1.22, rh * 0.36, 5);
+      gfx.fillStyle(0xBD8A50);
+      gfx.beginPath();
+      gfx.moveTo(cx + sl * 0.2, cy - rh * 0.18);
+      gfx.lineTo(cx + sl * 0.2, cy + rh * 0.18);
+      gfx.lineTo(bowlCX - sbr * 0.5, cy + sbr * 0.62);
+      gfx.lineTo(bowlCX - sbr * 0.5, cy - sbr * 0.62);
+      gfx.closePath(); gfx.fillPath();
+      gfx.fillStyle(0xC8905A);
+      gfx.fillEllipse(bowlCX, cy, sbr * 2, sbr * 1.38);
+      gfx.lineStyle(2, 0x8B6035);
+      gfx.strokeEllipse(bowlCX, cy, sbr * 2, sbr * 1.38);
+      gfx.fillStyle(0xE8B878, 0.6);
+      gfx.fillEllipse(bowlCX - sbr * 0.22, cy - sbr * 0.18, sbr * 0.85, sbr * 0.5);
+      break;
+    }
+  }
+}
+
 // ─── Hand helper (Hand.cs port) ──────────────────────────────────────────────
 // Hand.cs: rotates sprite from Vector3.down → handDir; flips X per (rightHand ^ handDir.y>0)
 // Canvas Y is inverted vs Unity, so Unity "handDir.y > 0" = canvas dy < 0 (hammer above shoulder).
@@ -687,143 +918,32 @@ class Box2DClimbScene extends Phaser.Scene {
         if (p.y > vMaxY) vMaxY = p.y;
       }
 
-      // ── Assign kitchen item type and colours ────────────────────────────
-      let fill = 0x9CA3AF, stroke = 0x6B7280, sw = 2;
+      // ── Assign kitchen item type ──────────────────────────────────────────
       type KItem = 'board'|'plate'|'pot'|'bowl'|'mug'|'pan'|'knife'|'spoon'|'platter';
       let kind: KItem = 'plate';
-
       if (ri === 0) {
-        // Cutting board base
-        fill = 0xA07040; stroke = 0x7A5230; sw = 3; kind = 'board';
+        kind = 'board';
       } else if (ri >= PATH_START_RI && ri < FINAL_RI) {
-        // Zigzag path → knives and wooden spoons
-        if (ri % 2 === 0) { fill = 0xD0D0DC; stroke = 0x9CA3AF; sw = 1; kind = 'knife'; }
-        else               { fill = 0xC8905A; stroke = 0x8B6035; sw = 1; kind = 'spoon'; }
+        kind = ri % 2 === 0 ? 'knife' : 'spoon';
       } else if (ri === FINAL_RI) {
-        // Grand finale — gold serving platter
-        fill = 0xFAF0DC; stroke = 0xD4AF37; sw = 4; kind = 'platter';
+        kind = 'platter';
       } else if (ri === PILE_SUMMIT_RI) {
-        // Pile summit — large dinner plate
-        fill = 0xF5F5F0; stroke = 0x2563EB; sw = 3; kind = 'plate';
+        kind = 'plate';
       } else {
-        // Pile rocks — cycle through six kitchen items
         switch ((ri - 1) % 6) {
-          case 0: fill = 0xF5F5F0; stroke = 0x2563EB; sw = 3; kind = 'plate'; break;
-          case 1: fill = 0x374151; stroke = 0x9CA3AF; sw = 2; kind = 'pot';   break;
-          case 2: fill = 0xFEF3C7; stroke = 0xD97706; sw = 2; kind = 'bowl';  break;
-          case 3: fill = 0x9A6132; stroke = 0x7A4E22; sw = 2; kind = 'board'; break;
-          case 4: fill = 0xD95040; stroke = 0x7F1D1D; sw = 2; kind = 'mug';   break;
-          case 5: fill = 0x1F2937; stroke = 0x6B7280; sw = 2; kind = 'pan';   break;
+          case 0: kind = 'plate'; break;
+          case 1: kind = 'pot';   break;
+          case 2: kind = 'bowl';  break;
+          case 3: kind = 'board'; break;
+          case 4: kind = 'mug';   break;
+          case 5: kind = 'pan';   break;
         }
       }
 
-      // Draw polygon fill + stroke
-      gfx.fillStyle(fill);
-      gfx.beginPath();
-      gfx.moveTo(v[0].x, v[0].y);
-      for (let i = 1; i < v.length; i++) gfx.lineTo(v[i].x, v[i].y);
-      gfx.closePath(); gfx.fillPath();
-      gfx.lineStyle(sw, stroke);
-      gfx.beginPath();
-      gfx.moveTo(v[0].x, v[0].y);
-      for (let i = 1; i < v.length; i++) gfx.lineTo(v[i].x, v[i].y);
-      gfx.closePath(); gfx.strokePath();
-
-      // ── Type-specific decorations ────────────────────────────────────────
       const cx = rock.cx, cy = rock.cy;
-      switch (kind) {
-        case 'plate':
-        case 'platter': {
-          // Inner rim ring
-          const r = Math.hypot(cx - vMinX, cy - vMinY) * 0.62;
-          gfx.lineStyle(sw, stroke, 0.75);
-          gfx.strokeCircle(cx, cy, r);
-          // Highlight arc — top-left gloss
-          gfx.lineStyle(2, 0xFFFFFF, 0.55);
-          gfx.strokeCircle(cx - r * 0.25, cy - r * 0.25, r * 0.45);
-          if (kind === 'platter') {
-            // Extra gold ring
-            gfx.lineStyle(2, 0xD4AF37, 0.5);
-            gfx.strokeCircle(cx, cy, r * 1.15);
-          }
-          break;
-        }
-        case 'pot': {
-          // Lid line + knob
-          gfx.lineStyle(3, 0x6B7280);
-          gfx.lineBetween(cx - 22, vMinY + 9, cx + 22, vMinY + 9);
-          gfx.fillStyle(0x9CA3AF);
-          gfx.fillCircle(cx, vMinY + 5, 5);
-          gfx.lineStyle(1, 0x4B5563);
-          gfx.strokeCircle(cx, vMinY + 5, 5);
-          // Two side handles
-          gfx.fillStyle(0x4B5563);
-          gfx.fillRect(vMinX - 10, cy - 5, 10, 10);
-          gfx.fillRect(vMaxX,      cy - 5, 10, 10);
-          gfx.lineStyle(1, 0x6B7280);
-          gfx.strokeRect(vMinX - 10, cy - 5, 10, 10);
-          gfx.strokeRect(vMaxX,      cy - 5, 10, 10);
-          break;
-        }
-        case 'bowl': {
-          // Gloss ellipse inside
-          gfx.lineStyle(2, 0xFFFDE8, 0.7);
-          gfx.strokeEllipse(cx - 4, cy - 4, 28, 12);
-          break;
-        }
-        case 'board': {
-          // Horizontal wood-grain lines
-          gfx.lineStyle(1, 0x6B4020, 0.45);
-          for (let gy2 = vMinY + 7; gy2 < vMaxY; gy2 += 7)
-            gfx.lineBetween(vMinX + 3, gy2, vMaxX - 3, gy2);
-          // Rounded corner hint
-          gfx.lineStyle(2, 0xC08050, 0.3);
-          gfx.strokeCircle(cx, cy, Math.min(vMaxX - cx, vMaxY - cy) * 0.8);
-          break;
-        }
-        case 'mug': {
-          // Handle arc on right side
-          const midY = (vMinY + vMaxY) / 2;
-          gfx.lineStyle(3, stroke);
-          gfx.strokeCircle(vMaxX + 7, midY, 9);
-          // Rim highlight at top
-          gfx.lineStyle(2, 0xFCA5A5);
-          gfx.lineBetween(cx - 14, vMinY + 5, cx + 14, vMinY + 5);
-          break;
-        }
-        case 'pan': {
-          // Long handle to the right
-          const midY = (vMinY + vMaxY) / 2;
-          gfx.fillStyle(0x374151);
-          gfx.fillRoundedRect(vMaxX, midY - 5, 28, 10, 3);
-          gfx.lineStyle(1, 0x6B7280);
-          gfx.strokeRoundedRect(vMaxX, midY - 5, 28, 10, 3);
-          // Non-stick sheen
-          gfx.lineStyle(2, 0x4B5563, 0.5);
-          gfx.lineBetween(cx - 12, cy - 6, cx + 16, cy - 8);
-          break;
-        }
-        case 'knife': {
-          // Spine gleam along centre
-          gfx.lineStyle(1, 0xEEEEF8);
-          gfx.lineBetween(vMinX + 6, cy, vMaxX - 6, cy - 1);
-          // Edge highlight
-          gfx.lineStyle(1, 0xFFFFFF, 0.7);
-          gfx.lineBetween(vMinX + 10, vMinY + 2, vMaxX - 10, vMinY + 2);
-          break;
-        }
-        case 'spoon': {
-          // Bowl of the spoon at the right end
-          gfx.fillStyle(0xB06030);
-          gfx.fillEllipse(vMaxX - 12, cy, 22, 13);
-          gfx.lineStyle(1, 0x8B4A20);
-          gfx.strokeEllipse(vMaxX - 12, cy, 22, 13);
-          // Gloss in spoon bowl
-          gfx.lineStyle(1, 0xDDB080, 0.6);
-          gfx.strokeEllipse(vMaxX - 14, cy - 2, 10, 6);
-          break;
-        }
-      }
+      const w  = vMaxX - vMinX;
+      const h  = vMaxY - vMinY;
+      drawKitchenItemGfx(gfx, cx, cy, w, h, kind);
     }
 
     // ── 4. Hands (Hand.cs) ───────────────────────────────────────────────────
