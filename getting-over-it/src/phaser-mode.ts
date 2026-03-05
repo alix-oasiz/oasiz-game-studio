@@ -451,8 +451,22 @@ function drawTomatoHand(
   const flip     = isRight ? (dy >= 0) : (dy < 0);
   const flipSign = flip ? -1 : 1;
 
+  // Elbow joint
+  const elbowBend = Math.max(8, armLen * 0.22);
+  const perpSign  = isRight ? 1 : -1;
+  const mx = (sx + ax) / 2;
+  const my = (sy + ay) / 2;
+  const elbowX = mx + uy * elbowBend * perpSign;
+  const elbowY = my - ux * elbowBend * perpSign;
+
   gfx.lineStyle(3.5, 0xC53030);
-  gfx.lineBetween(sx, sy, ax, ay);
+  gfx.lineBetween(sx, sy, elbowX, elbowY);
+  gfx.lineBetween(elbowX, elbowY, ax, ay);
+
+  gfx.fillStyle(0xD43030);
+  gfx.fillCircle(elbowX, elbowY, 4.5);
+  gfx.lineStyle(1.5, 0xA01818);
+  gfx.strokeCircle(elbowX, elbowY, 4.5);
 
   gfx.fillStyle(0xE53E3E);
   gfx.fillCircle(ax, ay, 5.5);
@@ -783,8 +797,8 @@ class ClimbScene extends Phaser.Scene {
 
     // Hands grip the shaft at two points — drawn on top of stick
     const sOff   = TR * 0.65;
-    const g1Dist = Math.min(TR * 1.7, tDist * 0.38);
-    const g2Dist = Math.min(TR * 3.2, tDist * 0.72);
+    const g1Dist = Math.min(TR + 5, tDist * 0.3);
+    const g2Dist = Math.min(TR * 2.8, tDist * 0.72);
     const lgX = bx + Math.cos(tAng) * g1Dist;
     const lgY = by + Math.sin(tAng) * g1Dist;
     const rgX = bx + Math.cos(tAng) * g2Dist;

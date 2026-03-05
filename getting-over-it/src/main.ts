@@ -801,11 +801,26 @@ function drawTomatoHandCanvas(
   const flip     = isRight ? (dy >= 0) : (dy < 0);
   const flipSign = flip ? -1 : 1;
 
-  // Arm
+  // Elbow joint
+  const elbowBend = Math.max(8, armLen * 0.22);
+  const perpSign  = isRight ? 1 : -1;
+  const mx = (sx + ax) / 2;
+  const my = (sy + ay) / 2;
+  const elbowX = mx + uy * elbowBend * perpSign;
+  const elbowY = my - ux * elbowBend * perpSign;
+
+  // Upper arm + forearm
   ctx.strokeStyle = '#C53030';
   ctx.lineWidth   = 3.5;
   ctx.lineCap     = 'round';
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ax, ay); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(elbowX, elbowY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(elbowX, elbowY); ctx.lineTo(ax, ay); ctx.stroke();
+
+  // Elbow knob
+  ctx.fillStyle = '#D43030';
+  ctx.beginPath(); ctx.arc(elbowX, elbowY, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#A01818'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(elbowX, elbowY, 4.5, 0, Math.PI * 2); ctx.stroke();
 
   // Palm
   ctx.fillStyle   = '#E53E3E';
@@ -872,8 +887,8 @@ function drawPlayer(): void {
 
   // ── Hands grip the shaft — drawn on top of stick so they appear to hold it ──
   const sOff   = TR * 0.65;
-  const g1Dist = Math.min(TR * 1.7, tDist * 0.38);
-  const g2Dist = Math.min(TR * 3.2, tDist * 0.72);
+  const g1Dist = Math.min(TR + 5, tDist * 0.3);
+  const g2Dist = Math.min(TR * 2.8, tDist * 0.72);
   const lgX = bs.x + Math.cos(armAngle) * g1Dist;
   const lgY = bs.y + Math.sin(armAngle) * g1Dist;
   const rgX = bs.x + Math.cos(armAngle) * g2Dist;
