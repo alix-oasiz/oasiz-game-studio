@@ -18,7 +18,14 @@
       --border:  rgba(255,255,255,0.06);
       --border2: rgba(255,255,255,0.11);
       --text:    #ccd6f0;
-      --dim:     rgba(160,180,220,0.44);
+      --dim:     rgba(160,180,220,0.58);
+
+      /* ─── FONT SCALE ─── */
+      --fs-micro:  9px;   /* decorative section labels (ARENA, GAME MODE) */
+      --fs-badge: 13px;   /* type badges (YOU/AI BOT/ONLINE), slot labels (P1-P4) */
+      --fs-btn:   12px;   /* all buttons, interactive elements, meta text */
+      --fs-body:  14px;   /* secondary body text, roles, descriptions */
+      --fs-title: 18px;   /* card names, key display values */
     }
 
     html, body {
@@ -64,7 +71,7 @@
 
     /* ─── TOPBAR ─── */
     .topbar {
-      height: 52px;
+      height: 58px;
       display: flex;
       align-items: center;
       gap: 16px;
@@ -99,7 +106,7 @@
     }
     .logo-sub {
       font-family: 'Space Mono', monospace;
-      font-size: 9px;
+      font-size: var(--fs-btn);
       letter-spacing: 0.12em;
       color: var(--gold);
       text-transform: uppercase;
@@ -119,7 +126,7 @@
     }
     .sgbtn {
       font-family: 'Space Mono', monospace;
-      font-size: 9px;
+      font-size: var(--fs-btn);
       font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
@@ -127,7 +134,7 @@
       background: transparent;
       border: none;
       border-right: 1px solid var(--border2);
-      padding: 7px 16px;
+      padding: 8px 16px;
       cursor: pointer;
       transition: all 0.14s;
     }
@@ -152,7 +159,7 @@
       box-shadow: 0 0 8px var(--gold);
       animation: blink 2.2s ease-in-out infinite;
     }
-    .room-tag-label { font-size: 8px; letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+    .room-tag-label { font-size: var(--fs-micro); letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
     .room-tag-code  { font-size: 13px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold-lt); }
     .room-tag-copy {
       background: transparent; border: none; cursor: pointer;
@@ -164,7 +171,7 @@
 
     .leave-btn {
       font-family: 'Space Mono', monospace;
-      font-size: 9px;
+      font-size: var(--fs-btn);
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: rgba(248,113,113,0.7);
@@ -256,6 +263,22 @@
 
     .pcard--filled {
       background: linear-gradient(175deg, rgba(var(--pc-rgb), 0.09) 0%, transparent 38%, var(--bg) 55%);
+      transition: background 0.25s ease;
+    }
+    .pcard--filled:hover {
+      background: linear-gradient(175deg, rgba(var(--pc-rgb), 0.16) 0%, transparent 38%, var(--bg) 55%);
+    }
+    .pcard--filled:hover .card-glow {
+      background: radial-gradient(ellipse at 50% 10%, rgba(var(--pc-rgb), 0.36) 0%, rgba(var(--pc-rgb), 0.1) 40%, transparent 65%);
+    }
+    .pcard--filled:hover .viewport-ring {
+      border-color: rgba(var(--pc-rgb), 0.75);
+    }
+    .pcard--filled:hover .card-viewport {
+      transform: scale(1.08);
+    }
+    .pcard--filled:hover .card-info {
+      transform: translateY(-4px);
     }
 
     .pcard--empty {
@@ -274,6 +297,7 @@
       background: radial-gradient(ellipse at 50% 10%, rgba(var(--pc-rgb), 0.22) 0%, transparent 65%);
       pointer-events: none;
       z-index: 0;
+      transition: background 0.25s ease;
     }
 
     /* slot label P1–P4 — top right */
@@ -281,10 +305,10 @@
       position: absolute;
       top: 9px; right: 14px;
       font-family: 'Space Mono', monospace;
-      font-size: 9px;
+      font-size: var(--fs-badge);
       font-weight: 700;
       letter-spacing: 0.1em;
-      color: rgba(217,119,6,0.4);
+      color: rgba(217,119,6,0.6);
       z-index: 6;
     }
 
@@ -299,14 +323,14 @@
       align-items: center;
       gap: 3px;
       font-family: 'Space Mono', monospace;
-      font-size: 7px;
+      font-size: var(--fs-badge);
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      padding: 3px 7px;
+      padding: 4px 9px;
       border-radius: 3px;
     }
-    .type-badge svg { width: 8px; height: 8px; }
+    .type-badge svg { width: 9px; height: 9px; }
     .tb--you    { background: rgba(var(--pc-rgb),0.14); border: 1px solid rgba(var(--pc-rgb),0.3); color: var(--pc); }
     .tb--ai     { background: rgba(139,92,246,0.14); border: 1px solid rgba(139,92,246,0.28); color: #a78bfa; }
     .tb--local  { background: rgba(251,191,36,0.14); border: 1px solid rgba(251,191,36,0.28); color: #fcd34d; }
@@ -339,6 +363,7 @@
       width: 210px; height: 210px;
       flex-shrink: 0;
       z-index: 1;
+      transition: transform 0.35s ease;
     }
     .viewport-ring {
       position: absolute;
@@ -346,6 +371,7 @@
       border-radius: 50%;
       border: 1.5px solid rgba(var(--pc-rgb), 0.45);
       animation: ring-pulse 3.8s ease-in-out infinite;
+      transition: border-color 0.25s ease;
     }
     @keyframes ring-pulse {
       0%,100% { box-shadow: 0 0 14px rgba(var(--pc-rgb),0.18), inset 0 0 22px rgba(var(--pc-rgb),0.04); }
@@ -387,14 +413,15 @@
     .card-info {
       position: relative;
       z-index: 6;
-      padding: 14px 22px 24px;
+      padding: 18px 24px 28px;
       display: flex;
       flex-direction: column;
+      transition: transform 0.25s ease;
       gap: 0;
       flex-shrink: 0;
     }
     .card-name {
-      font-size: 16px;
+      font-size: var(--fs-title);
       font-weight: 700;
       color: var(--text);
       white-space: nowrap;
@@ -403,16 +430,16 @@
       line-height: 1.2;
     }
     .card-role {
-      font-size: 11px;
-      color: var(--dim);
-      margin-top: 3px;
+      font-size: var(--fs-body);
+      color: rgba(160,180,220,0.72);
+      margin-top: 4px;
       letter-spacing: 0.03em;
     }
     .card-footer {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 12px;
+      margin-top: 16px;
       gap: 8px;
     }
     .host-pip {
@@ -420,20 +447,20 @@
       align-items: center;
       gap: 3px;
       font-family: 'Space Mono', monospace;
-      font-size: 7px;
+      font-size: var(--fs-badge);
       font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--gold);
       background: rgba(217,119,6,0.1);
       border: 1px solid rgba(217,119,6,0.26);
-      padding: 3px 7px;
+      padding: 4px 9px;
       border-radius: 3px;
     }
-    .host-pip svg { width: 8px; height: 8px; }
+    .host-pip svg { width: 9px; height: 9px; }
     .card-act {
       font-family: 'Space Mono', monospace;
-      font-size: 8px;
+      font-size: var(--fs-btn);
       font-weight: 700;
       letter-spacing: 0.07em;
       text-transform: uppercase;
@@ -441,7 +468,7 @@
       background: rgba(220,38,38,0.07);
       border: 1px solid rgba(248,113,113,0.18);
       border-radius: 4px;
-      padding: 4px 10px;
+      padding: 5px 13px;
       cursor: pointer;
       transition: all 0.12s;
     }
@@ -458,19 +485,19 @@
     .empty-icon svg { width: 44px; height: 44px; }
     .empty-label {
       font-family: 'Space Mono', monospace;
-      font-size: 9px;
+      font-size: var(--fs-micro);
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: rgba(160,180,220,0.18);
+      color: rgba(160,180,220,0.45);
     }
     .empty-btns { display: flex; gap: 6px; margin-top: 4px; }
     .empty-btn {
       font-family: 'Space Mono', monospace;
-      font-size: 8px;
+      font-size: var(--fs-btn);
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: rgba(160,180,220,0.3);
+      color: rgba(160,180,220,0.45);
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.07);
       border-radius: 4px;
@@ -485,23 +512,25 @@
     /* overlaps bottom of body with negative margin; gradient fades transparent→dark */
     .ctrl-strip {
       flex-shrink: 0;
-      height: 108px;
-      margin-top: -40px;
-      padding-top: 40px;
+      height: 152px;
+      margin-top: -58px;
+      padding-top: 58px;
       display: flex;
       align-items: stretch;
       background: linear-gradient(to bottom, rgba(6,11,22,0) 0%, rgba(6,11,22,0.9) 22%, rgba(6,11,22,0.97) 100%);
       position: relative;
       z-index: 8;
+      pointer-events: none;
     }
+    .cs-map, .cs-mode, .cs-launch { pointer-events: auto; }
 
     /* MAP SECTION */
     .cs-map {
       display: flex;
       align-items: center;
       gap: 14px;
-      padding: 10px 20px 10px 26px;
-      flex: 0 0 320px;
+      padding: 8px 20px 24px 26px;
+      flex: 0 0 420px;
     }
     .map-thumb-wrap {
       border-radius: 7px;
@@ -510,18 +539,23 @@
       flex-shrink: 0;
     }
     .map-thumb { display: block; width: 110px; height: 74px; }
-    .map-meta { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+    .map-meta { display: flex; flex-direction: column; gap: 0; min-width: 0; flex: 1; }
+    .map-meta-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 3px;
+    }
     .map-section-label {
       font-family: 'Space Mono', monospace;
-      font-size: 7.5px;
+      font-size: var(--fs-micro);
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(217,119,6,0.7);
-      margin-bottom: 4px;
     }
     .map-title {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 11px;
+      font-family: 'Exo 2', sans-serif;
+      font-size: var(--fs-body);
       font-weight: 700;
       letter-spacing: 0.06em;
       color: var(--text);
@@ -530,13 +564,13 @@
       text-overflow: ellipsis;
     }
     .map-desc {
-      font-size: 10px;
+      font-size: var(--fs-body);
       color: var(--dim);
       margin-top: 2px;
     }
     .map-change {
       font-family: 'Space Mono', monospace;
-      font-size: 8px;
+      font-size: var(--fs-btn);
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -544,11 +578,9 @@
       background: rgba(217,119,6,0.08);
       border: 1px solid rgba(217,119,6,0.24);
       border-radius: 4px;
-      padding: 5px 12px;
+      padding: 5px 13px;
       cursor: pointer;
       white-space: nowrap;
-      margin-top: 8px;
-      align-self: flex-start;
       transition: all 0.13s;
     }
     .map-change:hover { background: rgba(217,119,6,0.15); border-color: rgba(217,119,6,0.42); }
@@ -562,19 +594,19 @@
       flex-direction: column;
       justify-content: center;
       gap: 5px;
-      padding: 10px 24px;
+      padding: 8px 24px 24px;
       flex: 0 0 190px;
     }
     .cs-mode-label {
       font-family: 'Space Mono', monospace;
-      font-size: 7.5px;
+      font-size: var(--fs-micro);
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(217,119,6,0.7);
     }
     .cs-mode-val {
       font-family: 'Orbitron', sans-serif;
-      font-size: 16px;
+      font-size: var(--fs-title);
       font-weight: 700;
       letter-spacing: 0.08em;
       color: var(--text);
@@ -584,7 +616,7 @@
       align-items: center;
       gap: 5px;
       font-family: 'Space Mono', monospace;
-      font-size: 8px;
+      font-size: var(--fs-btn);
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -608,7 +640,7 @@
       align-items: flex-end;
       justify-content: center;
       gap: 8px;
-      padding: 10px 26px 10px 24px;
+      padding: 8px 26px 24px 24px;
     }
     .launch-status {
       display: flex;
@@ -624,7 +656,7 @@
     }
     .lstatus-dot.warn { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    .lstatus-text { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.07em; color: var(--dim); }
+    .lstatus-text { font-family: 'Space Mono', monospace; font-size: var(--fs-body); letter-spacing: 0.07em; color: var(--dim); }
     .launch-btn {
       height: 52px;
       min-width: 230px;
@@ -782,10 +814,12 @@
           <canvas class="map-thumb" id="map-thumb" width="110" height="74"></canvas>
         </div>
         <div class="map-meta">
-          <div class="map-section-label">Arena</div>
+          <div class="map-meta-head">
+            <div class="map-section-label">Arena</div>
+            <button class="map-change" onclick="openPicker()">Change Arena</button>
+          </div>
           <div class="map-title" id="map-title">Classic Rotation</div>
           <div class="map-desc" id="map-desc">Random map each round</div>
-          <button class="map-change" onclick="openPicker()">Change Arena</button>
         </div>
       </div>
 
