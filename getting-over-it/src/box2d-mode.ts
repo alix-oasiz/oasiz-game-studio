@@ -20,9 +20,9 @@ const PPM = 30; // pixels per meter
 
 // ─── Tweakable config ────────────────────────────────────────────────────────
 const cfg = {
-  maxRange:          150,    // max hammer offset (px)
-  forceMult:         0.0018, // N per pixel — strong enough to fight real gravity
-  maxSpeed:          12,     // velocity cap (m/s)  ~7.5 px/frame at 60fps
+  maxRange:          120,    // max hammer offset (px) — Unity 2.0 WU @ ~60px/WU
+  forceMult:         0.0045, // N per pixel — Unity K=80 N/WU * mass / PPM_unity
+  maxSpeed:          6,      // velocity cap (m/s) — Unity ClampMagnitude(vel, 6)
   hammerLerp:        0.2,    // hammer lerp factor
   hammerR:           14,     // hammer overlap radius (px)
   gravity:           9.0,    // m/s²  — real-weight feel (real = 9.8)
@@ -149,7 +149,7 @@ interface SliderDef { key: keyof typeof cfg; label: string; min: number; max: nu
 
 const SLIDER_DEFS: SliderDef[] = [
   { key: 'maxRange',          label: 'Max Range',        min: 50,     max: 400,  step: 5 },
-  { key: 'forceMult',         label: 'Force Mult',       min: 0.0001, max: 0.005,step: 0.0001 },
+  { key: 'forceMult',         label: 'Force Mult',       min: 0.0001, max: 0.02, step: 0.0001 },
   { key: 'maxSpeed',          label: 'Max Speed (m/s)',  min: 1,      max: 30,   step: 0.5 },
   { key: 'hammerLerp',        label: 'Hammer Lerp',      min: 0.01,   max: 1,    step: 0.01 },
   { key: 'hammerR',           label: 'Hammer Radius',    min: 2,      max: 40,   step: 1 },
@@ -369,28 +369,60 @@ class Box2DClimbScene extends Phaser.Scene {
     const bx = b2pos.x * PPM;       // screen X
     const by = -(b2pos.y * PPM);    // screen Y (Y-flip)
 
-    // ── 2. Mouse vector (clamped to maxRange, relative to screen centre) ────
+    // ── 2. Mouse vector (clamped to maxRange, relative to player body) ──────
+    // Matches Unity: mouseVec = ClampMagnitude(mouse - body.position, maxRange)
     const cam  = this.cameras.main;
-    const scx  = cam.scrollX + cam.width  / 2;
-    const scy  = cam.scrollY + cam.height / 2;
-    const rawDx   = this.mouseWorld.x - scx;
-    const rawDy   = this.mouseWorld.y - scy;
+    const rawDx   = this.mouseWorld.x - bx;
+    const rawDy   = this.mouseWorld.y - by;
     const rawDist = Math.hypot(rawDx, rawDy);
     const clamped = Math.min(rawDist, cfg.maxRange);
     const mouseVec = rawDist > 0
       ? { x: (rawDx / rawDist) * clamped, y: (rawDy / rawDist) * clamped }
       : { x: 0, y: 0 };
 
-    // ── 3. Hammer lerp toward target + solid collision (stop before rock) ───
-    const htx   = bx + mouseVec.x;
-    const hty   = by + mouseVec.y;
+    // ── 3. Force check with PREVIOUS frame's hammer pos (Unity order) ────────
+    // Unity applies force BEFORE moving the hammer in FixedUpdate
+    const hammerOnRock = isHammerNearRock(this.hammerPos.x, this.hammerPos.y);
+    if (hammerOnRock) {
+      // targetBodyPos = hammerHead.position - mouseVec  (Unity)
+      // force = (targetBodyPos - body.position) * K
+      const tbx = this.hammerPos.x - mouseVec.x;
+      const tby = this.hammerPos.y - mouseVec.y;
+      const dx  = tbx - bx;
+      const dy  = tby - by;
+      // Force in Box2D space: Y is flipped (screen down = Box2D negative Y)
+      b2Body_ApplyForceToCenter(
+        this.playerBodyId,
+        new b2Vec2(dx * cfg.forceMult, -dy * cfg.forceMult),
+        true,
+      );
+      // Cap velocity — Unity: velocity = ClampMagnitude(velocity, 6)
+      const vel   = b2Body_GetLinearVelocity(this.playerBodyId);
+      const speed = Math.hypot(vel.x, vel.y);
+      if (speed > cfg.maxSpeed) {
+        const s = cfg.maxSpeed / speed;
+        b2Body_SetLinearVelocity(this.playerBodyId, new b2Vec2(vel.x * s, vel.y * s));
+      }
+    }
+
+    // ── 4. Step physics ──────────────────────────────────────────────────────
+    WorldStep({ worldId: this.worldId, deltaTime: delta / 1000, subStepCount: 1 });
+
+    // ── 5. Read post-step position ───────────────────────────────────────────
+    const b2pos2 = b2Body_GetPosition(this.playerBodyId);
+    const rx = b2pos2.x * PPM;
+    const ry = -(b2pos2.y * PPM);
+
+    // ── 6. Move hammer AFTER physics step (Unity: MovePosition called last) ──
+    // Anchor to post-step player position so hammer tracks updated body location
+    const htx    = rx + mouseVec.x;
+    const hty    = ry + mouseVec.y;
     const prevHx = this.hammerPos.x;
     const prevHy = this.hammerPos.y;
     let newHx = prevHx + (htx - prevHx) * cfg.hammerLerp;
     let newHy = prevHy + (hty - prevHy) * cfg.hammerLerp;
 
     // Binary search uses inside-only check so hammer stops AT the rock surface
-    // (not 14 px before it, which would break the force detection)
     if (isHammerInsideRock(newHx, newHy)) {
       let lo = 0, hi = 1;
       for (let i = 0; i < 8; i++) {
@@ -404,38 +436,6 @@ class Box2DClimbScene extends Phaser.Scene {
     }
     this.hammerPos.x = newHx;
     this.hammerPos.y = newHy;
-
-    // ── 4. Overlap check and force application ───────────────────────────────
-    // After binary search, hammer is ~0 px from rock surface → distToEdges < hammerR → true
-    const hammerOnRock = isHammerNearRock(this.hammerPos.x, this.hammerPos.y);
-    if (hammerOnRock) {
-      const tbx = this.hammerPos.x - mouseVec.x;
-      const tby = this.hammerPos.y - mouseVec.y;
-      const dx  = tbx - bx;
-      const dy  = tby - by;
-      // Force in Box2D space: Y is flipped (screen down = Box2D negative Y)
-      b2Body_ApplyForceToCenter(
-        this.playerBodyId,
-        new b2Vec2(dx * cfg.forceMult, -dy * cfg.forceMult),
-        true,
-      );
-      // Cap velocity
-      const vel   = b2Body_GetLinearVelocity(this.playerBodyId);
-      const speed = Math.hypot(vel.x, vel.y);
-      if (speed > cfg.maxSpeed) {
-        const s = cfg.maxSpeed / speed;
-        b2Body_SetLinearVelocity(this.playerBodyId, new b2Vec2(vel.x * s, vel.y * s));
-      }
-    }
-
-    // ── 5. Step physics ──────────────────────────────────────────────────────
-    // subStepCount=1: force applies over the full dt, giving clear climbing thrust
-    WorldStep({ worldId: this.worldId, deltaTime: delta / 1000, subStepCount: 1 });
-
-    // ── 6. Read post-step position for rendering ─────────────────────────────
-    const b2pos2 = b2Body_GetPosition(this.playerBodyId);
-    const rx = b2pos2.x * PPM;
-    const ry = -(b2pos2.y * PPM);
 
     // ── 7. Camera ────────────────────────────────────────────────────────────
     cam.scrollX += (rx - cam.width  / 2 - cam.scrollX) * 0.08;
