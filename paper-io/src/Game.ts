@@ -1,4 +1,4 @@
-import { SPAWN_POINTS, PLAYER_NAMES, MAP_SIZE, type Vec2 } from './constants.ts';
+import { SPAWN_POINTS, PLAYER_NAMES, BOT_NAMES, MAP_SIZE, type Vec2, dist2 } from './constants.ts';
 import { type PlayerState, createPlayer, computeMovement, clampToArena, sampleTrailPoint, InputHandler } from './Player.ts';
 import { segmentsIntersect } from './Collision.ts';
 import { BotController } from './Bot.ts';
@@ -35,6 +35,8 @@ export class Game {
   private hudUpdateTimer = 0;
   private currentLeaderId = -1;
   private peakPct = 0;
+  private usedBotNames: Set<string> = new Set();
+  private respawnTimers: Map<number, number> = new Map(); // playerId -> time remaining
 
   constructor() {
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -111,6 +113,8 @@ export class Game {
     this.gameTime = 0;
     this.peakPct = 0;
     this.territoryGrid = new TerritoryGrid();
+    this.usedBotNames = new Set();
+    this.respawnTimers = new Map();
 
     // Create players with skins
     const total = 1 + config.botCount;
@@ -120,15 +124,16 @@ export class Game {
     for (let i = 0; i < total; i++) {
       const sp = SPAWN_POINTS[i];
       const skin = i === 0 ? playerSkin : botSkins[i - 1];
+      const name = i === 0 ? PLAYER_NAMES[0] : this.pickBotName();
       const player = createPlayer(
         i, skin.color, skin.colorStr,
-        PLAYER_NAMES[i], sp.x, sp.z, i === 0, this.territoryGrid, skin.id,
+        name, sp.x, sp.z, i === 0, this.territoryGrid, skin.id,
       );
       this.players.push(player);
 
       const texture = this.skinSystem.getTexture(skin.id);
       const model = this.skinSystem.getModel(skin.id);
-      this.renderer.createAvatar(i, skin.color, PLAYER_NAMES[i], texture, model);
+      this.renderer.createAvatar(i, skin.color, name, texture, model);
 
       if (skin.type === 'model' && !model) {
         const modelPromise = this.skinSystem.getModelAsync(skin.id);
@@ -193,7 +198,7 @@ export class Game {
   private updateGame(dt: number): void {
     if (this.paused || this.gameOver) return;
 
-    this.inputHandler.update();
+    this.inputHandler.update(dt);
 
     const players = this.players;
     const playerCount = players.length;
@@ -285,6 +290,7 @@ export class Game {
           for (const otherId of affected) {
             const other = players[otherId];
             if (other && other.alive) {
+              other.territory.invalidateCache();
               this.renderer.updateTerritory(other.id, this.territoryGrid, other.color);
             }
           }
@@ -343,6 +349,20 @@ export class Game {
       }
     }
 
+    // Process bot respawn timers
+    for (const [id, remaining] of this.respawnTimers) {
+      const newTime = remaining - dt;
+      if (newTime <= 0) {
+        this.respawnTimers.delete(id);
+        const bot = this.players[id];
+        if (bot && !bot.isHuman && !bot.alive) {
+          this.respawnBot(bot);
+        }
+      } else {
+        this.respawnTimers.set(id, newTime);
+      }
+    }
+
     this.checkGameOver();
   }
 
@@ -356,7 +376,74 @@ export class Game {
     player.territory.clear();
 
     if (player.isHuman) this.audio.playerDeath();
-    else this.audio.enemyDeath();
+    else {
+      this.audio.enemyDeath();
+      // Schedule bot respawn after 3 seconds
+      this.respawnTimers.set(player.id, 3.0);
+    }
+  }
+
+  private pickBotName(): string {
+    const available = BOT_NAMES.filter(n => !this.usedBotNames.has(n));
+    const name = available.length > 0
+      ? available[Math.floor(Math.random() * available.length)]
+      : `Bot ${Math.floor(Math.random() * 999)}`;
+    this.usedBotNames.add(name);
+    return name;
+  }
+
+  private releaseBotName(name: string): void {
+    this.usedBotNames.delete(name);
+  }
+
+  private pickSpawnPoint(playerId: number): Vec2 {
+    // Pick spawn point farthest from all alive players
+    let bestSpawn = SPAWN_POINTS[playerId % SPAWN_POINTS.length];
+    let bestMinDist = -1;
+    for (const sp of SPAWN_POINTS) {
+      let minDist = Infinity;
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        const d = dist2(sp, p.position);
+        if (d < minDist) minDist = d;
+      }
+      if (minDist > bestMinDist) {
+        bestMinDist = minDist;
+        bestSpawn = sp;
+      }
+    }
+    return bestSpawn;
+  }
+
+  private respawnBot(player: PlayerState): void {
+    // Release old name, pick new one
+    this.releaseBotName(player.name);
+    const newName = this.pickBotName();
+
+    // Pick a safe spawn point
+    const sp = this.pickSpawnPoint(player.id);
+
+    // Reset player state
+    player.alive = true;
+    player.name = newName;
+    player.position = { x: sp.x, z: sp.z };
+    player.moveDir = { x: 1, z: 0 };
+    player.trail = [];
+    player.isTrailing = false;
+    player.hasInput = false;
+
+    // Reinit territory
+    player.territory.clear();
+    player.territory.initAtSpawn(sp.x, sp.z);
+
+    // Update renderer
+    this.renderer.showAvatar(player.id);
+    this.renderer.updateAvatarLabel(player.id, newName);
+    this.renderer.updateTerritory(player.id, this.territoryGrid, player.color);
+    this.renderer.updateAvatar(player.id, player.position, 0);
+
+    // Reinit bot AI
+    this.botController.initBot(player);
   }
 
   private checkGameOver(): void {
@@ -365,7 +452,7 @@ export class Game {
 
     const alive = this.players.filter(p => p.alive);
 
-    if (!human.alive || alive.length <= 1) {
+    if (!human.alive) {
       this.gameOver = true;
 
       // Crown the winner (last alive, or top territory holder)

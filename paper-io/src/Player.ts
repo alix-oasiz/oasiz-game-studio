@@ -86,10 +86,12 @@ export function sampleTrailPoint(player: PlayerState): void {
 
 const JOYSTICK_MAX_RADIUS = 50;
 const JOYSTICK_DEAD_ZONE = 8;
+const PLAYER_TURN_RATE = 4.5; // radians per second
 
 export class InputHandler {
   private player: PlayerState;
   private joystickDir: Vec2 | null = null;
+  private targetDir: Vec2 | null = null; // desired direction from input
 
   private zone: HTMLElement;
   private base: HTMLElement;
@@ -113,13 +115,13 @@ export class InputHandler {
     window.addEventListener('keydown', (e) => {
       switch (e.key) {
         case 'ArrowUp': case 'w': case 'W':
-          setDirectionEnum(this.player, Direction.UP); this.joystickDir = null; break;
+          this.targetDir = { x: 0, z: -1 }; this.joystickDir = null; this.player.hasInput = true; break;
         case 'ArrowDown': case 's': case 'S':
-          setDirectionEnum(this.player, Direction.DOWN); this.joystickDir = null; break;
+          this.targetDir = { x: 0, z: 1 }; this.joystickDir = null; this.player.hasInput = true; break;
         case 'ArrowLeft': case 'a': case 'A':
-          setDirectionEnum(this.player, Direction.LEFT); this.joystickDir = null; break;
+          this.targetDir = { x: -1, z: 0 }; this.joystickDir = null; this.player.hasInput = true; break;
         case 'ArrowRight': case 'd': case 'D':
-          setDirectionEnum(this.player, Direction.RIGHT); this.joystickDir = null; break;
+          this.targetDir = { x: 1, z: 0 }; this.joystickDir = null; this.player.hasInput = true; break;
       }
     });
   }
@@ -222,11 +224,25 @@ export class InputHandler {
     this.joystickDir = { x: dx / len, z: dy / len };
   }
 
-  update(): void {
-    if (this.joystickDir) {
-      this.player.moveDir = { x: this.joystickDir.x, z: this.joystickDir.z };
-      this.player.hasInput = true;
-    }
+  update(dt: number): void {
+    // Joystick overrides keyboard target
+    const desired = this.joystickDir ?? this.targetDir;
+    if (!desired) return;
+
+    this.player.hasInput = true;
+
+    const currentAngle = Math.atan2(this.player.moveDir.z, this.player.moveDir.x);
+    const targetAngle = Math.atan2(desired.z, desired.x);
+
+    let angleDiff = targetAngle - currentAngle;
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+    const maxTurn = PLAYER_TURN_RATE * dt;
+    const turn = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+
+    const newAngle = currentAngle + turn;
+    this.player.moveDir = { x: Math.cos(newAngle), z: Math.sin(newAngle) };
   }
 
   updatePlayer(p: PlayerState): void {

@@ -1,7 +1,7 @@
 import { type Vec2, START_RADIUS, MAP_SIZE, MAP_HALF } from './constants.ts';
 import { pointInPolygon } from './Collision.ts';
 
-const GRID_CELL = 0.25;
+const GRID_CELL = 0.1;
 const GRID_SIZE = Math.ceil(MAP_SIZE / GRID_CELL);
 
 export class TerritoryGrid {
@@ -159,28 +159,25 @@ export class TerritoryGrid {
     const stack: number[] = [];
 
     for (let c = 0; c < sz; c++) {
-      if (this.data[c] !== playerId && !visited[c]) { visited[c] = 1; stack.push(0, c); }
+      if (this.data[c] !== playerId && !visited[c]) { visited[c] = 1; stack.push(c); }
       const bi = (sz - 1) * sz + c;
-      if (this.data[bi] !== playerId && !visited[bi]) { visited[bi] = 1; stack.push(sz - 1, c); }
+      if (this.data[bi] !== playerId && !visited[bi]) { visited[bi] = 1; stack.push(bi); }
     }
     for (let r = 1; r < sz - 1; r++) {
       const li = r * sz;
-      if (this.data[li] !== playerId && !visited[li]) { visited[li] = 1; stack.push(r, 0); }
+      if (this.data[li] !== playerId && !visited[li]) { visited[li] = 1; stack.push(li); }
       const ri = r * sz + sz - 1;
-      if (this.data[ri] !== playerId && !visited[ri]) { visited[ri] = 1; stack.push(r, sz - 1); }
+      if (this.data[ri] !== playerId && !visited[ri]) { visited[ri] = 1; stack.push(ri); }
     }
 
     while (stack.length > 0) {
-      const sc = stack.pop()!;
-      const sr = stack.pop()!;
-      const neighbors: [number, number][] = [[sr - 1, sc], [sr + 1, sc], [sr, sc - 1], [sr, sc + 1]];
-      for (const [nr, nc] of neighbors) {
-        if (nr < 0 || nr >= sz || nc < 0 || nc >= sz) continue;
-        const ni = nr * sz + nc;
-        if (visited[ni] || this.data[ni] === playerId) continue;
-        visited[ni] = 1;
-        stack.push(nr, nc);
-      }
+      const idx = stack.pop()!;
+      const r = (idx / sz) | 0;
+      const c = idx - r * sz;
+      if (r > 0)      { const ni = idx - sz;    if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
+      if (r < sz - 1) { const ni = idx + sz;    if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
+      if (c > 0)      { const ni = idx - 1;     if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
+      if (c < sz - 1) { const ni = idx + 1;     if (!visited[ni] && this.data[ni] !== playerId) { visited[ni] = 1; stack.push(ni); } }
     }
 
     for (let i = 0; i < sz * sz; i++) {
@@ -197,6 +194,7 @@ export class Territory {
   private grid: TerritoryGrid;
   private pid: number;
   dirty = true;
+  private cachedArea = -1;
 
   constructor(grid: TerritoryGrid, playerId: number) {
     this.grid = grid;
@@ -206,6 +204,7 @@ export class Territory {
   initAtSpawn(cx: number, cz: number): void {
     this.grid.initCircle(this.pid, cx, cz, START_RADIUS);
     this.dirty = true;
+    this.cachedArea = -1;
   }
 
   containsPoint(p: Vec2): boolean {
@@ -215,11 +214,15 @@ export class Territory {
   captureFromTrail(trailPoints: Vec2[]): Set<number> {
     const affected = this.grid.capture(this.pid, trailPoints);
     this.dirty = true;
+    this.cachedArea = -1;
+    // Invalidate cache for affected players too (handled externally)
     return affected;
   }
 
   computeArea(): number {
-    return this.grid.countCells(this.pid) * this.grid.cellSize * this.grid.cellSize;
+    if (this.cachedArea >= 0) return this.cachedArea;
+    this.cachedArea = this.grid.countCells(this.pid) * this.grid.cellSize * this.grid.cellSize;
+    return this.cachedArea;
   }
 
   getPercentage(): number {
@@ -292,5 +295,10 @@ export class Territory {
   clear(): void {
     this.grid.clearPlayer(this.pid);
     this.dirty = true;
+    this.cachedArea = -1;
+  }
+
+  invalidateCache(): void {
+    this.cachedArea = -1;
   }
 }
