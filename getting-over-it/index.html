@@ -136,6 +136,7 @@
 
     .physics-cards {
       display: flex;
+      flex-wrap: wrap;
       gap: 0.8rem;
       justify-content: center;
     }
@@ -147,7 +148,7 @@
       border-radius: 6px;
       padding: 0.9rem 1.2rem;
       cursor: pointer;
-      width: clamp(120px, 26vw, 155px);
+      width: clamp(100px, 22vw, 140px);
       transition: all 0.18s;
       text-align: center;
       box-shadow: 0 4px 15px rgba(0,0,0,0.5);
@@ -491,12 +492,16 @@
       <div class="physics-mode-label">Select Physics Mode</div>
       <div class="physics-cards">
         <button class="physics-card" id="physics1-btn">
-          <div class="physics-card-title">CLASSIC</div>
+          <div class="physics-card-title">VANILLA</div>
           <div class="physics-card-desc">Click to grip<br>Mouse swings the axe</div>
         </button>
         <button class="physics-card" id="physics2-btn">
-          <div class="physics-card-title">HAMMER</div>
+          <div class="physics-card-title">MATTERJS</div>
           <div class="physics-card-desc">Push into rocks to climb<br>Just move the mouse</div>
+        </button>
+        <button class="physics-card" id="physics3-btn">
+          <div class="physics-card-title">BOX2D</div>
+          <div class="physics-card-desc">Box2D v3 physics<br>Just move the mouse</div>
         </button>
       </div>
     </div>

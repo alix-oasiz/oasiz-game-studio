@@ -6,7 +6,9 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
       "Bash(node:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

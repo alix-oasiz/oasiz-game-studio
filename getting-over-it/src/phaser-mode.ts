@@ -1,4 +1,4 @@
-// Stone Ascent – Phaser Mode (Hammer Physics)
+// Stone Ascent – Phaser Mode (MatterJS Physics)
 // Force-based hammer system matching PlayerControl.cs from Unity reference.
 // The hammer does NOT attach to rocks. When the hammer overlaps a rock,
 // a spring force pushes the player body. Only input: move the mouse.

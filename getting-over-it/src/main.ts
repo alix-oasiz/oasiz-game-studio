@@ -1,7 +1,8 @@
 // Stone Ascent – POC
 // Player with pendulum physics + rock obstacles to prove the core mechanic.
 
-import { launchPhaserGame, destroyPhaserGame, setAltitudeCallback } from './phaser-mode';
+import { launchPhaserGame, destroyPhaserGame, setAltitudeCallback as setPhaserAltCb } from './phaser-mode';
+import { launchBox2DGame, destroyBox2DGame, setAltitudeCallback as setBox2DAltCb } from './box2d-mode';
 
 // ─── Canvas setup ────────────────────────────────────────────────────────────
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -17,19 +18,21 @@ resize();
 // ─── Game state ──────────────────────────────────────────────────────────────
 type GameState = 'start' | 'playing';
 let gameState: GameState = 'start';
-let activeMode: 1 | 2 = 1;
+let activeMode: 1 | 2 | 3 = 1;
 let phaserGame: ReturnType<typeof launchPhaserGame> | null = null;
+let box2dGame: Phaser.Game | null = null;
 
 // ─── UI elements ─────────────────────────────────────────────────────────────
 const startScreen      = document.getElementById('start-screen')!;
 const physics1Btn      = document.getElementById('physics1-btn')!;
 const physics2Btn      = document.getElementById('physics2-btn')!;
+const physics3Btn      = document.getElementById('physics3-btn')!;
 const hud              = document.getElementById('hud')!;
 const settingsBtn      = document.getElementById('settings-btn')!;
 const quitBtn          = document.getElementById('quit-btn')!;
 const phaserContainer  = document.getElementById('phaser-container')!;
 
-function startClassicGame(): void {
+function startVanillaGame(): void {
   activeMode     = 1;
   gameState      = 'playing';
   startScreen.classList.add('hidden');
@@ -52,24 +55,20 @@ function startClassicGame(): void {
   camY              = 80;
 }
 
-function startPhaserGame(): void {
+function startMatterJSGame(): void {
   activeMode     = 2;
   gameState      = 'playing';
   startScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   settingsBtn.classList.remove('hidden');
   quitBtn.classList.remove('hidden');
-  // Hide canvas, show Phaser container
   canvas.style.display = 'none';
   phaserContainer.classList.remove('hidden');
-  // Launch Phaser
-  setAltitudeCallback((meters) => {
-    maxHeight = meters;
-  });
+  setPhaserAltCb((meters) => { maxHeight = meters; });
   phaserGame = launchPhaserGame(phaserContainer);
 }
 
-function stopPhaserGame(): void {
+function stopMatterJSGame(): void {
   if (phaserGame) {
     destroyPhaserGame(phaserGame);
     phaserGame = null;
@@ -78,8 +77,32 @@ function stopPhaserGame(): void {
   canvas.style.display = 'block';
 }
 
-physics1Btn.addEventListener('click', () => startClassicGame());
-physics2Btn.addEventListener('click', () => startPhaserGame());
+function startBox2DGame(): void {
+  activeMode     = 3;
+  gameState      = 'playing';
+  startScreen.classList.add('hidden');
+  hud.classList.remove('hidden');
+  settingsBtn.classList.remove('hidden');
+  quitBtn.classList.remove('hidden');
+  maxHeight      = 0;
+  canvas.style.display = 'none';
+  phaserContainer.classList.remove('hidden');
+  setBox2DAltCb((meters) => { maxHeight = meters; });
+  box2dGame = launchBox2DGame(phaserContainer);
+}
+
+function stopBox2DGame(): void {
+  if (box2dGame) {
+    destroyBox2DGame(box2dGame);
+    box2dGame = null;
+  }
+  phaserContainer.classList.add('hidden');
+  canvas.style.display = 'block';
+}
+
+physics1Btn.addEventListener('click', () => startVanillaGame());
+physics2Btn.addEventListener('click', () => startMatterJSGame());
+physics3Btn.addEventListener('click', () => startBox2DGame());
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const GRAVITY      = 0.45;   // px / frame²  (downward = +y in canvas)
@@ -680,7 +703,8 @@ quitBtn.addEventListener('click', () => {
   hud.classList.add('hidden');
   settingsBtn.classList.add('hidden');
   quitBtn.classList.add('hidden');
-  if (activeMode === 2) stopPhaserGame();
+  if (activeMode === 2) stopMatterJSGame();
+  else if (activeMode === 3) stopBox2DGame();
   quitScreen.classList.remove('hidden');
 });
 
