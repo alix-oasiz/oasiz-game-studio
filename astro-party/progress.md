@@ -29,18 +29,22 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 ## Active Task Threads
 
-- Thread: Lobby cleanup sequencing + staged fixes
-  - Original prompt: "Lobby redesigned; restore local/online top selector, fix local vs online option wiring, verify host/non-host wiring, then stage remaining work."
-  - Intent: Deliver cleanup in chunks with manual verification checkpoints; complete base fixes first.
-  - Current plan: Pass 1 (mode indicator + local/online/host wiring) complete, pause for user check, then pass 2+.
-  - Status: In progress (staged delivery).
-  - Latest validation:
-    - `astro-party`: `bun run typecheck` passed.
-    - `astro-party`: `bun run build` passed.
-  - Progress updates:
-    - [09:32] context + redesign audit -> identified missing topbar mode indicator and local button visibility drift in empty cards.
-    - [09:42] pass-1 edits applied -> centered non-clickable session indicator + local/online gating + host lock wiring tightened.
-    - [09:50] validation run -> typecheck/build both passed; ready for manual QA gate.
+- None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
+
+## 2026-03-06 - Lobby cleanup completion check
+
+- Scope:
+  - Completed final cleanup/sanity pass after staged lobby fixes.
+- Key changes:
+  - `astro-party`:
+    - removed temporary diagnosis artifact `tmp-check-ship-colors.mjs`
+  - `astro-party/.tools/docs/lobby-cleanup-sequence.md`:
+    - updated status to reflect cleanup-check completion
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - staged lobby cleanup thread is complete and closed.
 
 ## 2026-03-06 - Lobby full redesign (pcard layout + new CSS system)
 

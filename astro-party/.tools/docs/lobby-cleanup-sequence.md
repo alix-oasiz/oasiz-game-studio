@@ -45,5 +45,11 @@ Clean up the redesigned lobby in staged passes with manual verification after ea
 - `bun run build`
 
 ## Current Status
-- Pass 1 completed in this branch: items 1 + 2.
-- Next planned pass: item 3 (touch debounce hardening).
+- Completed in branch:
+  - Base layout fixes (centered non-clickable mode indicator).
+  - Local vs online behavior + host wiring cleanup.
+  - Touch debounce pass for lobby actions.
+  - Ship preview asset pass with fallback.
+- Final cleanup check completed:
+  - Removed temporary debug artifact used during ship-color diagnosis.
+  - Re-ran `typecheck` and `build` successfully.

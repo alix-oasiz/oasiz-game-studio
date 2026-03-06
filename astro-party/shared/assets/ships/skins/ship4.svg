@@ -55,7 +55,7 @@
 
     <!-- engine -->
     <polygon points="0,34 13,24 0,14 -13,24" fill="#fff" class="o3" opacity="0.95"/>
-    <polygon points="0,31 9,24 0,17 -9,24" fill="#00eaff" opacity="0.75"/>
+    <polygon points="0,31 9,24 0,17 -9,24" fill="var(--slot-primary, #00f0ff)" opacity="0.75"/>
   </g>
 
   <path id="collider"

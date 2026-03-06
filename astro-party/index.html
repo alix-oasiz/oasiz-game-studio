@@ -3412,10 +3412,39 @@
       overflow: hidden;
       display: flex; align-items: center; justify-content: center;
     }
-    #lobbyScreen .card-ship-svg {
-      width: 48%; height: auto;
-      filter: drop-shadow(0 0 0.75rem var(--pc));
+    #lobbyScreen .card-ship-wrap {
+      width: 62%;
+      height: 62%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translateY(4%) rotate(-16deg);
+      transform-origin: 50% 50%;
+      filter: drop-shadow(0 0 0.85rem rgba(var(--pc-rgb), 0.58));
       animation: lb-float 4.5s ease-in-out infinite;
+    }
+    #lobbyScreen .card-ship-asset,
+    #lobbyScreen .card-ship-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #lobbyScreen .card-ship-asset svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    #lobbyScreen .card-ship-img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+    #lobbyScreen .card-ship-svg {
+      width: 100%;
+      height: 100%;
     }
     @keyframes lb-float {
       0%,100% { transform: translateY(0); }

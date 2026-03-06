@@ -2,6 +2,11 @@ import { Game } from "../Game";
 import { BaseGameMode, GameMode, MapId, PlayerData, Ruleset } from "../types";
 import { elements } from "./elements";
 import { getMapDefinition, isMapAllowedForRuleset } from "../../shared/sim/maps.js";
+import { applySvgColorSlots } from "../../shared/geometry/EntityAssets.js";
+import {
+  getShipSkin,
+  resolveShipSkinIdForPlayer,
+} from "../../shared/geometry/ShipSkins.js";
 import { renderMapPreviewOnCanvas } from "./mapPreview";
 import { escapeHtml } from "./text";
 import { createUIFeedback } from "../feedback/uiFeedback";
@@ -22,14 +27,11 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
   const HOST_ONLY_ACTION_MESSAGE = "Only the room leader can do that";
   let addingBot = false;
   let addButtonGuardUntilMs = 0;
-  let startButtonGuardUntilMs = 0;
-  let modeCycleGuardUntilMs = 0;
   const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
-  const kickButtonGuardUntilByPlayer = new Map<string, number>();
+  const tapGuardUntilByKey = new Map<string, number>();
   const ADD_BUTTON_TAP_GUARD_MS = 450;
+  const TAP_GUARD_MS = 340;
   const START_BUTTON_TAP_GUARD_MS = 650;
-  const KICK_BUTTON_TAP_GUARD_MS = 450;
-  const MODE_CYCLE_TAP_GUARD_MS = 340;
   const MAP_PICKER_ORDER: MapId[] = [0, 5, 1, 2, 3, 4];
   const MODE_CYCLE_ORDER: BaseGameMode[] = ["STANDARD", "SANE", "CHAOTIC"];
   const RULESET_CYCLE_ORDER: Ruleset[] = [
@@ -71,6 +73,44 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
       <polygon points="36,4 52,72 64,60" fill="${color}" opacity="0.55"/>
       <circle cx="36" cy="32" r="5" fill="rgba(255,255,255,0.55)"/>
     </svg>`;
+  }
+
+  function svgDataUri(svgText: string): string {
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+  }
+
+  function shipPreviewMarkup(playerId: string, color: string): string {
+    try {
+      const skinId = resolveShipSkinIdForPlayer(playerId);
+      const skin = getShipSkin(skinId);
+      const coloredTemplate = applySvgColorSlots(skin.svgTemplate, {
+        "slot-primary": color,
+      });
+      const imageSrc = svgDataUri(coloredTemplate);
+      return '<div class="card-ship-wrap card-ship-asset" data-skin-id="' +
+        skinId +
+        '"><img class="card-ship-img" alt="" src="' +
+        imageSrc +
+        '">' +
+        "</div>";
+    } catch {
+      return '<div class="card-ship-wrap card-ship-fallback">' + shipSVG(color) + "</div>";
+    }
+  }
+
+  function isTapGuardBlocked(
+    event: Event,
+    guardKey: string,
+    guardMs: number = TAP_GUARD_MS,
+  ): boolean {
+    if (!isCoarsePointer) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const now = performance.now();
+    const guardUntil = tapGuardUntilByKey.get(guardKey) ?? 0;
+    if (now < guardUntil) return true;
+    tapGuardUntilByKey.set(guardKey, now + guardMs);
+    return false;
   }
 
   function beginAddButtonAction(): boolean {
@@ -234,7 +274,7 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
           <div class="card-scene">
             <div class="card-viewport">
               <div class="viewport-ring"></div>
-              <div class="viewport-inner">${shipSVG(color)}</div>
+              <div class="viewport-inner">${shipPreviewMarkup(player.id, color)}</div>
             </div>
           </div>
           <div class="card-info">
@@ -315,9 +355,12 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
       "[data-action]",
     ) as HTMLButtonElement | null;
     if (!btn || btn.disabled) return;
+    const action = btn.dataset.action ?? "unknown";
+    const playerId = btn.dataset.playerId ?? "none";
+    if (isTapGuardBlocked(e, "tray-action:" + action + ":" + playerId, TAP_GUARD_MS)) {
+      return;
+    }
     e.stopPropagation();
-    const action = btn.dataset.action;
-    const playerId = btn.dataset.playerId;
 
     if (action === "add-ai") {
       elements.addAIBotBtn.click();
@@ -327,12 +370,6 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
       if (!game.isLeader()) {
         showHostOnlyActionToast();
         return;
-      }
-      if (isCoarsePointer) {
-        const now = performance.now();
-        const guardUntil = kickButtonGuardUntilByPlayer.get(playerId) ?? 0;
-        if (now < guardUntil) return;
-        kickButtonGuardUntilByPlayer.set(playerId, now + KICK_BUTTON_TAP_GUARD_MS);
       }
       feedback.button();
       btn.disabled = true;
@@ -455,7 +492,10 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
       card.appendChild(preview);
       card.appendChild(meta);
 
-      card.addEventListener("click", () => {
+      card.addEventListener("click", (event) => {
+        if (isTapGuardBlocked(event, "map-card:" + mapId.toString(), TAP_GUARD_MS)) {
+          return;
+        }
         if (!game.isLeader()) {
           showHostOnlyActionToast();
           return;
@@ -519,7 +559,10 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     setMapUI(selectedMapId, "remote");
   }
 
-  elements.copyCodeBtn.addEventListener("click", () => {
+  elements.copyCodeBtn.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "copy-room-code", TAP_GUARD_MS)) {
+      return;
+    }
     if (game.getSessionMode() === "local" || isPlatform) return;
     const code = game.getRoomCode();
     if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
@@ -543,7 +586,10 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
       });
   });
 
-  elements.addAIBotBtn.addEventListener("click", async () => {
+  elements.addAIBotBtn.addEventListener("click", async (event) => {
+    if (isTapGuardBlocked(event, "add-ai", ADD_BUTTON_TAP_GUARD_MS)) {
+      return;
+    }
     if (!game.isLeader()) {
       showHostOnlyActionToast();
       return;
@@ -562,7 +608,10 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     }
   });
 
-  elements.addLocalPlayerBtn.addEventListener("click", async () => {
+  elements.addLocalPlayerBtn.addEventListener("click", async (event) => {
+    if (isTapGuardBlocked(event, "add-local", ADD_BUTTON_TAP_GUARD_MS)) {
+      return;
+    }
     if (!game.isLeader()) {
       showHostOnlyActionToast();
       return;
@@ -598,8 +647,16 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     }
   });
 
-  elements.keySelectBackdrop.addEventListener("click", hideKeySelectModal);
-  elements.keySelectCancel.addEventListener("click", () => {
+  elements.keySelectBackdrop.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "key-select-backdrop", TAP_GUARD_MS)) {
+      return;
+    }
+    hideKeySelectModal();
+  });
+  elements.keySelectCancel.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "key-select-cancel", TAP_GUARD_MS)) {
+      return;
+    }
     feedback.subtle();
     hideKeySelectModal();
   });
@@ -623,12 +680,10 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     addingBot = false;
   });
 
-  elements.startGameBtn.addEventListener("click", () => {
-    const now = performance.now();
-    if (now < startButtonGuardUntilMs) {
+  elements.startGameBtn.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "start-game", START_BUTTON_TAP_GUARD_MS)) {
       return;
     }
-    startButtonGuardUntilMs = now + START_BUTTON_TAP_GUARD_MS;
     const hasEnoughPlayers = game.getPlayerCount() >= 2;
     if (!game.isLeader()) {
       showHostOnlyActionToast();
@@ -639,13 +694,9 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     game.startGame();
   });
 
-  elements.modeCycleBtn.addEventListener("click", () => {
-    if (isCoarsePointer) {
-      const now = performance.now();
-      if (now < modeCycleGuardUntilMs) {
-        return;
-      }
-      modeCycleGuardUntilMs = now + MODE_CYCLE_TAP_GUARD_MS;
+  elements.modeCycleBtn.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "mode-cycle", TAP_GUARD_MS)) {
+      return;
     }
     if (!game.isLeader()) {
       showHostOnlyActionToast();
@@ -661,13 +712,9 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     setModeUI(nextMode);
   });
 
-  elements.rulesetCycleBtn.addEventListener("click", () => {
-    if (isCoarsePointer) {
-      const now = performance.now();
-      if (now < modeCycleGuardUntilMs) {
-        return;
-      }
-      modeCycleGuardUntilMs = now + MODE_CYCLE_TAP_GUARD_MS;
+  elements.rulesetCycleBtn.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "ruleset-cycle", TAP_GUARD_MS)) {
+      return;
     }
     if (!game.isLeader()) {
       showHostOnlyActionToast();
@@ -681,7 +728,10 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     setRulesetUI(nextRuleset, "local");
   });
 
-  elements.openMapPickerBtn.addEventListener("click", () => {
+  elements.openMapPickerBtn.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "open-map-picker", TAP_GUARD_MS)) {
+      return;
+    }
     if (!game.isLeader()) {
       showHostOnlyActionToast();
       return;
@@ -694,19 +744,30 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     elements.mapPickerBackdrop.classList.add("active");
   });
 
-  elements.mapPickerClose.addEventListener("click", () => {
+  elements.mapPickerClose.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "close-map-picker", TAP_GUARD_MS)) {
+      return;
+    }
     feedback.subtle();
     closeMapPicker();
   });
 
-  elements.mapPickerBackdrop.addEventListener("click", closeMapPicker);
+  elements.mapPickerBackdrop.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "close-map-picker-backdrop", TAP_GUARD_MS)) {
+      return;
+    }
+    closeMapPicker();
+  });
 
   window.addEventListener("resize", () => {
     if (!elements.mapPickerModal.classList.contains("active")) return;
     renderMapPickerPreviews();
   });
 
-  elements.leaveLobbyBtn.addEventListener("click", async () => {
+  elements.leaveLobbyBtn.addEventListener("click", async (event) => {
+    if (isTapGuardBlocked(event, "leave-lobby", START_BUTTON_TAP_GUARD_MS)) {
+      return;
+    }
     feedback.subtle();
     closeMapPicker();
     elements.leaveLobbyBtn.disabled = true;
