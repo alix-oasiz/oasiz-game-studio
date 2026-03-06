@@ -7,13 +7,15 @@
   <title>Astro Party</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Kodchasan:wght@300;400;500&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Kodchasan:wght@300;400;500&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
+
+    html { font-size: clamp(13px, 1.8vw, 16px); }
 
     html, body {
       width: 100%;
@@ -203,12 +205,10 @@
       --box-height: 100vh;
       --vv-offset-x: 0px;
       --vv-offset-y: 0px;
-      --hud-side-gap: 20px;
+      --hud-side-gap: 40px;
       --hud-bottom-gap: 0px;
-      --hud-top-pad: 6px;
-      --back-btn-shift-x: 14px;
-      --leave-btn-size: 44px;
-      --mobile-landscape-left-offset: 0px;
+      --hud-top-pad: 60px;
+      --leave-btn-size: 42px;
     }
 
     #game-wrapper {
@@ -354,7 +354,6 @@
     /* Shared sizing contract for grouped action buttons */
     .start-actions .btn,
     .join-section .btn-group .btn,
-    .lobby-bottombar .btn,
     .end-actions .btn,
     .settings-actions .btn,
     #leaveModal .leave-actions .btn {
@@ -1299,7 +1298,7 @@
     .leave-btn {
       position: absolute;
       top: var(--hud-top-pad);
-      left: calc(var(--hud-side-gap) + var(--back-btn-shift-x) + var(--mobile-landscape-left-offset));
+      left: calc(var(--hud-side-gap) - var(--box-left));
       width: var(--leave-btn-size);
       height: var(--leave-btn-size);
       border-radius: 12px;
@@ -1315,8 +1314,8 @@
     }
 
     .leave-btn svg {
-      width: 22px;
-      height: 22px;
+      width: 20px;
+      height: 20px;
       fill: currentColor;
     }
 
@@ -1327,8 +1326,8 @@
 
     .end-match-btn {
       position: absolute;
-      top: calc(var(--box-top) + var(--hud-top-pad));
-      right: calc(100% - var(--box-right) + var(--hud-side-gap) + 52px);
+      top: var(--hud-top-pad);
+      right: calc(var(--hud-side-gap) + 52px);
       z-index: 60;
       min-height: 36px;
       min-width: 102px;
@@ -1358,10 +1357,10 @@
     .settings-btn {
       position: absolute;
       top: calc(var(--box-top) + var(--hud-top-pad));
-      right: calc(100% - var(--box-right) + var(--hud-side-gap));
+      right: var(--hud-side-gap);
       z-index: 60;
-      width: 44px;
-      height: 44px;
+      width: 42px;
+      height: 42px;
       background: rgba(10, 10, 18, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 50%;
@@ -2165,381 +2164,6 @@
       color: var(--yellow);
     }
 
-    /* ============= LOBBY LAYOUT ============= */
-    .lobby-shell {
-      padding: 12px 16px;
-    }
-
-    .lobby-shell .screen-body {
-      align-items: stretch;
-      justify-content: stretch;
-    }
-
-    .lobby-topbar {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .back-btn {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: #fff;
-      margin-left: calc(var(--back-btn-shift-x) + var(--mobile-landscape-left-offset));
-    }
-
-    .back-btn svg {
-      width: 22px;
-      height: 22px;
-      fill: #fff;
-    }
-
-    .lobby-title {
-      font-family: 'Orbitron', sans-serif;
-      font-size: clamp(1.1rem, 2.6vw, 1.6rem);
-      letter-spacing: 0.18em;
-      color: var(--cyan);
-      text-align: left;
-    }
-
-    .lobby-room {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      justify-self: end;
-      background: rgba(0, 0, 0, 0.35);
-      padding: 6px 10px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .lobby-room-label {
-      font-size: 0.7rem;
-      letter-spacing: 0.2em;
-      color: rgba(255, 255, 255, 0.6);
-    }
-
-    .lobby-body {
-      display: grid;
-      grid-template-columns: minmax(260px, 1.1fr) minmax(240px, 0.9fr);
-      gap: 16px;
-      align-items: stretch;
-      min-height: 0;
-      width: 100%;
-      height: auto;
-      overflow: hidden;
-    }
-
-    .lobby-players {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      background: var(--bg-panel);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 12px;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .player-row {
-      display: grid;
-      grid-template-columns: 26px minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 0.9rem;
-      color: #fff;
-      min-height: 44px;
-    }
-
-    .player-row.empty {
-      opacity: 0.45;
-      background: rgba(255, 255, 255, 0.02);
-      border-style: dashed;
-    }
-
-    .player-row .player-name {
-      text-align: left;
-      white-space: normal;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      line-height: 1.2;
-    }
-
-    .player-self {
-      opacity: 0.6;
-      font-size: 0.85em;
-    }
-
-    .player-ship {
-      width: 22px;
-      height: 22px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .player-ship svg {
-      width: 20px;
-      height: 20px;
-    }
-
-    .player-badges {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      justify-content: flex-end;
-    }
-
-    .player-type {
-      width: 26px;
-      height: 26px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: rgba(255, 255, 255, 0.7);
-      border-radius: 50%;
-    }
-
-    .player-type.ai {
-      color: var(--cyan);
-    }
-
-    .player-type.local {
-      color: var(--magenta);
-    }
-
-    .player-type.remote {
-      color: rgba(255, 255, 255, 0.65);
-    }
-
-    .player-type svg {
-      width: 18px;
-      height: 18px;
-      fill: currentColor;
-    }
-
-    .player-type.local svg {
-      width: 22px;
-      height: 22px;
-    }
-
-    .player-kick {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      border: 1px solid rgba(255, 100, 100, 0.6);
-      background: transparent;
-      color: #ff6666;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      cursor: pointer;
-      transition: background 0.2s ease, border-color 0.2s ease;
-    }
-
-    .player-kick:hover {
-      background: rgba(255, 100, 100, 0.15);
-      border-color: rgba(255, 100, 100, 0.9);
-    }
-
-    .player-kick svg {
-      width: 12px;
-      height: 12px;
-      stroke: currentColor;
-      stroke-width: 2.5;
-      fill: none;
-    }
-
-    .player-host {
-      width: 16px;
-      height: 16px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .player-host svg {
-      width: 14px;
-      height: 14px;
-      fill: #ffd700;
-    }
-
-    .player-loader {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      border-top-color: rgba(255, 255, 255, 0.7);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      justify-self: end;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .lobby-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      align-items: stretch;
-      justify-content: flex-start;
-      background: var(--bg-panel);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 12px;
-      flex-shrink: 0;
-    }
-
-    .lobby-actions .btn {
-      width: 100%;
-      margin: 0;
-    }
-
-    .lobby-actions .add-bot-section {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      margin: 0;
-    }
-
-    .lobby-actions .game-mode-section {
-      display: flex;
-      justify-content: flex-start;
-      margin: 0;
-    }
-
-    .lobby-actions.readonly {
-      opacity: 0.8;
-    }
-
-    .lobby-side {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .lobby-summary {
-      background: var(--bg-panel);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 1 1 auto;
-      min-height: 0;
-      align-items: stretch;
-      justify-content: flex-start;
-    }
-
-    .summary-title {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.75rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.6);
-    }
-
-    .minimap-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 10px;
-      background: rgba(0, 0, 0, 0.5);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      width: fit-content;
-      margin: 0 auto;
-      position: relative;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    #mapPreviewCanvas {
-      display: block;
-      width: 196px;
-      height: 147px;
-      background: transparent;
-      border-radius: 4px;
-      position: relative;
-    }
-
-    .summary-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      min-height: 0;
-      overflow-y: auto;
-      align-content: flex-start;
-    }
-
-    .summary-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      font-size: 0.65rem;
-      color: rgba(255, 255, 255, 0.85);
-    }
-
-    .summary-key {
-      color: rgba(255, 255, 255, 0.55);
-    }
-
-    .summary-value {
-      color: #fff;
-    }
-
-    .lobby-bottombar {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .lobby-status {
-      margin: 0;
-      font-size: 0.9rem;
-      color: #888;
-      text-align: center;
-      justify-self: center;
-      max-width: 100%;
-    }
-
-    html[data-layout="narrow"] .lobby-shell {
-      padding: 10px 12px;
-    }
-
-    html[data-layout="narrow"] .lobby-body {
-      grid-template-columns: 1fr;
-    }
-
-    html[data-layout="narrow"] .lobby-actions {
-      flex-direction: column;
-    }
 
     .end-actions {
       width: 100%;
@@ -2790,13 +2414,8 @@
     /* ============= MOBILE OVERRIDES ============= */
     @media (pointer: coarse) {
       :root {
-        --leave-btn-size: 48px;
-      }
-
-      .settings-btn {
-        width: 48px;
-        height: 48px;
-        padding: 8px;
+        --hud-side-gap: 40px;
+        --hud-top-pad: 60px;
       }
 
       .start-shell {
@@ -2870,39 +2489,6 @@
         font-size: 0.85rem;
       }
 
-      .lobby-shell {
-        padding: 8px 10px;
-        gap: 10px;
-      }
-
-      .lobby-body {
-        gap: 10px;
-      }
-
-      .lobby-players,
-      .lobby-actions,
-      .lobby-summary {
-        padding: 10px;
-        border-radius: 14px;
-      }
-
-      .lobby-summary {
-        min-height: 80px;
-      }
-
-      .lobby-side {
-        justify-content: flex-start;
-        gap: 6px;
-      }
-
-      .lobby-actions {
-        padding: 8px;
-        gap: 6px;
-      }
-
-      .lobby-actions .add-bot-section {
-        gap: 6px;
-      }
 
       .mode-inline-controls {
         gap: 6px;
@@ -2931,53 +2517,6 @@
         font-size: 0.54rem;
       }
 
-      .lobby-summary {
-        flex-direction: column;
-        align-items: stretch;
-        justify-content: flex-start;
-        padding: 6px 10px;
-        gap: 10px;
-        flex: 0 0 auto;
-        min-height: auto;
-      }
-
-      .summary-title {
-        font-size: 0.7rem;
-      }
-
-      .map-summary-content {
-        grid-template-columns: 90px minmax(0, 1fr);
-        gap: 8px;
-      }
-
-      .minimap-container {
-        padding: 4px;
-        margin: 0;
-        flex: 0 0 auto;
-      }
-
-      #mapPreviewCanvas {
-        width: 72px;
-        height: 54px;
-      }
-
-      .map-current-name {
-        font-size: 0.78rem;
-      }
-
-      .map-current-desc {
-        font-size: 0.62rem;
-      }
-
-      .map-current-behavior {
-        font-size: 0.56rem;
-      }
-
-      .map-change-btn {
-        padding: 0.45rem 0.58rem;
-        font-size: 0.62rem;
-        min-height: 44px;
-      }
 
       .map-picker-modal {
         width: min(420px, calc(min(var(--box-width), var(--box-height)) - 18px));
@@ -3011,18 +2550,6 @@
         height: 68px;
       }
 
-      .lobby-bottombar {
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: end;
-        gap: 10px;
-      }
-
-      .lobby-status {
-        font-size: 0.8rem;
-        text-align: left;
-        justify-self: start;
-      }
-
       #startGameBtn {
         margin: 0;
         padding: 0.55rem 0.85rem;
@@ -3031,7 +2558,6 @@
 
       .start-actions .btn,
       .join-section .btn-group .btn,
-      .lobby-bottombar .btn,
       .end-actions .btn,
       .settings-actions .btn,
       #leaveModal .leave-actions .btn {
@@ -3116,207 +2642,12 @@
       }
 
       :root {
-        --hud-side-gap: 24px;
-        --hud-top-pad: 12px;
-        --back-btn-shift-x: 16px;
-      }
-    }
-
-    @media (pointer: coarse) and (max-height: 460px) {
-      .lobby-title {
-        font-size: clamp(0.9rem, 2.3vw, 1.15rem);
-      }
-
-      .lobby-room {
-        padding: 4px 8px;
-      }
-
-      .room-code {
-        font-size: clamp(0.95rem, 2.3vw, 1.2rem);
-      }
-
-      .back-btn {
-        width: 38px;
-        height: 38px;
-      }
-
-      .back-btn svg {
-        width: 18px;
-        height: 18px;
-      }
-
-      .lobby-actions {
-        gap: 8px;
-      }
-
-      .lobby-summary {
-        min-height: 64px;
-      }
-
-      #mapPreviewCanvas {
-        width: 70px;
-        height: 52px;
-      }
-    }
-
-    @media (pointer: coarse) and (min-width: 480px) {
-      .lobby-summary {
-        padding: 8px 12px;
-        gap: 12px;
-      }
-
-      .map-summary-content {
-        grid-template-columns: 110px minmax(0, 1fr);
-      }
-
-      #mapPreviewCanvas {
-        width: 92px;
-        height: 68px;
-      }
-    }
-
-    @media (pointer: coarse) and (min-width: 600px) {
-      .map-summary-content {
-        grid-template-columns: 128px minmax(0, 1fr);
-      }
-
-      #mapPreviewCanvas {
-        width: 108px;
-        height: 80px;
-      }
-    }
-
-    @media (pointer: coarse) and (orientation: portrait) {
-      :root {
-        --back-btn-shift-x: 20px;
-      }
-
-      html[data-layout="narrow"] .lobby-body {
-        grid-template-columns: minmax(168px, 1fr) minmax(154px, 0.95fr);
-      }
-
-      .lobby-shell {
-        padding: 8px 56px 8px 10px;
-        gap: 8px;
-      }
-
-      .lobby-topbar {
-        gap: 8px;
-      }
-
-      .lobby-room {
-        gap: 6px;
-        padding: 4px 7px;
-      }
-
-      .lobby-body {
-        grid-template-columns: minmax(168px, 1fr) minmax(154px, 0.95fr);
-        gap: 8px;
-      }
-
-      .lobby-side {
-        min-height: 0;
-        overflow-y: auto;
-        padding-right: 2px;
-      }
-
-      .lobby-summary {
-        min-height: 0;
-      }
-
-      .player-row {
-        min-height: 40px;
-        padding: 8px 9px;
-        font-size: 0.84rem;
-      }
-
-      .player-kick {
-        width: 28px;
-        height: 28px;
-      }
-
-      .player-kick svg {
-        width: 13px;
-        height: 13px;
-      }
-
-      .lobby-bottombar {
-        gap: 8px;
-        padding-right: 2px;
-        padding-top: 4px;
-      }
-
-      #startGameBtn {
-        min-width: 138px;
-      }
-
-      .map-picker-modal {
-        width: min(392px, calc(min(var(--box-width), var(--box-height)) - 12px));
-        max-width: calc(min(var(--box-width), var(--box-height)) - 12px);
-        top: calc(var(--box-top) + 6px);
-        max-height: calc(var(--box-height) - 12px);
-        padding: 0.72rem;
-      }
-
-      .map-picker-grid {
-        gap: 6px;
-        max-height: calc(var(--box-height) - 96px);
-      }
-
-      .map-picker-card {
-        grid-template-columns: 84px minmax(0, 1fr);
-        gap: 6px;
-        padding: 6px;
-        min-height: 78px;
-      }
-
-      .map-picker-canvas {
-        width: 84px;
-        height: 60px;
-      }
-
-      .map-picker-name {
-        font-size: 0.66rem;
-      }
-
-      .map-picker-desc {
-        font-size: 0.6rem;
-        line-height: 1.2;
-      }
-
-      .map-picker-badge {
-        font-size: 0.52rem;
+        --hud-side-gap: 40px;
+        --hud-top-pad: 60px;
       }
     }
 
     @media (pointer: coarse) and (orientation: portrait) and (max-width: 460px) {
-      .lobby-shell {
-        padding: 6px 56px 8px 8px;
-        gap: 6px;
-      }
-
-      .lobby-topbar {
-        gap: 6px;
-      }
-
-      .lobby-room-label {
-        font-size: 0.62rem;
-      }
-
-      .room-code {
-        font-size: 0.88rem;
-      }
-
-      .lobby-body {
-        gap: 6px;
-      }
-
-      .lobby-players,
-      .lobby-actions,
-      .lobby-summary {
-        padding: 8px;
-      }
-
       .mode-inline-controls {
         gap: 4px;
       }
@@ -3340,54 +2671,11 @@
         padding: 0.18rem 0.44rem;
         font-size: 0.52rem;
       }
-
-      .map-summary-content {
-        grid-template-columns: 78px minmax(0, 1fr);
-        gap: 6px;
-      }
-
-      #mapPreviewCanvas {
-        width: 66px;
-        height: 50px;
-      }
-
-      .map-current-name {
-        font-size: 0.72rem;
-        min-height: 0;
-        -webkit-line-clamp: 1;
-      }
-
-      .map-current-desc {
-        font-size: 0.56rem;
-        min-height: 0;
-        -webkit-line-clamp: 1;
-      }
-
-      .map-current-behavior {
-        font-size: 0.52rem;
-      }
-
-      .lobby-status {
-        font-size: 0.74rem;
-        line-height: 1.2;
-      }
-
-      #startGameBtn {
-        min-width: 128px;
-        font-size: 0.68rem;
-        padding: 0.5rem 0.72rem;
-      }
     }
 
     @media (max-height: 760px) {
       .game-title-wrap {
         max-height: min(50vh, 500px);
-      }
-    }
-
-    @media (pointer: coarse) and (orientation: landscape) {
-      :root {
-        --mobile-landscape-left-offset: var(--leave-btn-size);
       }
     }
 
@@ -3563,7 +2851,7 @@
       position: fixed;
       /* Matches .leave-btn position: box offset + hud padding/gap */
       top: calc(var(--box-top) + var(--hud-top-pad));
-      left: calc(var(--box-left) + var(--hud-side-gap) + var(--back-btn-shift-x) + var(--mobile-landscape-left-offset));
+      left: var(--hud-side-gap);
       width: var(--leave-btn-size);
       height: var(--leave-btn-size);
       z-index: 600;
@@ -3742,6 +3030,765 @@
         min-height: 2.4em;
       }
     }
+
+    /* ============= NEW LOBBY REDESIGN — scoped under #lobbyScreen ============= */
+    #lobbyScreen {
+      --bg: #060b16;
+      --panel: #0a1020;
+      --panel2: #0e1628;
+      --border: rgba(255,255,255,0.06);
+      --border2: rgba(255,255,255,0.11);
+      --text: #ccd6f0;
+      --dim: rgba(160,180,220,0.58);
+      --gold: #d97706;
+      --gold-lt: #f5a623;
+      --gold-dk: #92520a;
+      --fs-nano: 0.5rem;
+      --fs-micro: 0.5625rem;
+      --fs-badge: 0.8125rem;
+      --fs-btn: 0.75rem;
+      --fs-body: 0.875rem;
+      --fs-title: 1.125rem;
+      --topbar-h: 3.625rem;
+      --strip-h: 8.125rem;
+      --side-pad: clamp(40px, 8vw, 100px);
+    }
+
+    #lobbyScreen.overlay {
+      background: #060b16;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+    }
+
+    #lobbyScreen::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.032) 1px, transparent 1px);
+      background-size: 26px 26px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #lobbyScreen .lb-root {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      color: var(--text);
+      font-family: 'Exo 2', sans-serif;
+    }
+
+    /* TOPBAR */
+    #lobbyScreen .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: max(1.75rem, env(safe-area-inset-left, 0px));
+      padding-right: max(1.75rem, env(safe-area-inset-right, 0px));
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(6,11,22,0.88);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+
+    #lobbyScreen .topbar-rail {
+      height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+      flex-shrink: 0;
+    }
+
+    #lobbyScreen .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+    }
+    #lobbyScreen .logo-mark {
+      width: 1.75rem; height: 1.75rem;
+      border: 0.125rem solid var(--gold);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    #lobbyScreen .logo-mark svg { width: 0.875rem; height: 0.875rem; }
+    #lobbyScreen .logo-text {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-btn);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      color: var(--text);
+    }
+    #lobbyScreen .logo-sub {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+
+    #lobbyScreen .topbar-divider { width: 1px; height: 1.5rem; background: var(--border2); }
+    #lobbyScreen .topbar-spacer { flex: 1; }
+
+    #lobbyScreen .room-tag {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Space Mono', monospace;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(217,119,6,0.28);
+      border-radius: 0.3125rem;
+      padding: 0.375rem 0.75rem;
+    }
+    #lobbyScreen .room-tag-dot {
+      width: 0.375rem; height: 0.375rem;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 0.5rem var(--gold);
+      animation: lb-blink 2.2s ease-in-out infinite;
+    }
+    #lobbyScreen .room-tag-label { font-size: var(--fs-micro); letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+    #lobbyScreen .room-tag-copy {
+      background: transparent; border: none; cursor: pointer;
+      color: var(--dim); display: flex; align-items: center;
+      padding: 1px; border-radius: 0.1875rem; transition: color 0.12s;
+    }
+    #lobbyScreen .room-tag-copy:hover { color: var(--gold-lt); }
+    #lobbyScreen .room-tag-copy svg { width: 0.75rem; height: 0.75rem; }
+
+    #lobbyScreen .leave-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(248,113,113,0.7);
+      background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(248,113,113,0.18);
+      border-radius: 0.3125rem;
+      padding: 0.4375rem 0.875rem;
+      cursor: pointer;
+      transition: all 0.13s;
+    }
+    #lobbyScreen .leave-btn:hover { color: #f87171; background: rgba(220,38,38,0.14); border-color: rgba(248,113,113,0.36); }
+
+    /* BODY */
+    #lobbyScreen .body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      padding-bottom: calc(var(--strip-h) + env(safe-area-inset-bottom, 0px));
+    }
+
+    #lobbyScreen .body::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: calc(var(--side-pad) + 20px);
+      background: linear-gradient(to right,
+        #060b16 0px,
+        #060b16 calc(var(--side-pad) * 0.5),
+        rgba(6,11,22,0.72) calc(var(--side-pad) * 0.72),
+        rgba(6,11,22,0.30) var(--side-pad),
+        transparent calc(var(--side-pad) + 20px)
+      );
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    #lobbyScreen .body::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: calc(var(--side-pad) + 20px);
+      background: linear-gradient(to left,
+        #060b16 0px,
+        #060b16 calc(var(--side-pad) * 0.5),
+        rgba(6,11,22,0.72) calc(var(--side-pad) * 0.72),
+        rgba(6,11,22,0.30) var(--side-pad),
+        transparent calc(var(--side-pad) + 20px)
+      );
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    #lobbyScreen .body-fade-bottom {
+      position: absolute;
+      bottom: calc(var(--strip-h) + env(safe-area-inset-bottom, 0px));
+      left: 0; right: 0;
+      height: 5.625rem;
+      background: linear-gradient(to bottom, transparent 0%, #060b16 100%);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* CARD TRAY */
+    #lobbyScreen .card-tray {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
+      padding: 0 var(--side-pad);
+    }
+
+    /* PLAYER CARDS */
+    #lobbyScreen .pcard {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    #lobbyScreen .pcard:first-child {
+      overflow: visible;
+      clip-path: inset(0 0 0 -300px);
+    }
+
+    #lobbyScreen .pcard:last-child {
+      overflow: visible;
+      clip-path: inset(0 -300px 0 0);
+    }
+
+    #lobbyScreen .pcard + .pcard::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(255,255,255,0.07) 15%,
+        rgba(255,255,255,0.07) 80%,
+        transparent 100%
+      );
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    #lobbyScreen .pcard--filled {
+      background: linear-gradient(to bottom, transparent 0%, #060b16 60%);
+    }
+    #lobbyScreen .pcard--filled:hover .card-glow {
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.60) 0%, rgba(var(--pc-rgb), 0.18) 45%, transparent 70%);
+    }
+    #lobbyScreen .pcard--filled:hover .viewport-ring {
+      border-color: rgba(var(--pc-rgb), 0.75);
+    }
+    #lobbyScreen .pcard--filled:hover .card-viewport {
+      transform: scale(1.08);
+    }
+    #lobbyScreen .pcard--filled:hover .card-info {
+      transform: translateY(-0.25rem);
+    }
+
+    #lobbyScreen .pcard--empty {
+      background: #060b16;
+    }
+
+    #lobbyScreen .card-glow {
+      position: absolute;
+      top: -2.5rem; left: -35%; right: -35%;
+      height: 85%;
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.45) 0%, rgba(var(--pc-rgb), 0.12) 45%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      transition: background 0.25s ease;
+    }
+
+    #lobbyScreen .card-slot {
+      position: absolute;
+      top: 0.5625rem; right: 0.875rem;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-badge);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: rgba(217,119,6,0.6);
+      z-index: 6;
+    }
+
+    #lobbyScreen .card-type {
+      position: absolute;
+      top: 0.5625rem; left: 0.875rem;
+      z-index: 6;
+    }
+    #lobbyScreen .type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.1875rem;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-badge);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.5625rem;
+      border-radius: 0.1875rem;
+    }
+    #lobbyScreen .type-badge svg { width: 0.5625rem; height: 0.5625rem; }
+    #lobbyScreen .tb--ai { background: rgba(139,92,246,0.14); border: 1px solid rgba(139,92,246,0.28); color: #a78bfa; }
+    #lobbyScreen .tb--local { background: rgba(251,191,36,0.14); border: 1px solid rgba(251,191,36,0.28); color: #fcd34d; }
+    #lobbyScreen .tb--online { background: rgba(52,211,153,0.13); border: 1px solid rgba(52,211,153,0.26); color: #6ee7b7; }
+
+    #lobbyScreen .card-scene {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      container-type: size;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    #lobbyScreen .card-viewport {
+      position: relative;
+      width: min(13.125rem, 85cqw, 85cqh);
+      aspect-ratio: 1;
+      flex-shrink: 0;
+      z-index: 1;
+      transition: transform 0.35s ease;
+    }
+    #lobbyScreen .viewport-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid rgba(var(--pc-rgb), 0.45);
+      animation: lb-ring-pulse 3.8s ease-in-out infinite;
+      transition: border-color 0.25s ease;
+    }
+    @keyframes lb-ring-pulse {
+      0%,100% { box-shadow: 0 0 0.875rem rgba(var(--pc-rgb),0.18), inset 0 0 1.375rem rgba(var(--pc-rgb),0.04); }
+      50%      { box-shadow: 0 0 1.875rem rgba(var(--pc-rgb),0.34), inset 0 0 2.25rem rgba(var(--pc-rgb),0.09); }
+    }
+    #lobbyScreen .viewport-inner {
+      position: absolute;
+      inset: 0.375rem;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, rgba(255,255,255,0.04) 0%, #050b15 60%);
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #lobbyScreen .card-ship-svg {
+      width: 48%; height: auto;
+      filter: drop-shadow(0 0 0.75rem var(--pc));
+      animation: lb-float 4.5s ease-in-out infinite;
+    }
+    @keyframes lb-float {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-0.4375rem); }
+    }
+    @keyframes lb-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    #lobbyScreen .card-info {
+      position: relative;
+      z-index: 6;
+      padding: 1.125rem 1.5rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.25s ease;
+      gap: 0;
+      flex-shrink: 0;
+      width: 100%;
+    }
+    #lobbyScreen .card-name {
+      font-size: var(--fs-title);
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+    #lobbyScreen .card-role {
+      font-size: var(--fs-body);
+      color: rgba(160,180,220,0.72);
+      margin-top: 0.25rem;
+      letter-spacing: 0.03em;
+    }
+    #lobbyScreen .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1rem;
+      gap: 0.5rem;
+    }
+    #lobbyScreen .host-pip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.1875rem;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-badge);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: rgba(217,119,6,0.1);
+      border: 1px solid rgba(217,119,6,0.26);
+      padding: 0.25rem 0.5625rem;
+      border-radius: 0.1875rem;
+    }
+    #lobbyScreen .host-pip svg { width: 0.5625rem; height: 0.5625rem; }
+    #lobbyScreen .card-act {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgba(248,113,113,0.72);
+      background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(248,113,113,0.18);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.8125rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    #lobbyScreen .card-act:hover { color: #f87171; background: rgba(220,38,38,0.13); border-color: rgba(248,113,113,0.35); }
+
+    /* EMPTY CARD */
+    #lobbyScreen .empty-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    #lobbyScreen .empty-icon { color: rgba(255,255,255,0.06); }
+    #lobbyScreen .empty-icon svg { width: 2.75rem; height: 2.75rem; }
+    #lobbyScreen .empty-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(160,180,220,0.45);
+    }
+    #lobbyScreen .empty-btns { display: flex; gap: 0.375rem; margin-top: 0.25rem; }
+    #lobbyScreen .empty-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(160,180,220,0.45);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.75rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    #lobbyScreen .empty-btn:hover { color: var(--gold-lt); border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.05); }
+    #lobbyScreen .empty-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* CTRL STRIP */
+    #lobbyScreen .ctrl-strip {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: calc(var(--strip-h) + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      display: flex;
+      align-items: stretch;
+      background: linear-gradient(to bottom, rgba(6,11,22,0.82) 0%, rgba(6,11,22,0.96) 40%, rgba(6,11,22,0.99) 100%);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      z-index: 8;
+      pointer-events: none;
+    }
+    #lobbyScreen .cs-map,
+    #lobbyScreen .cs-mode,
+    #lobbyScreen .cs-launch { pointer-events: auto; }
+
+    #lobbyScreen .cs-map {
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      padding: 1.75rem 1.25rem 1.25rem 1.75rem;
+      flex: 2 1 0;
+      max-width: 26.25rem;
+      min-width: 14rem;
+    }
+    #lobbyScreen .map-thumb-wrap {
+      border-radius: 0.4375rem;
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      flex-shrink: 0;
+    }
+    #lobbyScreen .map-thumb { display: block; width: 6.875rem; height: 4.625rem; }
+    #lobbyScreen .map-meta { display: flex; flex-direction: column; gap: 0; min-width: 0; flex: 1; }
+    #lobbyScreen .map-meta-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.1875rem;
+    }
+    #lobbyScreen .map-section-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(217,119,6,0.7);
+    }
+    #lobbyScreen .map-title {
+      font-family: 'Exo 2', sans-serif;
+      font-size: var(--fs-body);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #lobbyScreen .map-desc {
+      font-size: var(--fs-body);
+      color: var(--dim);
+      margin-top: 0.125rem;
+    }
+    #lobbyScreen .map-change {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gold-lt);
+      background: rgba(217,119,6,0.08);
+      border: 1px solid rgba(217,119,6,0.24);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.8125rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.13s;
+    }
+    #lobbyScreen .map-change:hover { background: rgba(217,119,6,0.15); border-color: rgba(217,119,6,0.42); }
+    #lobbyScreen .map-change.host-locked { opacity: 0.5; cursor: not-allowed; }
+
+    #lobbyScreen .cs-div { width: 1px; background: var(--border2); margin: 0.875rem 0; }
+
+    #lobbyScreen .cs-mode {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1.5rem 1.25rem 1.25rem;
+      flex: 1 1 0;
+      max-width: 10.5rem;
+      min-width: 8rem;
+    }
+    #lobbyScreen .cs-mode-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.25rem;
+    }
+    #lobbyScreen .cs-mode-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(217,119,6,0.7);
+    }
+    #lobbyScreen .cs-adv-btn {
+      width: 1.5rem; height: 1.5rem;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: 0.25rem;
+      cursor: pointer;
+      color: var(--dim);
+      padding: 0;
+      transition: all 0.13s;
+      flex-shrink: 0;
+    }
+    #lobbyScreen .cs-adv-btn:hover { color: var(--gold-lt); border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.06); }
+    #lobbyScreen .cs-adv-btn svg { width: 0.875rem; height: 0.875rem; }
+    #lobbyScreen .cs-adv-btn.host-locked { opacity: 0.5; cursor: not-allowed; }
+    #lobbyScreen .cs-ruleset-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.375rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-body);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border2);
+      border-radius: 0.25rem;
+      padding: 0.4375rem 0.625rem;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.13s;
+    }
+    #lobbyScreen .cs-ruleset-pill svg { width: 0.625rem; height: 0.625rem; flex-shrink: 0; stroke: var(--dim); }
+    #lobbyScreen .cs-ruleset-pill:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.07); }
+    #lobbyScreen .cs-ruleset-pill.host-locked { opacity: 0.5; cursor: not-allowed; }
+    #lobbyScreen .map-change-icon {
+      width: 1.5rem; height: 1.5rem;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+      border: 1px solid rgba(217,119,6,0.28);
+      border-radius: 0.25rem;
+      cursor: pointer;
+      color: var(--gold-lt);
+      padding: 0;
+      transition: all 0.13s;
+      flex-shrink: 0;
+    }
+    #lobbyScreen .map-change-icon:hover { background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.5); }
+    #lobbyScreen .map-change-icon svg { width: 0.75rem; height: 0.75rem; }
+    #lobbyScreen .map-change-icon.host-locked { opacity: 0.5; cursor: not-allowed; }
+
+    #lobbyScreen .cs-launch {
+      flex: 1.5 1 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1.75rem 1.75rem 1.25rem 1.5rem;
+    }
+    #lobbyScreen .launch-status {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    #lobbyScreen .lstatus-dot {
+      width: 0.375rem; height: 0.375rem;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0.5rem #10b981;
+      animation: lb-blink 2.4s ease-in-out infinite;
+    }
+    #lobbyScreen .lstatus-dot.warn { background: var(--gold); box-shadow: 0 0 0.5rem var(--gold); }
+    #lobbyScreen .lstatus-text { font-family: 'Space Mono', monospace; font-size: var(--fs-body); letter-spacing: 0.07em; color: var(--dim); }
+    #lobbyScreen .launch-btn {
+      height: 3.25rem;
+      width: min(100%, 14.375rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.625rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-btn);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #000;
+      background: linear-gradient(135deg, var(--gold-lt), var(--gold));
+      border: none;
+      border-radius: 0.4375rem;
+      cursor: pointer;
+      box-shadow: 0 0 1.75rem rgba(217,119,6,0.26), 0 0.25rem 0.625rem rgba(0,0,0,0.5);
+      transition: all 0.17s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    #lobbyScreen .launch-btn::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -110%;
+      width: 75%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transition: left 0.42s ease;
+    }
+    #lobbyScreen .launch-btn:hover { background: linear-gradient(135deg, #fbbf24, var(--gold-lt)); box-shadow: 0 0 2.75rem rgba(217,119,6,0.42), 0 0.375rem 1.125rem rgba(0,0,0,0.55); transform: translateY(-0.0625rem); }
+    #lobbyScreen .launch-btn:hover::after { left: 130%; }
+    #lobbyScreen .launch-btn:active { transform: translateY(0); }
+    #lobbyScreen .launch-btn:disabled { background: rgba(217,119,6,0.18); color: rgba(0,0,0,0.3); cursor: not-allowed; box-shadow: none; transform: none; }
+    #lobbyScreen .launch-btn.host-locked { opacity: 0.5; cursor: not-allowed; }
+    #lobbyScreen .launch-btn svg { width: 1rem; height: 1rem; }
+
+    /* MAP PICKER MODAL — inside #lobbyScreen */
+    #lobbyScreen .modal-bg {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(4,8,18,0.82);
+      backdrop-filter: blur(6px);
+      z-index: 200;
+    }
+    #lobbyScreen .modal-bg.active { display: block; }
+    #lobbyScreen .map-modal {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(47.5rem, calc(100vw - 3rem));
+      background: #0b1020;
+      border: 1px solid var(--border2);
+      border-radius: 0.875rem;
+      padding: 1.5rem;
+      z-index: 201;
+      box-shadow: 0 1.75rem 4.375rem rgba(0,0,0,0.88);
+    }
+    #lobbyScreen .map-modal.active { display: block; }
+    #lobbyScreen .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+    #lobbyScreen .modal-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-badge); font-weight: 700; letter-spacing: 0.1em; color: var(--text);
+    }
+    #lobbyScreen .modal-close {
+      width: 1.875rem; height: 1.875rem; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 0.3125rem;
+      cursor: pointer; color: var(--dim); transition: all 0.12s;
+    }
+    #lobbyScreen .modal-close:hover { color: var(--text); background: rgba(255,255,255,0.09); }
+    #lobbyScreen .modal-close svg { width: 0.875rem; height: 0.875rem; }
+    #lobbyScreen .modal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+
+    /* MAP PICKER CARDS — restyle existing .map-picker-card classes under #lobbyScreen */
+    #lobbyScreen .map-picker-card {
+      border-radius: 0.5rem;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      background: #060b16;
+      transition: all 0.14s;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+    #lobbyScreen .map-picker-card:hover { border-color: rgba(217,119,6,0.3); }
+    #lobbyScreen .map-picker-card.active { border-color: var(--gold); box-shadow: 0 0 1.125rem rgba(217,119,6,0.18); }
+    #lobbyScreen .map-picker-card:disabled { opacity: 0.65; cursor: default; }
+    #lobbyScreen .map-picker-card.host-locked { opacity: 0.5; cursor: not-allowed; }
+    #lobbyScreen .map-picker-canvas { display: block; width: 100%; height: 6.25rem; }
+    #lobbyScreen .map-picker-meta { padding: 0.4375rem 0.625rem 0.5625rem; }
+    #lobbyScreen .map-picker-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-micro);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+    }
+    #lobbyScreen .map-picker-desc { font-size: var(--fs-nano); color: var(--dim); margin-top: 0.125rem; }
+    #lobbyScreen .map-picker-badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 2px 6px;
+      margin-top: 0.25rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-nano);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.78);
+    }
+    #lobbyScreen .map-picker-badge.rotation { border-color: rgba(217,119,6,0.45); color: var(--gold-lt); }
   </style>
 </head>
 <body>
@@ -3816,82 +3863,114 @@
 
   <!-- Lobby Screen -->
   <div id="lobbyScreen" class="overlay hidden">
-    <div class="ui-box">
-      <div class="screen-shell lobby-shell">
-        <div class="screen-header lobby-topbar">
-          <button class="back-btn" id="leaveLobbyBtn" aria-label="Back">
-            <svg viewBox="0 0 24 24"><path d="M15.5 5.5L9 12l6.5 6.5-1.5 1.5L6 12l8-8 1.5 1.5z"/></svg>
+    <div class="lb-root">
+
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="logo">
+          <div class="logo-mark">
+            <svg viewBox="0 0 24 24" fill="none">
+              <polygon points="12,3 20,12 12,21 4,12" fill="none" stroke="#d97706" stroke-width="1.8"/>
+              <circle cx="12" cy="12" r="3" fill="#d97706"/>
+            </svg>
+          </div>
+          <div>
+            <div class="logo-text">ASTRO PARTY</div>
+            <div class="logo-sub">Mission Lobby</div>
+          </div>
+        </div>
+        <div class="topbar-divider"></div>
+        <div class="topbar-spacer"></div>
+        <div class="room-tag" id="lobbyRoomTag">
+          <div class="room-tag-dot"></div>
+          <span class="room-tag-label">Room</span>
+          <span id="roomCodeDisplay"></span>
+          <button id="copyCodeBtn" class="room-tag-copy" title="Copy room code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
           </button>
-          <div class="lobby-title">LOBBY</div>
-          <div class="lobby-room">
-            <span class="lobby-room-label">ROOM</span>
-            <span class="room-code" id="roomCodeDisplay">----</span>
-            <button class="copy-btn" id="copyCodeBtn" aria-label="Copy room code">
-              <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        </div>
+        <button id="leaveLobbyBtn" class="leave-btn">Leave</button>
+      </div>
+      <div class="topbar-rail"></div>
+
+      <div class="body">
+        <div class="card-tray" id="playersList"></div>
+        <div class="body-fade-bottom"></div>
+      </div>
+    </div>
+
+    <!-- CTRL-STRIP -->
+    <div class="ctrl-strip">
+      <div class="cs-map" id="mapSelectorSection">
+        <div class="map-thumb-wrap">
+          <canvas class="map-thumb" id="mapPreviewCanvas" width="110" height="74"></canvas>
+        </div>
+        <div class="map-meta">
+          <div class="map-meta-head">
+            <div class="map-section-label">Arena</div>
+            <button class="map-change-icon" id="openMapPickerBtn" title="Change Arena">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
           </div>
-        </div>
-
-        <div class="screen-body lobby-body">
-          <div class="lobby-players" id="playersList"></div>
-          <div class="lobby-side">
-            <div class="lobby-actions">
-              <div id="addBotSection" class="add-bot-section hidden">
-                <button class="btn icon-btn compact" id="addAIBotBtn" title="Add AI Bot">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/></svg>
-                  <span class="btn-label">AI</span>
-                  <svg class="btn-plus-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9"></circle>
-                    <path d="M12 7v10M7 12h10"></path>
-                  </svg>
-                </button>
-                <button class="btn icon-btn secondary compact" id="addLocalPlayerBtn" title="Add Local Player (same keyboard)">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 10h-2V8h-2v2h-2v2h2v2h2v-2h2v-2zM4 10V8H2v2H0v2h2v2h2v-2h2v-2H4zm9-4h-2v2h2V6zm0 4h-2v2h2v-2zm0 4h-2v2h2v-2zm4-8h-2v2h2V6zm0 4h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>
-                  <span class="btn-label">Local</span>
-                  <svg class="btn-plus-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9"></circle>
-                    <path d="M12 7v10M7 12h10"></path>
-                  </svg>
-                </button>
-              </div>
-
-              <div id="gameModeSection" class="game-mode-section hidden">
-                <div class="mode-inline-controls">
-                  <button class="mode-pill mode-cycle-btn" id="modeCycleBtn" data-mode="STANDARD" aria-label="Cycle game mode">
-                    <span class="mode-cycle-value" id="modeCycleValue">STANDARD</span>
-                  </button>
-                  <button class="mode-pill mode-cycle-btn" id="rulesetCycleBtn" data-ruleset="ROUND_ELIMINATION" aria-label="Cycle match ruleset">
-                    <span class="mode-cycle-value" id="rulesetCycleValue">ROUND</span>
-                  </button>
-                  <button class="btn tertiary compact" id="advancedSettingsBtn" disabled>Advanced</button>
-                </div>
-              </div>
-            </div>
-
-            <div id="mapSelectorSection" class="lobby-summary hidden">
-              <div class="summary-title">Arena</div>
-              <div class="map-summary-content">
-                <div class="minimap-container">
-                  <canvas id="mapPreviewCanvas" width="280" height="210"></canvas>
-                </div>
-                <div class="map-summary-meta">
-                  <div id="mapCurrentName" class="map-current-name">Classic Rotation</div>
-                  <div id="mapCurrentDesc" class="map-current-desc">Random map each round</div>
-                  <div id="mapCurrentBehavior" class="map-current-behavior">Rotates each round</div>
-                  <button class="btn compact map-change-btn" id="openMapPickerBtn">Change Map</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="screen-footer lobby-bottombar">
-          <p class="lobby-status" id="lobbyStatus">
-            Waiting for players<span class="waiting-dots"><span class="waiting-dot"></span><span class="waiting-dot"></span><span class="waiting-dot"></span></span>
-          </p>
-          <button class="btn primary" id="startGameBtn" disabled>Start Game</button>
+          <div class="map-title" id="mapCurrentName">—</div>
+          <div class="map-desc" id="mapCurrentDesc"></div>
+          <span id="mapCurrentBehavior" style="display:none"></span>
         </div>
       </div>
+
+      <div class="cs-div"></div>
+
+      <div class="cs-mode" id="gameModeSection">
+        <div class="cs-mode-head">
+          <div class="cs-mode-label">Mode</div>
+          <button class="cs-adv-btn" id="advancedSettingsBtn" title="Advanced Settings">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          </button>
+        </div>
+        <button class="cs-ruleset-pill" id="rulesetCycleBtn">
+          <span id="rulesetCycleValue">—</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <!-- hidden compat: mode cycle still wired for advanced settings later -->
+        <div id="modeCycleValue" style="display:none">—</div>
+        <button id="modeCycleBtn" style="display:none"></button>
+      </div>
+
+      <div class="cs-div"></div>
+
+      <div class="cs-launch">
+        <div class="launch-status">
+          <div class="lstatus-dot" id="lobbyStatusDot"></div>
+          <div class="lstatus-text" id="lobbyStatus">—</div>
+        </div>
+        <button class="launch-btn" id="startGameBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          Launch Match
+        </button>
+      </div>
+    </div>
+
+    <!-- MAP PICKER MODAL -->
+    <div class="modal-bg" id="mapPickerBackdrop"></div>
+    <div class="map-modal" id="mapPickerModal">
+      <div class="modal-head">
+        <div class="modal-title">Select Arena</div>
+        <button class="modal-close" id="mapPickerClose">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-grid" id="mapPickerGrid"></div>
+    </div>
+
+    <!-- HIDDEN COMPATIBILITY ELEMENTS -->
+    <div id="addBotSection" style="display:none">
+      <button id="addAIBotBtn"></button>
+      <button id="addLocalPlayerBtn"></button>
     </div>
   </div>
 
@@ -3992,17 +4071,6 @@
     </div>
   </div>
 
-  <!-- Map Picker Modal -->
-  <div class="settings-backdrop" id="mapPickerBackdrop"></div>
-  <div class="settings-modal map-picker-modal" id="mapPickerModal">
-    <div class="map-picker-header">
-      <h3 class="settings-title">Select Arena</h3>
-      <button class="advanced-close-btn" id="mapPickerClose" aria-label="Close map picker">
-        <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>
-      </button>
-    </div>
-    <div class="map-picker-grid" id="mapPickerGrid"></div>
-  </div>
 
   <!-- Advanced Settings Modal -->
   <div class="settings-backdrop" id="advancedSettingsBackdrop"></div>

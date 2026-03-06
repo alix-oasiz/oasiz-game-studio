@@ -448,7 +448,7 @@ function injectStyles(): void {
   style.textContent = `
     .qa-debug-root {
       position: fixed;
-      left: calc(var(--box-left) + var(--hud-side-gap) + 52px + var(--back-btn-shift-x, 0px) + var(--mobile-landscape-left-offset, 0px));
+      left: calc(var(--box-left) + var(--hud-side-gap) + 52px);
       top: calc(var(--box-top) + var(--hud-top-pad));
       z-index: 250;
       pointer-events: none;
@@ -581,7 +581,7 @@ function injectStyles(): void {
 
     @media (pointer: coarse) {
       .qa-debug-root {
-        left: calc(var(--box-left) + var(--hud-side-gap) + 58px + var(--back-btn-shift-x, 0px) + var(--mobile-landscape-left-offset, 0px));
+        left: calc(var(--box-left) + var(--hud-side-gap) + 58px);
         top: calc(var(--box-top) + var(--hud-top-pad));
       }
 
@@ -607,7 +607,7 @@ function injectStyles(): void {
 
     @media (pointer: coarse) and (orientation: portrait) {
       .qa-debug-root {
-        left: calc(var(--box-left) + 8px + var(--back-btn-shift-x, 0px));
+        left: calc(var(--box-left) + 8px + var(--hud-side-gap));
         top: calc(var(--box-top) + 8px);
       }
 

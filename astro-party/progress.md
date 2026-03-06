@@ -31,6 +31,56 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-06 - Lobby full redesign (pcard layout + new CSS system)
+
+- Scope:
+  - Replaced the old two-column lobby layout (lobby-shell / lobby-body / lobby-side) with a new full-screen card-tray design.
+  - Introduced scoped CSS system under `#lobbyScreen` using CSS custom properties, rem-based sizing, and safe-area integration.
+- Key changes:
+  - `astro-party/.tools/docs/lobby-safe-area.md`:
+    - Created new reference doc for topbar/ctrl-strip safe-area integration and platform overlay budget.
+  - `astro-party/index.html`:
+    - Added `Space Mono` to Google Fonts import.
+    - Added `html { font-size: clamp(13px, 1.8vw, 16px); }` for fluid rem base.
+    - Removed entire old lobby CSS block (`.lobby-shell`, `.lobby-body`, `.player-row`, `.lobby-actions`, `.lobby-summary`, `.lobby-bottombar`, `.lobby-status`, related responsive overrides, and old map-summary CSS).
+    - Replaced old `#lobbyScreen` HTML (ui-box / screen-shell pattern) with new `.lb-root` layout: fixed `.topbar`, scrollable `.body` with `.card-tray`, fixed `.ctrl-strip`, and inline map-picker modal.
+    - Removed external `#mapPickerModal` / `#mapPickerBackdrop` (now inside `#lobbyScreen`).
+    - Added new lobby CSS scoped under `#lobbyScreen` with pcard system, ctrl-strip, topbar, modal, and map-picker card styles.
+  - `astro-party/src/ui/lobby.ts`:
+    - Added `hexToRgb()` and `shipSVG()` helpers.
+    - Added `SLOTS`, `BADGE_ICO`, `BADGE_CLS`, `BADGE_LBL`, `PLAYER_ROLE` constants.
+    - Rewrote `updateLobbyUI()` to generate `.pcard` HTML instead of `.player-row` HTML.
+    - Added `updateLaunchStatus()` helper for ctrl-strip status dot/text.
+    - Replaced per-render `attachKickHandlers()` / `attachRemoveBotHandlers()` with single event delegation listener on `#playersList`.
+    - Updated `updateRoomCodeVisibility()` to use `.room-tag` selector instead of `.lobby-room`.
+    - Removed `actionsBox.closest(".lobby-actions")` dead reference.
+    - Updated `updateMapSelector()` button text to "Change Arena".
+- Outcome:
+  - Lobby now uses full-viewport card-tray layout with per-player ship previews, animated glows, safe-area-aware topbar and ctrl-strip, and inline map-picker modal.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+
+## 2026-03-06 - Ctrl-strip mode section redesign
+
+- Scope:
+  - Removed Standard/Sane/Chaos mode cycle from the ctrl-strip; that will live in the Advanced Settings physics panel.
+  - Made the ruleset display (Round/Endless) a single clickable pill button that cycles on tap.
+  - Exposed Advanced Settings as a small gear icon next to the "Mode" label.
+  - Changed "Change Arena" text button to a compact pencil icon.
+- Key changes:
+  - `astro-party/index.html`:
+    - Mode section HTML: added `.cs-mode-head` row with label + `.cs-adv-btn` gear icon; replaced stacked mode/ruleset buttons with single `.cs-ruleset-pill`; hidden `#modeCycleBtn` / `#modeCycleValue` kept for compat.
+    - Map section HTML: replaced `.map-change` text button with `.map-change-icon` pencil SVG button.
+    - CSS: added `.cs-mode-head`, `.cs-adv-btn`, `.cs-ruleset-pill`, `.map-change-icon` styles under `#lobbyScreen` scope; removed old `.cs-mode-cycle` / `.cs-ruleset-cycle` styles.
+  - `astro-party/src/ui/lobby.ts`:
+    - Removed `elements.openMapPickerBtn.textContent = "Change Arena"` (icon button must not have its innerHTML stomped).
+- Outcome:
+  - Mode section is now 2-row compact: "Mode" label + gear icon on top row, ruleset pill below. Map section has a small edit icon instead of full-width text button.
+- Validation:
+  - `bun run typecheck` passed.
+  - `bun run build` passed.
+
 ## Milestone Journal
 
 ## 2026-03-04 - Server Docker hardening + pinned Node/npm deployment baseline
@@ -436,6 +486,148 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Outcome:
   - Platform detection now matches the requested minimal signal set.
   - Hidden room-code controls cannot trigger side effects in platform runtime.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - Coarse-pointer HUD top offset increase
+
+- Scope:
+  - Increased coarse-pointer HUD top offset variable to push top-corner HUD controls lower on touch devices.
+- Changes:
+  - `index.html`:
+    - `@media (pointer: coarse)` root variable `--hud-top-pad` changed from `12px` to `60px` (about +48px).
+- Outcome:
+  - Top-anchored HUD controls using `--hud-top-pad` now render lower on coarse-pointer layouts.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - Back/settings alignment and HUD padding normalization
+
+- Scope:
+  - Removed back-button special offset handling and aligned lobby/in-game back positioning with the same side-gap token used by settings.
+  - Normalized top/side HUD padding and settings/back sizing as requested.
+- Changes:
+  - `index.html`:
+    - set `--hud-top-pad` to `55px` and `--hud-side-gap` to `0px` (base + coarse).
+    - normalized control sizes to `45x45` for settings and back controls (`.settings-btn`, `.back-btn`, `--leave-btn-size`).
+    - removed `--back-btn-shift-x` / `--mobile-landscape-left-offset` usage from:
+      - `.leave-btn` positioning
+      - `.back-btn` margin-left
+      - `.demo-exit-btn` positioning
+    - removed coarse-landscape mobile-left-offset variable override block.
+  - `src/debug/debugPanel.ts`:
+    - removed back-shift/mobile-offset variable references from debug root positioning formulas.
+- Outcome:
+  - Side insets for lobby/in-game back controls now use the same side-gap model as settings.
+  - HUD top and side padding now follow the requested temporary values (`55px` top, `0px` sides).
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - Leave/back offset regression fix (double-offset + lobby shell inset)
+
+- Scope:
+  - Fixed remaining side-offset mismatch for in-game leave and lobby back controls after HUD padding normalization.
+- Root causes:
+  - In-game leave button (`.leave-btn`) was inside `.hud` (already offset by `--box-left/--box-top`) but also applied `--box-left/--box-top` in its own `left/top`, effectively double-offsetting on safe-area devices.
+  - Lobby back button still inherited additional left inset from `.lobby-shell` left padding values across base and coarse/portrait breakpoints.
+- Changes:
+  - `index.html`:
+    - `.leave-btn` now uses `top: var(--hud-top-pad)` and `left: var(--hud-side-gap)` (no duplicate box offset math).
+    - `.end-match-btn` aligned to the same in-HUD anchor model (`top: var(--hud-top-pad)`, `right: calc(var(--hud-side-gap) + 52px)`).
+    - `.lobby-shell` left padding switched to `var(--hud-side-gap)` across base and coarse/portrait variants.
+- Outcome:
+  - In-game leave no longer sits farther from edge due duplicate safe-area offset.
+  - Lobby back position now tracks the same side-gap model as in-game corner controls.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - Settings notch-offset test override
+
+- Scope:
+  - Applied temporary test override to remove notch-aware right offset for settings button.
+- Changes:
+  - `index.html`:
+    - `.settings-btn` right offset changed from safe-area-aware expression to fixed `40px`.
+- Outcome:
+  - Settings button horizontal inset is now fixed for test verification, independent of right safe-area inset.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - Settings button size test reduction
+
+- Scope:
+  - Reduced settings button visual size for runtime UX testing.
+- Changes:
+  - `index.html`:
+    - `.settings-btn` size changed from `45x45` to `40x40`.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - HUD spacing bump: top +5 and side-gap 40 default
+
+- Scope:
+  - Increased HUD top padding by ~5px and set HUD side-gap to `40px` as the default across base/coarse definitions.
+- Changes:
+  - `index.html`:
+    - `--hud-top-pad` changed from `55px` to `60px` (base + coarse roots).
+    - `--hud-side-gap` changed from `0px` to `40px` (base + coarse roots).
+    - `.settings-btn` right offset now uses `var(--hud-side-gap)` so settings follows the shared side-gap token.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-04 - Back/leave left-offset simplification + size sync with settings
+
+- Scope:
+  - Applied same size/edge-position model to lobby back and in-game leave controls as requested.
+- Changes:
+  - `index.html`:
+    - set `--leave-btn-size` to `40px` (in-game leave now `40x40`).
+    - set `.back-btn` to `40x40` (including coarse low-height override).
+    - removed extra lobby back button offset by setting `.back-btn` `margin-left: 0` (lobby uses shell left padding token only).
+    - normalized back/leave icon sizes to `20x20` to match settings icon scale.
+- Outcome:
+  - Lobby back and in-game leave now follow single left-offset path (no extra button spacer) and match settings button footprint.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-05 - Back/leave spacing parity correction + 42px control sizing
+
+- Scope:
+  - Corrected remaining mismatch where lobby back spacing diverged from in-game leave due layout-rule override.
+  - Updated top-corner control sizes to `42x42` across settings/back/leave.
+- Root cause fixed:
+  - `html[data-layout="narrow"] .screen-shell` was overriding lobby shell paddings and effectively bypassing intended left-gap behavior for lobby back.
+- Changes:
+  - `index.html`:
+    - `html[data-layout="narrow"] .screen-shell` narrowed to non-lobby shells.
+    - settings button size set to `42x42`.
+    - leave/back size path set to `42x42` (`--leave-btn-size: 42px`, `.back-btn` base + coarse override).
+    - in-game leave and lobby back left offsets normalized to explicit left-gap expressions without extra hidden spacer vars.
+    - demo exit left anchor aligned with the same test gap model as in-game leave.
 - Validation:
   - `astro-party`: `bun run typecheck` passed.
   - `astro-party`: `bun run build` passed.
