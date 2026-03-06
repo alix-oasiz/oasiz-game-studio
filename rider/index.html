@@ -34,6 +34,7 @@
         </div>
     </div>
     <!-- SETTINGS GEAR — always visible, fixed, outside ui-layer -->
+    <div id="build-version" aria-hidden="true"></div>
     <div id="settings-btn">&#9881;</div>
 
     <!-- SETTINGS OVERLAY + MODAL -->
@@ -41,29 +42,88 @@
     <div id="settings-modal">
         <div class="settings-title">Settings</div>
         <div class="settings-divider"></div>
-
-        <div class="settings-row">
-            <div class="settings-label">Music</div>
-            <label class="toggle-wrap">
-                <input type="checkbox" id="toggle-music" checked>
-                <span class="toggle-track"></span>
-            </label>
+        <div class="settings-tabs">
+            <button type="button" class="settings-tab active" data-settings-tab="audio">Audio</button>
+            <button type="button" class="settings-tab" data-settings-tab="debug">Debug</button>
         </div>
 
-        <div class="settings-row">
-            <div class="settings-label">FX</div>
-            <label class="toggle-wrap">
-                <input type="checkbox" id="toggle-fx" checked>
-                <span class="toggle-track"></span>
-            </label>
+        <div class="settings-panel active" data-settings-panel="audio">
+            <div class="settings-row">
+                <div class="settings-label">Music</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-music" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <div class="settings-label">FX</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-fx" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <div class="settings-label">Haptics</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-haptics" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
         </div>
 
-        <div class="settings-row">
-            <div class="settings-label">Haptics</div>
-            <label class="toggle-wrap">
-                <input type="checkbox" id="toggle-haptics" checked>
-                <span class="toggle-track"></span>
-            </label>
+        <div class="settings-panel" data-settings-panel="debug">
+            <div class="settings-note">Choose which chunk types the level generator is allowed to spawn.</div>
+            <div class="settings-row">
+                <div class="settings-label">Flat</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-chunk-flat" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">Downhill</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-chunk-downhill" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">Uphill</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-chunk-uphill" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">Steps</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-chunk-steps" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">Gap Ramp</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-chunk-gapRamp" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">Double Jump</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-chunk-doubleJump" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">Triangles</div>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="toggle-chunk-triangles" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
         </div>
 
         <div class="settings-close-row">

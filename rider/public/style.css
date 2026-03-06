@@ -325,6 +325,30 @@ body.menu-live #ui-layer::after {
 /* ── UTILITY ──────────────────────────── */
 .hidden { display: none !important; }
 
+#build-version {
+    position: fixed;
+    right: 18px;
+    bottom: 14px;
+    z-index: 40;
+    padding: 6px 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    background: rgba(5, 9, 24, 0.72);
+    color: rgba(255,255,255,0.68);
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    backdrop-filter: blur(6px);
+}
+
+@media (pointer: coarse) {
+    #build-version {
+        display: none;
+    }
+}
+
 /* ── SETTINGS GEAR BUTTON ─────────────── */
 #settings-btn {
     position: fixed;
@@ -410,6 +434,46 @@ body.menu-live #ui-layer::after {
     height: 1px;
     background: rgba(255,255,255,0.08);
     margin-bottom: 16px;
+}
+
+.settings-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.settings-tab {
+    flex: 1;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.72);
+    font-family: 'Arial Black', Arial, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.settings-tab.active {
+    background: #ffffff;
+    color: #0c0c14;
+}
+
+.settings-panel {
+    display: none;
+}
+
+.settings-panel.active {
+    display: block;
+}
+
+.settings-note {
+    margin-bottom: 10px;
+    color: rgba(255,255,255,0.5);
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 .settings-row {

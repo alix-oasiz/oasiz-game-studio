@@ -4,6 +4,7 @@ import Menu from "./scenes/Menu";
 import Game from "./scenes/Game";
 import { initSettings } from "./settings";
 import { getAudioManager } from "./audio";
+import { BUILD_VERSION } from "./build-version";
 
 const config: Phaser.Types.Core.GameConfig = {
 	type: Phaser.AUTO,
@@ -18,7 +19,7 @@ const config: Phaser.Types.Core.GameConfig = {
 		default: 'matter',
 		matter: {
 			debug: false, // Turn off debug lines, we will draw neon graphics
-			gravity: { y: 1.3333, x: 0 },
+			gravity: { y: 1, x: 0 },
 		}
 	},
 	scene: [Boot, Menu, Game]
@@ -26,6 +27,13 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 (window as any).__phaserGame = game;
+
+const isMobile = window.matchMedia("(pointer: coarse)").matches;
+const buildVersionNode = document.getElementById("build-version");
+if (buildVersionNode) {
+	buildVersionNode.textContent = `Build ${BUILD_VERSION}`;
+	buildVersionNode.style.display = isMobile ? "none" : "block";
+}
 
 getAudioManager();
 initSettings();
