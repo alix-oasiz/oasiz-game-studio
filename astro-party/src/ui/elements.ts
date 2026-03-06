@@ -10,6 +10,9 @@ export const elements = {
 
   // Start screen
   mainButtons: getElement<HTMLElement>("mainButtons"),
+  startSecondaryActions: getElement<HTMLElement>("startSecondaryActions"),
+  startHowToPlayBtn: getElement<HTMLButtonElement>("startHowToPlayBtn"),
+  startSettingsBtn: getElement<HTMLButtonElement>("startSettingsBtn"),
   joinSection: getElement<HTMLElement>("joinSection"),
   createRoomBtn: getElement<HTMLButtonElement>("createRoomBtn"),
   joinRoomBtn: getElement<HTMLButtonElement>("joinRoomBtn"),

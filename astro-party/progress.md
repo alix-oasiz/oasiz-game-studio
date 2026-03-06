@@ -31,6 +31,52 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-07 - Start screen spacing tighten + ghost actions (How to play / Settings)
+
+- Scope:
+  - tightened start-screen title-to-action spacing and added two centered ghost actions under primary start buttons.
+- Key changes:
+  - `astro-party/index.html`:
+    - reduced start-shell/start-footer vertical gap and converted start footer to stacked layout for tighter title-to-actions spacing.
+    - added `#startSecondaryActions` with `#startHowToPlayBtn` and `#startSettingsBtn` below `#mainButtons`.
+    - added ghost-action button styles and intro/outro animation states for the new secondary action block.
+  - `astro-party/src/ui/elements.ts`:
+    - added start-screen element refs for secondary action container/buttons.
+  - `astro-party/src/ui/startScreen.ts`:
+    - added secondary-action callback API (`setOnHowToPlay`, `setOnOpenSettings`).
+    - wired new button handlers with coarse-pointer tap guard and in-flight lock.
+    - updated start/join section visibility logic to hide/show both primary and secondary action blocks together.
+  - `astro-party/src/ui/settings.ts`:
+    - exposed `openSettingsModal()` in `SettingsUI` so start screen can open the same in-game settings modal flow.
+  - `astro-party/src/main.ts`:
+    - wired start-screen `Settings` ghost action to existing settings modal open path.
+    - wired `How to play?` ghost action to direct tutorial trigger path (`triggerAutoTutorial`) with demo-session bootstrap fallback.
+    - ensured first-visit tap-hint hiding also hides the new secondary action block.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - start screen now has tighter vertical rhythm and two secondary actions that reuse canonical tutorial/settings flows.
+- Architecture outcome:
+  - no change required.
+
+
+## 2026-03-07 - Start screen ghost buttons + title stability + tutorial guard fixes
+
+- Scope:
+  - Fixed title jumping on tap-hint/button appearance; fixed tutorial not activating from MENU state ("How to play?" path); changed ghost buttons to text-only (no pill border).
+- Key changes:
+  - `astro-party/index.html`:
+    - `.start-footer` `min-height: clamp(106px, 28vh, 128px)` — reserves full footer height at all times, preventing `justify-content: center` from re-centering the title as content swaps in.
+    - `.start-ghost-btn` stripped to text-only: removed `border`, `background`, `border-radius`, `padding` overrides. Hover changes color only. Responsive override simplified.
+  - `astro-party/src/demo/DemoController.ts`:
+    - `enterTutorial()` guard extended to accept `MENU` state in addition to `ATTRACT`. Allows "How to play?" button to trigger tutorial when demo is already running in background menu state.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+- Outcome:
+  - Title stays visually stable across all start-screen state transitions. Ghost buttons are plain text links. Tutorial correctly activates from both attract and menu demo states.
+- Architecture outcome:
+  - no change required.
 
 ## 2026-03-06 - Onboarding flow redesign (attract overlay removed, start-screen tap hint)
 

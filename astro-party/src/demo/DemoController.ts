@@ -74,7 +74,7 @@ export class DemoController {
   }
 
   enterTutorial(): void {
-    if (this.state !== "ATTRACT") return;
+    if (this.state !== "ATTRACT" && this.state !== "MENU") return;
     this.state = "TUTORIAL";
     this.applyDemoAudioMix();
 

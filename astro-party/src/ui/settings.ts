@@ -4,6 +4,7 @@ import { createUIFeedback } from "../feedback/uiFeedback";
 
 export interface SettingsUI {
   updateSettingsUI: () => void;
+  openSettingsModal: () => void;
 }
 
 export function createSettingsUI(openLeaveModal: () => void): SettingsUI {
@@ -74,5 +75,8 @@ export function createSettingsUI(openLeaveModal: () => void): SettingsUI {
     feedback.subtle();
   });
 
-  return { updateSettingsUI };
+  return {
+    updateSettingsUI,
+    openSettingsModal,
+  };
 }

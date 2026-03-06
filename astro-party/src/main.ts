@@ -269,6 +269,10 @@ async function init(): Promise<void> {
     pendingDemoStartupAfterIntro = null;
     pendingDemoStartupInProgress = false;
   });
+  startUI.setOnOpenSettings(() => {
+    settingsUI.updateSettingsUI();
+    settingsUI.openSettingsModal();
+  });
 
   const clearStartMenuMusicTimer = (): void => {
     if (startMenuMusicTimer === null) {
@@ -716,6 +720,7 @@ async function init(): Promise<void> {
     if (isFirstVisit) {
       // Keep buttons hidden until user taps or tap hint times out.
       elements.mainButtons.style.display = "none";
+      elements.startSecondaryActions.style.display = "none";
       elements.joinSection.classList.remove("active");
     }
   }
@@ -732,6 +737,17 @@ async function init(): Promise<void> {
     syncPlatformGameplayActivity();
     demoOverlay.showTutorial(viewport.isMobile);
   }
+
+  startUI.setOnHowToPlay(async () => {
+    pendingDemoStartupAfterIntro = null;
+    pendingDemoStartupInProgress = false;
+    if (!demoController?.isDemoActive()) {
+      // Bootstrap the demo session — leaves state at ATTRACT so
+      // triggerAutoTutorial() → enterTutorial() succeeds.
+      await startDemoSession();
+    }
+    triggerAutoTutorial();
+  });
 
   function startPendingDemoStartupAfterIntro(): void {
     if (

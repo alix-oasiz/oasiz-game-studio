@@ -7,7 +7,7 @@
   <title>Astro Party</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Kodchasan:wght@300;400;500&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Kodchasan:wght@300;400;500;700&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -85,15 +85,29 @@
     }
 
     .splash-tagline {
-      font-family: 'Kodchasan', sans-serif;
+      font-family: 'Exo 2', sans-serif;
       font-size: clamp(0.9rem, 3vw, 1.4rem);
       font-weight: 300;
       color: rgba(255, 255, 255, 0.7);
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
+      letter-spacing: 0.14em;
       opacity: 0;
       transform: translateY(10px);
       transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .splash-tagline-oasiz {
+      font-family: 'Kodchasan', sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .splash-tagline-tm {
+      font-family: 'Kodchasan', sans-serif;
+      font-weight: 700;
+      font-size: 0.52em;
+      line-height: 0;
+      vertical-align: super;
+      margin-left: 0.08em;
     }
 
     .splash-version {
@@ -311,7 +325,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: clamp(10px, 1.9vh, 18px);
+      gap: clamp(8px, 1.4vh, 14px);
       text-align: center;
       width: min(1120px, 100%);
       max-height: 100%;
@@ -325,11 +339,14 @@
     }
 
     .start-footer {
+      display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
+      gap: clamp(7px, 1.2vh, 12px);
       width: 100%;
-      margin-top: clamp(20px, 4vh, 48px);
-      min-height: clamp(50px, 7vh, 62px);
+      margin-top: clamp(6px, 1.3vh, 16px);
+      min-height: clamp(106px, 28vh, 128px);
     }
 
     .start-actions {
@@ -343,6 +360,37 @@
       flex: 1;
       min-width: 0;
       margin: 0;
+    }
+
+    .start-secondary-actions {
+      width: min(420px, 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .start-ghost-btn {
+      font-family: 'Exo 2', sans-serif;
+      font-size: clamp(0.78rem, 1.7vw, 0.92rem);
+      font-weight: 300;
+      color: rgba(180, 210, 255, 0.48);
+      letter-spacing: 0.07em;
+      border: none;
+      background: none;
+      padding: 0.28rem 0.4rem;
+      cursor: pointer;
+      transition: color 0.18s ease;
+    }
+
+    .start-ghost-btn:hover {
+      color: rgba(220, 238, 255, 0.9);
+    }
+
+    .start-ghost-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     /* Shared sizing contract for grouped action buttons */
@@ -510,8 +558,25 @@
       pointer-events: auto;
     }
 
+    .start-shell #startSecondaryActions {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0) scale(0.988);
+      filter: blur(8px) brightness(0.78);
+      pointer-events: none;
+    }
+
+    .start-shell.ui-intro-active #startSecondaryActions {
+      animation: startUiReveal 500ms cubic-bezier(0.2, 0.96, 0.26, 1) 1400ms both;
+      pointer-events: auto;
+    }
+
     .start-shell.ui-outro-active #mainButtons {
       animation: startUiExit 320ms cubic-bezier(0.35, 0.2, 0.7, 1) both;
+      pointer-events: none;
+    }
+
+    .start-shell.ui-outro-active #startSecondaryActions {
+      animation: startUiExit 280ms cubic-bezier(0.35, 0.2, 0.7, 1) both;
       pointer-events: none;
     }
 
@@ -2394,6 +2459,14 @@
         gap: 8px;
       }
 
+      .start-secondary-actions {
+        gap: 4px;
+      }
+
+      .start-ghost-btn {
+        font-size: 0.74rem;
+      }
+
       .winner-name {
         font-size: clamp(1.5rem, 6vw, 3rem);
       }
@@ -3782,7 +3855,7 @@
     <div class="splash-black"></div>
     <div class="splash-content">
       <img id="splashLogoImage" src="./assets/Oasiz-logo-transparent.png" alt="Oasiz" class="splash-logo">
-      <div class="splash-tagline">AN OASIZ ORIGINAL</div>
+      <div class="splash-tagline">An <span class="splash-tagline-oasiz">OASIZ<span class="splash-tagline-tm">TM</span></span> Original</div>
       <div class="splash-version" id="splashVersionLabel"></div>
       <div class="splash-loader" id="splashLoader" aria-live="polite" aria-atomic="true">
         <div class="splash-loader-spinner" aria-hidden="true"></div>
@@ -3823,6 +3896,10 @@
             <button class="btn" id="createRoomBtn">Create Room</button>
             <button class="btn secondary" id="joinRoomBtn">Join Room</button>
             <button class="btn tertiary" id="localMatchBtn">Local Match</button>
+          </div>
+          <div class="start-secondary-actions" id="startSecondaryActions">
+            <button class="start-ghost-btn" id="startHowToPlayBtn">How to play?</button>
+            <button class="start-ghost-btn" id="startSettingsBtn">Settings</button>
           </div>
 
           <div class="join-section" id="joinSection">

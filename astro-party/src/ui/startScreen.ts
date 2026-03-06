@@ -14,6 +14,8 @@ export interface StartScreenUI {
   cancelTitleIntroAudioSync: () => void;
   setBeforeAction: (fn: (() => Promise<void>) | null) => void;
   setOnActionCommit: (fn: (() => void) | null) => void;
+  setOnHowToPlay: (fn: (() => Promise<void> | void) | null) => void;
+  setOnOpenSettings: (fn: (() => void) | null) => void;
   showTapHint: () => Promise<"tapped" | "timeout">;
 }
 
@@ -161,6 +163,7 @@ export function createStartScreenUI(
   function showJoinSection(): void {
     if (isPlatform) return;
     elements.mainButtons.style.display = "none";
+    elements.startSecondaryActions.style.display = "none";
     elements.joinSection.classList.add("active");
     elements.roomCodeInput.value = "";
     elements.joinError.classList.remove("active");
@@ -169,6 +172,7 @@ export function createStartScreenUI(
 
   function hideJoinSection(): void {
     elements.mainButtons.style.display = "flex";
+    elements.startSecondaryActions.style.display = "flex";
     elements.joinSection.classList.remove("active");
   }
 
@@ -242,6 +246,27 @@ export function createStartScreenUI(
     hideJoinSection();
   });
 
+  elements.startHowToPlayBtn.addEventListener("click", async (event) => {
+    if (startActionInFlight || secondaryActionInFlight) return;
+    if (isSecondaryTapGuardBlocked(event)) return;
+    feedback.button();
+    setSecondaryActionLock(true);
+    try {
+      await onHowToPlay?.();
+    } catch (error) {
+      console.error("[StartScreen] Failed to launch how-to-play:", error);
+    } finally {
+      setSecondaryActionLock(false);
+    }
+  });
+
+  elements.startSettingsBtn.addEventListener("click", (event) => {
+    if (startActionInFlight || secondaryActionInFlight) return;
+    if (isSecondaryTapGuardBlocked(event)) return;
+    feedback.subtle();
+    onOpenSettings?.();
+  });
+
   elements.roomCodeInput.addEventListener("input", () => {
     elements.roomCodeInput.value = elements.roomCodeInput.value
       .toUpperCase()
@@ -309,6 +334,14 @@ export function createStartScreenUI(
     onActionCommit = fn;
   }
 
+  function setOnHowToPlay(fn: (() => Promise<void> | void) | null): void {
+    onHowToPlay = fn;
+  }
+
+  function setOnOpenSettings(fn: (() => void) | null): void {
+    onOpenSettings = fn;
+  }
+
   function showTapHint(): Promise<"tapped" | "timeout"> {
     const hint = document.getElementById("startTapHint");
     if (!hint) return Promise.resolve("timeout");
@@ -356,6 +389,8 @@ export function createStartScreenUI(
     cancelTitleIntroAudioSync,
     setBeforeAction,
     setOnActionCommit,
+    setOnHowToPlay,
+    setOnOpenSettings,
     showTapHint,
   };
 }
