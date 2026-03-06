@@ -226,7 +226,7 @@ async function init(): Promise<void> {
   let waitingForStartIntroAudioCompletion = false;
   let waitingForStartIntroVisualCompletion = false;
   let startMenuMusicTimer: ReturnType<typeof setTimeout> | null = null;
-  let pendingDemoStartupAfterIntro: { showAttract: boolean } | null = null;
+  let pendingDemoStartupAfterIntro: { isFirstVisit: boolean } | null = null;
   let pendingDemoStartupInProgress = false;
   let suppressNextStartPhaseEffects = false;
   let liveMatchIntroShownForSequence = false;
@@ -618,7 +618,10 @@ async function init(): Promise<void> {
     scheduleTouchLayoutSync();
   });
 
-  async function startDemoSession(showAttract = true): Promise<void> {
+  async function startDemoSession(): Promise<void> {
+    // Reset cover so re-starts also get a clean fade-in.
+    document.getElementById("attractCover")?.classList.remove("revealed");
+
     // Clean up any existing demo first
     if (demoController?.isDemoActive()) {
       await demoController.teardown().catch(() => {});
@@ -635,14 +638,6 @@ async function init(): Promise<void> {
     demoOverlay = new DemoOverlayUI(viewport.isMobile);
 
     demoOverlay.setCallbacks({
-      onTapToStart: () => {
-        game.setExperienceContext("ONBOARDING_TUTORIAL");
-        demoController!.enterTutorial();
-        syncAudioToPhase(currentPhase, currentPhase);
-        syncDemoTouchLayoutForState();
-        syncPlatformGameplayActivity();
-        demoOverlay!.showTutorial(viewport.isMobile);
-      },
       onTutorialComplete: () => {
         // "Start Playing" promotes tutorial directly into normal live endless.
         demoOverlay?.hideAll();
@@ -661,18 +656,6 @@ async function init(): Promise<void> {
         syncAudioToPhase(currentPhase, currentPhase);
         syncDemoTouchLayoutForState();
         syncPlatformGameplayActivity();
-      },
-      onSkipToMenu: () => {
-        // Keep background battle alive — just transition to MENU state
-        game.setExperienceContext("ATTRACT_BACKGROUND");
-        demoOverlay?.hideAll();
-        demoController?.enterMenu();
-        syncAudioToPhase(currentPhase, currentPhase);
-        syncDemoTouchLayoutForState();
-        syncPlatformGameplayActivity();
-        screenController.showScreen("start");
-        startUI.resetStartButtons(true);
-        markDemoSeen();
       },
       onPauseGame: () => demoController?.pauseGame(),
       onResumeGame: () => demoController?.resumeGame(),
@@ -706,18 +689,10 @@ async function init(): Promise<void> {
     elements.starsContainer.classList.add("demo-stars");
     screenController.forceDemoStarfield(game.getMapId());
 
-    if (showAttract) {
-      demoOverlay.showAttract();
-    } else {
-      // Second visit: skip attract, go straight to background MENU state
-      demoController.enterMenu();
-      game.setExperienceContext("ATTRACT_BACKGROUND");
-      syncAudioToPhase(currentPhase, currentPhase);
-      syncDemoTouchLayoutForState();
-      syncPlatformGameplayActivity();
-      screenController.showScreen("start");
-      startUI.resetStartButtons(false);
-    }
+    // Fade the cover out — gracefully reveals the running attract game.
+    document.getElementById("attractCover")?.classList.add("revealed");
+
+    screenController.showScreen("start");
   }
 
   async function handleDemoStartupFailure(error: unknown): Promise<void> {
@@ -736,13 +711,26 @@ async function init(): Promise<void> {
     startUI.setBeforeAction(null);
   }
 
-  function queueDemoStartupAfterIntro(showAttract: boolean): void {
-    pendingDemoStartupAfterIntro = { showAttract };
-    if (showAttract) {
-      // First-run demo should show attract CTA instead of menu buttons.
+  function queueDemoStartupAfterIntro(isFirstVisit: boolean): void {
+    pendingDemoStartupAfterIntro = { isFirstVisit };
+    if (isFirstVisit) {
+      // Keep buttons hidden until user taps or tap hint times out.
       elements.mainButtons.style.display = "none";
       elements.joinSection.classList.remove("active");
     }
+  }
+
+  function triggerAutoTutorial(): void {
+    if (!demoController || !demoOverlay) return;
+    game.setExperienceContext("ONBOARDING_TUTORIAL");
+    demoController.enterTutorial();
+    // Hide the start screen so the game canvas is visible beneath the
+    // tutorial overlay (which has a transparent/semi-transparent background).
+    elements.startScreen.classList.add("hidden");
+    syncAudioToPhase(currentPhase, currentPhase);
+    syncDemoTouchLayoutForState();
+    syncPlatformGameplayActivity();
+    demoOverlay.showTutorial(viewport.isMobile);
   }
 
   function startPendingDemoStartupAfterIntro(): void {
@@ -764,9 +752,6 @@ async function init(): Promise<void> {
     pendingDemoStartupInProgress = true;
     void (async () => {
       try {
-        if (pending.showAttract) {
-          await startUI.playTitleOutro();
-        }
         if (
           pendingDemoStartupAfterIntro !== pending ||
           currentPhase !== "START"
@@ -774,7 +759,32 @@ async function init(): Promise<void> {
           return;
         }
         pendingDemoStartupAfterIntro = null;
-        await startDemoSession(pending.showAttract);
+        // Demo always starts in background as soon as intro settles.
+        await startDemoSession();
+
+        if (pending.isFirstVisit) {
+          // Show 5s tap hint; tap reveals buttons, timeout launches tutorial.
+          const result = await startUI.showTapHint();
+          if (result === "tapped") {
+            // User engaged — enter menu state and show start buttons.
+            demoController?.enterMenu();
+            syncAudioToPhase(currentPhase, currentPhase);
+            syncDemoTouchLayoutForState();
+            syncPlatformGameplayActivity();
+            startUI.resetStartButtons(false);
+          } else {
+            // Timeout — state is still ATTRACT; enterTutorial() will succeed.
+            await startUI.playTitleOutro();
+            triggerAutoTutorial();
+          }
+        } else {
+          // Returning player — enter menu state immediately and show start buttons.
+          demoController?.enterMenu();
+          syncAudioToPhase(currentPhase, currentPhase);
+          syncDemoTouchLayoutForState();
+          syncPlatformGameplayActivity();
+          startUI.resetStartButtons(false);
+        }
       } catch (error) {
         void handleDemoStartupFailure(error);
       } finally {
@@ -812,9 +822,14 @@ async function init(): Promise<void> {
             // MENU state: show start screen over the game canvas
             screenController.showScreen("start");
             startUI.resetStartButtons(false);
-          } else {
+          } else if (demoState === "TUTORIAL") {
+            // TUTORIAL state: hide start screen so the tutorial overlay sits
+            // directly on the raw canvas.
             elements.startScreen.classList.add("hidden");
           }
+          // STARTING / ATTRACT: no-op — keep the start screen covering the
+          // canvas while the demo boots and during the tap-hint window.
+          // startDemoSession() explicitly shows the start screen once ready.
           elements.hud.classList.remove("active");
           // Keyboard enabled only when player is in control
           if (demoState !== "TUTORIAL") {
@@ -1020,11 +1035,11 @@ async function init(): Promise<void> {
     return; // Skip demo when platform-injected room code is present
   }
 
-  // Always start a background AI battle.
-  // Show the attract overlay only on first visit; otherwise go straight
-  // to the menu with ships visible behind it.
-  const showAttractOverlay = !isDemoSeen();
-  queueDemoStartupAfterIntro(showAttractOverlay);
+  // Always start a background AI battle after intro.
+  // First visit: show 5s tap hint; tap reveals buttons, timeout launches tutorial.
+  // Returning: buttons reveal directly.
+  const isFirstVisit = !isDemoSeen();
+  queueDemoStartupAfterIntro(isFirstVisit);
   startPendingDemoStartupAfterIntro();
 }
 

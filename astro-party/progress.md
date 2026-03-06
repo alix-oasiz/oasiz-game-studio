@@ -31,6 +31,33 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+
+## 2026-03-06 - Onboarding flow redesign (attract overlay removed, start-screen tap hint)
+
+- Scope:
+  - Replaced the attract overlay tap-to-start flow with a start-screen tap hint. Demo battle now runs in background as soon as the title intro settles for all players.
+- Key changes:
+  - `astro-party/index.html`:
+    - Added `#startTapHint` element + `.start-tap-hint` CSS with `start-tap-pulse` animation.
+    - Removed `#demoAttractOverlay` HTML block and all attract-specific CSS (`.demo-attract-bg`, `.demo-attract-content`, `.demo-logo-wrap`, `.demo-tap-text`, related keyframes and responsive overrides).
+  - `astro-party/src/demo/DemoOverlayUI.ts`:
+    - Removed `onTapToStart` and `onSkipToMenu` from `DemoOverlayCallbacks`.
+    - Removed `showAttract()` method and all attract-specific private handlers (`handleTap`, `handleAttractPointerDown`, `handleAttractSkipClick`, `handleAttractSkipPointerDown`, `handleKey`, `handleSkip`).
+    - Removed attract-specific fields (`attractOverlay`, `tapText`, `skipBtn`, `transitioning`, bound attract handlers).
+    - Simplified `showTutorial()` and `hideAll()` to remove attract overlay cleanup lines.
+  - `astro-party/src/ui/startScreen.ts`:
+    - Added `showTapHint(): Promise<"tapped" | "timeout">` — 5s timer, listens for any pointerdown or non-modifier keydown, shows/hides `.visible` class on `#startTapHint`.
+  - `astro-party/src/main.ts`:
+    - Renamed `showAttract` → `isFirstVisit` throughout.
+    - Added `triggerAutoTutorial()` — replicates former `onTapToStart` callback body, called on tap hint timeout.
+    - Restructured `startPendingDemoStartupAfterIntro`: always calls `startDemoSession()` first, then branches: first visit shows tap hint (tap → reveal buttons, timeout → title outro → tutorial); returning player reveals buttons directly.
+    - Simplified `startDemoSession()`: removed `showAttract` param, always enters background menu state, removed internal `resetStartButtons` call (caller controls).
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
 ## 2026-03-06 - Mobile touch input latch fix (layout ownership + teardown safety)
 
 - Scope:
@@ -288,6 +315,52 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
   - `astro-party`: `bun run build` passed.
 - Architecture outcome:
   - no change required.
+
+## 2026-03-07 - Tutorial flow fix (enterTutorial guard + enterMenu caller split)
+
+- Scope:
+  - Fixed silent tutorial no-op caused by `enterMenu()` being called inside `startDemoSession()`, transitioning state ATTRACT→MENU before `triggerAutoTutorial()` could call `enterTutorial()` (which requires ATTRACT state).
+- Key changes:
+  - `astro-party/src/main.ts`:
+    - Removed `demoController.enterMenu()` (and duplicate syncs) from end of `startDemoSession()` — demo stays in ATTRACT state after setup.
+    - Added explicit `enterMenu()` + syncs in `startPendingDemoStartupAfterIntro()` for the tapped path and returning-player path only; timeout/tutorial path deliberately skips it so ATTRACT state is preserved for `enterTutorial()`.
+    - `triggerAutoTutorial()`: added `elements.startScreen.classList.add("hidden")` before `showTutorial()` so canvas is visible beneath the semi-transparent tutorial overlay.
+    - `syncScreenToPhase` demo branch: STARTING/ATTRACT states now no-op (start screen stays covering canvas); only TUTORIAL state hides the start screen.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+- Outcome:
+  - `enterTutorial()` now receives ATTRACT state as required; tutorial ships freeze, player has control, tutorial overlay shows on canvas.
+
+## 2026-03-07 - Attract game background reveal transition
+
+- Scope:
+  - Eliminated abrupt jump when attract game starts rendering behind the start screen (canvas content visible through the start screen overlay's 20%-opaque center).
+- Key changes:
+  - `astro-party/index.html`:
+    - Added `#attractCover` div inside `#game-wrapper` at z-50 (above canvas, below overlays at z-100). Starts fully opaque (`#060a12`), transitions to transparent (`opacity 0.75s ease`) on `.revealed` class.
+  - `astro-party/src/main.ts`:
+    - `startDemoSession()`: resets `.revealed` at start of each demo session; adds `.revealed` after `forceDemoStarfield()` to trigger fade.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Canvas content fades in gracefully behind the start screen once the attract game is running and starfield is initialised.
+
+## 2026-03-07 - Start screen text cleanup + title stability fix
+
+- Scope:
+  - Removed stale informational text from the start screen (subtitle, controls hint, helper copy) and fixed the title jumping up when tap hint / buttons appear.
+- Key changes:
+  - `astro-party/index.html`:
+    - Removed HTML: `.subtitle` ("Multiplayer Arena"), `.screen-body.start-body` (`.controls-info` + `.start-helper`).
+    - Removed CSS: `.subtitle`, `.controls-info`, `.controls-info kbd`, `.start-helper`, `.start-body` — including all animation selector references and responsive overrides for these classes.
+    - Simplified intro/outro animation selectors to `#mainButtons` only.
+    - `.start-footer` `margin-top` increased to `clamp(20px, 4vh, 48px)` for breathing room below the title.
+    - `.start-footer` `min-height: clamp(50px, 7vh, 62px)` added so the footer always reserves button-height space — prevents title jumping when tap hint / buttons swap in.
+- Validation:
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Start screen is clean title + tap hint / buttons only. Title stays visually stable across all state transitions.
 
 ## Milestone Journal
 

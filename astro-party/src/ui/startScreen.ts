@@ -14,6 +14,7 @@ export interface StartScreenUI {
   cancelTitleIntroAudioSync: () => void;
   setBeforeAction: (fn: (() => Promise<void>) | null) => void;
   setOnActionCommit: (fn: (() => void) | null) => void;
+  showTapHint: () => Promise<"tapped" | "timeout">;
 }
 
 interface StartScreenAudioCallbacks {
@@ -308,6 +309,46 @@ export function createStartScreenUI(
     onActionCommit = fn;
   }
 
+  function showTapHint(): Promise<"tapped" | "timeout"> {
+    const hint = document.getElementById("startTapHint");
+    if (!hint) return Promise.resolve("timeout");
+
+    const isCoarse = window.matchMedia("(pointer: coarse)").matches;
+    hint.textContent = isCoarse ? "Tap to Start" : "Press Any Key";
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout>;
+
+      const settle = (result: "tapped" | "timeout"): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        hint.classList.remove("visible");
+        document.removeEventListener("keydown", onKey);
+        document.removeEventListener("pointerdown", onPointer);
+        resolve(result);
+      };
+
+      const onPointer = (): void => settle("tapped");
+      const onKey = (e: KeyboardEvent): void => {
+        if (
+          e.key === "Shift" ||
+          e.key === "Control" ||
+          e.key === "Alt" ||
+          e.key === "Meta"
+        )
+          return;
+        settle("tapped");
+      };
+
+      hint.classList.add("visible");
+      document.addEventListener("pointerdown", onPointer);
+      document.addEventListener("keydown", onKey);
+      timer = setTimeout(() => settle("timeout"), 5000);
+    });
+  }
+
   return {
     resetStartButtons,
     playTitleIntro,
@@ -315,5 +356,6 @@ export function createStartScreenUI(
     cancelTitleIntroAudioSync,
     setBeforeAction,
     setOnActionCommit,
+    showTapHint,
   };
 }

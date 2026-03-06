@@ -6,13 +6,14 @@ import {
   triggerInputPressFeedback,
 } from "../../feedback/inputFeedback";
 
-// Corner assignments for 3-4 player layout
-// Each corner has two buttons on adjacent edges
+// Corner assignments for 3-4 player layout.
+// Keep this in the same order as shared/sim getSpawnPoints():
+// top-left, top-right, bottom-right, bottom-left.
 const CORNER_POSITIONS = [
   { corner: "top-left", label: "P1" },
   { corner: "top-right", label: "P2" },
-  { corner: "bottom-left", label: "P3" },
-  { corner: "bottom-right", label: "P4" },
+  { corner: "bottom-right", label: "P3" },
+  { corner: "bottom-left", label: "P4" },
 ];
 
 export class TouchZoneManager {

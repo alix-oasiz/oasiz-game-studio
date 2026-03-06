@@ -7,9 +7,7 @@ import {
 import { AudioManager } from "../AudioManager";
 
 export interface DemoOverlayCallbacks {
-  onTapToStart: () => void;
   onTutorialComplete: () => void;
-  onSkipToMenu: () => void;
   /** Called when tutorial panel should pause the sim */
   onPauseGame: () => void;
   /** Called when tutorial panel should resume the sim ("try it" phase) */
@@ -29,9 +27,6 @@ export interface DemoOverlayCallbacks {
 }
 
 export class DemoOverlayUI {
-  private attractOverlay: HTMLElement;
-  private tapText: HTMLElement;
-  private skipBtn: HTMLButtonElement;
   private tutorialOverlay: HTMLElement;
   private tutorialPanel: HTMLElement;
   private tutorialDiagram: HTMLElement;
@@ -45,7 +40,6 @@ export class DemoOverlayUI {
 
   private callbacks: DemoOverlayCallbacks | null = null;
   private isMobile: boolean;
-  private transitioning = false;
   private tutorialRunning = false;
   private cancelTypewriter: (() => void) | null = null;
   private pendingDialogAdvance: (() => void) | null = null;
@@ -56,21 +50,12 @@ export class DemoOverlayUI {
   private spotlightFirstActionTriggered = false;
   private lastStateTapAtMs = 0;
 
-  private boundOnTap: (e: MouseEvent) => void;
-  private boundOnAttractPointerDown: (e: PointerEvent) => void;
-  private boundOnKey: (e: KeyboardEvent) => void;
-  private boundOnSkipClick: (e: MouseEvent) => void;
-  private boundOnSkipPointerDown: (e: PointerEvent) => void;
-
   /** Cleanup for the active mobile touch highlight */
   private clearActiveMobileHighlight: (() => void) | null = null;
 
   constructor(isMobile: boolean) {
     this.isMobile = isMobile;
 
-    this.attractOverlay = document.getElementById("demoAttractOverlay")!;
-    this.tapText = document.getElementById("demoTapText")!;
-    this.skipBtn = document.getElementById("demoSkipBtn") as HTMLButtonElement;
     this.tutorialOverlay = document.getElementById("demoTutorialOverlay")!;
     this.tutorialPanel = document.getElementById("demoTutorialPanel")!;
     this.tutorialDiagram = document.getElementById("demoTutorialDiagram")!;
@@ -87,62 +72,13 @@ export class DemoOverlayUI {
     this.spotlightRing = document.getElementById(
       "demoPlayerIntroRing",
     )!;
-
-    this.boundOnTap = this.handleTap.bind(this);
-    this.boundOnAttractPointerDown = this.handleAttractPointerDown.bind(this);
-    this.boundOnKey = this.handleKey.bind(this);
-    this.boundOnSkipClick = this.handleAttractSkipClick.bind(this);
-    this.boundOnSkipPointerDown = this.handleAttractSkipPointerDown.bind(this);
-
-    if (!isMobile) {
-      this.tapText.textContent = "Press any key to Start";
-    }
   }
 
   setCallbacks(callbacks: DemoOverlayCallbacks): void {
     this.callbacks = callbacks;
   }
 
-  showAttract(): void {
-    this.attractOverlay.classList.remove("hidden");
-    this.attractOverlay.style.pointerEvents = "auto";
-    this.attractOverlay.style.touchAction = "manipulation";
-
-    this.attractOverlay.removeEventListener(
-      "pointerdown",
-      this.boundOnAttractPointerDown,
-    );
-    this.attractOverlay.addEventListener(
-      "pointerdown",
-      this.boundOnAttractPointerDown,
-    );
-    this.attractOverlay.addEventListener("click", this.boundOnTap);
-    document.addEventListener("keydown", this.boundOnKey);
-
-    this.skipBtn.removeEventListener("click", this.boundOnSkipClick);
-    this.skipBtn.removeEventListener(
-      "pointerdown",
-      this.boundOnSkipPointerDown,
-    );
-    this.skipBtn.addEventListener("click", this.boundOnSkipClick);
-    this.skipBtn.addEventListener("pointerdown", this.boundOnSkipPointerDown);
-  }
-
   showTutorial(isMobile = this.isMobile): void {
-    this.attractOverlay.classList.add("hidden");
-    this.attractOverlay.removeEventListener("click", this.boundOnTap);
-    this.attractOverlay.removeEventListener(
-      "pointerdown",
-      this.boundOnAttractPointerDown,
-    );
-    this.attractOverlay.style.pointerEvents = "";
-    this.skipBtn.removeEventListener("click", this.boundOnSkipClick);
-    this.skipBtn.removeEventListener(
-      "pointerdown",
-      this.boundOnSkipPointerDown,
-    );
-    document.removeEventListener("keydown", this.boundOnKey);
-
     this.tutorialOverlay.style.pointerEvents = "auto";
     this.tutorialOverlay.classList.remove("hidden");
     this.hideTutorialActionButton();
@@ -191,22 +127,9 @@ export class DemoOverlayUI {
   }
 
   hideAll(): void {
-    this.attractOverlay.classList.add("hidden");
     this.tutorialOverlay.classList.add("hidden");
     this.hideTutorialActionButton();
     this.exitBtn.classList.add("hidden");
-    this.attractOverlay.removeEventListener("click", this.boundOnTap);
-    this.attractOverlay.removeEventListener(
-      "pointerdown",
-      this.boundOnAttractPointerDown,
-    );
-    this.attractOverlay.style.pointerEvents = "";
-    this.skipBtn.removeEventListener("click", this.boundOnSkipClick);
-    this.skipBtn.removeEventListener(
-      "pointerdown",
-      this.boundOnSkipPointerDown,
-    );
-    document.removeEventListener("keydown", this.boundOnKey);
     this.cancelTypewriter?.();
     this.tutorialRunning = false;
     this.pendingDialogAdvance = null;
@@ -235,53 +158,6 @@ export class DemoOverlayUI {
     }
     this.lastStateTapAtMs = now;
     return true;
-  }
-
-  private handleTap(e: Event | null = null): void {
-    if (!this.guardStateTap(e)) return;
-    if (this.transitioning) return;
-    this.transitioning = true;
-    this.callbacks?.onTapToStart();
-  }
-
-  private handleAttractPointerDown(e: PointerEvent): void {
-    if (e.target instanceof Node && this.skipBtn.contains(e.target)) {
-      return;
-    }
-    this.handleTap(e);
-  }
-
-  private handleAttractSkipClick(e: MouseEvent): void {
-    if (!this.guardStateTap(e)) return;
-    this.handleSkip(e);
-  }
-
-  private handleAttractSkipPointerDown(e: PointerEvent): void {
-    e.stopPropagation();
-  }
-
-  private handleKey(e: KeyboardEvent): void {
-    if (
-      e.key === "Shift" ||
-      e.key === "Control" ||
-      e.key === "Alt" ||
-      e.key === "Meta"
-    )
-      return;
-    this.handleTap(null);
-  }
-
-  private handleSkip(_e: Event | null = null): void {
-    this.cancelTypewriter?.();
-    this.tutorialRunning = false;
-
-    this.stopSpotlight();
-    this.clearActiveMobileHighlight?.();
-    this.clearActiveMobileHighlight = null;
-    this.callbacks?.setZoom(null);
-    this.callbacks?.setDemoInputBlock({ fire: false, dash: false });
-
-    this.callbacks?.onSkipToMenu();
   }
 
   // -------------------------------------------------------------------------
