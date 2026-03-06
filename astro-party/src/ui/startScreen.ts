@@ -178,8 +178,8 @@ export function createStartScreenUI(
 
   function resetStartButtons(replayTitleIntro = true): void {
     setStartActionLock(false);
-    elements.createRoomBtn.textContent = "Create Room";
-    elements.localMatchBtn.textContent = "Local Match";
+    elements.createRoomBtn.textContent = "Play Online";
+    elements.localMatchBtn.textContent = "Play Local";
     elements.submitJoinBtn.textContent = "Join";
     elements.joinRoomBtn.style.display = isPlatform ? "none" : "inline-flex";
     hideJoinSection();
@@ -207,7 +207,7 @@ export function createStartScreenUI(
     } catch (e) {
       console.error("[Main] Failed to create room:", e);
       setStartActionLock(false);
-      elements.createRoomBtn.textContent = "Create Room";
+      elements.createRoomBtn.textContent = "Play Online";
     }
   });
 
@@ -237,7 +237,7 @@ export function createStartScreenUI(
     } catch (e) {
       console.error("[Main] Failed to start local match:", e);
       setStartActionLock(false);
-      elements.localMatchBtn.textContent = "Local Match";
+      elements.localMatchBtn.textContent = "Play Local";
     }
   });
 

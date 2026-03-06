@@ -31,6 +31,29 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-07 - Start screen button labels, styles, SVG crop, spacing, pointer-events fix
+
+- Scope:
+  - Renamed primary buttons (Play Online / Play Local), swapped Join Room ↔ Local Match styles, fixed dead space between title and buttons caused by blank SVG canvas, fixed invisible buttons being clickable during animation delay.
+- Key changes:
+  - `astro-party/index.html`:
+    - Button labels: "Create Room" → "Play Online", "Local Match" → "Play Local" in HTML.
+    - Button style swap: `joinRoomBtn` now `.btn.tertiary`, `localMatchBtn` now `.btn.secondary`.
+    - `.game-title-wrap`: changed `aspect-ratio` from `2048/1365` to `2048/820` and added `overflow: hidden`. The SVG canvases are 2048×1365 but visual content ends at y≈730; bottom ~40% is transparent dead canvas that was adding unwanted layout height.
+    - `.title-layer`: changed from `inset: 0` to `top/left/right: 0; height: calc(1365/820 * 100%)` so the SVG renders at its natural 2048:1365 ratio while the wrapper clips the blank bottom.
+    - All `max-height` values on `.game-title-wrap` scaled proportionally (820/1365 of previous).
+    - `.start-shell`: `height: auto` (not `100%`) so content wraps tightly; `gap: clamp(6px,1.2vh,12px)`; symmetric `padding-block`.
+    - `@keyframes startUiReveal`: added `pointer-events: none` at `0%` and `pointer-events: auto` at `100%`. Removed explicit `pointer-events: auto` from `ui-intro-active` rules so keyframe fill-mode controls clickability — buttons are non-interactive during the 1280ms animation delay.
+  - `astro-party/src/ui/startScreen.ts`:
+    - Updated button reset strings: "Create Room" → "Play Online", "Local Match" → "Play Local" (lines 224, 225, 253, 283).
+- Validation:
+  - Visual: dead space between logo and buttons eliminated; logo sits immediately above action area.
+  - Bug fix: buttons no longer receive clicks while invisible during animation delay.
+- Outcome:
+  - Start screen title-to-action layout is compact and correct. Blank SVG canvas identified as root cause of persistent spacing issue.
+- Architecture outcome:
+  - no change required.
+
 ## 2026-03-07 - Start screen spacing tighten + ghost actions (How to play / Settings)
 
 - Scope:
