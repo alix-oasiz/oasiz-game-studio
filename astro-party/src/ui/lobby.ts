@@ -19,6 +19,7 @@ import {
   getOrCreatePreferredShipSkinId,
   setPreferredShipSkinId,
 } from "../preferences/preferredShipSkin";
+import type { LeaveModalContext } from "./modals";
 
 export interface LobbyUI {
   updateLobbyUI: (players: PlayerData[]) => void;
@@ -30,7 +31,11 @@ export interface LobbyUI {
   closeMapPicker: () => void;
 }
 
-export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
+export function createLobbyUI(
+  game: Game,
+  isMobile: boolean,
+  openLeaveModal: (context?: LeaveModalContext) => void,
+): LobbyUI {
   const feedback = createUIFeedback("lobby");
   const HOST_ONLY_ACTION_MESSAGE = "Only the room leader can do that";
   let addingBot = false;
@@ -48,6 +53,7 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
   ];
   const mapPickerCards = new Map<MapId, HTMLButtonElement>();
   const isPlatform = isPlatformRuntime();
+  elements.leaveLobbyBtn.style.display = isPlatform ? "none" : "inline-flex";
 
   const SLOTS = ["P1", "P2", "P3", "P4"];
   const BADGE_ICO = {
@@ -949,15 +955,13 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     renderMapPickerPreviews();
   });
 
-  elements.leaveLobbyBtn.addEventListener("click", async (event) => {
+  elements.leaveLobbyBtn.addEventListener("click", (event) => {
     if (isTapGuardBlocked(event, "leave-lobby", START_BUTTON_TAP_GUARD_MS)) {
       return;
     }
     feedback.subtle();
     closeMapPicker();
-    elements.leaveLobbyBtn.disabled = true;
-    await game.leaveGame();
-    elements.leaveLobbyBtn.disabled = false;
+    openLeaveModal("LOBBY_LEAVE");
   });
 
   return {

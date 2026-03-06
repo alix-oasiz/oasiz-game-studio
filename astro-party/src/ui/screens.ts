@@ -6,6 +6,8 @@ import { escapeHtml } from "./text";
 import { createUIFeedback } from "../feedback/uiFeedback";
 import { SeededRNG } from "../../shared/sim/SeededRNG";
 import { getCombatComboRules } from "../../shared/sim/scoring";
+import { isPlatformRuntime } from "../platform/oasizBridge";
+import type { LeaveModalContext } from "./modals";
 
 type Screen = "start" | "lobby" | "game" | "end";
 
@@ -111,7 +113,7 @@ export function createScreenController(
   game: Game,
   isMobile: boolean,
 ): ScreenController {
-  const feedback = createUIFeedback("lobby");
+  const isPlatform = isPlatformRuntime();
   const comboHintMultiplierByPlayerId = new Map<string, number>();
   let comboHintRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
   let activeScreen: Screen = "start";
@@ -153,13 +155,11 @@ export function createScreenController(
 
     const hideHudLeaveForMobileLocal =
       isMobile && game.getLocalPlayerCount() >= 2;
-    elements.leaveGameBtn.style.display = hideHudLeaveForMobileLocal
+    const hideHudLeave = hideHudLeaveForMobileLocal || isPlatform;
+    elements.leaveGameBtn.style.display = hideHudLeave
       ? "none"
       : "flex";
-    elements.endMatchBtn.style.display =
-      game.getRuleset() === "ENDLESS_RESPAWN" && game.isLeader()
-        ? "flex"
-        : "none";
+    elements.endMatchBtn.style.display = "none";
     elements.settingsBtn.style.display = hideHudLeaveForMobileLocal
       ? "none"
       : "flex";
@@ -569,13 +569,6 @@ export function createScreenController(
     updateControlHints();
   });
 
-  elements.endMatchBtn.addEventListener("click", () => {
-    if (game.getRuleset() !== "ENDLESS_RESPAWN") return;
-    if (!game.isLeader()) return;
-    feedback.confirm();
-    game.endMatch();
-  });
-
   return {
     showScreen,
     updateHudControlsVisibility,
@@ -592,7 +585,10 @@ export function createScreenController(
   };
 }
 
-export function bindEndScreenUI(game: Game): void {
+export function bindEndScreenUI(
+  game: Game,
+  openLeaveModal: (context?: LeaveModalContext) => void,
+): void {
   const feedback = createUIFeedback("endScreen");
   const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
   const tapGuardUntilByElement = new WeakMap<EventTarget, number>();
@@ -637,11 +633,9 @@ export function bindEndScreenUI(game: Game): void {
     }
   });
 
-  elements.leaveEndBtn.addEventListener("click", async (event) => {
+  elements.leaveEndBtn.addEventListener("click", (event) => {
     if (!shouldHandleTap(event.currentTarget)) return;
     feedback.subtle();
-    elements.leaveEndBtn.disabled = true;
-    elements.leaveEndBtn.textContent = "Leaving...";
-    await game.leaveGame();
+    openLeaveModal("MATCH_LEAVE");
   });
 }

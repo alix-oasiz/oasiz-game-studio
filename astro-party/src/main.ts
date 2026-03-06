@@ -26,6 +26,10 @@ import {
   gameplayStop as platformGameplayStop,
   getPlayerName as getPlatformPlayerName,
   getRoomCode as getPlatformRoomCode,
+  isPlatformRuntime,
+  onBackButton as onPlatformBackButton,
+  onLeaveGame as onPlatformLeaveGame,
+  requestPlatformLeaveGame,
 } from "./platform/oasizBridge";
 
 declare const __APP_VERSION__: string;
@@ -220,8 +224,9 @@ async function init(): Promise<void> {
   const settingsUI = createSettingsUI(leaveModal.openLeaveModal);
   const advancedSettingsUI = createAdvancedSettingsUI(game);
   const mapPreviewUI = createMapPreviewUI(game);
-  const lobbyUI = createLobbyUI(game, viewport.isMobile);
-  bindEndScreenUI(game);
+  const lobbyUI = createLobbyUI(game, viewport.isMobile, leaveModal.openLeaveModal);
+  bindEndScreenUI(game, leaveModal.openLeaveModal);
+  const isPlatform = isPlatformRuntime();
   let currentPhase: GamePhase = "START";
   let waitingForStartIntroAudioCompletion = false;
   let waitingForStartIntroVisualCompletion = false;
@@ -247,6 +252,9 @@ async function init(): Promise<void> {
   // Demo state
   let demoController: DemoController | null = null;
   let demoOverlay: DemoOverlayUI | null = null;
+  let platformBackInFlight = false;
+  let offPlatformBackButton: (() => void) | null = null;
+  let offPlatformLeaveGame: (() => void) | null = null;
   const startUI = createStartScreenUI(game, {
     onIntroAudioComplete: () => {
       if (waitingForStartIntroAudioCompletion) {
@@ -579,6 +587,112 @@ async function init(): Promise<void> {
       }
     });
   }
+
+  const closeSettingsModalIfOpen = (): boolean => {
+    if (!settingsUI.isSettingsModalOpen()) return false;
+    settingsUI.closeSettingsModal();
+    return true;
+  };
+
+  const closeAdvancedSettingsIfOpen = (): boolean => {
+    if (!elements.advancedSettingsModal.classList.contains("active")) {
+      return false;
+    }
+    elements.advancedSettingsModal.classList.remove("active");
+    elements.advancedSettingsBackdrop.classList.remove("active");
+    return true;
+  };
+
+  const closeMapPickerIfOpen = (): boolean => {
+    if (!elements.mapPickerModal.classList.contains("active")) {
+      return false;
+    }
+    lobbyUI.closeMapPicker();
+    return true;
+  };
+
+  const closeKeySelectIfOpen = (): boolean => {
+    if (!elements.keySelectModal.classList.contains("active")) {
+      return false;
+    }
+    elements.keySelectModal.classList.remove("active");
+    elements.keySelectBackdrop.classList.remove("active");
+    return true;
+  };
+
+  const closeJoinSectionIfOpen = (): boolean => {
+    if (!startUI.isJoinSectionOpen()) {
+      return false;
+    }
+    startUI.closeJoinSection();
+    return true;
+  };
+
+  const closeTopmostOverlay = (): boolean => {
+    if (leaveModal.isLeaveModalOpen()) {
+      leaveModal.closeLeaveModal();
+      return true;
+    }
+    if (closeSettingsModalIfOpen()) return true;
+    if (closeAdvancedSettingsIfOpen()) return true;
+    if (closeMapPickerIfOpen()) return true;
+    if (closeKeySelectIfOpen()) return true;
+    if (closeJoinSectionIfOpen()) return true;
+    return false;
+  };
+
+  const closeAllOverlays = (): void => {
+    leaveModal.closeLeaveModal();
+    settingsUI.closeSettingsModal();
+    elements.advancedSettingsModal.classList.remove("active");
+    elements.advancedSettingsBackdrop.classList.remove("active");
+    lobbyUI.closeMapPicker();
+    elements.keySelectModal.classList.remove("active");
+    elements.keySelectBackdrop.classList.remove("active");
+    startUI.closeJoinSection();
+  };
+
+  const handlePlatformBack = async (): Promise<void> => {
+    if (!isPlatform || platformBackInFlight) {
+      return;
+    }
+    platformBackInFlight = true;
+    try {
+      if (closeTopmostOverlay()) {
+        return;
+      }
+
+      if (demoController?.isDemoActive()) {
+        const demoState = demoController.getState();
+        if (demoState === "TUTORIAL") {
+          await teardownDemoAndShowMenu();
+          return;
+        }
+        requestPlatformLeaveGame();
+        return;
+      }
+
+      if (currentPhase === "LOBBY") {
+        leaveModal.openLeaveModal("LOBBY_LEAVE");
+        return;
+      }
+
+      if (
+        currentPhase === "MATCH_INTRO" ||
+        currentPhase === "COUNTDOWN" ||
+        currentPhase === "PLAYING" ||
+        currentPhase === "ROUND_END" ||
+        currentPhase === "GAME_END"
+      ) {
+        leaveModal.openLeaveModal("MATCH_LEAVE");
+        return;
+      }
+
+      requestPlatformLeaveGame();
+    } finally {
+      platformBackInFlight = false;
+    }
+  };
 
   function syncDemoTouchLayoutForState(): void {
     if (!viewport.isMobile) {
@@ -995,6 +1109,27 @@ async function init(): Promise<void> {
       }
     },
   });
+
+  if (isPlatform) {
+    offPlatformBackButton = onPlatformBackButton(() => {
+      void handlePlatformBack();
+    });
+    offPlatformLeaveGame = onPlatformLeaveGame(() => {
+      closeAllOverlays();
+      AudioManager.stopMusic();
+    });
+
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        offPlatformBackButton?.();
+        offPlatformLeaveGame?.();
+        offPlatformBackButton = null;
+        offPlatformLeaveGame = null;
+      },
+      { once: true },
+    );
+  }
 
   settingsUI.updateSettingsUI();
   advancedSettingsUI.updateAdvancedSettingsUI();

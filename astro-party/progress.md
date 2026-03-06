@@ -31,6 +31,43 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-07 - Platform back-button wiring + central leave confirmation flow
+
+- Scope:
+  - Implemented platform back navigation handling and migrated leave actions to one central context-aware confirmation modal.
+  - Hid top leave buttons in platform runtime and merged endless-mode end-match behavior into leave confirmation.
+- Key changes:
+  - `astro-party/src/platform/oasizBridge.ts`:
+    - added navigation wrappers: `onBackButton`, `onLeaveGame`, `requestPlatformLeaveGame`.
+  - `astro-party/src/main.ts`:
+    - added platform back decision tree:
+      - close topmost overlay first,
+      - tutorial back exits tutorial to menu/start flow,
+      - lobby/game phases open central leave modal,
+      - root fallback requests platform quit.
+    - added host leave-event cleanup hook for overlay/audio cleanup.
+  - `astro-party/src/ui/modals.ts`:
+    - converted leave modal to context-driven flow (`LOBBY_LEAVE`, `MATCH_LEAVE`) with dynamic title/body/confirm label.
+    - endless leader leave in active match now performs `endMatch()` then `leaveGame()` through the same confirm path.
+  - `astro-party/src/ui/lobby.ts`, `astro-party/src/ui/screens.ts`, `astro-party/src/ui/settings.ts`:
+    - rerouted leave entry points through the central leave modal.
+    - hid platform top leave buttons (`leaveLobbyBtn`, `leaveGameBtn`).
+    - removed standalone endless `End Match` HUD action from visibility path.
+  - `astro-party/src/ui/startScreen.ts`:
+    - exposed join-section open/close state to support back-stack closure priority.
+  - `astro-party/index.html`, `astro-party/src/ui/elements.ts`:
+    - added leave-modal title/message hooks for context-specific copy.
+  - Dependency:
+    - `astro-party/package.json` + `astro-party/bun.lock`: upgraded `@oasiz/sdk` to `^1.0.2`.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Platform runtime now uses platform back with a deterministic in-game back stack and a single leave confirmation surface.
+  - Endless-mode end-match is unified with leave, reducing duplicate exit actions.
+- Architecture outcome:
+  - changed (`ARCHITECTURE.md` updated with platform back-navigation ownership contract).
+
 ## 2026-03-07 - UI click polarity + start/lobby transition cues
 
 - Scope:

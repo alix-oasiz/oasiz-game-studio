@@ -39,6 +39,7 @@ Composition:
   - coordinates phase-to-screen sync
   - coordinates onboarding/attract context startup/teardown
   - coordinates scene/audio sync policy
+  - owns platform back-button routing and top-level leave decision tree
 - `src/Game.ts`
   - runtime orchestrator
   - render loop
@@ -61,6 +62,7 @@ Networking:
 
 UI:
 - `src/ui/*`: start/lobby/game/end screens, settings, overlays, modals.
+  - `src/ui/modals.ts`: central leave-confirm modal controller with context-aware copy/actions (`LOBBY_LEAVE` / `MATCH_LEAVE`).
 
 Platform state + preferences:
 - `src/platform/platformGameState.ts`: generic wrapper around platform game-state persistence (`loadGameState`/`saveGameState`).
@@ -129,6 +131,13 @@ Platform orientation + safe-area contract:
   - respect platform top HUD overlay bounds
   - respect device notch/safe zones for both landscape directions
   - keep top-corner interactive UI offset by effective safe-top spacing
+
+Platform back-navigation contract:
+- `main.ts` owns platform back-action precedence and fallback-to-platform-quit behavior.
+- `platform/oasizBridge.ts` owns SDK back/leave bridge surface (`onBackButton`, `onLeaveGame`, `leaveGame` request wrapper).
+- `ui/modals.ts` owns central confirmation modal state and context-specific leave semantics.
+- In platform runtime, lobby/game top leave controls are hidden and leave flow is driven by platform back + central modal.
+- Endless leader `End Match` action is folded into match-leave confirmation flow (single leave surface).
 
 ## Asset Mapping + URL Contract
 

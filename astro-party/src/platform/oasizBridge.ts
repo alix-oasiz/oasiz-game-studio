@@ -12,7 +12,14 @@ type GameplayBridge = typeof oasiz & {
   gameplayStop?: () => void;
 };
 
+type NavigationBridge = typeof oasiz & {
+  onBackButton?: (callback: () => void) => () => void;
+  onLeaveGame?: (callback: () => void) => () => void;
+  leaveGame?: () => void;
+};
+
 const gameplayBridge = oasiz as GameplayBridge;
+const navigationBridge = oasiz as NavigationBridge;
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (typeof value === "object" && value !== null && !Array.isArray(value)) {
@@ -75,6 +82,24 @@ export function onPause(callback: () => void): () => void {
 
 export function onResume(callback: () => void): () => void {
   return oasiz.onResume(callback);
+}
+
+export function onBackButton(callback: () => void): () => void {
+  if (typeof navigationBridge.onBackButton !== "function") {
+    return () => {};
+  }
+  return navigationBridge.onBackButton(callback);
+}
+
+export function onLeaveGame(callback: () => void): () => void {
+  if (typeof navigationBridge.onLeaveGame !== "function") {
+    return () => {};
+  }
+  return navigationBridge.onLeaveGame(callback);
+}
+
+export function requestPlatformLeaveGame(): void {
+  navigationBridge.leaveGame?.();
 }
 
 export function gameplayStart(): void {

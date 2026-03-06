@@ -1,13 +1,18 @@
 import { SettingsManager } from "../SettingsManager";
 import { elements } from "./elements";
 import { createUIFeedback } from "../feedback/uiFeedback";
+import type { LeaveModalContext } from "./modals";
 
 export interface SettingsUI {
   updateSettingsUI: () => void;
   openSettingsModal: () => void;
+  closeSettingsModal: () => void;
+  isSettingsModalOpen: () => boolean;
 }
 
-export function createSettingsUI(openLeaveModal: () => void): SettingsUI {
+export function createSettingsUI(
+  openLeaveModal: (context?: LeaveModalContext) => void,
+): SettingsUI {
   const feedback = createUIFeedback("settings");
 
   function updateSettingsUI(): void {
@@ -29,6 +34,10 @@ export function createSettingsUI(openLeaveModal: () => void): SettingsUI {
     elements.settingsBackdrop.classList.remove("active");
   }
 
+  function isSettingsModalOpen(): boolean {
+    return elements.settingsModal.classList.contains("active");
+  }
+
   elements.settingsBtn.addEventListener("click", () => {
     openSettingsModal();
   });
@@ -39,7 +48,7 @@ export function createSettingsUI(openLeaveModal: () => void): SettingsUI {
 
   elements.settingsLeaveBtn.addEventListener("click", () => {
     closeSettingsModal();
-    openLeaveModal();
+    openLeaveModal("MATCH_LEAVE");
   });
 
   elements.settingsBackdrop.addEventListener("click", () => {
@@ -78,5 +87,7 @@ export function createSettingsUI(openLeaveModal: () => void): SettingsUI {
   return {
     updateSettingsUI,
     openSettingsModal,
+    closeSettingsModal,
+    isSettingsModalOpen,
   };
 }

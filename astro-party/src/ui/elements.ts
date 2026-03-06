@@ -49,6 +49,8 @@ export const elements = {
 
   // Leave confirmation modal
   leaveModal: getElement<HTMLElement>("leaveModal"),
+  leaveModalTitle: getElement<HTMLElement>("leaveModalTitle"),
+  leaveModalMessage: getElement<HTMLElement>("leaveModalMessage"),
   leaveBackdrop: getElement<HTMLElement>("leaveBackdrop"),
   leaveCancelBtn: getElement<HTMLButtonElement>("leaveCancelBtn"),
   leaveConfirmBtn: getElement<HTMLButtonElement>("leaveConfirmBtn"),

@@ -12,6 +12,8 @@ export interface StartScreenUI {
   playTitleIntro: () => void;
   playTitleOutro: () => Promise<void>;
   cancelTitleIntroAudioSync: () => void;
+  closeJoinSection: () => void;
+  isJoinSectionOpen: () => boolean;
   setBeforeAction: (fn: (() => Promise<void>) | null) => void;
   setOnActionCommit: (fn: (() => void) | null) => void;
   setOnHowToPlay: (fn: (() => Promise<void> | void) | null) => void;
@@ -387,6 +389,8 @@ export function createStartScreenUI(
     playTitleIntro,
     playTitleOutro,
     cancelTitleIntroAudioSync,
+    closeJoinSection: hideJoinSection,
+    isJoinSectionOpen: () => elements.joinSection.classList.contains("active"),
     setBeforeAction,
     setOnActionCommit,
     setOnHowToPlay,
