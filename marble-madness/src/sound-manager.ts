@@ -166,11 +166,28 @@ export class SoundManager {
 
   public resume(): void {
     if (this.audioCtx?.state === "suspended") {
-      this.audioCtx.resume();
+      void this.audioCtx.resume();
     }
     this.ensureRollingSource();
+    this.updateMusicState();
     if (this.currentMusicTrackIndex !== null && !this.musicSource) {
       this.startTrack(this.currentMusicTrackIndex);
+    }
+  }
+
+  public pause(): void {
+    if (!this.audioCtx) {
+      return;
+    }
+    const t = this.audioCtx.currentTime;
+    if (this.rollingGain) {
+      this.rollingGain.gain.setTargetAtTime(0, t, 0.05);
+    }
+    if (this.musicGain) {
+      this.musicGain.gain.setTargetAtTime(0, t, 0.05);
+    }
+    if (this.audioCtx.state === "running") {
+      void this.audioCtx.suspend();
     }
   }
 

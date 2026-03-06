@@ -31,6 +31,12 @@ const OBSTACLE_BLOCKER_TAP_MIN_SPEED = 4.8;
 const OBSTACLE_BLOCKER_TAP_MIN_FORWARD_SPEED = 3.2;
 const OBSTACLE_SECTION_ENTRY_SAFE_DISTANCE_MIN = 6;
 const OBSTACLE_SECTION_ENTRY_SAFE_RATIO = 0.24;
+const OBSTACLE_WALL_CLEARANCE = 0.24;
+const ROTATOR_SWEEP_WALL_PADDING = 0.22;
+const ROTATOR_ARM_LENGTH_SCALE = 0.82;
+const ROTATOR_ARM_THICKNESS_SCALE = 0.84;
+const BOUNCY_PAD_LENGTH_SCALE = 0.82;
+const BOUNCY_PAD_WIDTH_SCALE = 0.9;
 
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 const tempPoint = new THREE.Vector3();
@@ -66,6 +72,27 @@ function getBouncyPadSweepRange(side: "left" | "right"): {
       startYaw: -BOUNCY_PAD_SWEEP_ABS_RADIANS,
       endYaw: BOUNCY_PAD_SWEEP_ABS_RADIANS,
     };
+}
+
+function getObstacleFootprintHalfSpanX(obstacle: ObstacleBase): number {
+  if (obstacle.kind === "rotator_x") {
+    const rotator = obstacle as RotatorXObstacle;
+    return rotator.armLength + rotator.armThickness * 0.5 + ROTATOR_SWEEP_WALL_PADDING;
+  }
+  if (obstacle.kind === "pinball_bouncer") {
+    const bouncer = obstacle as PinballBouncerObstacle;
+    return bouncer.capRadius * getPinballBouncerBaseScale() + 0.12;
+  }
+  if (obstacle.kind === "bouncy_pad") {
+    const pad = obstacle as BouncyPadObstacle;
+    const paddleRadius = Math.max(0.2, pad.paddleWidth * 0.42);
+    const paddleBodyLength = Math.max(0.24, pad.paddleLength - paddleRadius * 2);
+    const paddleCapsuleHalfLength = paddleBodyLength * 0.5 + paddleRadius;
+    const paddleHalfLength = paddleCapsuleHalfLength * BOUNCY_PAD_VISUAL_SCALE_Y * 0.98;
+    const paddleReach = pad.paddleLength * BOUNCY_PAD_REACH_RATIO;
+    return paddleReach + paddleHalfLength + 0.12;
+  }
+  return obstacle.radius;
 }
 
 function isObstaclePhysicsWireframeEnabled(): boolean {
@@ -300,6 +327,52 @@ export interface WaveObstacleMeshHost {
   addLevelObject: (object: THREE.Object3D) => void;
 }
 
+function getWaveObstacleBudget(
+  wave: number,
+  growth: number,
+  obstacleMaxPerTypeCap: number,
+): number {
+  let budget = 1;
+  if (wave <= 4) {
+    budget = wave;
+  } else {
+    budget = 4 + Math.ceil((wave - 4) / 2);
+  }
+
+  const growthBonus = Math.max(0, growth - 1) * Math.floor((wave - 1) / 3);
+  const hardCap = Math.max(6, obstacleMaxPerTypeCap);
+  return THREE.MathUtils.clamp(budget + growthBonus, 1, hardCap);
+}
+
+function getWaveClusterSize(wave: number, remainingBudget: number): number {
+  if (remainingBudget <= 1) {
+    return 1;
+  }
+  if (wave <= 2) {
+    return 1;
+  }
+  if (wave <= 4) {
+    return Math.min(remainingBudget, Math.random() < 0.7 ? 1 : 2);
+  }
+  if (wave <= 7) {
+    return Math.min(remainingBudget, Math.random() < 0.45 ? 1 : 2);
+  }
+  return Math.min(remainingBudget, 2 + Math.floor(Math.random() * 2));
+}
+
+function getClusterSpacingMultiplierForWave(wave: number): number {
+  if (wave <= 2) {
+    return 1.45;
+  }
+  if (wave <= 4) {
+    return 1.25;
+  }
+  if (wave <= 6) {
+    return 1.1;
+  }
+  return 1;
+}
+
 export interface ObstacleVisualStateHost {
   obstacleMeshById: Map<string, THREE.Object3D>;
   bouncyPadPaddleById: Map<string, THREE.Object3D>;
@@ -410,9 +483,21 @@ function tryCreateWaveObstacle(
   if (kind === "rotator_x") {
     const side = Math.random() < 0.5 ? "left" : "right";
     const sideSign = side === "left" ? -1 : 1;
+    const scaledRotatorArmLength =
+      context.rotatorArmLength * ROTATOR_ARM_LENGTH_SCALE;
+    const scaledRotatorArmThickness =
+      context.rotatorArmThickness * ROTATOR_ARM_THICKNESS_SCALE;
+    const rotatorHalfSpanX =
+      scaledRotatorArmLength +
+      scaledRotatorArmThickness * 0.5 +
+      ROTATOR_SWEEP_WALL_PADDING;
+    const maxSideOffset = innerHalf - rotatorHalfSpanX - OBSTACLE_WALL_CLEARANCE;
+    if (maxSideOffset < 0.9) {
+      return null;
+    }
     const x =
       centerX +
-      sideSign * Math.max(2.1, innerHalf - (context.rotatorArmLength * 0.55 + 0.65));
+      sideSign * context.randomRange(0.9, Math.max(0.9, maxSideOffset));
     obstacle = {
       id: context.nextObstacleId(kind),
       kind,
@@ -424,10 +509,10 @@ function tryCreateWaveObstacle(
         0.12,
       z: centerZ,
       tilt: context.getTrackTiltAtArcLength(s),
-      radius: context.rotatorArmLength + 1.1,
+      radius: scaledRotatorArmLength + 1.1,
       side,
-      armLength: context.rotatorArmLength,
-      armThickness: context.rotatorArmThickness,
+      armLength: scaledRotatorArmLength,
+      armThickness: scaledRotatorArmThickness,
       height: context.rotatorHeight,
       spinSpeed: context.rotatorSpinSpeedBase + context.randomRange(-0.45, 0.55),
       spinDir: Math.random() < 0.5 ? 1 : -1,
@@ -459,7 +544,24 @@ function tryCreateWaveObstacle(
   } else {
     const sideSign = Math.random() < 0.5 ? -1 : 1;
     const side: "left" | "right" = sideSign < 0 ? "left" : "right";
-    const x = centerX + sideSign * Math.max(2.1, innerHalf - BOUNCY_PAD_WALL_INSET);
+    const scaledPadLength = context.bouncyPadLength * BOUNCY_PAD_LENGTH_SCALE;
+    const scaledPadWidth = context.bouncyPadWidth * BOUNCY_PAD_WIDTH_SCALE;
+    const paddleRadius = Math.max(0.2, scaledPadWidth * 0.42);
+    const paddleBodyLength = Math.max(
+      0.24,
+      scaledPadLength - paddleRadius * 2,
+    );
+    const paddleCapsuleHalfLength = paddleBodyLength * 0.5 + paddleRadius;
+    const paddleHalfLength =
+      paddleCapsuleHalfLength * BOUNCY_PAD_VISUAL_SCALE_Y * 0.98;
+    const paddleReach = scaledPadLength * BOUNCY_PAD_REACH_RATIO;
+    const bouncyPadHalfSpanX = paddleReach + paddleHalfLength + 0.12;
+    const maxSideOffset =
+      innerHalf - bouncyPadHalfSpanX - OBSTACLE_WALL_CLEARANCE;
+    if (maxSideOffset < 0.9) {
+      return null;
+    }
+    const x = centerX + sideSign * context.randomRange(0.9, Math.max(0.9, maxSideOffset));
     obstacle = {
       id: context.nextObstacleId(kind),
       kind,
@@ -471,9 +573,9 @@ function tryCreateWaveObstacle(
         context.marbleRadius * 0.75,
       z: centerZ,
       tilt: context.getTrackTiltAtArcLength(s),
-      radius: context.bouncyPadLength * 0.66,
-      paddleLength: context.bouncyPadLength,
-      paddleWidth: context.bouncyPadWidth,
+      radius: scaledPadLength * 0.66,
+      paddleLength: scaledPadLength,
+      paddleWidth: scaledPadWidth,
       sweepAmplitude: context.bouncyPadSweepAmplitude,
       sweepSpeed: context.bouncyPadSweepSpeedBase + context.randomRange(-0.75, 0.75),
       phase: context.randomRange(0, Math.PI * 2),
@@ -486,7 +588,15 @@ function tryCreateWaveObstacle(
   if (!obstacle) {
     return null;
   }
-  if (Math.abs(obstacle.x - centerX) < 1.7) {
+  if (Math.abs(obstacle.x - centerX) < 0.75) {
+    return null;
+  }
+
+  const footprintHalfSpanX = getObstacleFootprintHalfSpanX(obstacle);
+  if (
+    Math.abs(obstacle.x - centerX) + footprintHalfSpanX >
+    innerHalf - OBSTACLE_WALL_CLEARANCE
+  ) {
     return null;
   }
 
@@ -544,64 +654,80 @@ export function buildWaveObstacles(
     return { rotatorObstacles, pinballBouncers, bouncyPads };
   }
 
+  const targetBudget = getWaveObstacleBudget(
+    wave,
+    context.obstacleWaveLinearGrowth,
+    context.obstacleMaxPerTypeCap,
+  );
+  const clusterSpacing =
+    context.obstacleClusterSpacing * getClusterSpacingMultiplierForWave(wave);
+
+  const plannedKinds: WaveObstacleKind[] = [];
+  for (let i = 0; i < targetBudget; i += 1) {
+    plannedKinds.push(activeKinds[i % activeKinds.length]);
+  }
+  for (let i = plannedKinds.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = plannedKinds[i];
+    plannedKinds[i] = plannedKinds[j];
+    plannedKinds[j] = tmp;
+  }
+
   const placed: ObstacleBase[] = [];
-  for (let kindIndex = 0; kindIndex < activeKinds.length; kindIndex += 1) {
-    const kind = activeKinds[kindIndex];
-    const targetCount = Math.min(
-      context.obstacleMaxPerTypeCap,
-      2 + context.loopsCompleted * context.obstacleWaveLinearGrowth + kindIndex,
+  let attempts = 0;
+  let planCursor = 0;
+  const maxAttempts = Math.max(targetBudget * 80, 120);
+
+  while (placed.length < targetBudget && attempts < maxAttempts) {
+    attempts += 1;
+    const kind = plannedKinds[planCursor % plannedKinds.length];
+    planCursor += 1;
+
+    const section =
+      candidateSections[Math.floor(Math.random() * candidateSections.length)];
+    const arcRange = context.sectionArcRanges[section.index];
+    if (!arcRange) {
+      continue;
+    }
+
+    const sectionSpan = Math.max(0, arcRange.sEnd - arcRange.sStart);
+    const sectionEntrySafeDistance = Math.max(
+      OBSTACLE_SECTION_ENTRY_SAFE_DISTANCE_MIN,
+      sectionSpan * OBSTACLE_SECTION_ENTRY_SAFE_RATIO,
     );
+    const sMin = Math.max(
+      arcRange.sStart + sectionEntrySafeDistance,
+      context.obstacleStartSafeDistance,
+    );
+    const sMax = Math.min(
+      arcRange.sEnd - 3,
+      context.trackArcLength - context.obstacleFinishSafeDistance,
+    );
+    if (sMax <= sMin) {
+      continue;
+    }
 
-    let placedCount = 0;
-    let attempts = 0;
-    while (placedCount < targetCount && attempts < targetCount * 40) {
-      attempts += 1;
-      const section =
-        candidateSections[Math.floor(Math.random() * candidateSections.length)];
-      const arcRange = context.sectionArcRanges[section.index];
-      if (!arcRange) {
+    const anchorS = context.randomRange(sMin, sMax);
+    const remainingBudget = targetBudget - placed.length;
+    const clusterSize = getWaveClusterSize(wave, remainingBudget);
+
+    for (let i = 0; i < clusterSize; i += 1) {
+      if (placed.length >= targetBudget) {
+        break;
+      }
+      const s = anchorS + i * clusterSpacing;
+      const obstacle = tryCreateWaveObstacle(context, kind, s, placed);
+      if (!obstacle) {
         continue;
       }
-      const sectionSpan = Math.max(0, arcRange.sEnd - arcRange.sStart);
-      const sectionEntrySafeDistance = Math.max(
-        OBSTACLE_SECTION_ENTRY_SAFE_DISTANCE_MIN,
-        sectionSpan * OBSTACLE_SECTION_ENTRY_SAFE_RATIO,
-      );
-      const sMin = Math.max(
-        arcRange.sStart + sectionEntrySafeDistance,
-        context.obstacleStartSafeDistance,
-      );
-      const sMax = Math.min(
-        arcRange.sEnd - 3,
-        context.trackArcLength - context.obstacleFinishSafeDistance,
-      );
-      if (sMax <= sMin) {
-        continue;
+      placed.push(obstacle);
+      if (kind === "rotator_x") {
+        rotatorObstacles.push(obstacle as RotatorXObstacle);
+      } else if (kind === "pinball_bouncer") {
+        pinballBouncers.push(obstacle as PinballBouncerObstacle);
+      } else {
+        bouncyPads.push(obstacle as BouncyPadObstacle);
       }
-      const anchorS = context.randomRange(sMin, sMax);
-      const clusterSize = Math.min(
-        targetCount - placedCount,
-        3 + Math.floor(Math.random() * 3),
-      );
-      let clusterPlaced = 0;
-
-      for (let i = 0; i < clusterSize; i += 1) {
-        const s = anchorS + i * context.obstacleClusterSpacing;
-        const obstacle = tryCreateWaveObstacle(context, kind, s, placed);
-        if (!obstacle) {
-          continue;
-        }
-        placed.push(obstacle);
-        clusterPlaced += 1;
-        if (kind === "rotator_x") {
-          rotatorObstacles.push(obstacle as RotatorXObstacle);
-        } else if (kind === "pinball_bouncer") {
-          pinballBouncers.push(obstacle as PinballBouncerObstacle);
-        } else {
-          bouncyPads.push(obstacle as BouncyPadObstacle);
-        }
-      }
-      placedCount += clusterPlaced;
     }
   }
 
@@ -609,6 +735,10 @@ export function buildWaveObstacles(
     "[BuildWaveObstacles]",
     "wave=" +
       String(wave) +
+      " target=" +
+      String(targetBudget) +
+      " placed=" +
+      String(placed.length) +
       " rotators=" +
       String(rotatorObstacles.length) +
       " bouncers=" +
