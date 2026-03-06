@@ -560,8 +560,6 @@
         filter: blur(8px) brightness(0.7);
       }
     }
-
-
     .subtitle {
       font-family: 'Orbitron', sans-serif;
       font-size: clamp(0.7rem, 2.5vw, 1rem);
@@ -2163,8 +2161,6 @@
       font-family: 'Orbitron', sans-serif;
       color: var(--yellow);
     }
-
-
     .end-actions {
       width: 100%;
       display: grid;
@@ -2488,8 +2484,6 @@
         padding: 0.82rem 1rem;
         font-size: 0.85rem;
       }
-
-
       .mode-inline-controls {
         gap: 6px;
       }
@@ -2516,8 +2510,6 @@
         padding: 0.24rem 0.52rem;
         font-size: 0.54rem;
       }
-
-
       .map-picker-modal {
         width: min(420px, calc(min(var(--box-width), var(--box-height)) - 18px));
         max-width: calc(min(var(--box-width), var(--box-height)) - 18px);
@@ -3043,12 +3035,9 @@
       --gold: #d97706;
       --gold-lt: #f5a623;
       --gold-dk: #92520a;
-      --fs-nano: 0.5rem;
-      --fs-micro: 0.5625rem;
-      --fs-badge: 0.8125rem;
-      --fs-btn: 0.75rem;
-      --fs-body: 0.875rem;
-      --fs-title: 1.125rem;
+      --fs-label: 0.5625rem;
+      --fs-ui: 0.75rem;
+      --fs-display: 1.125rem;
       --topbar-h: 3.625rem;
       --strip-h: 8.125rem;
       --side-pad: clamp(40px, 8vw, 100px);
@@ -3119,14 +3108,14 @@
     #lobbyScreen .logo-mark svg { width: 0.875rem; height: 0.875rem; }
     #lobbyScreen .logo-text {
       font-family: 'Orbitron', sans-serif;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       font-weight: 900;
       letter-spacing: 0.14em;
       color: var(--text);
     }
     #lobbyScreen .logo-sub {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       letter-spacing: 0.12em;
       color: var(--gold);
       text-transform: uppercase;
@@ -3152,7 +3141,7 @@
     }
     #lobbyScreen .sg-chip {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
@@ -3186,7 +3175,7 @@
       box-shadow: 0 0 0.5rem var(--gold);
       animation: lb-blink 2.2s ease-in-out infinite;
     }
-    #lobbyScreen .room-tag-label { font-size: var(--fs-micro); letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+    #lobbyScreen .room-tag-label { font-size: var(--fs-label); letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
     #lobbyScreen .room-tag-copy {
       background: transparent; border: none; cursor: pointer;
       color: var(--dim); display: flex; align-items: center;
@@ -3197,7 +3186,7 @@
 
     #lobbyScreen .leave-btn {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: rgba(248,113,113,0.7);
@@ -3382,7 +3371,7 @@
     #lobbyScreen .meta-host svg { width: 0.75rem; height: 0.75rem; }
     #lobbyScreen .card-slot {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-micro);
+      font-size: var(--fs-label);
       font-weight: 700;
       letter-spacing: 0.12em;
       color: rgba(217,119,6,0.62);
@@ -3481,7 +3470,7 @@
       width: 100%;
     }
     #lobbyScreen .card-name {
-      font-size: var(--fs-title);
+      font-size: var(--fs-display);
       font-weight: 700;
       color: var(--text);
       white-space: nowrap;
@@ -3542,7 +3531,7 @@
     }
     #lobbyScreen .card-act {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       font-weight: 700;
       letter-spacing: 0.07em;
       text-transform: uppercase;
@@ -3569,7 +3558,7 @@
     #lobbyScreen .empty-icon svg { width: 2.75rem; height: 2.75rem; }
     #lobbyScreen .empty-label {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-micro);
+      font-size: var(--fs-label);
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: rgba(160,180,220,0.45);
@@ -3577,7 +3566,7 @@
     #lobbyScreen .empty-btns { display: flex; gap: 0.375rem; margin-top: 0.25rem; }
     #lobbyScreen .empty-btn {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -3634,14 +3623,14 @@
     }
     #lobbyScreen .map-section-label {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-micro);
+      font-size: var(--fs-label);
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(217,119,6,0.7);
     }
     #lobbyScreen .map-title {
       font-family: 'Exo 2', sans-serif;
-      font-size: var(--fs-body);
+      font-size: var(--fs-ui);
       font-weight: 700;
       letter-spacing: 0.06em;
       color: var(--text);
@@ -3650,13 +3639,13 @@
       text-overflow: ellipsis;
     }
     #lobbyScreen .map-desc {
-      font-size: var(--fs-body);
+      font-size: var(--fs-ui);
       color: var(--dim);
       margin-top: 0.125rem;
     }
     #lobbyScreen .map-change {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -3692,7 +3681,7 @@
     }
     #lobbyScreen .cs-mode-label {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-micro);
+      font-size: var(--fs-label);
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(217,119,6,0.7);
@@ -3718,7 +3707,7 @@
       justify-content: space-between;
       gap: 0.375rem;
       font-family: 'Orbitron', sans-serif;
-      font-size: var(--fs-body);
+      font-size: var(--fs-ui);
       font-weight: 700;
       letter-spacing: 0.06em;
       color: var(--text);
@@ -3772,7 +3761,7 @@
       animation: lb-blink 2.4s ease-in-out infinite;
     }
     #lobbyScreen .lstatus-dot.warn { background: var(--gold); box-shadow: 0 0 0.5rem var(--gold); }
-    #lobbyScreen .lstatus-text { font-family: 'Space Mono', monospace; font-size: var(--fs-body); letter-spacing: 0.07em; color: var(--dim); }
+    #lobbyScreen .lstatus-text { font-family: 'Space Mono', monospace; font-size: var(--fs-ui); letter-spacing: 0.07em; color: var(--dim); }
     #lobbyScreen .launch-btn {
       height: 3.25rem;
       width: min(100%, 14.375rem);
@@ -3781,7 +3770,7 @@
       justify-content: center;
       gap: 0.625rem;
       font-family: 'Orbitron', sans-serif;
-      font-size: var(--fs-btn);
+      font-size: var(--fs-ui);
       font-weight: 900;
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -3839,7 +3828,7 @@
     }
     #lobbyScreen .modal-title {
       font-family: 'Orbitron', sans-serif;
-      font-size: var(--fs-badge); font-weight: 700; letter-spacing: 0.1em; color: var(--text);
+      font-size: var(--fs-ui); font-weight: 700; letter-spacing: 0.1em; color: var(--text);
     }
     #lobbyScreen .modal-close {
       width: 1.875rem; height: 1.875rem; display: flex; align-items: center; justify-content: center;
@@ -3871,12 +3860,12 @@
     #lobbyScreen .map-picker-meta { padding: 0.4375rem 0.625rem 0.5625rem; }
     #lobbyScreen .map-picker-name {
       font-family: 'Orbitron', sans-serif;
-      font-size: var(--fs-micro);
+      font-size: var(--fs-label);
       font-weight: 700;
       letter-spacing: 0.06em;
       color: var(--text);
     }
-    #lobbyScreen .map-picker-desc { font-size: var(--fs-nano); color: var(--dim); margin-top: 0.125rem; }
+    #lobbyScreen .map-picker-desc { font-size: var(--fs-label); color: var(--dim); margin-top: 0.125rem; }
     #lobbyScreen .map-picker-badge {
       display: inline-flex;
       align-items: center;
@@ -3886,7 +3875,7 @@
       border-radius: 999px;
       border: 1px solid rgba(255,255,255,0.2);
       font-family: 'Orbitron', sans-serif;
-      font-size: var(--fs-nano);
+      font-size: var(--fs-label);
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: rgba(255,255,255,0.78);
@@ -4177,8 +4166,6 @@
       <button class="btn settings-close" id="settingsClose">Done</button>
     </div>
   </div>
-
-
   <!-- Advanced Settings Modal -->
   <div class="settings-backdrop" id="advancedSettingsBackdrop"></div>
   <div class="settings-modal advanced-settings-modal" id="advancedSettingsModal">
