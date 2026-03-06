@@ -213,6 +213,31 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Architecture outcome:
   - no change required.
 
+## 2026-03-06 - Lobby metadata rail cleanup (single top rail, actions-only footer)
+
+- Scope:
+  - Applied lobby card metadata simplification to remove duplicated role/host badge surfaces and keep footer focused on actions.
+- Key changes:
+  - `astro-party/src/ui/lobby.ts`:
+    - replaced top label badge markup with icon-only metadata rail.
+    - moved host indicator into the top-right metadata rail beside slot label.
+    - removed bottom role text line from card info.
+    - removed bottom host badge from footer and kept footer as actions-only (`change skin`, `remove/kick`).
+  - `astro-party/index.html`:
+    - added new metadata rail styles (`.card-meta`, `.meta-ident*`, `.card-meta-right`, `.meta-host`).
+    - removed old top badge styles (`.card-type`, `.type-badge`, badge variants).
+    - updated card footer alignment and added spacer style for empty-action cards.
+    - added top padding to card scene so metadata rail stays clear of the ship viewport.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Card metadata now has a single visual location at the top rail.
+  - Footer no longer mixes metadata pills with action buttons.
+  - Top overlay is lighter and avoids the previous overlap-prone badge treatment.
+- Architecture outcome:
+  - no change required.
+
 ## Milestone Journal
 
 ## 2026-03-04 - Server Docker hardening + pinned Node/npm deployment baseline

@@ -56,14 +56,13 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     local: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 9h10a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4h-1.2l-2-2H10.2l-2 2H7a4 4 0 0 1-4-4v-2a4 4 0 0 1 4-4zm1 2v2h2v-2H8zm6 0v2h2v-2h-2z"/></svg>',
     online: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4a8 8 0 0 1 8 8h2c0-5.52-4.48-10-10-10S2 6.48 2 12h2a8 8 0 0 1 8-8zm0 4a4 4 0 0 1 4 4h2a6 6 0 0 0-12 0h2a4 4 0 0 1 4-4zm0 6a2 2 0 0 1 2 2h2a4 4 0 0 0-8 0h2a2 2 0 0 1 2-2z"/></svg>',
   };
-  const BADGE_CLS = { you: "", ai: "tb--ai", local: "tb--local", online: "tb--online" };
-  const BADGE_LBL = { you: "You", ai: "AI Bot", local: "Local", online: "Online" };
-  const PLAYER_ROLE = {
-    you: "You",
-    ai: "AI Opponent",
-    local: "Local Player",
-    online: "Remote Player",
+  const META_ICON_CLS = {
+    you: "meta-ident--you",
+    ai: "meta-ident--ai",
+    local: "meta-ident--local",
+    online: "meta-ident--online",
   };
+  const BADGE_LBL = { you: "You", ai: "AI Bot", local: "Local", online: "Online" };
   const SHIP_SYNC_DEBOUNCE_MS = 160;
   let pendingShipSkinSyncTimer: number | null = null;
   let pendingShipSkinSyncId: ShipSkinId | null = null;
@@ -309,11 +308,6 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
         else if (botType === "local") type = "local";
         else type = "online";
 
-        const tbStyle =
-          type === "you"
-            ? `style="background:rgba(${rgb},0.14);border:1px solid rgba(${rgb},0.3);color:${color}"`
-            : "";
-
         let actionBtn = "";
         if (canAct) {
           const action =
@@ -328,13 +322,16 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
           : "";
         const actionControls = skinCycleBtn || actionBtn
           ? `<div class="card-footer-actions">${skinCycleBtn}${actionBtn}</div>`
-          : "<span></span>";
+          : '<span class="card-footer-spacer"></span>';
 
         html += `<div class="pcard pcard--filled" style="--pc:${color};--pc-rgb:${rgb}">
           <div class="card-glow"></div>
-          <div class="card-slot">${SLOTS[i]}</div>
-          <div class="card-type">
-            <span class="type-badge ${BADGE_CLS[type]}" ${tbStyle}>${BADGE_ICO[type]}${BADGE_LBL[type]}</span>
+          <div class="card-meta">
+            <span class="meta-ident ${META_ICON_CLS[type]}" title="${BADGE_LBL[type]}" aria-label="${BADGE_LBL[type]}">${BADGE_ICO[type]}</span>
+            <div class="card-meta-right">
+              ${isLeaderPlayer ? `<span class="meta-host" title="Host" aria-label="Host">${crownSVG}</span>` : ""}
+              <span class="card-slot">${SLOTS[i]}</span>
+            </div>
           </div>
           <div class="card-scene">
             <div class="card-viewport">
@@ -344,9 +341,7 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
           </div>
           <div class="card-info">
             <div class="card-name">${escapeHtml(player.name)}</div>
-            <div class="card-role">${PLAYER_ROLE[type]}</div>
             <div class="card-footer">
-              ${isLeaderPlayer ? `<span class="host-pip">${crownSVG}Host</span>` : "<span></span>"}
               ${actionControls}
             </div>
           </div>
