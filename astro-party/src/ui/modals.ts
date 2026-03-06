@@ -1,6 +1,10 @@
 import { Game } from "../Game";
 import { elements } from "./elements";
 import { createUIFeedback } from "../feedback/uiFeedback";
+import {
+  isPlatformRuntime,
+  requestPlatformLeaveGame,
+} from "../platform/oasizBridge";
 
 export type LeaveModalContext = "LOBBY_LEAVE" | "MATCH_LEAVE";
 
@@ -89,6 +93,11 @@ export function createLeaveModal(game: Game): LeaveModalUI {
         game.endMatch();
       }
       await game.leaveGame();
+      // Signal the platform to close the game after confirming leave.
+      // Matches SDK dev's required flow: onBackButton → modal → leaveGame().
+      if (isPlatformRuntime()) {
+        requestPlatformLeaveGame();
+      }
     } finally {
       elements.leaveConfirmBtn.disabled = false;
       elements.leaveConfirmBtn.textContent = previousLabel;

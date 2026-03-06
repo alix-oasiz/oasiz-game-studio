@@ -653,7 +653,7 @@ async function init(): Promise<void> {
   };
 
   const handlePlatformBack = async (): Promise<void> => {
-    if (!isPlatform || platformBackInFlight) {
+    if (platformBackInFlight) {
       return;
     }
     platformBackInFlight = true;
@@ -1110,26 +1110,27 @@ async function init(): Promise<void> {
     },
   });
 
-  if (isPlatform) {
-    offPlatformBackButton = onPlatformBackButton(() => {
-      void handlePlatformBack();
-    });
-    offPlatformLeaveGame = onPlatformLeaveGame(() => {
-      closeAllOverlays();
-      AudioManager.stopMusic();
-    });
+  // Register unconditionally — SDK no-ops outside platform context, and
+  // identity props (gameId/roomCode/playerName) may not be populated yet
+  // at init time so a isPlatform snapshot check would miss platform sessions.
+  offPlatformBackButton = onPlatformBackButton(() => {
+    void handlePlatformBack();
+  });
+  offPlatformLeaveGame = onPlatformLeaveGame(() => {
+    closeAllOverlays();
+    AudioManager.stopMusic();
+  });
 
-    window.addEventListener(
-      "beforeunload",
-      () => {
-        offPlatformBackButton?.();
-        offPlatformLeaveGame?.();
-        offPlatformBackButton = null;
-        offPlatformLeaveGame = null;
-      },
-      { once: true },
-    );
-  }
+  window.addEventListener(
+    "beforeunload",
+    () => {
+      offPlatformBackButton?.();
+      offPlatformLeaveGame?.();
+      offPlatformBackButton = null;
+      offPlatformLeaveGame = null;
+    },
+    { once: true },
+  );
 
   settingsUI.updateSettingsUI();
   advancedSettingsUI.updateAdvancedSettingsUI();

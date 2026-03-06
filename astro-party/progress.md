@@ -31,6 +31,80 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-07 - Platform back button wiring fix + bridge cleanup
+
+- Scope:
+  - Fixed back button and leave-game handlers never firing in platform runtime.
+- Root cause:
+  - Two independent guards both blocked execution:
+    1. `main.ts`: handler registration wrapped in `if (isPlatform)` — `isPlatform` is captured once at init via `isPlatformRuntime()`. If SDK identity props (`gameId`/`roomCode`/`playerName`) are not injected before `init()` runs, `isPlatform` is `false` and handlers are never subscribed.
+    2. `main.ts`: `handlePlatformBack` had `if (!isPlatform || platformBackInFlight) return` — same cached `false` value silently no-ops every back event even if the subscription somehow ran.
+  - `oasizBridge.ts`: `NavigationBridge` cast made `onBackButton`/`onLeaveGame`/`leaveGame` optional; defensive `typeof ... !== "function"` checks were dead code since SDK v1.0.2 guarantees these methods on `oasiz`.
+- Key changes:
+  - `astro-party/src/main.ts`:
+    - Removed `if (isPlatform)` guard from handler registration — SDK no-ops safely outside platform, and identity props may not be populated at init time.
+    - Removed `!isPlatform` from `handlePlatformBack` condition — `platformBackInFlight` debounce is sufficient; all handler actions are safe in any context.
+  - `astro-party/src/platform/oasizBridge.ts`:
+    - Removed `NavigationBridge` type and defensive optional-cast guards.
+    - `onBackButton` / `onLeaveGame` now call `oasiz.*` directly.
+    - `requestPlatformLeaveGame` calls `oasiz.leaveGame()` directly (not `?.()` — method is guaranteed).
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+- Outcome:
+  - Platform back button and leave-game events now reliably fire regardless of when SDK identity props are injected.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-07 - Rollback record: `main.ts` reverted on user directive
+
+- Scope:
+  - Reverted `astro-party/src/main.ts` only.
+- Reason:
+  - User explicitly requested rollback of `main.ts` and no rollback of `progress.md`.
+  - Request context: back-button follow-up patch was considered non-actionable/noise relative to reported issue, so code-level rollback was required before further debugging work.
+- Files:
+  - reverted: `astro-party/src/main.ts`
+  - intentionally not reverted: `astro-party/progress.md`
+- Validation:
+  - `git status --short` confirms `main.ts` is no longer modified while `progress.md` remains modified.
+- Outcome:
+  - Runtime flow changes in `main.ts` from the follow-up patch are removed; project state now reflects user-directed rollback boundary.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-07 - Platform back hotfix: remove runtime-gated subscription
+
+- Scope:
+  - Fixed platform back handlers not triggering in lobby/tutorial when platform identity fields were absent.
+- Root cause:
+  - Back listeners were registered only behind `isPlatformRuntime()` in `main.ts`.
+  - On some platform sessions, runtime identity (`gameId`/`roomCode`/`playerName`) is not populated early, so listeners were never subscribed and host back defaulted to immediate exit.
+- Key changes:
+  - `astro-party/src/main.ts`:
+    - register `onBackButton` / `onLeaveGame` unconditionally (SDK safely no-ops outside platform bridge).
+    - removed `isPlatform` early-return guard inside back handler.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Platform back override now attaches even when injected identity props are initially empty, so lobby/tutorial back routing can execute game-side logic instead of instant host exit.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-07 - Follow-up correction: reverted runtime-detection assumption change
+
+- Scope:
+  - Reverted an assumption-driven `isPlatformRuntime()` change that was not required for the reported issue.
+- Key changes:
+  - `astro-party/src/platform/oasizBridge.ts`:
+    - restored `isPlatformRuntime()` to identity-based detection (`gameId` / `roomCode` / `playerName`) only.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+- Outcome:
+  - Platform back fix remains (unconditional listener registration in `main.ts`) without altering existing platform-visibility detection behavior.
+- Architecture outcome:
+  - no change required.
+
 ## 2026-03-07 - Platform back-button wiring + central leave confirmation flow
 
 - Scope:
