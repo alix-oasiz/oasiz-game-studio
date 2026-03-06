@@ -1,16 +1,16 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 
-const PINBALL_BOUNCER_IMPULSE_MULTIPLIER = 2;
-const PINBALL_BOUNCER_VISUAL_SCALE_PER_MULTIPLIER = 0.2;
+const PINBALL_BOUNCER_IMPULSE_MULTIPLIER = 2.35;
+const PINBALL_BOUNCER_VISUAL_SCALE_PER_MULTIPLIER = 0.26;
 const PINBALL_BOUNCER_HIT_COOLDOWN_SECONDS = 0.2;
 const PINBALL_BOUNCER_HIT_DISTANCE_PADDING = 0.34;
 const PINBALL_BOUNCER_MIN_OUTWARD_SPEED = 1.2;
 const PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED = 0.55;
-const PINBALL_BOUNCER_COLUMN_RADIUS_TOP = 0.22;
-const PINBALL_BOUNCER_COLUMN_RADIUS_BOTTOM = 0.3;
-const PINBALL_BOUNCER_COLUMN_Y_OFFSET_RATIO = -0.28;
-const PINBALL_BOUNCER_CAP_Y_RATIO = 0.46;
+const PINBALL_BOUNCER_COLUMN_RADIUS_TOP = 0.34;
+const PINBALL_BOUNCER_COLUMN_RADIUS_BOTTOM = 0.48;
+const PINBALL_BOUNCER_COLUMN_Y_OFFSET_RATIO = -0.1;
+const PINBALL_BOUNCER_CAP_Y_RATIO = 0.24;
 const BOUNCY_PAD_MAX_ANGULAR_SPEED = Math.PI * 3.2;
 const BOUNCY_PAD_WALL_INSET = 0.42;
 const BOUNCY_PAD_REACH_RATIO = 0.46;
@@ -530,11 +530,11 @@ function tryCreateWaveObstacle(
       x,
       y:
         context.getTrackSurfaceYAtPosition(x, centerZ) +
-        context.bouncerColumnHeight +
-        context.bouncerCapRadius * 0.45,
+        context.bouncerColumnHeight * 0.56 +
+        context.bouncerCapRadius * 0.08,
       z: centerZ,
       tilt: context.getTrackTiltAtArcLength(s),
-      radius: context.bouncerCapRadius + 0.72,
+      radius: context.bouncerCapRadius + 1.05,
       columnHeight: context.bouncerColumnHeight,
       capRadius: context.bouncerCapRadius,
       bounceImpulse:
@@ -1233,44 +1233,22 @@ export function applyObstacleInteractions(host: ObstacleInteractionHost): void {
     const currentVelocity = host.marbleBody.linvel();
     const outwardSpeed =
       currentVelocity.x * outwardX + currentVelocity.z * outwardZ;
+    const incomingSpeed = Math.max(0, -outwardSpeed);
     const blockedFactor = clamp01(
       (PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED - outwardSpeed) /
         (PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED + PINBALL_BOUNCER_MIN_OUTWARD_SPEED),
     );
-    const horizontalWeight = THREE.MathUtils.lerp(0.9, 0.52, blockedFactor);
-    const verticalWeight = THREE.MathUtils.lerp(0.32, 0.88, blockedFactor);
-    const impulseMagnitude =
-      bouncer.bounceImpulse * THREE.MathUtils.lerp(1, 1.18, blockedFactor);
-    const bounceDir = new THREE.Vector3(
-      outwardX * horizontalWeight,
-      verticalWeight,
-      outwardZ * horizontalWeight,
-    ).normalize();
-    host.marbleBody.applyImpulse(
-      {
-        x: bounceDir.x * impulseMagnitude,
-        y: bounceDir.y * impulseMagnitude,
-        z: bounceDir.z * impulseMagnitude,
-      },
-      true,
-    );
-    const minOutwardSpeed = THREE.MathUtils.lerp(
+    const tangentX = currentVelocity.x - outwardX * outwardSpeed;
+    const tangentZ = currentVelocity.z - outwardZ * outwardSpeed;
+    const targetOutwardSpeed = Math.max(
       PINBALL_BOUNCER_MIN_OUTWARD_SPEED,
-      PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED,
-      blockedFactor,
+      incomingSpeed * THREE.MathUtils.lerp(0.96, 1.04, blockedFactor),
     );
-    const postImpulseVelocity = host.marbleBody.linvel();
-    const postOutwardSpeed =
-      postImpulseVelocity.x * outwardX + postImpulseVelocity.z * outwardZ;
-    const outwardSpeedFix = Math.max(0, minOutwardSpeed - postOutwardSpeed);
     host.marbleBody.setLinvel(
       {
-        x: postImpulseVelocity.x + outwardX * outwardSpeedFix,
-        y: Math.max(
-          postImpulseVelocity.y,
-          bouncer.bounceImpulse * THREE.MathUtils.lerp(0.28, 0.62, blockedFactor),
-        ),
-        z: postImpulseVelocity.z + outwardZ * outwardSpeedFix,
+        x: tangentX + outwardX * targetOutwardSpeed,
+        y: Math.max(currentVelocity.y, 0.8 + incomingSpeed * 0.08),
+        z: tangentZ + outwardZ * targetOutwardSpeed,
       },
       true,
     );

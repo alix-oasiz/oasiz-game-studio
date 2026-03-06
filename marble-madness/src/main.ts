@@ -183,9 +183,9 @@ class MarbleMadnessStarter {
   private readonly rotatorArmLength = 3.2;
   private readonly rotatorArmThickness = 0.92;
   private readonly rotatorSpinSpeedBase = 7.2;
-  private readonly bouncerColumnHeight = 1.1;
-  private readonly bouncerCapRadius = 0.72;
-  private readonly bouncerImpulse = 8.8;
+  private readonly bouncerColumnHeight = 1.45;
+  private readonly bouncerCapRadius = 1.08;
+  private readonly bouncerImpulse = 13.5;
   private readonly bouncyPadLength = 5.6;
   private readonly bouncyPadWidth = 1.05;
   private readonly bouncyPadSweepAmplitude = 1.18;
@@ -1499,17 +1499,54 @@ class MarbleMadnessStarter {
       return;
     }
     for (const blocker of this.horizontalBlockers) {
+      const geometry = this.createHorizontalBlockerRootGeometry(blocker);
       const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(blocker.length, blocker.height, blocker.depth),
+        geometry,
         this.trackMaterial,
       );
       mesh.position.set(blocker.x, blocker.y, blocker.z);
+      mesh.rotation.y = Math.PI;
       mesh.rotation.x = -blocker.tilt;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       this.addLevelObject(mesh);
     }
     console.log("[AddHorizontalBlockerMeshes]", "Added blocker meshes");
+  }
+
+  private createHorizontalBlockerRootGeometry(
+    blocker: HorizontalBlocker,
+  ): THREE.BufferGeometry {
+    const rootExtension = this.trackThickness * 0.9;
+    const rampHeight = blocker.height + rootExtension;
+    const rampDepth = blocker.depth * 0.92;
+    const halfLength = blocker.length * 0.5;
+    const halfDepth = blocker.depth * 0.5;
+    const halfHeight = blocker.height * 0.5;
+    const bottomY = -halfHeight - rootExtension;
+    const curveSamples = 10;
+    const shape = new THREE.Shape();
+    shape.moveTo(-halfDepth, bottomY);
+    shape.lineTo(halfDepth - rampDepth, bottomY);
+    for (let index = 1; index <= curveSamples; index += 1) {
+      const t = index / curveSamples;
+      const z = THREE.MathUtils.lerp(halfDepth, halfDepth - rampDepth, t);
+      const y = bottomY + rampHeight * (1 - Math.pow(1 - t, 2.2));
+      shape.lineTo(z, y);
+    }
+    shape.lineTo(-halfDepth, halfHeight);
+    shape.closePath();
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: blocker.length,
+      bevelEnabled: false,
+      steps: 1,
+      curveSegments: 10,
+    });
+    geometry.rotateY(Math.PI * 0.5);
+    geometry.translate(-halfLength, 0, 0);
+    geometry.computeVertexNormals();
+    return geometry;
   }
 
   private getFloorRuns(): TrackSample[][] {

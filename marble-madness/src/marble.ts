@@ -53,7 +53,7 @@ function isAirborne(host: PhysicsHost, position: RAPIER.Vector): boolean {
 
 export function createPhysicsWorld(
   fixedStep: number,
-  gravityY: number = -9.81,
+  gravityY: number = -16,
 ): RAPIER.World {
   const world = new RAPIER.World({ x: 0, y: gravityY, z: 0 });
   world.integrationParameters.dt = fixedStep;
