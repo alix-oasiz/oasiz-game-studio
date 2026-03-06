@@ -238,6 +238,30 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Architecture outcome:
   - no change required.
 
+## 2026-03-06 - Lobby UX audit pass (typography + animation + keyed DOM + polish)
+
+- Scope:
+  - Resolved all P0/P1/P2 audit items from `lobby-ux-audit.md` in one session. Also fixed an unreported animation rotation snap bug discovered during work.
+- Key changes:
+  - `astro-party/index.html`:
+    - P0-A: Collapsed 6 `--fs-*` vars to 3 tiers (`--fs-label` / `--fs-ui` / `--fs-display`). Updated all 20 usage sites.
+    - P1-B: Dropped `.map-desc` font-size to `--fs-label`.
+    - P2-A: Float staggered per card slot (0s/1.1s/2.2s/3.3s). Ring-pulse moved to hover-only on `.pcard--filled`.
+    - P2-C: Added `lb-blink 2.8s` animation to `.empty-icon`. No border/background change — flat panel intentional.
+    - P2-D: Added `pointer-events: none` to all `.host-locked` lobby button rules. No hover/active states fire.
+    - P2-E: `.card-info` side padding reduced from `1.5rem` to `1rem`.
+    - Animation rotation fix: `lb-float` keyframes now include `rotate(-16deg)` at 0%/100%/50% to prevent snap on stagger-delayed cards.
+    - P1-C: Removed `.skin-cycle-overlay` absolute-overlay approach (invisible due to stacking context — `.card-info` z:6 paints over `.card-scene` z:1). Added in-flow `.card-skin-btn` pill in the footer.
+  - `astro-party/src/ui/lobby.ts`:
+    - P2-B: Replaced full-tray `innerHTML` reset with keyed DOM. 4 persistent `.pcard` elements persist across updates. `patchCardShipSkin()` updates only `.card-ship-wrap` inner HTML when skin changes — float animation on the wrap is never interrupted. Full rebuild only on empty↔filled slot transition.
+    - P1-A: Removed unused `PLAYER_ROLE` constant.
+    - Local player skin cycling: Generalized `cycleMyShipSkin()` to `cycleShipSkinForPlayer(playerId, isSelf)`. Local player path sets visual-only override (no sync). Host-only guard in click handler. Local player cards show skin-cycle pill + Remove button in `.card-footer-actions`.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
 ## Milestone Journal
 
 ## 2026-03-04 - Server Docker hardening + pinned Node/npm deployment baseline
@@ -785,6 +809,53 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
     - leave/back size path set to `42x42` (`--leave-btn-size: 42px`, `.back-btn` base + coarse override).
     - in-game leave and lobby back left offsets normalized to explicit left-gap expressions without extra hidden spacer vars.
     - demo exit left anchor aligned with the same test gap model as in-game leave.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-06 - Lobby UX audit: P0-A + P1-B + P2-A/C/D + animation polish
+
+- Scope:
+  - Closed 5 items from the lobby UX audit doc and resolved P0-A typography consolidation.
+- Key changes:
+  - `astro-party/index.html`:
+    - P0-A: Collapsed 6 `--fs-*` vars to 3 tiers (`--fs-label` / `--fs-ui` / `--fs-display`). All 20 usage sites updated.
+    - P1-B: `.map-desc` dropped from `--fs-ui` to `--fs-label` to create size hierarchy below map title.
+    - P2-A: Float animation staggered per slot (0s / 1.1s / 2.2s / 3.3s). Ring-pulse moved from always-on to hover-only on `.pcard--filled`.
+    - P2-C: Faint `lb-blink` pulse added to `.empty-icon` only. No border/background change.
+    - P2-D: `pointer-events: none` added to all `.host-locked` lobby button rules — suppresses hover/active states without needing lock icons.
+  - `astro-party/.tools/docs/lobby-ux-audit.md`:
+    - Marked P0-A, P1-A (wont-fix), P1-B, P2-A, P2-C, P2-D as resolved.
+- Open decisions from audit session:
+  - P1-C: Self-card skin-cycle placement — suggest moving to viewport overlay (tap ship to cycle). Awaiting direction.
+  - P2-B: Keyed-DOM diffing for `updateLobbyUI` — approach outlined, awaiting go-ahead.
+  - P2-E: `card-info` horizontal padding too wide at narrow viewports (~80px for name at 568px). Fix is `1rem` side padding. Awaiting direction.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-06 - Lobby UX audit: P1-C + P2-B keyed DOM + P2-E + animation rotation fix
+
+- Scope:
+  - Resolved remaining high-priority audit items and a newly identified animation regression.
+- Key changes:
+  - `astro-party/index.html`:
+    - `lb-float` keyframes fixed: include `translateY(4%) rotate(-16deg)` at 0%/100% and `calc(4% - 0.4375rem) rotate(-16deg)` at 50%. Eliminates jump/snap on stagger-delayed cards when animation starts.
+    - Removed old `.card-skin-cycle` CSS (footer button replaced by viewport overlay).
+    - Added `.skin-cycle-overlay` CSS: absolute-positioned circular button at bottom-center of `.card-viewport`, semi-transparent, `--pc-rgb`-tinted, responsive rem sizing.
+    - P2-E: `.card-info` horizontal padding reduced `1.5rem` → `1rem`.
+  - `astro-party/src/ui/lobby.ts`:
+    - P2-B: Replaced full-tray `innerHTML = html` with keyed DOM diffing via 4 persistent `.pcard` slot elements (`ensureCardSlots`).
+    - Added `buildFilledCardHTML`, `buildEmptyCardHTML`, `patchCardShipSkin` helpers.
+    - `patchCardShipSkin`: compares `data-skin-id` on `.card-ship-wrap`, updates only its `innerHTML` when skin changes. The wrap element (and its float animation) persists.
+    - `updateLobbyUI`: per-slot targeted updates for same-player case (skin, name, host pip, footer). Full redraw only on slot transition.
+    - P1-C: Skin-cycle button moved from `.card-footer` to inside `.card-viewport` as `.skin-cycle-overlay`. Self-card footer is now a spacer matching all other cards.
+    - SVG constants (`CROWN_SVG`, `CYCLE_SKIN_SVG`, `PLUS_CIRCLE_SVG`) promoted to closure level.
+    - `cardSlotEls` declared at closure level.
 - Validation:
   - `astro-party`: `bun run typecheck` passed.
   - `astro-party`: `bun run build` passed.

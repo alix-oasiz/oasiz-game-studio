@@ -63,10 +63,17 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     online: "meta-ident--online",
   };
   const BADGE_LBL = { you: "You", ai: "AI Bot", local: "Local", online: "Online" };
+  const CROWN_SVG =
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 19h14l1-9-4.5 3.5L12 6 8.5 13.5 4 10l1 9z"/></svg>';
+  const CYCLE_SKIN_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.86-5.66"/><polyline points="18 2 18 8 12 8"/><path d="M20 12a8 8 0 0 1-13.86 5.66"/><polyline points="6 22 6 16 12 16"/></svg>';
+  const PLUS_CIRCLE_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>';
   const SHIP_SYNC_DEBOUNCE_MS = 160;
   let pendingShipSkinSyncTimer: number | null = null;
   let pendingShipSkinSyncId: ShipSkinId | null = null;
   let preferredSkinId: ShipSkinId | null = null;
+  let cardSlotEls: HTMLElement[] | null = null;
 
   function applyPreferredSkinToSelf(): void {
     if (!preferredSkinId) return;
@@ -90,22 +97,21 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     }, SHIP_SYNC_DEBOUNCE_MS);
   }
 
-  function cycleMyShipSkin(): void {
-    const myPlayerId = game.getMyPlayerId();
-    if (!myPlayerId) return;
+  function cycleShipSkinForPlayer(playerId: string, isSelf: boolean): void {
     if (SHIP_SKIN_IDS.length <= 0) return;
-
     const currentSkin =
-      getShipSkinOverrideForPlayer(myPlayerId) ??
-      resolveShipSkinIdForPlayer(myPlayerId);
+      getShipSkinOverrideForPlayer(playerId) ??
+      resolveShipSkinIdForPlayer(playerId);
     const currentIndex = SHIP_SKIN_IDS.indexOf(currentSkin);
     const nextIndex =
       currentIndex >= 0 ? (currentIndex + 1) % SHIP_SKIN_IDS.length : 0;
     const nextSkinId = SHIP_SKIN_IDS[nextIndex];
-    setShipSkinOverrideForPlayer(myPlayerId, nextSkinId);
-    preferredSkinId = nextSkinId;
-    setPreferredShipSkinId(nextSkinId);
-    scheduleShipSkinSync(nextSkinId);
+    setShipSkinOverrideForPlayer(playerId, nextSkinId);
+    if (isSelf) {
+      preferredSkinId = nextSkinId;
+      setPreferredShipSkinId(nextSkinId);
+      scheduleShipSkinSync(nextSkinId);
+    }
     feedback.button();
     updateLobbyUI(game.getPlayers());
   }
@@ -279,6 +285,111 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     }
   }
 
+  function ensureCardSlots(): HTMLElement[] {
+    if (cardSlotEls) return cardSlotEls;
+    cardSlotEls = [];
+    for (let i = 0; i < 4; i++) {
+      const el = document.createElement("div");
+      el.className = "pcard pcard--empty";
+      el.dataset.slotPlayerId = "";
+      el.dataset.emptySlotKey = "";
+      elements.playersList.appendChild(el);
+      cardSlotEls.push(el);
+    }
+    return cardSlotEls;
+  }
+
+  function buildFilledCardHTML(
+    player: PlayerData,
+    slotIdx: number,
+    type: "you" | "ai" | "local" | "online",
+    isSelf: boolean,
+    isLeaderPlayer: boolean,
+    canAct: boolean,
+    botType: string | null,
+    color: string,
+  ): string {
+    const skinBtn = `<button class="card-skin-btn" data-action="cycle-skin" data-player-id="${player.id}" title="Change ship skin" aria-label="Change ship skin">${CYCLE_SKIN_SVG} Skin</button>`;
+    let footerContent: string;
+    if (isSelf) {
+      footerContent = skinBtn;
+    } else if (canAct) {
+      if (botType === "local") {
+        footerContent = `<div class="card-footer-actions">${skinBtn}<button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
+      } else {
+        const action = botType === "ai" ? "remove" : "kick";
+        const label = botType === "ai" ? "Remove" : "Kick";
+        footerContent = `<div class="card-footer-actions"><button class="card-act" data-action="${action}" data-player-id="${player.id}">${label}</button></div>`;
+      }
+    } else {
+      footerContent = '<span class="card-footer-spacer"></span>';
+    }
+    return `<div class="card-glow"></div>
+          <div class="card-meta">
+            <span class="meta-ident ${META_ICON_CLS[type]}" title="${BADGE_LBL[type]}" aria-label="${BADGE_LBL[type]}">${BADGE_ICO[type]}</span>
+            <div class="card-meta-right">
+              ${isLeaderPlayer ? `<span class="meta-host" title="Host" aria-label="Host">${CROWN_SVG}</span>` : ""}
+              <span class="card-slot">${SLOTS[slotIdx]}</span>
+            </div>
+          </div>
+          <div class="card-scene">
+            <div class="card-viewport">
+              <div class="viewport-ring"></div>
+              <div class="viewport-inner">${shipPreviewMarkup(player.id, color)}</div>
+            </div>
+          </div>
+          <div class="card-info">
+            <div class="card-name">${escapeHtml(player.name)}</div>
+            <div class="card-footer">${footerContent}</div>
+          </div>`;
+  }
+
+  function buildEmptyCardHTML(
+    slotIdx: number,
+    canAdd: boolean,
+    canShowLocalAdd: boolean,
+  ): string {
+    const localBtn = canShowLocalAdd
+      ? `<button class="empty-btn" data-action="add-local"${canAdd ? "" : " disabled"}>+ Local</button>`
+      : "";
+    return `<div class="card-scene">
+            <div class="empty-content">
+              <div class="empty-icon">${PLUS_CIRCLE_SVG}</div>
+              <div class="empty-label">${SLOTS[slotIdx]} \u2014 Empty</div>
+              <div class="empty-btns">
+                <button class="empty-btn" data-action="add-ai"${canAdd ? "" : " disabled"}>+ Add AI</button>
+                ${localBtn}
+              </div>
+            </div>
+          </div>`;
+  }
+
+  function patchCardShipSkin(
+    card: HTMLElement,
+    playerId: string,
+    color: string,
+  ): void {
+    const shipWrap = card.querySelector<HTMLElement>(".card-ship-wrap");
+    if (!shipWrap) return;
+    const currentSkinId = shipWrap.dataset.skinId ?? "";
+    const expectedSkinId = resolveShipSkinIdForPlayer(playerId);
+    if (currentSkinId === expectedSkinId) return;
+    try {
+      const skin = getShipSkin(expectedSkinId);
+      const coloredTemplate = applySvgColorSlots(skin.svgTemplate, {
+        "slot-primary": color,
+      });
+      const imageSrc = svgDataUri(coloredTemplate);
+      shipWrap.dataset.skinId = expectedSkinId;
+      shipWrap.className = "card-ship-wrap card-ship-asset";
+      shipWrap.innerHTML = `<img class="card-ship-img" alt="" src="${imageSrc}">`;
+    } catch {
+      shipWrap.dataset.skinId = "";
+      shipWrap.className = "card-ship-wrap card-ship-fallback";
+      shipWrap.innerHTML = shipSVG(color);
+    }
+  }
+
   function updateLobbyUI(players: PlayerData[]): void {
     const myPlayerId = game.getMyPlayerId();
     const isLeader = game.isLeader();
@@ -286,13 +397,9 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     const canShowLocalAdd = canShowLocalAddOption();
     applyPreferredSkinToSelf();
 
-    const crownSVG =
-      '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 19h14l1-9-4.5 3.5L12 6 8.5 13.5 4 10l1 9z"/></svg>';
-    const cycleSkinIconSVG =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.86-5.66"/><polyline points="18 2 18 8 12 8"/><path d="M20 12a8 8 0 0 1-13.86 5.66"/><polyline points="6 22 6 16 12 16"/></svg>';
-
-    let html = "";
+    const cards = ensureCardSlots();
     for (let i = 0; i < 4; i++) {
+      const card = cards[i];
       if (i < players.length) {
         const player = players[i];
         const color = player.color.primary;
@@ -308,69 +415,81 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
         else if (botType === "local") type = "local";
         else type = "online";
 
-        let actionBtn = "";
-        if (canAct) {
-          const action =
-            botType === "ai" || botType === "local" ? "remove" : "kick";
-          const label =
-            botType === "ai" || botType === "local" ? "Remove" : "Kick";
-          actionBtn = `<button class="card-act" data-action="${action}" data-player-id="${player.id}">${label}</button>`;
+        card.style.setProperty("--pc", color);
+        card.style.setProperty("--pc-rgb", rgb);
+
+        const prevPlayerId = card.dataset.slotPlayerId ?? "";
+        if (prevPlayerId !== player.id) {
+          // New player in slot (empty→filled or player swap): full redraw for this card
+          card.dataset.slotPlayerId = player.id;
+          card.dataset.emptySlotKey = "";
+          card.className = "pcard pcard--filled";
+          card.innerHTML = buildFilledCardHTML(
+            player, i, type, isSelf, isLeaderPlayer, canAct, botType, color,
+          );
+        } else {
+          // Same player: targeted updates — ship animation continues uninterrupted
+          card.className = "pcard pcard--filled";
+
+          // Ship skin: only patches the wrap's innerHTML if skin changed
+          patchCardShipSkin(card, player.id, color);
+
+          // Name (rare, but handle it)
+          const nameEl = card.querySelector<HTMLElement>(".card-name");
+          if (nameEl && nameEl.textContent !== player.name) {
+            nameEl.textContent = player.name;
+          }
+
+          // Host pip in meta rail
+          const metaRight = card.querySelector<HTMLElement>(".card-meta-right");
+          if (metaRight) {
+            const hostPip = metaRight.querySelector(".meta-host");
+            if (isLeaderPlayer && !hostPip) {
+              metaRight.insertAdjacentHTML(
+                "afterbegin",
+                `<span class="meta-host" title="Host" aria-label="Host">${CROWN_SVG}</span>`,
+              );
+            } else if (!isLeaderPlayer && hostPip) {
+              hostPip.remove();
+            }
+          }
+
+          // Footer action buttons (host status can flip canAct)
+          const footer = card.querySelector<HTMLElement>(".card-footer");
+          if (footer) {
+            const skinBtn = `<button class="card-skin-btn" data-action="cycle-skin" data-player-id="${player.id}" title="Change ship skin" aria-label="Change ship skin">${CYCLE_SKIN_SVG} Skin</button>`;
+            let newFooter: string;
+            if (isSelf) {
+              newFooter = skinBtn;
+            } else if (canAct) {
+              if (botType === "local") {
+                newFooter = `<div class="card-footer-actions">${skinBtn}<button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
+              } else {
+                const action = botType === "ai" ? "remove" : "kick";
+                const label = botType === "ai" ? "Remove" : "Kick";
+                newFooter = `<div class="card-footer-actions"><button class="card-act" data-action="${action}" data-player-id="${player.id}">${label}</button></div>`;
+              }
+            } else {
+              newFooter = '<span class="card-footer-spacer"></span>';
+            }
+            footer.innerHTML = newFooter;
+          }
         }
-
-        const skinCycleBtn = isSelf
-          ? `<button class="card-skin-cycle" data-action="cycle-skin" data-player-id="${player.id}" title="Change ship skin" aria-label="Change ship skin">${cycleSkinIconSVG}</button>`
-          : "";
-        const actionControls = skinCycleBtn || actionBtn
-          ? `<div class="card-footer-actions">${skinCycleBtn}${actionBtn}</div>`
-          : '<span class="card-footer-spacer"></span>';
-
-        html += `<div class="pcard pcard--filled" style="--pc:${color};--pc-rgb:${rgb}">
-          <div class="card-glow"></div>
-          <div class="card-meta">
-            <span class="meta-ident ${META_ICON_CLS[type]}" title="${BADGE_LBL[type]}" aria-label="${BADGE_LBL[type]}">${BADGE_ICO[type]}</span>
-            <div class="card-meta-right">
-              ${isLeaderPlayer ? `<span class="meta-host" title="Host" aria-label="Host">${crownSVG}</span>` : ""}
-              <span class="card-slot">${SLOTS[i]}</span>
-            </div>
-          </div>
-          <div class="card-scene">
-            <div class="card-viewport">
-              <div class="viewport-ring"></div>
-              <div class="viewport-inner">${shipPreviewMarkup(player.id, color)}</div>
-            </div>
-          </div>
-          <div class="card-info">
-            <div class="card-name">${escapeHtml(player.name)}</div>
-            <div class="card-footer">
-              ${actionControls}
-            </div>
-          </div>
-        </div>`;
       } else {
-        const canAdd = isLeader;
-        const plusCircleSVGFill =
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>';
-        const localAddButtonHtml = canShowLocalAdd
-          ? '<button class="empty-btn" data-action="add-local"' +
-            (canAdd ? "" : " disabled") +
-            ">+ Local</button>"
-          : "";
-        html += `<div class="pcard pcard--empty">
-          <div class="card-scene">
-            <div class="empty-content">
-              <div class="empty-icon">${plusCircleSVGFill}</div>
-              <div class="empty-label">${SLOTS[i]} \u2014 Empty</div>
-              <div class="empty-btns">
-                <button class="empty-btn" data-action="add-ai" ${canAdd ? "" : "disabled"}>+ Add AI</button>
-                ${localAddButtonHtml}
-              </div>
-            </div>
-          </div>
-        </div>`;
+        // Empty slot
+        const prevPlayerId = card.dataset.slotPlayerId ?? "";
+        const emptyKey = `${isLeader ? "1" : "0"}_${canShowLocalAdd ? "1" : "0"}`;
+        if (prevPlayerId !== "" || card.dataset.emptySlotKey !== emptyKey) {
+          // Transitioning from filled, or empty-slot params changed: redraw
+          card.dataset.slotPlayerId = "";
+          card.dataset.emptySlotKey = emptyKey;
+          card.className = "pcard pcard--empty";
+          card.style.removeProperty("--pc");
+          card.style.removeProperty("--pc-rgb");
+          card.innerHTML = buildEmptyCardHTML(i, isLeader, canShowLocalAdd);
+        }
       }
     }
-
-    elements.playersList.innerHTML = html;
 
     const hasEnoughPlayers = players.length >= 2;
     elements.startGameBtn.disabled = !hasEnoughPlayers || !isLeader;
@@ -427,10 +546,11 @@ export function createLobbyUI(game: Game, isMobile: boolean): LobbyUI {
     } else if (action === "add-local") {
       elements.addLocalPlayerBtn.click();
     } else if (action === "cycle-skin" && playerId) {
-      if (playerId !== game.getMyPlayerId()) {
-        return;
-      }
-      cycleMyShipSkin();
+      const myPlayerId = game.getMyPlayerId();
+      const isSelf = playerId === myPlayerId;
+      const isLocalPlayer = game.getPlayerBotType(playerId) === "local";
+      if (!isSelf && (!isLocalPlayer || !game.isLeader())) return;
+      cycleShipSkinForPlayer(playerId, isSelf);
     } else if ((action === "remove" || action === "kick") && playerId) {
       if (!game.isLeader()) {
         showHostOnlyActionToast();
