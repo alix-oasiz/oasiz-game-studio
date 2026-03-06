@@ -4,9 +4,13 @@ import { getAudioManager } from "../audio";
 type TrackPoint = { x: number; y: number };
 
 export default class Game extends Phaser.Scene {
-    private motorcycle!: Phaser.Physics.Matter.Image;
+    private motorcycleSprite!: Phaser.GameObjects.Image;
+    private motorcycleBody!: MatterJS.BodyType;
     private backgroundGraphics!: Phaser.GameObjects.Graphics;
     private trackGraphics!: Phaser.GameObjects.Graphics;
+    private chassisDebug!: Phaser.GameObjects.Rectangle;
+    private rearWheelDebug!: Phaser.GameObjects.Arc;
+    private frontWheelDebug!: Phaser.GameObjects.Arc;
     private speedText!: Phaser.GameObjects.Text;
     private statusText!: Phaser.GameObjects.Text;
     private spaceKey!: Phaser.Input.Keyboard.Key;
@@ -26,6 +30,8 @@ export default class Game extends Phaser.Scene {
     private readonly trackSpawnBuffer: number = 1800;
     private readonly segmentThickness: number = 40;
     private readonly jointCapRadius: number = 26;
+    private readonly spriteOffsetX: number = 8;
+    private readonly spriteOffsetY: number = -10;
     private readonly audio = getAudioManager();
 
     constructor() {
@@ -44,7 +50,7 @@ export default class Game extends Phaser.Scene {
         this.createBike();
         this.createHud();
         this.bindInput();
-        this.cameras.main.startFollow(this.motorcycle, true, 0.08, 0.08);
+        this.cameras.main.startFollow(this.motorcycleSprite, true, 0.08, 0.08);
         this.cameras.main.setLerp(0.08, 0.08);
         this.cameras.main.setDeadzone(this.scale.width * 0.2, this.scale.height * 0.25);
         this.audio.startMusic("game");
@@ -173,14 +179,60 @@ export default class Game extends Phaser.Scene {
 
     private createBike() {
         const startY = this.scale.height * this.trackHeightRatio - 52;
-        this.motorcycle = this.matter.add.image(120, startY, "motorcycle");
-        this.motorcycle.setScale(0.36);
-        this.motorcycle.setTint(0xffffff);
-        this.motorcycle.setRectangle(this.motorcycle.width * 0.34, this.motorcycle.height * 0.18);
-        this.motorcycle.setBounce(0);
-        this.motorcycle.setFriction(0.08, 0.01, 0.02);
-        this.motorcycle.setFrictionAir(0.004);
-        this.motorcycle.setFixedRotation();
+        const startX = 120;
+        this.motorcycleSprite = this.add.image(startX, startY, "motorcycle");
+        this.motorcycleSprite.setScale(0.36);
+        this.motorcycleSprite.setTint(0xffffff);
+
+        const MatterLib = Phaser.Physics.Matter.Matter;
+        const bodies = MatterLib.Bodies;
+
+        const chassisBody = bodies.rectangle(startX - 2, startY - 7, 56, 10, {
+            chamfer: { radius: 6 },
+            friction: 0.02,
+            frictionStatic: 0.04,
+            restitution: 0
+        });
+        const rearWheelBody = bodies.circle(startX - 34, startY + 18, 12, {
+            friction: 0.95,
+            frictionStatic: 1.2,
+            restitution: 0.02
+        });
+        const frontWheelBody = bodies.circle(startX + 28, startY + 20, 12, {
+            friction: 0.95,
+            frictionStatic: 1.2,
+            restitution: 0.02
+        });
+
+        const compoundBody = MatterLib.Body.create({
+            parts: [chassisBody, rearWheelBody, frontWheelBody],
+            friction: 0.03,
+            frictionAir: 0.006,
+            restitution: 0
+        });
+
+        this.motorcycleBody = compoundBody;
+        this.matter.world.add(compoundBody);
+
+        this.chassisDebug = this.add.rectangle(
+            startX,
+            startY,
+            56,
+            10
+        );
+        this.chassisDebug.setStrokeStyle(3, 0xffd84d, 0.95);
+        this.chassisDebug.setFillStyle(0xffd84d, 0.08);
+        this.chassisDebug.setDepth(39);
+
+        this.rearWheelDebug = this.add.circle(startX - 34, startY + 18, 12);
+        this.rearWheelDebug.setStrokeStyle(3, 0x00f6ff, 0.95);
+        this.rearWheelDebug.setFillStyle(0x00f6ff, 0.08);
+        this.rearWheelDebug.setDepth(40);
+
+        this.frontWheelDebug = this.add.circle(startX + 28, startY + 20, 12);
+        this.frontWheelDebug.setStrokeStyle(3, 0xff4ef8, 0.95);
+        this.frontWheelDebug.setFillStyle(0xff4ef8, 0.08);
+        this.frontWheelDebug.setDepth(40);
     }
 
     private createHud() {
@@ -225,13 +277,13 @@ export default class Game extends Phaser.Scene {
         (window as any).render_game_to_text = () => JSON.stringify({
             mode: "gameplay",
             player: {
-                x: Math.round(this.motorcycle.x),
-                y: Math.round(this.motorcycle.y),
-                vx: Number(this.motorcycle.body.velocity.x.toFixed(3)),
-                vy: Number(this.motorcycle.body.velocity.y.toFixed(3)),
-                angle: Number(this.motorcycle.rotation.toFixed(3)),
-                av: Number(this.motorcycle.body.angularVelocity.toFixed(3)),
-                grounded: Math.abs(this.motorcycle.body.velocity.y) < 0.35,
+                x: Math.round(this.motorcycleSprite.x),
+                y: Math.round(this.motorcycleSprite.y),
+                vx: Number(this.motorcycleBody.velocity.x.toFixed(3)),
+                vy: Number(this.motorcycleBody.velocity.y.toFixed(3)),
+                angle: Number(this.motorcycleSprite.rotation.toFixed(3)),
+                av: Number(this.motorcycleBody.angularVelocity.toFixed(3)),
+                grounded: Math.abs(this.motorcycleBody.velocity.y) < 0.35,
                 accelerating: this.isAccelerating
             },
             score: {
@@ -257,18 +309,39 @@ export default class Game extends Phaser.Scene {
             this.driveSpeed *= Math.pow(this.coastDragPerFrame, dt60);
         }
 
-        this.motorcycle.setVelocityX(this.driveSpeed);
+        Phaser.Physics.Matter.Matter.Body.setVelocity(this.motorcycleBody, {
+            x: this.driveSpeed,
+            y: this.motorcycleBody.velocity.y
+        });
 
-        if (this.motorcycle.x + this.trackSpawnBuffer > this.lastTrackX) {
-            this.extendTrackTo(this.motorcycle.x + this.trackSpawnBuffer);
+        if (this.motorcycleBody.position.x + this.trackSpawnBuffer > this.lastTrackX) {
+            this.extendTrackTo(this.motorcycleBody.position.x + this.trackSpawnBuffer);
         }
+
+        const parts = this.motorcycleBody.parts;
+        if (parts[1]) {
+            this.chassisDebug.setPosition(parts[1].position.x, parts[1].position.y);
+            this.chassisDebug.setRotation(this.motorcycleBody.angle);
+        }
+        if (parts[2]) {
+            this.rearWheelDebug.setPosition(parts[2].position.x, parts[2].position.y);
+        }
+        if (parts[3]) {
+            this.frontWheelDebug.setPosition(parts[3].position.x, parts[3].position.y);
+        }
+
+        this.motorcycleSprite.setPosition(
+            parts[1].position.x + this.spriteOffsetX,
+            parts[1].position.y + this.spriteOffsetY
+        );
+        this.motorcycleSprite.setRotation(this.motorcycleBody.angle);
 
         this.speedText.setText(`SPD ${this.driveSpeed.toFixed(2)}`);
         this.statusText.setText(this.isAccelerating ? "ACCELERATING" : "HOLD TO ACCELERATE");
         this.audio.updateEngine({
             speed: this.driveSpeed,
             accelerating: this.isAccelerating,
-            grounded: Math.abs(this.motorcycle.body.velocity.y) < 0.35,
+            grounded: Math.abs(this.motorcycleBody.velocity.y) < 0.35,
             active: true
         });
     }
