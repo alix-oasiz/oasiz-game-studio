@@ -700,6 +700,29 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Outcome:
   - Start screen is clean title + tap hint / buttons only. Title stays visually stable across all state transitions.
 
+## 2026-03-07 - Attract teardown bleed-through + lobby transition shake fix
+
+- Scope:
+  - Fixed transition artifacts reported when leaving attract/demo via start-menu actions:
+    - background/map-border flash after attract teardown
+    - lobby intro shaking during audio-timed settle
+- Key changes:
+  - `astro-party/src/main.ts`:
+    - added attract-cover helpers to centralize state (`opaque instantly` vs `revealed`)
+    - snap cover back to opaque during demo teardown paths before create/join/local transitions
+    - reveal cover only once lobby/game/end screens are actively routed
+  - `astro-party/index.html`:
+    - removed transform transition from `#lobbyScreen.overlay` to avoid transform contention with lobby intro animation
+    - replaced `lobbySettle` movement bounce with opacity-only settle and locked settled transform to `translateY(0)`
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Start-menu action transitions no longer expose stale gameplay border/background between demo teardown and lobby/game routing.
+  - Lobby transition enters smoothly without in-place shake during the settle beat.
+- Architecture outcome:
+  - no change required.
+
 ## Milestone Journal
 
 ## 2026-03-04 - Server Docker hardening + pinned Node/npm deployment baseline

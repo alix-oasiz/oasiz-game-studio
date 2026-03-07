@@ -3010,7 +3010,7 @@
       inset: 0;
       z-index: 100;
       transform: translateY(0);
-      transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.35s ease;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
     }
 
     #lobbyScreen.overlay.hidden {
@@ -3029,10 +3029,8 @@
     }
 
     @keyframes lobbySettle {
-      0%   { transform: translateY(0) scale(1); }
-      35%  { transform: translateY(-2px) scale(1.004); }
-      65%  { transform: translateY(1px) scale(0.999); }
-      100% { transform: translateY(0) scale(1); }
+      0%   { opacity: 0.995; }
+      100% { opacity: 1; }
     }
 
     /* Applied by JS when lobby enters from start screen */
@@ -3042,7 +3040,8 @@
 
     /* Applied by JS at PAGE_INTRO_IN beat (~460ms) — replaces lobby-rising */
     #lobbyScreen.lobby-settled {
-      animation: lobbySettle 200ms cubic-bezier(0.2, 0.84, 0.28, 1) both;
+      animation: lobbySettle 140ms linear both;
+      transform: translateY(0);
     }
 
     #lobbyScreen::before {

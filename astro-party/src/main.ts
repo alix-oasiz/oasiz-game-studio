@@ -245,6 +245,23 @@ async function init(): Promise<void> {
   let liveMatchIntroHideTimer: ReturnType<typeof setTimeout> | null = null;
   let touchLayoutSyncRaf = 0;
   let lobbySettleRafId = 0;
+  const getAttractCover = (): HTMLElement | null =>
+    document.getElementById("attractCover") as HTMLElement | null;
+  const setAttractCoverOpaqueInstant = (): void => {
+    const cover = getAttractCover();
+    if (!cover) {
+      return;
+    }
+    cover.style.transition = "none";
+    cover.classList.remove("revealed");
+    void cover.offsetWidth;
+    requestAnimationFrame(() => {
+      cover.style.removeProperty("transition");
+    });
+  };
+  const revealAttractCover = (): void => {
+    getAttractCover()?.classList.add("revealed");
+  };
   const cancelLobbySettleLoop = (): void => {
     if (lobbySettleRafId !== 0) {
       cancelAnimationFrame(lobbySettleRafId);
@@ -564,6 +581,7 @@ async function init(): Promise<void> {
   async function teardownDemoAndShowMenu(): Promise<void> {
     hideLiveMatchPlayerIntro();
     if (!demoController?.isDemoActive()) return;
+    setAttractCoverOpaqueInstant();
     demoOverlay?.hideAll();
     await demoController.teardown();
     demoInputActionSubscribers.clear();
@@ -583,6 +601,7 @@ async function init(): Promise<void> {
     hideLiveMatchPlayerIntro();
     const activeDemoController = demoController;
     if (!activeDemoController?.isDemoActive()) return;
+    setAttractCoverOpaqueInstant();
     await runWithSuppressedStartPhaseEffects(async () => {
       demoOverlay?.hideAll();
       await activeDemoController.teardown();
@@ -751,7 +770,7 @@ async function init(): Promise<void> {
   async function startDemoSession(): Promise<void> {
     // Safety guard: ensure cover is opaque before demo boots.
     // Primary reset is in syncScreenToPhase; this covers debug/edge paths.
-    document.getElementById("attractCover")?.classList.remove("revealed");
+    setAttractCoverOpaqueInstant();
 
     // Clean up any existing demo first
     if (demoController?.isDemoActive()) {
@@ -821,7 +840,7 @@ async function init(): Promise<void> {
     screenController.forceDemoStarfield(game.getMapId());
 
     // Fade the cover out — gracefully reveals the running attract game.
-    document.getElementById("attractCover")?.classList.add("revealed");
+    revealAttractCover();
   }
 
   async function handleDemoStartupFailure(error: unknown): Promise<void> {
@@ -833,6 +852,7 @@ async function init(): Promise<void> {
     demoInputActionSubscribers.clear();
     demoController = null;
     demoOverlay = null;
+    setAttractCoverOpaqueInstant();
     syncPlatformGameplayActivity();
     screenController.showScreen("start");
     syncDemoTouchLayoutForState();
@@ -1009,15 +1029,7 @@ async function init(): Promise<void> {
         // screen from another phase. Bypasses CSS transition so there's no fade-in
         // flicker during the logo animation. The demo boot will fade it out later.
         if (previousPhase !== null && previousPhase !== "START") {
-          const cover = document.getElementById("attractCover");
-          if (cover) {
-            cover.style.transition = "none";
-            cover.classList.remove("revealed");
-            // Re-enable transition on next frame so the subsequent fade-out is smooth
-            requestAnimationFrame(() => {
-              cover.style.removeProperty("transition");
-            });
-          }
+          setAttractCoverOpaqueInstant();
         }
         cancelLobbySettleLoop();
         elements.lobbyScreen.classList.remove("lobby-rising", "lobby-settled");
@@ -1034,6 +1046,7 @@ async function init(): Promise<void> {
           void AudioManager.playLobbyEnterTransitionCue();
           setTimeout(() => {
             screenController.showScreen("lobby");
+            revealAttractCover();
             lobbyUI.updateRoomCode(game.getRoomCode());
             lobbyUI.updateMapSelector();
             mapPreviewUI.updateMapPreview();
@@ -1063,6 +1076,7 @@ async function init(): Promise<void> {
           }, LOBBY_ENTER_DELAY_MS);
         } else {
           screenController.showScreen("lobby");
+          revealAttractCover();
           lobbyUI.updateRoomCode(game.getRoomCode());
           lobbyUI.updateMapSelector();
           mapPreviewUI.updateMapPreview();
@@ -1072,17 +1086,20 @@ async function init(): Promise<void> {
       case "MATCH_INTRO":
       case "COUNTDOWN":
       case "PLAYING":
+        revealAttractCover();
         screenController.showScreen("game");
         screenController.setRoundResultVisible(false);
         screenController.updateControlHints();
         break;
       case "ROUND_END":
+        revealAttractCover();
         screenController.showScreen("game");
         screenController.updateRoundResultOverlay();
         screenController.setRoundResultVisible(true);
         screenController.updateControlHints();
         break;
       case "GAME_END":
+        revealAttractCover();
         screenController.showScreen("end");
         screenController.updateGameEnd(game.getPlayers());
         if (triggerPhaseEffects) {
