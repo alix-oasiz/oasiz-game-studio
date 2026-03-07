@@ -2626,7 +2626,9 @@
       .advanced-settings-modal {
         width: min(560px, calc(min(var(--box-width), var(--box-height)) - 24px));
         max-width: calc(min(var(--box-width), var(--box-height)) - 24px);
-        max-height: calc(max(var(--box-width), var(--box-height)) - 24px);
+        max-height: calc(var(--box-height) - 16px);
+        top: calc(var(--box-top) + 8px);
+        transform: translateX(-50%);
         padding: 0.95rem 1rem;
       }
 
@@ -3816,6 +3818,8 @@
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       width: min(47.5rem, calc(100vw - 3rem));
+      max-height: calc(var(--box-height) - 2rem);
+      overflow: hidden;
       background: #0b1020;
       border: 1px solid var(--border2);
       border-radius: 0.875rem;
@@ -3823,7 +3827,7 @@
       z-index: 201;
       box-shadow: 0 1.75rem 4.375rem rgba(0,0,0,0.88);
     }
-    #lobbyScreen .map-modal.active { display: block; }
+    #lobbyScreen .map-modal.active { display: flex; flex-direction: column; }
     #lobbyScreen .modal-head {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 1.25rem;
@@ -3839,7 +3843,7 @@
     }
     #lobbyScreen .modal-close:hover { color: var(--text); background: rgba(255,255,255,0.09); }
     #lobbyScreen .modal-close svg { width: 0.875rem; height: 0.875rem; }
-    #lobbyScreen .modal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+    #lobbyScreen .modal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
     /* MAP PICKER CARDS — restyle existing .map-picker-card classes under #lobbyScreen */
     #lobbyScreen .map-picker-card {
