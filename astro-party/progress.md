@@ -919,6 +919,57 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Architecture outcome:
   - no change required.
 
+## 2026-03-08 - Tutorial re-entry stability + mobile tap stutter mitigation
+
+- Scope:
+  - Fixed tutorial breaking when replayed in the same session (no pause/spotlight symptoms).
+  - Reduced touch-mode micro-stutter on center-screen taps (outside virtual control zones).
+- Root causes:
+  - Tutorial action button listeners persisted across runs/instances, allowing stale handlers (including old "Start Playing" behavior) to bleed into new tutorial sessions.
+  - Touch taps triggered multiple global gesture-unlock handlers (`touchstart` + `pointerdown` + `mousedown` + `click`) and frequent no-op viewport resize work on mobile.
+- Key changes:
+  - `astro-party/src/demo/DemoOverlayUI.ts`:
+    - added `resetTutorialSkipButton()` and now clone-rebinds tutorial action button at each `showTutorial()` call.
+    - moved skip/advance handling into a single stable `handleTutorialSkipClick` callback.
+    - ensures stale listeners from prior tutorial runs cannot survive into re-entry.
+  - `astro-party/src/AudioManager.ts`:
+    - reduced user-gesture unlock listeners to `pointerdown` + `keydown` only.
+    - removed redundant `touchstart` / `mousedown` / `click` hooks to avoid per-tap duplicate callback churn on touch devices.
+  - `astro-party/src/ui/viewport.ts`:
+    - added viewport signature guard to skip redundant `updateViewportVars` passes when dimensions/offsets are unchanged.
+    - keeps orientation-change as forced recompute, while filtering noisy mobile resize events.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Tutorial can be started multiple times in one runtime session without losing pause/spotlight behavior.
+  - Touch-mode center-screen taps no longer execute duplicate global unlock callbacks, and redundant viewport recalcs are filtered.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-08 - Autoplay unlock listener lifetime fix (non-platform only)
+
+- Scope:
+  - Removed persistent global unlock listeners and constrained autoplay-unlock handling to non-platform runtime only.
+- Root cause:
+  - Gesture unlock hooks were attached for the full app lifetime even when autoplay was not blocked.
+  - This did unnecessary work on every touch/pointer interaction.
+- Key changes:
+  - `astro-party/src/AudioManager.ts`:
+    - removed constructor-time unlock listener registration.
+    - unlock listeners are now registered only when autoplay block is detected.
+    - listeners are torn down immediately after a successful unlock attempt (or when no longer blocked).
+    - unlock listener path is disabled entirely in platform runtime (`isPlatformRuntime()` gate).
+    - blocked-play fallback now ensures listeners are reattached only while blocked.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - No long-lived global unlock listeners in normal flow.
+  - Unlock handling is now transient and scoped to non-platform autoplay-block scenarios only.
+- Architecture outcome:
+  - no change required.
+
 ## Milestone Journal
 
 ## 2026-03-04 - Server Docker hardening + pinned Node/npm deployment baseline

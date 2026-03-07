@@ -49,6 +49,21 @@ export class DemoOverlayUI {
   private spotlightTrackInterval: number | null = null;
   private spotlightFirstActionTriggered = false;
   private lastStateTapAtMs = 0;
+  private readonly handleTutorialSkipClick = (e: Event): void => {
+    if (!this.guardStateTap(e)) return;
+    // While text is typing, this acts as a fast-forward.
+    if (this.cancelTypewriter !== null) {
+      this.cancelTypewriter();
+      this.cancelTypewriter = null;
+      return;
+    }
+    // For dialog steps that require explicit progression, this advances.
+    if (this.pendingDialogAdvance !== null) {
+      const advance = this.pendingDialogAdvance;
+      this.pendingDialogAdvance = null;
+      advance();
+    }
+  };
 
   /** Cleanup for the active mobile touch highlight */
   private clearActiveMobileHighlight: (() => void) | null = null;
@@ -81,25 +96,20 @@ export class DemoOverlayUI {
   showTutorial(isMobile = this.isMobile): void {
     this.tutorialOverlay.style.pointerEvents = "auto";
     this.tutorialOverlay.classList.remove("hidden");
+    this.resetTutorialSkipButton();
     this.hideTutorialActionButton();
-
-    this.tutorialSkip.addEventListener("click", (e) => {
-      if (!this.guardStateTap(e)) return;
-      // While text is typing, this acts as a fast-forward.
-      if (this.cancelTypewriter !== null) {
-        this.cancelTypewriter();
-        this.cancelTypewriter = null;
-        return;
-      }
-      // For dialog steps that require explicit progression, this advances.
-      if (this.pendingDialogAdvance !== null) {
-        const advance = this.pendingDialogAdvance;
-        this.pendingDialogAdvance = null;
-        advance();
-      }
-    });
+    this.tutorialSkip.addEventListener("click", this.handleTutorialSkipClick);
 
     void this.runTutorial(isMobile);
+  }
+
+  private resetTutorialSkipButton(): void {
+    const fresh = this.tutorialSkip.cloneNode(true) as HTMLButtonElement;
+    this.tutorialSkip.parentNode?.replaceChild(fresh, this.tutorialSkip);
+    this.tutorialSkip = fresh;
+    this.tutorialSkip.textContent = "Next";
+    this.tutorialSkip.classList.remove("demo-start-playing-btn");
+    this.tutorialSkip.classList.add("hidden");
   }
 
   /** Shows the Exit Demo button (top-left). Call after tutorial completes. */

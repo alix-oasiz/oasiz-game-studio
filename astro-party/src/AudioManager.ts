@@ -3,6 +3,7 @@
 
 import { Howl } from "howler";
 import { SettingsManager } from "./SettingsManager";
+import { isPlatformRuntime } from "./platform/oasizBridge";
 import {
   AUDIO_ASSETS,
   AUDIO_CUE_ASSETS,
@@ -72,13 +73,13 @@ class AudioManagerClass {
   private gameplayFxSuppressed: boolean = false;
   private gameplayFxVolumeMultiplier: number = 1;
   private lastPlaybackAtMsByAsset: Map<AudioAssetId, number> = new Map();
-
-  constructor() {
-    this.setupUserGestureUnlock();
-  }
+  private readonly isPlatform = isPlatformRuntime();
 
   private setupUserGestureUnlock(): void {
     if (typeof window === "undefined") {
+      return;
+    }
+    if (this.isPlatform) {
       return;
     }
     if (this.gestureUnlockHandler !== null) {
@@ -87,11 +88,14 @@ class AudioManagerClass {
 
     const handleUnlockGesture = (): void => {
       if (!this.autoplayBlocked) {
+        this.teardownUserGestureUnlock();
         return;
       }
 
       this.autoplayBlocked = false;
       console.log("[AudioManager.setupUserGestureUnlock]", "User gesture received, retrying BGM");
+      // Keep unlock listeners alive only while blocked.
+      this.teardownUserGestureUnlock();
       this.resumePendingBackgroundMusic();
     };
     this.gestureUnlockHandler = handleUnlockGesture;
@@ -102,18 +106,6 @@ class AudioManagerClass {
     });
     window.addEventListener("keydown", handleUnlockGesture, {
       capture: true,
-    });
-    window.addEventListener("touchstart", handleUnlockGesture, {
-      capture: true,
-      passive: true,
-    });
-    window.addEventListener("mousedown", handleUnlockGesture, {
-      capture: true,
-      passive: true,
-    });
-    window.addEventListener("click", handleUnlockGesture, {
-      capture: true,
-      passive: true,
     });
   }
 
@@ -127,15 +119,6 @@ class AudioManagerClass {
       capture: true,
     });
     window.removeEventListener("keydown", handleUnlockGesture, {
-      capture: true,
-    });
-    window.removeEventListener("touchstart", handleUnlockGesture, {
-      capture: true,
-    });
-    window.removeEventListener("mousedown", handleUnlockGesture, {
-      capture: true,
-    });
-    window.removeEventListener("click", handleUnlockGesture, {
       capture: true,
     });
     this.gestureUnlockHandler = null;
@@ -204,6 +187,7 @@ class AudioManagerClass {
     }
 
     this.autoplayBlocked = true;
+    this.setupUserGestureUnlock();
     if (this.isBackgroundMusicAsset(assetId) && SettingsManager.shouldPlayMusic()) {
       this.rememberPendingBackgroundMusic(assetId);
     }
@@ -283,6 +267,7 @@ class AudioManagerClass {
     }
 
     if (this.autoplayBlocked) {
+      this.setupUserGestureUnlock();
       if (this.isBackgroundMusicAsset(assetId) && SettingsManager.shouldPlayMusic()) {
         this.rememberPendingBackgroundMusic(assetId);
       }

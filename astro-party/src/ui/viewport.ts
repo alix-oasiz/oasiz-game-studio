@@ -14,6 +14,7 @@ function parsePx(value: string): number {
 export function createViewportController(game: Game): ViewportController {
   const isMobile = window.matchMedia("(pointer: coarse)").matches;
   const viewportChangeListeners = new Set<() => void>();
+  let lastViewportSignature: string | null = null;
 
   function notifyViewportChange(): void {
     for (const listener of [...viewportChangeListeners]) {
@@ -21,15 +22,32 @@ export function createViewportController(game: Game): ViewportController {
     }
   }
 
-  function updateViewportVars(): void {
+  function updateViewportVars(force = false): void {
     const root = document.documentElement;
     const vv = window.visualViewport;
     const width = vv?.width ?? window.innerWidth;
     const height = vv?.height ?? window.innerHeight;
-    root.style.setProperty("--vw", width + "px");
-    root.style.setProperty("--vh", height + "px");
     const offsetX = vv?.offsetLeft ?? 0;
     const offsetY = vv?.offsetTop ?? 0;
+    const roundedWidth = Math.round(width * 100) / 100;
+    const roundedHeight = Math.round(height * 100) / 100;
+    const roundedOffsetX = Math.round(offsetX * 100) / 100;
+    const roundedOffsetY = Math.round(offsetY * 100) / 100;
+    const signature =
+      roundedWidth.toString() +
+      "|" +
+      roundedHeight.toString() +
+      "|" +
+      roundedOffsetX.toString() +
+      "|" +
+      roundedOffsetY.toString();
+    if (!force && signature === lastViewportSignature) {
+      return;
+    }
+    lastViewportSignature = signature;
+
+    root.style.setProperty("--vw", width + "px");
+    root.style.setProperty("--vh", height + "px");
     root.style.setProperty("--vv-offset-x", offsetX + "px");
     root.style.setProperty("--vv-offset-y", offsetY + "px");
 
@@ -81,12 +99,12 @@ export function createViewportController(game: Game): ViewportController {
     notifyViewportChange();
   }
 
-  updateViewportVars();
+  updateViewportVars(true);
 
-  window.addEventListener("resize", updateViewportVars);
-  window.addEventListener("orientationchange", updateViewportVars);
+  window.addEventListener("resize", () => updateViewportVars(false));
+  window.addEventListener("orientationchange", () => updateViewportVars(true));
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", updateViewportVars);
+    window.visualViewport.addEventListener("resize", () => updateViewportVars(false));
   }
 
   if (isMobile) {
