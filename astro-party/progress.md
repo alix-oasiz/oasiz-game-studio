@@ -31,6 +31,26 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-07 - UI typography & composition fixes (modals + start screen)
+
+- Scope:
+  - CSS-only fixes in `index.html` across three areas: settings modal hierarchy, leave modal sizing/padding, start screen ghost button visibility.
+- Design decisions:
+  - Leave modal is intentionally action-dominant: Cancel/Leave buttons are the primary focus, not the "Leave Game?" title. Binary choice modals in games should direct the eye to the action immediately.
+  - Settings modal is intentionally title-dominant: "Settings" heading leads a structured list of toggles, so title → label → close hierarchy is correct.
+- Key changes:
+  - Settings modal buttons: `font-size: clamp(0.85rem, 2vw, 1rem)` (base) and `0.9rem` (coarse) — buttons step back behind the `1.15rem` title.
+  - Settings modal title: coarse override bumped from `1rem` to `1.15rem` — title now leads.
+  - Leave modal buttons: retain full `.btn` game-button size (action-dominant intent). Padding tightened: `padding: 0.875rem 1.25rem` replaces base `padding: 1rem 2.5rem` — explicit full override at specificity 110, not a partial logical-property patch.
+  - Leave modal body text: `#leaveModal > p { font-size: 0.875rem }` — body paragraph smaller than buttons, adds context without competing.
+  - Ghost buttons: `font-weight 300→400`, `rgba opacity 0.48→0.65`, removed coarse `font-size: 0.84rem` override that was shrinking them on the devices where discoverability matters most.
+  - Start actions width: `min(760px, 100%)→min(680px, 100%)` — reduces desktop button-row overage vs animated title width from 38% to 24%.
+- Validation:
+  - `bun run typecheck`: clean.
+  - `bun run build`: clean.
+- Outcome:
+  - Settings modal: title-dominant hierarchy. Leave modal: action-dominant, tighter padding. Ghost buttons legible against the animated title at target landscape viewports.
+
 ## 2026-03-07 - Gitignore cleanup for Astro Party local artifacts
 
 - Scope:
