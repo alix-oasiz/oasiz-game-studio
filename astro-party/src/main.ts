@@ -997,6 +997,20 @@ async function init(): Promise<void> {
         if (previousPhase === "LOBBY") {
           void AudioManager.playLobbyExitTransitionCue();
         }
+        // Snap attract cover back to opaque instantly whenever we enter the start
+        // screen from another phase. Bypasses CSS transition so there's no fade-in
+        // flicker during the logo animation. The demo boot will fade it out later.
+        if (previousPhase !== null && previousPhase !== "START") {
+          const cover = document.getElementById("attractCover");
+          if (cover) {
+            cover.style.transition = "none";
+            cover.classList.remove("revealed");
+            // Re-enable transition on next frame so the subsequent fade-out is smooth
+            requestAnimationFrame(() => {
+              cover.style.removeProperty("transition");
+            });
+          }
+        }
         screenController.showScreen("start");
         startUI.resetStartButtons(previousPhase !== "START");
         // Restart the background AI battle when returning from a real match.
