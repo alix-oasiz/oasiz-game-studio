@@ -1826,6 +1826,15 @@
       gap: 1rem;
     }
 
+    /* Leave confirmation must stay above tutorial/demo overlays. */
+    #leaveBackdrop {
+      z-index: 760;
+    }
+
+    #leaveModal {
+      z-index: 770;
+    }
+
     #leaveModal .btn {
       flex: 1;
       min-width: 0;

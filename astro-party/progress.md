@@ -60,6 +60,22 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Architecture outcome:
   - no change required.
 
+## 2026-03-07 - Leave modal layering fix above tutorial overlay
+
+- Scope:
+  - Fixed leave confirmation modal/backdrop stacking so it always appears above tutorial captain/dialog overlays.
+- Key changes:
+  - `astro-party/index.html`:
+    - added `#leaveBackdrop { z-index: 760; }`
+    - added `#leaveModal { z-index: 770; }`
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Leave popup no longer renders behind tutorial UI in onboarding flow.
+- Architecture outcome:
+  - no change required.
+
 ## 2026-03-07 - Back/leave flow document reset (diagnosis-only)
 
 - Scope:
