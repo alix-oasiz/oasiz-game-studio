@@ -3115,14 +3115,14 @@
     }
     #lobbyScreen .sg-chip {
       font-family: 'Space Mono', monospace;
-      font-size: var(--fs-ui);
+      font-size: var(--fs-display);
       font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--dim);
       background: transparent;
       border-right: 1px solid var(--border2);
-      padding: 0.45rem 0.9rem;
+      padding: 0.5rem 1.1rem;
       line-height: 1;
       white-space: nowrap;
     }
@@ -3454,13 +3454,29 @@
       width: 100%;
     }
     #lobbyScreen .card-name {
+      display: flex;
+      align-items: baseline;
+      gap: 0.3rem;
+      line-height: 1.2;
+      min-width: 0;
+    }
+    #lobbyScreen .card-name-text {
       font-size: var(--fs-display);
       font-weight: 700;
       color: var(--text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      line-height: 1.2;
+      min-width: 0;
+    }
+    #lobbyScreen .card-name-you {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      font-weight: 700;
+      color: var(--gold-lt);
+      letter-spacing: 0.08em;
+      flex-shrink: 0;
+      opacity: 0.75;
     }
     #lobbyScreen .card-footer {
       display: flex;
@@ -3504,37 +3520,21 @@
     }
     #lobbyScreen .card-act:hover { color: #f87171; background: rgba(220,38,38,0.13); border-color: rgba(248,113,113,0.35); }
 
-    #lobbyScreen .card-skin-btn {
-      flex: 1;
+    #lobbyScreen .card-vp-wrap {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 0.375rem;
-      padding: 0.375rem 0.75rem;
-      border-radius: 0.25rem;
-      background: rgba(var(--pc-rgb), 0.1);
-      border: 1px solid rgba(var(--pc-rgb), 0.45);
-      color: rgba(var(--pc-rgb), 0.8);
+      gap: 0.4rem;
+    }
+    #lobbyScreen .card-tap-hint {
       font-family: 'Space Mono', monospace;
       font-size: var(--fs-label);
+      color: rgba(160, 180, 220, 0.35);
       letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.08s;
-      position: relative;
-      z-index: 9;
+      text-align: center;
+      pointer-events: none;
+      user-select: none;
     }
-    #lobbyScreen .card-skin-btn svg {
-      width: 0.875rem;
-      height: 0.875rem;
-      flex-shrink: 0;
-    }
-    #lobbyScreen .card-skin-btn:hover {
-      background: rgba(var(--pc-rgb), 0.2);
-      border-color: rgba(var(--pc-rgb), 0.7);
-      color: rgba(var(--pc-rgb), 1);
-    }
-    #lobbyScreen .card-skin-btn:active { transform: scale(0.97); }
 
     /* EMPTY CARD */
     #lobbyScreen .empty-content {
@@ -3543,7 +3543,7 @@
       align-items: center;
       gap: 0.5rem;
     }
-    #lobbyScreen .empty-icon { color: rgba(255,255,255,0.06); animation: lb-blink 2.8s ease-in-out infinite; }
+    #lobbyScreen .empty-icon { color: rgba(255,255,255,0.15); animation: lb-blink 2.8s ease-in-out infinite; }
     #lobbyScreen .empty-icon svg { width: 2.75rem; height: 2.75rem; }
     #lobbyScreen .empty-label {
       font-family: 'Space Mono', monospace;
@@ -3552,7 +3552,16 @@
       text-transform: uppercase;
       color: rgba(160,180,220,0.45);
     }
-    #lobbyScreen .empty-btns { display: flex; gap: 0.375rem; margin-top: 0.25rem; }
+    #lobbyScreen .empty-btns { display: flex; flex-direction: column; gap: 0.375rem; margin-top: 0.25rem; }
+    #lobbyScreen .empty-tap-hint {
+      display: none;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      color: rgba(160, 180, 220, 0.5);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 0.375rem;
+    }
     #lobbyScreen .empty-btn {
       font-family: 'Space Mono', monospace;
       font-size: var(--fs-ui);
@@ -3596,6 +3605,8 @@
       max-width: 26.25rem;
       min-width: 14rem;
     }
+    #lobbyScreen .cs-map:not(.readonly) { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #lobbyScreen .cs-mode:not(.readonly) { cursor: pointer; -webkit-tap-highlight-color: transparent; }
     #lobbyScreen .map-thumb-wrap {
       border-radius: 0.4375rem;
       overflow: hidden;
@@ -3682,10 +3693,13 @@
       border: 1px solid var(--border2);
       border-radius: 0.25rem;
       cursor: pointer;
-      color: var(--dim);
+      color: var(--gold-lt);
       padding: 0;
       transition: all 0.13s;
       flex-shrink: 0;
+    }
+    #lobbyScreen #rulesetCycleValue {
+      color: var(--gold-lt);
     }
     #lobbyScreen .cs-adv-btn:hover { color: var(--gold-lt); border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.06); }
     #lobbyScreen .cs-adv-btn svg { width: 0.875rem; height: 0.875rem; }
@@ -3870,6 +3884,11 @@
       color: rgba(255,255,255,0.78);
     }
     #lobbyScreen .map-picker-badge.rotation { border-color: rgba(217,119,6,0.45); color: var(--gold-lt); }
+
+    @media (pointer: coarse) and (max-height: 600px) {
+      #lobbyScreen .empty-btns { display: none; }
+      #lobbyScreen .empty-tap-hint { display: flex; }
+    }
   </style>
 </head>
 <body>
@@ -4105,6 +4124,17 @@
     <div class="leave-actions">
       <button class="btn secondary" id="leaveCancelBtn">Cancel</button>
       <button class="btn" id="leaveConfirmBtn">Leave</button>
+    </div>
+  </div>
+
+  <!-- Add Player Dialog (phone) -->
+  <div class="settings-backdrop" id="addPlayerBackdrop"></div>
+  <div class="settings-modal" id="addPlayerModal">
+    <h3 class="settings-title">Add Player</h3>
+    <div class="settings-actions">
+      <button class="btn" id="addPlayerAIBtn">+ Add AI</button>
+      <button class="btn secondary" id="addPlayerLocalBtn">+ Local Player</button>
+      <button class="btn tertiary settings-close" id="addPlayerCloseBtn">Cancel</button>
     </div>
   </div>
 

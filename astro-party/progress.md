@@ -31,6 +31,43 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-08 - Lobby UX polish pass (post-pass-2 bug fixes + additions)
+
+- Scope:
+  - Follow-up fixes and additions to the lobby UI after UX pass 2 landed. Files: `index.html`, `src/ui/lobby.ts`.
+- Key changes:
+  - **Tap hint position fix**: wrapped `card-viewport` in `.card-vp-wrap` (flex-column, center-aligned); hint now sits in normal flow directly below the ship circle instead of absolute at card-scene bottom.
+  - **Self card hint missing from DOM**: patch path (same-player updates) now explicitly adds/removes `.card-tap-hint` based on `canCycleSkin`; covers the case where `getMyPlayerId()` is null on first render and resolves on a later update.
+  - **Mode section clickable**: whole `.cs-mode` card tap now cycles the ruleset (round/endless). `modeCycleBtn` retains its own listener for base-mode cycling (standard/chaos). `advancedSettingsBtn` and `modeCycleBtn` are excluded from the section handler via `closest()` guard.
+  - **Tap highlight suppressed**: `-webkit-tap-highlight-color: transparent` on `.cs-map:not(.readonly)` and `.cs-mode:not(.readonly)`.
+  - **YOU label**: self player's card name now shows an inline `<span class="card-name-you">YOU</span>` tag in gold at reduced opacity; `.card-name` switched to flex to keep label on the same line as the name text.
+- Phone vs iPad discriminator: unchanged — `(pointer: coarse) and (max-height: 600px)`.
+- Validation:
+  - `bun run typecheck`: clean.
+  - `bun run build`: clean.
+- Outcome:
+  - Hint correctly positioned under ship circle; self card now always shows hint; mode card tap reliably cycles round/endless; YOU label inline next to player name.
+
+## 2026-03-07 - Lobby UX pass 2 (annotated screenshot items 4–9)
+
+- Scope:
+  - Six UX improvements to the lobby derived from screenshot annotation review.
+  - Files: `index.html` (CSS), `src/ui/lobby.ts`.
+- Key changes:
+  - Session chips: `font-size: var(--fs-ui) → var(--fs-display)`, `padding: 0.45rem 0.9rem → 0.5rem 1.1rem`.
+  - Empty card icon opacity: `rgba(255,255,255,0.06) → 0.15`.
+  - Mode value (`#rulesetCycleValue`) and gear icon (`.cs-adv-btn`) color: `var(--dim) → var(--gold-lt)`.
+  - Arena section: whole `cs-map` is now clickable (`cursor: pointer` CSS + listener moved from `openMapPickerBtn` to `mapSelectorSection`).
+  - Skin cycle: removed `card-skin-btn`; whole `pcard--filled` card taps cycle skin via delegated handler with `closest("button")` guard; ghost "Tap to change" label added inside `card-scene` below viewport (`pointer-events: none`, `rgba(160,180,220,0.35)`).
+  - Empty card UX: `empty-btns` changed to vertical stack (`flex-direction: column`); phone-only (`pointer: coarse` + `max-height: 600px`) hides buttons and shows "Tap to add player" hint; add-player dialog added for phone (HTML stub `#addPlayerModal`/`#addPlayerBackdrop` + JS open/close wiring).
+- Phone vs iPad discriminator:
+  - `(pointer: coarse) and (max-height: 600px)` cleanly separates landscape phones (375–428px tall) from tablets (768px+).
+- Validation:
+  - `bun run typecheck`: clean.
+  - `bun run build`: clean.
+- Outcome:
+  - All 6 annotated items implemented and verified.
+
 ## 2026-03-07 - UI typography & composition fixes (modals + start screen)
 
 - Scope:

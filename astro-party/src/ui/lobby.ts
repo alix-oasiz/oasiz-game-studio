@@ -315,13 +315,13 @@ export function createLobbyUI(
     botType: string | null,
     color: string,
   ): string {
-    const skinBtn = `<button class="card-skin-btn" data-action="cycle-skin" data-player-id="${player.id}" title="Change ship skin" aria-label="Change ship skin">${CYCLE_SKIN_SVG} Skin</button>`;
+    const canCycleSkin = isSelf || (botType === "local" && canAct);
     let footerContent: string;
     if (isSelf) {
-      footerContent = skinBtn;
+      footerContent = '<span class="card-footer-spacer"></span>';
     } else if (canAct) {
       if (botType === "local") {
-        footerContent = `<div class="card-footer-actions">${skinBtn}<button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
+        footerContent = `<div class="card-footer-actions"><button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
       } else {
         const action = botType === "ai" ? "remove" : "kick";
         const label = botType === "ai" ? "Remove" : "Kick";
@@ -339,13 +339,16 @@ export function createLobbyUI(
             </div>
           </div>
           <div class="card-scene">
-            <div class="card-viewport">
-              <div class="viewport-ring"></div>
-              <div class="viewport-inner">${shipPreviewMarkup(player.id, color)}</div>
+            <div class="card-vp-wrap">
+              <div class="card-viewport">
+                <div class="viewport-ring"></div>
+                <div class="viewport-inner">${shipPreviewMarkup(player.id, color)}</div>
+              </div>
+              ${canCycleSkin ? '<div class="card-tap-hint">Tap to change</div>' : ""}
             </div>
           </div>
           <div class="card-info">
-            <div class="card-name">${escapeHtml(player.name)}</div>
+            <div class="card-name"><span class="card-name-text">${escapeHtml(player.name)}</span>${isSelf ? '<span class="card-name-you">YOU</span>' : ""}</div>
             <div class="card-footer">${footerContent}</div>
           </div>`;
   }
@@ -366,6 +369,7 @@ export function createLobbyUI(
                 <button class="empty-btn" data-action="add-ai"${canAdd ? "" : " disabled"}>+ Add AI</button>
                 ${localBtn}
               </div>
+              <div class="empty-tap-hint">Tap to add player</div>
             </div>
           </div>`;
   }
@@ -440,10 +444,19 @@ export function createLobbyUI(
           // Ship skin: only patches the wrap's innerHTML if skin changed
           patchCardShipSkin(card, player.id, color);
 
-          // Name (rare, but handle it)
+          // Name (rare, but handle it; also sync YOU label if isSelf resolved late)
           const nameEl = card.querySelector<HTMLElement>(".card-name");
-          if (nameEl && nameEl.textContent !== player.name) {
-            nameEl.textContent = player.name;
+          if (nameEl) {
+            const nameText = nameEl.querySelector<HTMLElement>(".card-name-text");
+            if (nameText && nameText.textContent !== player.name) {
+              nameText.textContent = player.name;
+            }
+            const youLabel = nameEl.querySelector(".card-name-you");
+            if (isSelf && !youLabel) {
+              nameEl.insertAdjacentHTML("beforeend", '<span class="card-name-you">YOU</span>');
+            } else if (!isSelf && youLabel) {
+              youLabel.remove();
+            }
           }
 
           // Host pip in meta rail
@@ -460,16 +473,27 @@ export function createLobbyUI(
             }
           }
 
+          // Tap hint (canCycleSkin can flip if host status changes, or myPlayerId resolved late)
+          const canCycleSkin = isSelf || (botType === "local" && canAct);
+          const vpWrap = card.querySelector<HTMLElement>(".card-vp-wrap");
+          if (vpWrap) {
+            const existingHint = vpWrap.querySelector(".card-tap-hint");
+            if (canCycleSkin && !existingHint) {
+              vpWrap.insertAdjacentHTML("beforeend", '<div class="card-tap-hint">Tap to change</div>');
+            } else if (!canCycleSkin && existingHint) {
+              existingHint.remove();
+            }
+          }
+
           // Footer action buttons (host status can flip canAct)
           const footer = card.querySelector<HTMLElement>(".card-footer");
           if (footer) {
-            const skinBtn = `<button class="card-skin-btn" data-action="cycle-skin" data-player-id="${player.id}" title="Change ship skin" aria-label="Change ship skin">${CYCLE_SKIN_SVG} Skin</button>`;
             let newFooter: string;
             if (isSelf) {
-              newFooter = skinBtn;
+              newFooter = '<span class="card-footer-spacer"></span>';
             } else if (canAct) {
               if (botType === "local") {
-                newFooter = `<div class="card-footer-actions">${skinBtn}<button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
+                newFooter = `<div class="card-footer-actions"><button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
               } else {
                 const action = botType === "ai" ? "remove" : "kick";
                 const label = botType === "ai" ? "Remove" : "Kick";
@@ -534,43 +558,91 @@ export function createLobbyUI(
     updateMapSelector();
   }
 
+  // Add-player dialog (phone coarse only)
+  const addPlayerModal = document.getElementById("addPlayerModal") as HTMLElement;
+  const addPlayerBackdrop = document.getElementById("addPlayerBackdrop") as HTMLElement;
+  const addPlayerAIBtn = document.getElementById("addPlayerAIBtn") as HTMLButtonElement;
+  const addPlayerLocalBtn = document.getElementById("addPlayerLocalBtn") as HTMLButtonElement;
+  const addPlayerCloseBtn = document.getElementById("addPlayerCloseBtn") as HTMLButtonElement;
+
+  function openAddPlayerDialog(): void {
+    addPlayerModal.classList.add("active");
+    addPlayerBackdrop.classList.add("active");
+  }
+  function closeAddPlayerDialog(): void {
+    addPlayerModal.classList.remove("active");
+    addPlayerBackdrop.classList.remove("active");
+  }
+
+  addPlayerAIBtn.addEventListener("click", () => {
+    closeAddPlayerDialog();
+    elements.addAIBotBtn.click();
+  });
+  addPlayerLocalBtn.addEventListener("click", () => {
+    closeAddPlayerDialog();
+    elements.addLocalPlayerBtn.click();
+  });
+  addPlayerCloseBtn.addEventListener("click", closeAddPlayerDialog);
+  addPlayerBackdrop.addEventListener("click", closeAddPlayerDialog);
+
   // Card tray event delegation — set up ONCE at init
   elements.playersList.addEventListener("click", async (e) => {
     const btn = (e.target as HTMLElement).closest(
       "[data-action]",
     ) as HTMLButtonElement | null;
-    if (!btn || btn.disabled) return;
-    const action = btn.dataset.action ?? "unknown";
-    const playerId = btn.dataset.playerId ?? "none";
-    if (isTapGuardBlocked(e, "tray-action:" + action + ":" + playerId, TAP_GUARD_MS)) {
-      return;
-    }
-    e.stopPropagation();
 
-    if (action === "add-ai") {
-      elements.addAIBotBtn.click();
-    } else if (action === "add-local") {
-      elements.addLocalPlayerBtn.click();
-    } else if (action === "cycle-skin" && playerId) {
-      const myPlayerId = game.getMyPlayerId();
-      const isSelf = playerId === myPlayerId;
-      const isLocalPlayer = game.getPlayerBotType(playerId) === "local";
-      if (!isSelf && (!isLocalPlayer || !game.isLeader())) return;
-      cycleShipSkinForPlayer(playerId, isSelf);
-    } else if ((action === "remove" || action === "kick") && playerId) {
-      if (!game.isLeader()) {
-        showHostOnlyActionToast();
+    if (btn && !btn.disabled) {
+      const action = btn.dataset.action ?? "unknown";
+      const playerId = btn.dataset.playerId ?? "none";
+      if (isTapGuardBlocked(e, "tray-action:" + action + ":" + playerId, TAP_GUARD_MS)) {
         return;
       }
-      feedback.button();
-      btn.disabled = true;
-      try {
-        if (action === "remove") await game.removeBot(playerId);
-        else await game.kickPlayer(playerId);
-      } catch (err) {
-        console.error("[Lobby] Action failed:", err);
+      e.stopPropagation();
+
+      if (action === "add-ai") {
+        elements.addAIBotBtn.click();
+      } else if (action === "add-local") {
+        elements.addLocalPlayerBtn.click();
+      } else if ((action === "remove" || action === "kick") && playerId) {
+        if (!game.isLeader()) {
+          showHostOnlyActionToast();
+          return;
+        }
+        feedback.button();
+        btn.disabled = true;
+        try {
+          if (action === "remove") await game.removeBot(playerId);
+          else await game.kickPlayer(playerId);
+        } catch (err) {
+          console.error("[Lobby] Action failed:", err);
+        }
+        btn.disabled = false;
       }
-      btn.disabled = false;
+      return;
+    }
+
+    // Phone: tap on empty card → add-player dialog
+    const emptyCard = (e.target as HTMLElement).closest<HTMLElement>(".pcard--empty");
+    if (emptyCard && window.matchMedia("(pointer: coarse) and (max-height: 600px)").matches) {
+      if (!game.isLeader()) return;
+      openAddPlayerDialog();
+      return;
+    }
+
+    // Card-body tap → cycle skin (self / leader-owned local player)
+    // Guard: skip if click landed on any button
+    if (!(e.target as HTMLElement).closest("button")) {
+      const filledCard = (e.target as HTMLElement).closest<HTMLElement>(".pcard--filled");
+      if (filledCard) {
+        const slotPlayerId = filledCard.dataset.slotPlayerId ?? "";
+        if (!slotPlayerId) return;
+        const myPlayerId = game.getMyPlayerId();
+        const isSelf = slotPlayerId === myPlayerId;
+        const isLocalPlayer = game.getPlayerBotType(slotPlayerId) === "local";
+        if (!isSelf && (!isLocalPlayer || !game.isLeader())) return;
+        if (isTapGuardBlocked(e, "card-skin:" + slotPlayerId, TAP_GUARD_MS)) return;
+        cycleShipSkinForPlayer(slotPlayerId, isSelf);
+      }
     }
   });
 
@@ -886,9 +958,7 @@ export function createLobbyUI(
   });
 
   elements.modeCycleBtn.addEventListener("click", (event) => {
-    if (isTapGuardBlocked(event, "mode-cycle", TAP_GUARD_MS)) {
-      return;
-    }
+    if (isTapGuardBlocked(event, "mode-cycle", TAP_GUARD_MS)) return;
     if (!game.isLeader()) {
       showHostOnlyActionToast();
       return;
@@ -903,10 +973,12 @@ export function createLobbyUI(
     setModeUI(nextMode);
   });
 
-  elements.rulesetCycleBtn.addEventListener("click", (event) => {
-    if (isTapGuardBlocked(event, "ruleset-cycle", TAP_GUARD_MS)) {
-      return;
-    }
+  // Whole mode section tap → cycle ruleset (round/endless); mode button stays for base mode cycling
+  elements.gameModeSection.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    // Let modeCycleBtn and advancedSettingsBtn handle themselves
+    if (target.closest("#modeCycleBtn") || target.closest("#advancedSettingsBtn")) return;
+    if (isTapGuardBlocked(event, "ruleset-cycle", TAP_GUARD_MS)) return;
     if (!game.isLeader()) {
       showHostOnlyActionToast();
       return;
@@ -919,14 +991,11 @@ export function createLobbyUI(
     setRulesetUI(nextRuleset, "local");
   });
 
-  elements.openMapPickerBtn.addEventListener("click", (event) => {
+  elements.mapSelectorSection.addEventListener("click", (event) => {
     if (isTapGuardBlocked(event, "open-map-picker", TAP_GUARD_MS)) {
       return;
     }
-    if (!game.isLeader()) {
-      showHostOnlyActionToast();
-      return;
-    }
+    if (!game.isLeader()) return;
     feedback.button();
     ensureMapPickerCards();
     updateMapPickerState(game.getMapId());
