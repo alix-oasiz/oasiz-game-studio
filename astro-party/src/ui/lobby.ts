@@ -305,6 +305,12 @@ export function createLobbyUI(
     return cardSlotEls;
   }
 
+  function buildCardActionButton(playerId: string, botType: string | null): string {
+    const action = botType === "ai" || botType === "local" ? "remove" : "kick";
+    const actionLabel = action === "remove" ? "Remove player" : "Kick player";
+    return `<button class="card-act card-act--icon" type="button" data-action="${action}" data-player-id="${playerId}" aria-label="${actionLabel}" title="${actionLabel}"><span class="card-act-icon" aria-hidden="true">&times;</span></button>`;
+  }
+
   function buildFilledCardHTML(
     player: PlayerData,
     slotIdx: number,
@@ -316,22 +322,12 @@ export function createLobbyUI(
     color: string,
   ): string {
     const canCycleSkin = isSelf || (botType === "local" && canAct);
-    let footerContent: string;
-    if (isSelf) {
-      footerContent = '<span class="card-footer-spacer"></span>';
-    } else if (canAct) {
-      if (botType === "local") {
-        footerContent = `<div class="card-footer-actions"><button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
-      } else {
-        const action = botType === "ai" ? "remove" : "kick";
-        const label = botType === "ai" ? "Remove" : "Kick";
-        footerContent = `<div class="card-footer-actions"><button class="card-act" data-action="${action}" data-player-id="${player.id}">${label}</button></div>`;
-      }
-    } else {
-      footerContent = '<span class="card-footer-spacer"></span>';
-    }
+    const cornerAction = !isSelf && canAct
+      ? buildCardActionButton(player.id, botType)
+      : "";
     return `<div class="card-glow"></div>
           <div class="card-meta">
+            <div class="card-meta-left">${cornerAction}</div>
             <div class="card-meta-right">
               ${isLeaderPlayer ? `<span class="meta-host" title="Host" aria-label="Host">${CROWN_SVG}</span>` : ""}
               <span class="card-slot">${SLOTS[slotIdx]}</span>
@@ -348,7 +344,6 @@ export function createLobbyUI(
           </div>
           <div class="card-info">
             <div class="card-name"><span class="card-name-text">${escapeHtml(player.name)}</span>${isSelf ? '<span class="card-name-you">[YOU]</span>' : ""}</div>
-            <div class="card-footer">${footerContent}</div>
           </div>`;
   }
 
@@ -472,6 +467,17 @@ export function createLobbyUI(
             }
           }
 
+          // Corner action (host controls for remove/kick)
+          const metaLeft = card.querySelector<HTMLElement>(".card-meta-left");
+          if (metaLeft) {
+            const nextAction = !isSelf && canAct
+              ? buildCardActionButton(player.id, botType)
+              : "";
+            if (metaLeft.innerHTML !== nextAction) {
+              metaLeft.innerHTML = nextAction;
+            }
+          }
+
           // Tap hint (canCycleSkin can flip if host status changes, or myPlayerId resolved late)
           const canCycleSkin = isSelf || (botType === "local" && canAct);
           const vpWrap = card.querySelector<HTMLElement>(".card-vp-wrap");
@@ -484,25 +490,6 @@ export function createLobbyUI(
             }
           }
 
-          // Footer action buttons (host status can flip canAct)
-          const footer = card.querySelector<HTMLElement>(".card-footer");
-          if (footer) {
-            let newFooter: string;
-            if (isSelf) {
-              newFooter = '<span class="card-footer-spacer"></span>';
-            } else if (canAct) {
-              if (botType === "local") {
-                newFooter = `<div class="card-footer-actions"><button class="card-act" data-action="remove" data-player-id="${player.id}">Remove</button></div>`;
-              } else {
-                const action = botType === "ai" ? "remove" : "kick";
-                const label = botType === "ai" ? "Remove" : "Kick";
-                newFooter = `<div class="card-footer-actions"><button class="card-act" data-action="${action}" data-player-id="${player.id}">${label}</button></div>`;
-              }
-            } else {
-              newFooter = '<span class="card-footer-spacer"></span>';
-            }
-            footer.innerHTML = newFooter;
-          }
         }
       } else {
         // Empty slot

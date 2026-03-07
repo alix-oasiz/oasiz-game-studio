@@ -31,6 +31,32 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-08 - Main-screen ghost opacity + lobby card action compact pass
+
+- Scope:
+  - Reduced start-screen secondary option visibility and compacted lobby host action affordance to free card space.
+  - Files: `index.html`, `src/ui/lobby.ts`.
+- Key changes:
+  - Start screen ghost options (`How to play?`, `Settings`) opacity reduced by ~20%:
+    - base color alpha `0.65 -> 0.52`
+    - hover color alpha `0.9 -> 0.72`
+  - Lobby player cards:
+    - replaced text `Remove/Kick` footer action with a host-only top-corner cross icon button.
+    - preserved existing delegated behavior via `data-action` (`remove` for local/AI, `kick` for online) and `data-player-id`.
+    - removed footer action row from filled cards and shifted action into `card-meta-left`.
+  - Card breathing room / hero sizing:
+    - viewport size increased (`85cqw/cqh -> 88cqw/cqh`, max rem increased)
+    - ship wrapper scale increased (`62% -> 64%`)
+    - card info padding tightened to reclaim visual space.
+- Validation:
+  - `bun run typecheck`: clean.
+  - `bun run build`: clean.
+- Outcome:
+  - Main-screen secondary actions are visually quieter.
+  - Host controls are less space-heavy while card name + ship hero get more usable room.
+- Architecture outcome:
+  - no change required.
+
 ## 2026-03-08 - Lobby UX polish pass (post-pass-2 bug fixes + additions)
 
 - Scope:
