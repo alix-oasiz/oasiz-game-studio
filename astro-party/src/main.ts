@@ -220,7 +220,9 @@ async function init(): Promise<void> {
   await tryLockOrientation(viewport.isMobile);
 
   const screenController = createScreenController(game, viewport.isMobile);
-  const leaveModal = createLeaveModal(game);
+  const leaveModal = createLeaveModal(game, {
+    onConfirmTutorialLeave: teardownDemoAndShowMenu,
+  });
   const settingsUI = createSettingsUI(leaveModal.openLeaveModal);
   const advancedSettingsUI = createAdvancedSettingsUI(game);
   const mapPreviewUI = createMapPreviewUI(game);
@@ -652,6 +654,14 @@ async function init(): Promise<void> {
     startUI.closeJoinSection();
   };
 
+  const resolveMatchLeaveContext = (): "MATCH_LEAVE" | "END_MATCH" => {
+    const shouldEndMatch =
+      currentPhase === "PLAYING" &&
+      game.getRuleset() === "ENDLESS_RESPAWN" &&
+      game.isLeader();
+    return shouldEndMatch ? "END_MATCH" : "MATCH_LEAVE";
+  };
+
   const handlePlatformBack = async (): Promise<void> => {
     if (platformBackInFlight) {
       return;
@@ -665,9 +675,14 @@ async function init(): Promise<void> {
       if (demoController?.isDemoActive()) {
         const demoState = demoController.getState();
         if (demoState === "TUTORIAL") {
-          await teardownDemoAndShowMenu();
+          leaveModal.openLeaveModal("TUTORIAL_LEAVE");
           return;
         }
+        requestPlatformLeaveGame();
+        return;
+      }
+
+      if (currentPhase === "START") {
         requestPlatformLeaveGame();
         return;
       }
@@ -676,19 +691,7 @@ async function init(): Promise<void> {
         leaveModal.openLeaveModal("LOBBY_LEAVE");
         return;
       }
-
-      if (
-        currentPhase === "MATCH_INTRO" ||
-        currentPhase === "COUNTDOWN" ||
-        currentPhase === "PLAYING" ||
-        currentPhase === "ROUND_END" ||
-        currentPhase === "GAME_END"
-      ) {
-        leaveModal.openLeaveModal("MATCH_LEAVE");
-        return;
-      }
-
-      requestPlatformLeaveGame();
+      leaveModal.openLeaveModal(resolveMatchLeaveContext());
     } finally {
       platformBackInFlight = false;
     }

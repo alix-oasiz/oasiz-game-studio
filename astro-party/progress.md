@@ -31,6 +31,51 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-07 - Platform back/leave correction: start-only platform quit + yes/no modal flow
+
+- Scope:
+  - Implemented the documented leave/back behavior so platform quit is start-only and non-start flows remain in-game with confirmation.
+- Key changes:
+  - `astro-party/src/ui/modals.ts`:
+    - removed platform quit call from modal confirm path.
+    - standardized modal actions to `Yes` / `No`.
+    - added explicit leave contexts (`END_MATCH`, `TUTORIAL_LEAVE`) on top of existing lobby/match contexts.
+    - tutorial confirm path now supports a callback so demo teardown is clean (not a raw `game.leaveGame()`).
+  - `astro-party/src/main.ts`:
+    - wired leave modal with tutorial teardown callback.
+    - updated platform back routing:
+      - start/demo-menu contexts -> `requestPlatformLeaveGame()`
+      - lobby -> `LOBBY_LEAVE` modal
+      - match/game-end -> `MATCH_LEAVE` or `END_MATCH` modal
+      - tutorial -> `TUTORIAL_LEAVE` modal
+  - `astro-party/.tools/docs/platform-back-button-integration-evaluation.md`:
+    - updated from diagnosis-only state to implemented flow mapping + validation checklist.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Lobby/match leave confirmations no longer escalate to platform quit.
+  - Platform quit remains available from start-facing contexts.
+  - Endless host leave is represented as end-match intent inside the same modal pathway.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-07 - Back/leave flow document reset (diagnosis-only)
+
+- Scope:
+  - Rewrote `astro-party/.tools/docs/platform-back-button-integration-evaluation.md` to capture current leave/back behavior and the user-locked target rules before further implementation.
+- Key updates:
+  - Explicitly locked: `oasiz.leaveGame()` should be triggered only from splash/start states.
+  - Added current-flow table (as implemented) and target-flow table (required behavior).
+  - Added single-owner platform-quit contract and modal `Yes`/`No` requirement for all non-start leave contexts.
+  - Marked next actions as implementation follow-up only (not executed in this pass).
+- Validation:
+  - Docs-only update; no runtime commands executed.
+- Outcome:
+  - The problem is documented as a clean spec delta (current vs required), ready for a focused corrective code pass.
+- Architecture outcome:
+  - no change required.
+
 ## 2026-03-07 - Platform back button wiring fix + bridge cleanup
 
 - Scope:

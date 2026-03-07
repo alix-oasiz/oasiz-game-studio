@@ -1,12 +1,16 @@
 import { Game } from "../Game";
 import { elements } from "./elements";
 import { createUIFeedback } from "../feedback/uiFeedback";
-import {
-  isPlatformRuntime,
-  requestPlatformLeaveGame,
-} from "../platform/oasizBridge";
 
-export type LeaveModalContext = "LOBBY_LEAVE" | "MATCH_LEAVE";
+export type LeaveModalContext =
+  | "LOBBY_LEAVE"
+  | "MATCH_LEAVE"
+  | "END_MATCH"
+  | "TUTORIAL_LEAVE";
+
+interface LeaveModalHandlers {
+  onConfirmTutorialLeave?: () => Promise<void> | void;
+}
 
 export interface LeaveModalUI {
   openLeaveModal: (context?: LeaveModalContext) => void;
@@ -14,11 +18,17 @@ export interface LeaveModalUI {
   isLeaveModalOpen: () => boolean;
 }
 
-export function createLeaveModal(game: Game): LeaveModalUI {
+export function createLeaveModal(
+  game: Game,
+  handlers: LeaveModalHandlers = {},
+): LeaveModalUI {
   const feedback = createUIFeedback("modals");
   let activeContext: LeaveModalContext = "MATCH_LEAVE";
 
   const shouldEndEndlessMatchOnLeave = (): boolean => {
+    if (activeContext === "END_MATCH") {
+      return true;
+    }
     return (
       activeContext === "MATCH_LEAVE" &&
       game.getRuleset() === "ENDLESS_RESPAWN" &&
@@ -28,26 +38,33 @@ export function createLeaveModal(game: Game): LeaveModalUI {
   };
 
   const applyModalContent = (context: LeaveModalContext): void => {
+    elements.leaveCancelBtn.textContent = "No";
+    elements.leaveConfirmBtn.textContent = "Yes";
+
     if (context === "LOBBY_LEAVE") {
       elements.leaveModalTitle.textContent = "Leave Lobby?";
       elements.leaveModalMessage.textContent =
         "Are you sure you want to leave this lobby?";
-      elements.leaveConfirmBtn.textContent = "Leave Lobby";
       return;
     }
 
-    if (shouldEndEndlessMatchOnLeave()) {
-      elements.leaveModalTitle.textContent = "End Match and Leave?";
+    if (context === "TUTORIAL_LEAVE") {
+      elements.leaveModalTitle.textContent = "Leave Tutorial?";
+      elements.leaveModalMessage.textContent =
+        "Are you sure you want to leave the tutorial?";
+      return;
+    }
+
+    if (context === "END_MATCH" || shouldEndEndlessMatchOnLeave()) {
+      elements.leaveModalTitle.textContent = "End Match?";
       elements.leaveModalMessage.textContent =
         "You are the leader. Leaving now will end the endless match for everyone.";
-      elements.leaveConfirmBtn.textContent = "End and Leave";
       return;
     }
 
     elements.leaveModalTitle.textContent = "Leave Match?";
     elements.leaveModalMessage.textContent =
       "Are you sure you want to leave the match?";
-    elements.leaveConfirmBtn.textContent = "Leave";
   };
 
   function openLeaveModal(context: LeaveModalContext = "MATCH_LEAVE"): void {
@@ -83,21 +100,22 @@ export function createLeaveModal(game: Game): LeaveModalUI {
   elements.leaveConfirmBtn.addEventListener("click", async () => {
     if (elements.leaveConfirmBtn.disabled) return;
     feedback.subtle();
-    const previousLabel = elements.leaveConfirmBtn.textContent ?? "Leave";
+    const previousLabel = elements.leaveConfirmBtn.textContent ?? "Yes";
     const shouldEndEndlessMatch = shouldEndEndlessMatchOnLeave();
     elements.leaveConfirmBtn.disabled = true;
     elements.leaveConfirmBtn.textContent = "Leaving...";
     closeLeaveModal();
     try {
+      if (activeContext === "TUTORIAL_LEAVE") {
+        if (handlers.onConfirmTutorialLeave) {
+          await handlers.onConfirmTutorialLeave();
+          return;
+        }
+      }
       if (shouldEndEndlessMatch) {
         game.endMatch();
       }
       await game.leaveGame();
-      // Signal the platform to close the game after confirming leave.
-      // Matches SDK dev's required flow: onBackButton → modal → leaveGame().
-      if (isPlatformRuntime()) {
-        requestPlatformLeaveGame();
-      }
     } finally {
       elements.leaveConfirmBtn.disabled = false;
       elements.leaveConfirmBtn.textContent = previousLabel;
