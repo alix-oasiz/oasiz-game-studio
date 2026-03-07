@@ -740,7 +740,8 @@ async function init(): Promise<void> {
   });
 
   async function startDemoSession(): Promise<void> {
-    // Reset cover so re-starts also get a clean fade-in.
+    // Safety guard: ensure cover is opaque before demo boots.
+    // Primary reset is in syncScreenToPhase; this covers debug/edge paths.
     document.getElementById("attractCover")?.classList.remove("revealed");
 
     // Clean up any existing demo first
@@ -812,8 +813,6 @@ async function init(): Promise<void> {
 
     // Fade the cover out — gracefully reveals the running attract game.
     document.getElementById("attractCover")?.classList.add("revealed");
-
-    screenController.showScreen("start");
   }
 
   async function handleDemoStartupFailure(error: unknown): Promise<void> {
