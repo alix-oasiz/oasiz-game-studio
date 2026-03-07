@@ -418,12 +418,6 @@ export class DemoOverlayUI {
     this.setSpotlightMode("panel");
   }
 
-  private hidePanel(): void {
-    this.tutorialOverlay.style.pointerEvents = "none";
-    this.tutorialPanel.classList.add("panel-hidden");
-    this.setSpotlightMode("action");
-  }
-
   private showStartPlayingButton(): void {
     this.pendingDialogAdvance = null;
     const fresh = this.tutorialSkip.cloneNode(true) as HTMLButtonElement;
