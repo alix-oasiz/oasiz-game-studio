@@ -862,6 +862,63 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Architecture outcome:
   - no change required.
 
+## 2026-03-08 - Tutorial captain speech SFX integration (evaluated source + runtime wiring)
+
+- Scope:
+  - Evaluated user-provided source `alien-loading-screen-epic-stock-media-1-00-03.mp3` and wired it as captain "talking" SFX during tutorial dialogue typing.
+- Evaluation summary:
+  - Source metadata:
+    - duration `3.124989s`, codec `mp3`, sample rate `44100`, stereo, audio bitrate `320 kb/s`.
+    - file also contains attached PNG artwork stream.
+  - Loudness scan (volumedetect):
+    - original mean `-39.5 dB`, max `-19.1 dB` (too quiet for in-game tutorial speech bed).
+  - Prepared runtime source variant:
+    - `assets/audio-src/sfx-captain-speech.wav` generated from the source with `+14 dB` gain.
+    - boosted loudness mean `-25.5 dB`, max `-5.1 dB` (usable headroom).
+- Key changes:
+  - `astro-party/src/audio/assetManifest.ts`:
+    - added new asset `sfxCaptainSpeech` (`./assets/audio/sfx-captain-speech.ogg`, looped, `ui` channel).
+    - added new cue mapping `CAPTAIN_SPEECH`.
+  - `astro-party/src/demo/DemoOverlayUI.ts`:
+    - `typeStep()` now starts `CAPTAIN_SPEECH` while text is typing and stops it in `finally`.
+    - `hideAll()` now force-stops `CAPTAIN_SPEECH` to prevent leaked loop audio on teardown.
+    - replaced previous periodic UI click-per-character loop for captain dialogue with dedicated speech cue.
+  - `astro-party/assets/audio-src/README.md`:
+    - updated expected output list and source mapping notes for `sfx-captain-speech.ogg`.
+  - Generated assets:
+    - `astro-party/public/assets/audio/sfx-captain-speech.ogg`.
+- Validation:
+  - `astro-party`: `bun run ffmpeg:check` passed.
+  - `astro-party`: `bun run process:audio -- --only sfx-captain-speech.ogg` passed.
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Captain dialogue now uses a dedicated looping speech SFX while tutorial text is actively rendering and stops cleanly at line-end/teardown.
+- Architecture outcome:
+  - no change required.
+
+## 2026-03-08 - Tutorial BGM overlap fix (menu + gameplay double-bed)
+
+- Scope:
+  - Fixed overlapping menu/start and gameplay BGM during onboarding tutorial entry.
+- Root cause:
+  - Tutorial entry could inherit a stale menu loop while gameplay music was started for tutorial context, resulting in dual music beds.
+- Key changes:
+  - `astro-party/src/main.ts`:
+    - `triggerAutoTutorial()` now clears pending start-intro music gates/timers and performs an explicit clean music handoff:
+      - `AudioManager.stopMusic()`
+      - `AudioManager.playSceneMusic("GAMEPLAY", { restart: true })`
+  - `astro-party/src/AudioManager.ts`:
+    - added `stopAllBackgroundMusicPlayers()` sweep for all configured background music assets.
+    - `stopMusic()` now calls the sweep to clear leaked/untracked loop instances, then clears pending background state.
+- Validation:
+  - `astro-party`: `bun run typecheck` passed.
+  - `astro-party`: `bun run build` passed.
+- Outcome:
+  - Tutorial now enters with a single gameplay BGM bed, without menu/start BGM overlap.
+- Architecture outcome:
+  - no change required.
+
 ## Milestone Journal
 
 ## 2026-03-04 - Server Docker hardening + pinned Node/npm deployment baseline

@@ -858,8 +858,24 @@ class AudioManagerClass {
     await this.playMusicAsset(target, { restart: false });
   }
 
+  private stopAllBackgroundMusicPlayers(): void {
+    for (const assetId of BACKGROUND_MUSIC_ASSET_IDS) {
+      this.clearPendingFadeStopTimer(assetId);
+      const player = this.assetPlayers.get(assetId);
+      if (player) {
+        player.stop();
+      }
+      this.activeSoundIdByAsset.delete(assetId);
+    }
+    this.activeMusicAssetId = null;
+    this.activeMusicSoundId = null;
+  }
+
   stopMusic(): void {
     this.stopActiveMusicPlayerWithFade(true);
+    // Safety sweep: clear any leaked background-loop instances that may not
+    // be tracked as the current active music sound ID.
+    this.stopAllBackgroundMusicPlayers();
     this.pendingBackgroundMusicAssetId = null;
   }
 

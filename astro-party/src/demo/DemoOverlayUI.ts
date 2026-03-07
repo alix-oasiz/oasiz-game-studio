@@ -131,6 +131,7 @@ export class DemoOverlayUI {
     this.hideTutorialActionButton();
     this.exitBtn.classList.add("hidden");
     this.cancelTypewriter?.();
+    AudioManager.stopCue("CAPTAIN_SPEECH");
     this.tutorialRunning = false;
     this.pendingDialogAdvance = null;
     this.tutorialOverlay.style.pointerEvents = "";
@@ -448,28 +449,15 @@ export class DemoOverlayUI {
   }
 
   private async typeStep(text: string): Promise<void> {
-    let lastSfxAt = 0;
-    let charCount = 0;
-
     const tw = typewriteText(this.tutorialDialogue, text, 28);
     this.cancelTypewriter = tw.cancel;
-
-    const sfxInterval = setInterval(() => {
-      if (!this.tutorialRunning) {
-        clearInterval(sfxInterval);
-        return;
-      }
-      const now = performance.now();
-      charCount++;
-      if (charCount % 3 === 0 && now - lastSfxAt > 80) {
-        AudioManager.playUIClick();
-        lastSfxAt = now;
-      }
-    }, 28 * 3);
-
-    await tw.done;
-    clearInterval(sfxInterval);
-    this.cancelTypewriter = null;
+    void AudioManager.playCue("CAPTAIN_SPEECH");
+    try {
+      await tw.done;
+    } finally {
+      this.cancelTypewriter = null;
+      AudioManager.stopCue("CAPTAIN_SPEECH");
+    }
   }
 
   /**

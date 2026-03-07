@@ -901,7 +901,13 @@ async function init(): Promise<void> {
     // Hide the start screen so the game canvas is visible beneath the
     // tutorial overlay (which has a transparent/semi-transparent background).
     elements.startScreen.classList.add("hidden");
-    syncAudioToPhase(currentPhase, currentPhase);
+    waitingForStartIntroAudioCompletion = false;
+    waitingForStartIntroVisualCompletion = false;
+    clearStartMenuMusicTimer();
+    // Ensure tutorial starts from a clean BGM bed so start/menu and gameplay
+    // loops cannot overlap if a stale loop survived prior transitions.
+    AudioManager.stopMusic();
+    void AudioManager.playSceneMusic("GAMEPLAY", { restart: true });
     syncDemoTouchLayoutForState();
     syncPlatformGameplayActivity();
     demoOverlay.showTutorial(viewport.isMobile);

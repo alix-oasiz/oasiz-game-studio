@@ -23,7 +23,8 @@ export type AudioAssetId =
   | "sfxPageIntroIn"
   | "sfxPageIntroOut"
   | "sfxPilotEject"
-  | "sfxPilotDeath";
+  | "sfxPilotDeath"
+  | "sfxCaptainSpeech";
 
 export interface AudioAssetDefinition {
   id: AudioAssetId;
@@ -243,6 +244,15 @@ export const AUDIO_ASSETS: Record<AudioAssetId, AudioAssetDefinition> = {
     volume: 0.72,
     preload: "metadata",
   },
+  sfxCaptainSpeech: {
+    id: "sfxCaptainSpeech",
+    channel: "ui",
+    relativePath: "sfx-captain-speech.ogg",
+    url: "./assets/audio/sfx-captain-speech.ogg",
+    loop: true,
+    volume: 0.52,
+    preload: "metadata",
+  },
 };
 
 export type AudioSceneId =
@@ -264,13 +274,15 @@ export type AudioCueId =
   | "SPLASH_STING"
   | "LOGO_STING"
   | "PAGE_INTRO_IN"
-  | "PAGE_INTRO_OUT";
+  | "PAGE_INTRO_OUT"
+  | "CAPTAIN_SPEECH";
 
 export const AUDIO_CUE_ASSETS: Record<AudioCueId, AudioAssetId> = {
   SPLASH_STING: "splashScreenSting",
   LOGO_STING: "logoRevealSting",
   PAGE_INTRO_IN: "sfxPageIntroIn",
   PAGE_INTRO_OUT: "sfxPageIntroOut",
+  CAPTAIN_SPEECH: "sfxCaptainSpeech",
 };
 
 export function resolveAudioAssetUrl(assetId: AudioAssetId): string {

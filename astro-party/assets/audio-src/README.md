@@ -61,6 +61,7 @@ Expected output filenames in `public/assets/audio`:
 - sfx-page-intro-out.ogg
 - sfx-pilot-eject.ogg
 - sfx-pilot-death.ogg
+- sfx-captain-speech.ogg
 
 Prompt-based rename key (2026-02-26):
 - `Arcade_sci-fi_plasma_#2-1772054061754.wav` -> `sfx-fire-previous.wav`
@@ -92,6 +93,9 @@ UI click polarity variants (2026-03-07):
 Start/lobby transition cues (2026-03-07):
 - `page_intro.wav` -> `sfx-page-intro-in.wav` -> `sfx-page-intro-in.ogg` (START -> LOBBY transition)
 - `page_intro_reversed.wav` -> `sfx-page-intro-out.wav` -> `sfx-page-intro-out.ogg` (LOBBY -> START transition)
+
+Tutorial captain speech variant (2026-03-08):
+- `alien-loading-screen-epic-stock-media-1-00-03.mp3` -> `sfx-captain-speech.wav` -> `sfx-captain-speech.ogg` (active while captain tutorial text is typing)
 
 Countdown variants:
 - `sfx-countdown.wav` (active, tail-noise-trimmed)
