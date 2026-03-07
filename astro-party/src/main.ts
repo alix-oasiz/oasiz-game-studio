@@ -56,6 +56,8 @@ const SPLASH_TIMELINE_SEC = {
   safetyExtension: 3.0,
 } as const;
 const START_SCREEN_BUTTONS_REVEAL_DELAY_MS = 1280;
+const LOBBY_ENTER_DELAY_MS = 150;        // clears sfxUiClickPositive (133ms)
+const LOBBY_SETTLE_CUE_TIME_SEC = 0.45; // PAGE_INTRO_IN hard beat at ~460–500ms
 
 window.addEventListener("beforeunload", () => {
   game.destroy();
@@ -242,6 +244,13 @@ async function init(): Promise<void> {
   let liveMatchIntroZoomPoll: ReturnType<typeof setInterval> | null = null;
   let liveMatchIntroHideTimer: ReturnType<typeof setTimeout> | null = null;
   let touchLayoutSyncRaf = 0;
+  let lobbySettleRafId = 0;
+  const cancelLobbySettleLoop = (): void => {
+    if (lobbySettleRafId !== 0) {
+      cancelAnimationFrame(lobbySettleRafId);
+      lobbySettleRafId = 0;
+    }
+  };
   const liveIntroOverlay = document.getElementById(
     "demoPlayerIntroOverlay",
   ) as HTMLElement | null;
@@ -1010,6 +1019,8 @@ async function init(): Promise<void> {
             });
           }
         }
+        cancelLobbySettleLoop();
+        elements.lobbyScreen.classList.remove("lobby-rising", "lobby-settled");
         screenController.showScreen("start");
         startUI.resetStartButtons(previousPhase !== "START");
         // Restart the background AI battle when returning from a real match.
@@ -1021,12 +1032,42 @@ async function init(): Promise<void> {
       case "LOBBY":
         if (previousPhase === "START") {
           void AudioManager.playLobbyEnterTransitionCue();
+          setTimeout(() => {
+            screenController.showScreen("lobby");
+            lobbyUI.updateRoomCode(game.getRoomCode());
+            lobbyUI.updateMapSelector();
+            mapPreviewUI.updateMapPreview();
+            screenController.resetEndScreenButtons();
+            // Start lobby enter animation and drive settle to audio beat
+            elements.lobbyScreen.classList.remove("lobby-rising", "lobby-settled");
+            void elements.lobbyScreen.offsetWidth; // force reflow so animation restarts cleanly
+            elements.lobbyScreen.classList.add("lobby-rising");
+            cancelLobbySettleLoop();
+            let settled = false;
+            const pollSettle = (): void => {
+              if (settled || currentPhase !== "LOBBY") {
+                lobbySettleRafId = 0;
+                return;
+              }
+              const t = AudioManager.getCuePlaybackTime("PAGE_INTRO_IN");
+              if (t !== null && t >= LOBBY_SETTLE_CUE_TIME_SEC) {
+                settled = true;
+                lobbySettleRafId = 0;
+                elements.lobbyScreen.classList.remove("lobby-rising");
+                elements.lobbyScreen.classList.add("lobby-settled");
+                return;
+              }
+              lobbySettleRafId = requestAnimationFrame(pollSettle);
+            };
+            lobbySettleRafId = requestAnimationFrame(pollSettle);
+          }, LOBBY_ENTER_DELAY_MS);
+        } else {
+          screenController.showScreen("lobby");
+          lobbyUI.updateRoomCode(game.getRoomCode());
+          lobbyUI.updateMapSelector();
+          mapPreviewUI.updateMapPreview();
+          screenController.resetEndScreenButtons();
         }
-        screenController.showScreen("lobby");
-        lobbyUI.updateRoomCode(game.getRoomCode());
-        lobbyUI.updateMapSelector();
-        mapPreviewUI.updateMapPreview();
-        screenController.resetEndScreenButtons();
         break;
       case "MATCH_INTRO":
       case "COUNTDOWN":
