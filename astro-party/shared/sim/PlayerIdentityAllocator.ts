@@ -104,7 +104,12 @@ export class PlayerIdentityAllocator {
     if (existing) return existing.index;
 
     const used = type === "local" ? this.localIndexUsed : this.aiIndexUsed;
-    const next = this.pickReusableIndex(used, preferred);
+    // Local players share the "Player N" namespace with humans — exclude
+    // human-reserved indices so a local player never receives "Player 1"
+    // when the host joined with a platform-supplied name (index 1 is
+    // reserved in humanIndexUsed but not visible in their displayName).
+    const alsoExclude = type === "local" ? this.humanIndexUsed : undefined;
+    const next = this.pickReusableIndex(used, preferred, alsoExclude);
     used.add(next);
     this.botIndexByPlayerId.set(playerId, { type, index: next });
     return next;
@@ -118,16 +123,17 @@ export class PlayerIdentityAllocator {
     used.delete(entry.index);
   }
 
-  private pickReusableIndex(used: Set<number>, preferred?: number): number {
-    if (
-      Number.isFinite(preferred) &&
-      (preferred as number) > 0 &&
-      !used.has(preferred as number)
-    ) {
+  private pickReusableIndex(
+    used: Set<number>,
+    preferred?: number,
+    alsoExclude?: Set<number>,
+  ): number {
+    const taken = (n: number) => used.has(n) || (alsoExclude?.has(n) ?? false);
+    if (Number.isFinite(preferred) && (preferred as number) > 0 && !taken(preferred as number)) {
       return preferred as number;
     }
     let next = 1;
-    while (used.has(next)) next += 1;
+    while (taken(next)) next += 1;
     return next;
   }
 

@@ -47,6 +47,20 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Outcome:
   - `+` icons align correctly on both surfaces; add-player modal buttons stay centered; tap-hint is clearly separated from the ship circle on large-screen cards.
 
+## 2026-03-08 - Local player "Player 1" name collision fix
+
+- Scope:
+  - First added local player was getting "Player 1" when the human host had a platform-supplied custom name. File: `shared/sim/PlayerIdentityAllocator.ts`.
+- Root cause:
+  - `allocateHuman` and `allocateBot("local")` both generate "Player N" names but tracked indices in separate sets (`humanIndexUsed` vs `localIndexUsed`). A human with a platform name ("CosmicAce") still reserved index 1 in `humanIndexUsed`, but `localIndexUsed` was empty, so the first local bot picked index 1 → "Player 1".
+- Key changes:
+  - `reserveBotIndex` for `type === "local"` now passes `humanIndexUsed` as `alsoExclude` to `pickReusableIndex`.
+  - `pickReusableIndex` accepts optional `alsoExclude: Set<number>` and uses a `taken()` check against both sets.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Local players added after a platform-named host will receive "Player 2", "Player 3", etc. "Player 1" is permanently reserved for the first human slot regardless of their display name.
+
 ## 2026-03-08 - Modal layering hardening (global top-tier z-index)
 
 - Scope:
