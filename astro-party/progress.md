@@ -31,6 +31,18 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-09 - Tutorial leave modal layering + back button fix
+
+- Scope:
+  - Leave/back button modal was rendering behind the tutorial captain character (z-index trapped inside `#game-wrapper` stacking context). Back button also unclickable at tutorial start. Files: `index.html`, `src/main.ts`.
+- Key changes:
+  - `index.html`: Moved `#leaveBackdrop` and `#leaveModal` from inside `#game-wrapper` to outside it (after closing tag) so their z-index participates in the root stacking context and beats `#demoTutorialOverlay` at z-500.
+  - `src/main.ts`: Added `demoOverlay.showExitButton(() => leaveModal.openLeaveModal())` immediately after `showTutorial()` call so the back button is wired and visible at tutorial start.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Leave modal now correctly overlays the tutorial captain. Back button is visible and functional from the moment the tutorial appears.
+
 ## 2026-03-09 - Online mode: empty card tap adds bot directly without modal
 
 - Scope:

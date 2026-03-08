@@ -911,6 +911,9 @@ async function init(): Promise<void> {
     syncDemoTouchLayoutForState();
     syncPlatformGameplayActivity();
     demoOverlay.showTutorial(viewport.isMobile);
+    if (!isPlatform) {
+      demoOverlay.showExitButton(() => leaveModal.openLeaveModal());
+    }
   }
 
   startUI.setOnHowToPlay(async () => {
