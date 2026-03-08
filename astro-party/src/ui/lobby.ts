@@ -387,7 +387,7 @@ export function createLobbyUI(
               <div class="empty-icon">${PLUS_CIRCLE_SVG}</div>
               <div class="empty-label">${SLOTS[slotIdx]} \u2014 Empty</div>
               <div class="empty-btns">
-                <button class="empty-btn" data-action="add-ai"${canAdd ? "" : " disabled"}><span class="eb-plus">+</span><span>Add AI</span></button>
+                <button class="empty-btn" data-action="add-ai"${canAdd ? "" : " disabled"}><span class="eb-plus">+</span><span>Add Bot</span></button>
                 ${localBtn}
               </div>
               <div class="empty-tap-hint">Tap to add player</div>

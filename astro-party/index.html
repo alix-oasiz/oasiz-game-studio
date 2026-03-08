@@ -1693,6 +1693,13 @@
       margin: 0;
     }
 
+    /* Add-player modal: icon+label buttons need left-aligned content so
+       the + icon lands at the same x on both buttons (other settings modals
+       use centered single-word labels so they keep justify-content:center) */
+    #addPlayerModal .settings-actions .btn {
+      gap: 0.5em;
+    }
+
     .settings-actions .settings-close {
       margin-top: 0 !important;
     }
@@ -3625,15 +3632,15 @@
       transition: all 0.12s;
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       gap: 0.4em;
     }
-    #lobbyScreen .eb-plus {
+    .eb-plus {
       width: 0.85em;
       text-align: center;
       flex-shrink: 0;
-      opacity: 0.65;
     }
+    #lobbyScreen .eb-plus { opacity: 0.65; }
     #lobbyScreen .empty-btn:hover { color: var(--gold-lt); border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.05); }
     #lobbyScreen .empty-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
@@ -3959,6 +3966,13 @@
       #lobbyScreen .empty-tap-hint { display: flex; }
       #lobbyScreen .card-name { justify-content: center; }
     }
+
+    /* iPad/desktop: card is taller, ship circle grows via cqh — increase
+       gap and bump hint font to match ctrl-strip label scale */
+    @media (min-height: 601px) {
+      #lobbyScreen .card-vp-wrap { gap: 1.5rem; }
+      #lobbyScreen .card-tap-hint { font-size: var(--fs-ui); }
+    }
   </style>
 </head>
 <body>
@@ -4202,8 +4216,8 @@
   <div class="settings-modal" id="addPlayerModal">
     <h3 class="settings-title">Add Player</h3>
     <div class="settings-actions">
-      <button class="btn" id="addPlayerAIBtn">+ Add AI</button>
-      <button class="btn secondary" id="addPlayerLocalBtn">+ Add Local</button>
+      <button class="btn" id="addPlayerAIBtn"><span class="eb-plus">+</span><span>Add Bot</span></button>
+      <button class="btn secondary" id="addPlayerLocalBtn"><span class="eb-plus">+</span><span>Add Local</span></button>
       <button class="btn tertiary settings-close" id="addPlayerCloseBtn">Cancel</button>
     </div>
   </div>

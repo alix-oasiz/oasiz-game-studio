@@ -31,6 +31,22 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-08 - Lobby add-player button alignment + tap-hint spacing
+
+- Scope:
+  - Consistent wording, icon alignment, and tap-hint visibility across add-player surfaces. Files: `index.html`, `src/ui/lobby.ts`.
+- Key changes:
+  - Wording unified: `Add Bot` / `Add Local` across empty card slots and add-player modal.
+  - Span structure (`eb-plus` + text) added to all add-player buttons for structured icon/label layout.
+  - `.empty-btn`: `justify-content: flex-start` — content-sized buttons share the width of the widest child so left-align pins `+` to the same column.
+  - `#addPlayerModal .btn`: `gap: 0.5em` added; kept `justify-content: center` (full-width buttons stay visually balanced).
+  - `.eb-plus` unscoped to global (`width: 0.85em; flex-shrink: 0`); `opacity: 0.65` dimming kept scoped to `#lobbyScreen`.
+  - Tap-hint spacing: `@media (min-height: 601px)` increases `.card-vp-wrap` gap `0.4rem → 1.5rem` and bumps `.card-tap-hint` font-size `var(--fs-label) → var(--fs-ui)` — on iPad/desktop the card is taller and the ship circle grows via `cqh`, making the hint merge with the circle at the smaller gap/size.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - `+` icons align correctly on both surfaces; add-player modal buttons stay centered; tap-hint is clearly separated from the ship circle on large-screen cards.
+
 ## 2026-03-08 - Modal layering hardening (global top-tier z-index)
 
 - Scope:
