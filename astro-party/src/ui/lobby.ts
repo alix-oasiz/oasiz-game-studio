@@ -390,7 +390,7 @@ export function createLobbyUI(
                 <button class="empty-btn" data-action="add-ai"${canAdd ? "" : " disabled"}><span class="eb-plus">+</span><span>Add Bot</span></button>
                 ${localBtn}
               </div>
-              <div class="empty-tap-hint">Tap to add player</div>
+              <div class="empty-tap-hint">${canShowLocalAdd ? "Tap to add player" : "Tap to add bot"}</div>
             </div>
           </div>`;
   }
@@ -655,11 +655,15 @@ export function createLobbyUI(
       return;
     }
 
-    // Phone: tap on empty card → add-player dialog
+    // Phone: tap on empty card → add bot directly (online) or open add-player dialog (local)
     const emptyCard = (e.target as HTMLElement).closest<HTMLElement>(".pcard--empty");
     if (emptyCard && window.matchMedia("(pointer: coarse) and (max-height: 600px)").matches) {
       if (!game.isLeader()) return;
-      openAddPlayerDialog();
+      if (canShowLocalAddOption()) {
+        openAddPlayerDialog();
+      } else {
+        elements.addAIBotBtn.click();
+      }
       return;
     }
 

@@ -31,6 +31,18 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-09 - Online mode: empty card tap adds bot directly without modal
+
+- Scope:
+  - In online mode, the add-player modal was always shown on mobile even though "Add Local" is unavailable — only "Add Bot" was functional. File: `src/ui/lobby.ts`.
+- Key changes:
+  - Empty card tap handler: if `canShowLocalAddOption()` is false (online mode), directly call `elements.addAIBotBtn.click()` instead of opening the modal.
+  - `buildEmptyCardHTML`: hint text is `"Tap to add bot"` when `canShowLocalAdd` is false, `"Tap to add player"` when both options are available (local mode).
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Online mode: one tap adds bot immediately. Local mode: modal still opens with both options.
+
 ## 2026-03-08 - Lobby add-player button alignment + tap-hint spacing
 
 - Scope:
