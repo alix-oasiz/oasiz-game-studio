@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 24 24" role="img" aria-label="Homing missile powerup">
+  <defs>
+    <style>
+      .slot-box { fill: var(--slot-box, #888888); }
+      .slot-icon { fill: var(--slot-icon, #cccccc); }
+      .slot-accent { fill: var(--slot-accent, #ff8800); }
+      .slot-stroke { stroke: var(--slot-stroke, #ffffff); }
+    </style>
+  </defs>
+  <rect class="slot-box slot-stroke" x="-10" y="-10" width="20" height="20" rx="2.4" ry="2.4" stroke-width="1.8" />
+  <ellipse class="slot-icon" cx="0" cy="0.5" rx="3.1" ry="6.2" />
+  <path class="slot-accent" d="M0 -8L-2.3 -3.8h4.6z" />
+  <path class="slot-accent" d="M-2.7 3.7L-5.5 7.8-1.5 6.2zM2.7 3.7L5.5 7.8 1.5 6.2z" />
+</svg>

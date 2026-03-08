@@ -994,6 +994,7 @@
             width: 24px;
             height: 24px;
             fill: currentColor;
+            pointer-events: none; /* Ensure touches go to button, not SVG path */
         }
 
         .iconBtn {
@@ -1074,6 +1075,106 @@
         }
         #game-container.landscapeMode #highScore {
             display: none !important;
+        }
+
+        /* Natural landscape mode: Position pause and settings buttons on top right of game screen */
+        #game-container.landscapeMode #pauseBtn,
+        #game-container.landscapeMode #settingsBtn {
+            top: calc(env(safe-area-inset-top) + 60px) !important;
+            left: auto !important;
+            right: calc(env(safe-area-inset-right) + 20px) !important;
+        }
+
+        #game-container.landscapeMode #pauseBtn {
+            right: calc(env(safe-area-inset-right) + 80px) !important; /* Offset to not overlap settings */
+        }
+
+        /* Natural landscape mode: Constrain start screen buttons width */
+        #game-container.landscapeMode .startScene {
+            width: min(480px, calc(100% - 40px)) !important;
+        }
+
+        #game-container.landscapeMode .menuButtons {
+            grid-template-columns: auto auto !important;
+            justify-content: center !important;
+        }
+
+        #game-container.landscapeMode .menuBtn {
+            min-width: 120px !important;
+            max-width: 180px !important;
+            padding: 12px 20px !important;
+        }
+
+        /* =========================================================
+           FORCED LANDSCAPE MODE (portrait device, rotated 90° game)
+           Empirically confirmed coordinate mapping:
+           - top/bottom → visible TOP/BOTTOM
+           - left/right → visible LEFT/RIGHT
+           So CSS coords work normally within the rotated container.
+           ========================================================= */
+
+        /* Forced landscape: Position buttons at visible top-right */
+        /* Settings is further from edge (80px) to avoid iOS edge touch issues */
+        #game-container.forcedLandscape #pauseBtn,
+        #game-container.forcedLandscape #settingsBtn {
+            top: 60px !important;
+            bottom: auto !important;
+            left: auto !important;
+        }
+
+        #game-container.forcedLandscape #pauseBtn {
+            right: 20px !important;
+        }
+
+        #game-container.forcedLandscape #settingsBtn {
+            right: 80px !important; /* Further from edge to avoid iOS touch issues */
+        }
+
+        /* Forced landscape: HUD positioning - center of visible screen */
+        #game-container.forcedLandscape #hud {
+            font-size: 12px !important;
+            top: 60px !important;
+            bottom: auto !important;
+            left: 50% !important;
+            right: auto !important;
+            transform: translateX(-50%) !important;
+        }
+
+        /* Forced landscape: Ensure overlays fill the rotated container properly */
+        #game-container.forcedLandscape .overlay {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            z-index: 200 !important;
+        }
+
+        #game-container.forcedLandscape #pauseOverlay {
+            z-index: 250 !important;
+        }
+
+        #game-container.forcedLandscape #distance {
+            font-size: 14px !important;
+        }
+
+        #game-container.forcedLandscape #highScore {
+            display: none !important;
+        }
+
+        /* Forced landscape: Constrain start screen buttons width */
+        #game-container.forcedLandscape .startScene {
+            width: min(480px, calc(100% - 40px)) !important;
+        }
+
+        #game-container.forcedLandscape .menuButtons {
+            grid-template-columns: auto auto !important;
+            justify-content: center !important;
+        }
+
+        #game-container.forcedLandscape .menuBtn {
+            min-width: 120px !important;
+            max-width: 180px !important;
+            padding: 12px 20px !important;
         }
 
         /* Very short screens (landscape phones): keep menu compact so it doesn't get cut off */

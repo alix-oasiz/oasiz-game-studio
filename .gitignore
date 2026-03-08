@@ -17,9 +17,28 @@ Thumbs.db
 *.swp
 *.swo
 
+
+
 # Local env files
 .env
 .env.local
 .env.*.local
+
+# Assets and audio
+assets/
+*/assets/sfx/
+*/sfx/
+music/
+*/music/
+*/public/assets/audio/
+*/public/assets/sfx/
+*/public/sfx/
+*/src/sfx/
+*/src/music/
+
+# abyssal-fall game-specific override — track its assets + sfx
+!abyssal-fall/public/
+!abyssal-fall/public/assets/
+!abyssal-fall/public/assets/**
 
 

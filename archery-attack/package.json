@@ -1,0 +1,22 @@
+{
+  "name": "archery-attack",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npx concurrently \"npm run dev:horse\" \"npm run dev:ragdoll\" \"npm run dev:switcher\"",
+    "dev:horse": "cd horse-archery && npx vite",
+    "dev:ragdoll": "cd ragdoll-archers && npx vite",
+    "dev:switcher": "npx vite --port 5173",
+    "build:horse": "cd horse-archery && npx vite build",
+    "build:ragdoll": "cd ragdoll-archers && npx vite build",
+    "build": "npm run build:horse && npm run build:ragdoll && mkdir -p dist && cp horse-archery/dist/index.html dist/index.html"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "vite-plugin-singlefile": "^2.0.3"
+  }
+}

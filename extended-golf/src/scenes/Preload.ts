@@ -31,10 +31,11 @@ export default class Preload extends Phaser.Scene {
 		this.load.pack("asset-pack", "assets/asset-pack.json");
 
 		// Audio assets
-		this.load.audio('Score', 'Audio/Score.wav');
+		this.load.audio('Score', 'Audio/score.mp3');
 		this.load.audio('GameOver', 'Audio/GameOver.wav');
-		this.load.audio('HitBall', 'Audio/HitBall.wav');
-		this.load.audio('ButtonClick', 'Audio/ButtonClick.wav');
+		this.load.audio('HitBall', 'Audio/hit.mp3');
+		this.load.audio('ButtonClick', 'Audio/click.mp3');
+		this.load.audio('Bounce', 'Audio/bounce.mp3');
 		this.load.audio('GolfBgMusic', 'Audio/GolfBgMusic.mp3');
 	}
 

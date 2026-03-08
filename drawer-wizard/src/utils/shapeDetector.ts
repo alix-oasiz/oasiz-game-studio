@@ -3,170 +3,232 @@ export interface Point {
     y: number;
 }
 
-function perpendicularDistance(point: Point, lineStart: Point, lineEnd: Point): number {
-    const dx = lineEnd.x - lineStart.x;
-    const dy = lineEnd.y - lineStart.y;
-    const mag = Math.sqrt(dx * dx + dy * dy);
-    if (mag === 0) {
-        return Math.sqrt((point.x - lineStart.x) ** 2 + (point.y - lineStart.y) ** 2);
-    }
-    return Math.abs(dx * (lineStart.y - point.y) - (lineStart.x - point.x) * dy) / mag;
+// Pure orientation-sensitive $1 Unistroke Recognizer.
+// The rotation step is intentionally omitted so the absolute stroke direction
+// is preserved and naturally disambiguates symbols like / vs \ vs | vs -.
+const NUM_RESAMPLE_POINTS = 64;
+const NORMALIZE_SQUARE_SIZE = 200;
+const MAX_PATH_DISTANCE = 0.5 * Math.sqrt(2 * NORMALIZE_SQUARE_SIZE * NORMALIZE_SQUARE_SIZE);
+const MIN_SCORE = 0.64;
+
+function distance(a: Point, b: Point): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-export function douglasPeucker(points: Point[], epsilon: number): Point[] {
-    if (points.length < 3) return points;
-
-    let maxDist = 0;
-    let maxIndex = 0;
-    const end = points.length - 1;
-
-    for (let i = 1; i < end; i++) {
-        const dist = perpendicularDistance(points[i], points[0], points[end]);
-        if (dist > maxDist) {
-            maxDist = dist;
-            maxIndex = i;
-        }
-    }
-
-    if (maxDist > epsilon) {
-        const left = douglasPeucker(points.slice(0, maxIndex + 1), epsilon);
-        const right = douglasPeucker(points.slice(maxIndex), epsilon);
-        return [...left.slice(0, -1), ...right];
-    }
-
-    return [points[0], points[end]];
+function centroid(points: Point[]): Point {
+    const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+    return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
-function angleBetween(a: Point, b: Point, c: Point): number {
-    const ax = a.x - b.x;
-    const ay = a.y - b.y;
-    const cx = c.x - b.x;
-    const cy = c.y - b.y;
-    const dot = ax * cx + ay * cy;
-    const magA = Math.sqrt(ax * ax + ay * ay);
-    const magC = Math.sqrt(cx * cx + cy * cy);
-    if (magA === 0 || magC === 0) return 180;
-    const cos = Math.max(-1, Math.min(1, dot / (magA * magC)));
-    return (Math.acos(cos) * 180) / Math.PI;
+function pathLength(points: Point[]): number {
+    let d = 0;
+    for (let i = 1; i < points.length; i++) d += distance(points[i - 1], points[i]);
+    return d;
 }
 
-export function countCorners(simplified: Point[], threshold = 110): number {
-    let corners = 0;
-    for (let i = 1; i < simplified.length - 1; i++) {
-        const angle = angleBetween(simplified[i - 1], simplified[i], simplified[i + 1]);
-        if (angle < threshold) {
-            corners++;
-        }
-    }
-    return corners;
-}
-
-export function isClosed(points: Point[]): boolean {
-    if (points.length < 3) return false;
-    const first = points[0];
-    const last = points[points.length - 1];
-    const dist = Math.sqrt((last.x - first.x) ** 2 + (last.y - first.y) ** 2);
-
-    const xs = points.map(p => p.x);
-    const ys = points.map(p => p.y);
-    const w = Math.max(...xs) - Math.min(...xs);
-    const h = Math.max(...ys) - Math.min(...ys);
-    const diagonal = Math.sqrt(w * w + h * h);
-
-    return dist < diagonal * 0.25;
-}
-
-export function detectShape(points: Point[]): string {
-    if (points.length < 5) return "none";
-
-    const xs = points.map(p => p.x);
-    const ys = points.map(p => p.y);
+function boundingBox(points: Point[]): { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number } {
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+}
 
-    const width = maxX - minX;
-    const height = maxY - minY;
+function resample(points: Point[], n: number): Point[] {
+    if (points.length === 0) return [];
+    if (points.length === 1) return Array.from({ length: n }, () => ({ ...points[0] }));
 
-    if (width < 15 && height < 15) return "none";
+    const I = pathLength(points) / (n - 1);
+    if (I <= 0) return Array.from({ length: n }, () => ({ ...points[0] }));
 
-    const aspectRatio = width / (height || 1);
+    const out: Point[] = [{ ...points[0] }];
+    let D = 0;
+    let prev = { ...points[0] };
 
-    const simplified = douglasPeucker(points, 12);
-    const corners = countCorners(simplified, 110);
-    const closed = isClosed(points);
+    for (let i = 1; i < points.length; i++) {
+        const curr = points[i];
+        let seg = distance(prev, curr);
+        if (seg === 0) continue;
 
-    // Circle: closed, near-1 aspect, low corners, low radius variance
-    if (closed && corners <= 2 && aspectRatio > 0.6 && aspectRatio < 1.6) {
-        const cx = (minX + maxX) / 2;
-        const cy = (minY + maxY) / 2;
-        let sum = 0;
-        let sumSq = 0;
-        for (const p of points) {
-            const d = Math.hypot(p.x - cx, p.y - cy);
-            sum += d;
-            sumSq += d * d;
+        while (D + seg >= I) {
+            const t = (I - D) / seg;
+            const q = {
+                x: prev.x + t * (curr.x - prev.x),
+                y: prev.y + t * (curr.y - prev.y),
+            };
+            out.push(q);
+            prev = q;
+            seg = distance(prev, curr);
+            D = 0;
         }
-        const mean = sum / points.length;
-        const variance = sumSq / points.length - mean * mean;
-        const std = Math.sqrt(Math.max(0, variance));
-        if (mean > 8 && std / mean < 0.22) {
-            return "Circle";
+        D += seg;
+        prev = curr;
+    }
+
+    const last = points[points.length - 1];
+    while (out.length < n) out.push({ ...last });
+    if (out.length > n) return out.slice(0, n);
+    return out;
+}
+
+function scaleToSquare(points: Point[], size: number): Point[] {
+    const b = boundingBox(points);
+    const maxDim = Math.max(b.width, b.height, 0.0001);
+    const s = size / maxDim;
+    return points.map((p) => ({ x: p.x * s, y: p.y * s }));
+}
+
+function translateToOrigin(points: Point[]): Point[] {
+    const c = centroid(points);
+    return points.map((p) => ({ x: p.x - c.x, y: p.y - c.y }));
+}
+
+// Orientation-sensitive normalization: resample → scale → center.
+// The rotation step from standard $1 is intentionally absent.
+function normalizePath(points: Point[]): Point[] {
+    const r = resample(points, NUM_RESAMPLE_POINTS);
+    const scaled = scaleToSquare(r, NORMALIZE_SQUARE_SIZE);
+    return translateToOrigin(scaled);
+}
+
+function pathDistance(a: Point[], b: Point[]): number {
+    let d = 0;
+    for (let i = 0; i < a.length; i++) d += distance(a[i], b[i]);
+    return d / a.length;
+}
+
+type Template = { label: string; points: Point[] };
+
+function makeTemplate(label: string, rawPoints: Point[]): Template {
+    return { label, points: normalizePath(rawPoints) };
+}
+
+function makeCircle(count: number, clockwise: boolean, startAngle = 0): Point[] {
+    const pts: Point[] = [];
+    for (let i = 0; i <= count; i++) {
+        const a = clockwise
+            ? startAngle + (i / count) * Math.PI * 2
+            : startAngle - (i / count) * Math.PI * 2;
+        pts.push({ x: Math.cos(a), y: Math.sin(a) });
+    }
+    return pts;
+}
+
+function makeOval(count: number, clockwise: boolean, startAngle: number, rx: number, ry: number): Point[] {
+    const pts: Point[] = [];
+    for (let i = 0; i <= count; i++) {
+        const a = clockwise
+            ? startAngle + (i / count) * Math.PI * 2
+            : startAngle - (i / count) * Math.PI * 2;
+        pts.push({ x: Math.cos(a) * rx, y: Math.sin(a) * ry });
+    }
+    return pts;
+}
+
+// Closed-shape helper: repeat the start point at the end.
+function closed(pts: Point[]): Point[] {
+    return [...pts, pts[0]];
+}
+
+// Named vertices for readability.
+const TOP: Point = { x: 0, y: -1 };
+const BR: Point = { x: 0.95, y: 0.8 };
+const BL: Point = { x: -0.95, y: 0.8 };
+const TL: Point = { x: -1, y: -1 };
+const TR: Point = { x: 1, y: -1 };
+const SBR: Point = { x: 1, y: 1 };
+const SBL: Point = { x: -1, y: 1 };
+
+// All templates are pre-normalized at module init.
+// Each open-stroke symbol appears in BOTH draw directions.
+// Each closed shape appears starting from every vertex in both winding orders.
+const TEMPLATES: Template[] = [
+    // ── Vertical Line ──────────────────────────────────────────
+    makeTemplate("Vertical Line", [{ x: 0, y: -1 }, { x: 0, y: 1 }]),   // top → bottom
+    makeTemplate("Vertical Line", [{ x: 0, y: 1 }, { x: 0, y: -1 }]),   // bottom → top
+
+    // ── Horizontal Line ───────────────────────────────────────
+    makeTemplate("Horizontal Line", [{ x: -1, y: 0 }, { x: 1, y: 0 }]), // left → right
+    makeTemplate("Horizontal Line", [{ x: 1, y: 0 }, { x: -1, y: 0 }]), // right → left
+
+    // ── Forward slash / ───────────────────────────────────────
+    makeTemplate("/", [{ x: -1, y: 1 }, { x: 1, y: -1 }]),              // bottom-left → top-right
+    makeTemplate("/", [{ x: 1, y: -1 }, { x: -1, y: 1 }]),              // top-right → bottom-left
+
+    // ── Backslash \ ───────────────────────────────────────────
+    makeTemplate("\\", [{ x: -1, y: -1 }, { x: 1, y: 1 }]),             // top-left → bottom-right
+    makeTemplate("\\", [{ x: 1, y: 1 }, { x: -1, y: -1 }]),             // bottom-right → top-left
+
+    // ── V shape ───────────────────────────────────────────────
+    makeTemplate("V", [{ x: -1, y: -0.8 }, { x: 0, y: 1 }, { x: 1, y: -0.8 }]),  // left → bottom → right
+    makeTemplate("V", [{ x: 1, y: -0.8 }, { x: 0, y: 1 }, { x: -1, y: -0.8 }]),  // right → bottom → left
+
+    // ── Triangle — 3 start vertices × 2 winding orders ────────
+    makeTemplate("Triangle", closed([TOP, BR, BL])),    // CW  from top
+    makeTemplate("Triangle", closed([TOP, BL, BR])),    // CCW from top
+    makeTemplate("Triangle", closed([BR, BL, TOP])),    // CW  from bottom-right
+    makeTemplate("Triangle", closed([BR, TOP, BL])),    // CCW from bottom-right
+    makeTemplate("Triangle", closed([BL, TOP, BR])),    // CW  from bottom-left
+    makeTemplate("Triangle", closed([BL, BR, TOP])),    // CCW from bottom-left
+    // Open-path variants for users who don't fully close their triangle
+    makeTemplate("Triangle", [TOP, BR, BL]),
+    makeTemplate("Triangle", [TOP, BL, BR]),
+    makeTemplate("Triangle", [BR, BL, TOP]),
+    makeTemplate("Triangle", [BL, BR, TOP]),
+
+    // ── Square — 4 start vertices × 2 winding orders ──────────
+    makeTemplate("Square", closed([TL, TR, SBR, SBL])),   // CW  from TL
+    makeTemplate("Square", closed([TL, SBL, SBR, TR])),   // CCW from TL
+    makeTemplate("Square", closed([TR, SBR, SBL, TL])),   // CW  from TR
+    makeTemplate("Square", closed([TR, TL, SBL, SBR])),   // CCW from TR
+    makeTemplate("Square", closed([SBR, SBL, TL, TR])),   // CW  from BR
+    makeTemplate("Square", closed([SBR, TR, TL, SBL])),   // CCW from BR
+    makeTemplate("Square", closed([SBL, TL, TR, SBR])),   // CW  from BL
+    makeTemplate("Square", closed([SBL, SBR, TR, TL])),   // CCW from BL
+
+    // ── Circle — 4 starting points × 2 directions × 3 aspect ratios ──
+    // Perfect circle
+    makeTemplate("Circle", makeCircle(48, true,  -Math.PI / 2)),  // CW  from top
+    makeTemplate("Circle", makeCircle(48, true,   0)),             // CW  from right
+    makeTemplate("Circle", makeCircle(48, true,   Math.PI / 2)),  // CW  from bottom
+    makeTemplate("Circle", makeCircle(48, true,   Math.PI)),      // CW  from left
+    makeTemplate("Circle", makeCircle(48, false, -Math.PI / 2)),  // CCW from top
+    makeTemplate("Circle", makeCircle(48, false,  0)),             // CCW from right
+    makeTemplate("Circle", makeCircle(48, false,  Math.PI / 2)),  // CCW from bottom
+    makeTemplate("Circle", makeCircle(48, false,  Math.PI)),      // CCW from left
+    // Wide oval (catches left-right squashed circles)
+    makeTemplate("Circle", makeOval(48, true,  -Math.PI / 2, 1.8, 1.0)),
+    makeTemplate("Circle", makeOval(48, true,   0,            1.8, 1.0)),
+    makeTemplate("Circle", makeOval(48, false, -Math.PI / 2, 1.8, 1.0)),
+    makeTemplate("Circle", makeOval(48, false,  0,            1.8, 1.0)),
+    // Tall oval (catches top-bottom squashed circles)
+    makeTemplate("Circle", makeOval(48, true,  -Math.PI / 2, 1.0, 1.8)),
+    makeTemplate("Circle", makeOval(48, true,   0,            1.0, 1.8)),
+    makeTemplate("Circle", makeOval(48, false, -Math.PI / 2, 1.0, 1.8)),
+    makeTemplate("Circle", makeOval(48, false,  0,            1.0, 1.8)),
+];
+
+export function detectShape(points: Point[]): string {
+    if (points.length < 5) return "none";
+
+    const b = boundingBox(points);
+    if (b.width < 12 && b.height < 12) return "none";
+
+    const candidate = normalizePath(points);
+
+    let bestLabel = "none";
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const template of TEMPLATES) {
+        const d = pathDistance(candidate, template.points);
+        if (d < bestDistance) {
+            bestDistance = d;
+            bestLabel = template.label;
         }
     }
 
-    // Vertical line
-    if (aspectRatio < 0.28 && height > 40 && corners < 2) {
-        return "Vertical Line";
-    }
-
-    // Horizontal line
-    if (corners < 2 && aspectRatio > 3.5 && width > 40) {
-        return "Horizontal Line";
-    }
-
-    // Slash / Backslash
-    if (corners < 2 && width > 35 && height > 35) {
-        const start = points[0];
-        const end = points[points.length - 1];
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        const slope = dy / (dx || 0.0001);
-        const slopeAbs = Math.abs(slope);
-        if (slopeAbs > 0.6 && slopeAbs < 1.6) {
-            return slope < 0 ? "/" : "\\";
-        }
-    }
-
-    // 3 corners + closed: square vs triangle
-    if (corners === 3 && closed) {
-        if (aspectRatio > 0.6 && aspectRatio < 1.6) {
-            return "Square";
-        }
-        return "Triangle";
-    }
-
-    // Triangle: 2 or 3 corners
-    if (corners === 2 || corners === 3) {
-        return "Triangle";
-    }
-
-    // Square: 3+ corners, mid aspect ratio
-    if (corners >= 3 && aspectRatio > 0.4 && aspectRatio < 2.5) {
-        return "Square";
-    }
-
-    // V: open, two arms down to a point
-    if (!closed && corners >= 1 && corners <= 2 && aspectRatio > 0.5 && aspectRatio < 2.2) {
-        const cx = (minX + maxX) / 2;
-        const hasTopLeft = points.some(p => p.x < cx - width * 0.15 && p.y < minY + height * 0.45);
-        const hasTopRight = points.some(p => p.x > cx + width * 0.15 && p.y < minY + height * 0.45);
-        const hasBottom = points.some(p => Math.abs(p.x - cx) < width * 0.2 && p.y > minY + height * 0.65);
-        if (hasTopLeft && hasTopRight && hasBottom) {
-            return "V";
-        }
-    }
-
-    return "none";
+    const score = 1 - bestDistance / MAX_PATH_DISTANCE;
+    return score >= MIN_SCORE ? bestLabel : "none";
 }

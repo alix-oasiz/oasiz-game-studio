@@ -2,11 +2,6 @@
     "section1": {
         "files": [
             {
-                "url": "assets/FufuSuperDino.png",
-                "type": "image",
-                "key": "FufuSuperDino"
-            },
-            {
                 "url": "assets/CustomTiles/spike.png",
                 "type": "image",
                 "key": "ground_spike"
@@ -256,6 +251,176 @@
                 "url": "assets/Audio/dungeonBgMusic.mp3",
                 "type": "audio",
                 "key": "dungeonBgMusic"
+            },
+            {
+                "url": "assets/Audio/bossBgMusic.mp3",
+                "type": "audio",
+                "key": "bossBgMusic"
+            },
+            {
+                "url": "assets/Audio/playerDeath.mp3",
+                "type": "audio",
+                "key": "playerDeath"
+            },
+            {
+                "url": "assets/Audio/bossSlimeRain.mp3",
+                "type": "audio",
+                "key": "bossSlimeRain"
+            },
+            {
+                "url": "assets/Audio/bossDragonFire.mp3",
+                "type": "audio",
+                "key": "bossDragonFire"
+            },
+            {
+                "url": "assets/Audio/bossDragonMeteor.mp3",
+                "type": "audio",
+                "key": "bossDragonMeteor"
+            },
+            {
+                "url": "assets/Audio/bossMummyCurse.mp3",
+                "type": "audio",
+                "key": "bossMummyCurse"
+            },
+            {
+                "url": "assets/Audio/bossMummyWarp.mp3",
+                "type": "audio",
+                "key": "bossMummyWarp"
+            },
+            {
+                "url": "assets/Audio/uiButtonClick.mp3",
+                "type": "audio",
+                "key": "uiButtonClick"
+            },
+            {
+                "url": "assets/Audio/knightPowerSlash.mp3",
+                "type": "audio",
+                "key": "knightPowerSlash"
+            },
+            {
+                "url": "assets/Audio/knightShieldUp.mp3",
+                "type": "audio",
+                "key": "knightShieldUp"
+            },
+            {
+                "url": "assets/Audio/knightRendingStrike.mp3",
+                "type": "audio",
+                "key": "knightRendingStrike"
+            },
+            {
+                "url": "assets/Audio/rogueShadowDash.mp3",
+                "type": "audio",
+                "key": "rogueShadowDash"
+            },
+            {
+                "url": "assets/Audio/rogueFanOfKnives.mp3",
+                "type": "audio",
+                "key": "rogueFanOfKnives"
+            },
+            {
+                "url": "assets/Audio/mageLightningChain.mp3",
+                "type": "audio",
+                "key": "mageLightningChain"
+            },
+            {
+                "url": "assets/Audio/mageLaserBeam.mp3",
+                "type": "audio",
+                "key": "mageLaserBeam"
+            },
+            {
+                "url": "assets/Audio/archerExplosiveShot.mp3",
+                "type": "audio",
+                "key": "archerExplosiveShot"
+            },
+            {
+                "url": "assets/Audio/knightGroundSpike.mp3",
+                "type": "audio",
+                "key": "knightGroundSpike"
+            },
+            {
+                "url": "assets/Audio/knightWaveSlash.mp3",
+                "type": "audio",
+                "key": "knightWaveSlash"
+            },
+            {
+                "url": "assets/Audio/knightFireAura.mp3",
+                "type": "audio",
+                "key": "knightFireAura"
+            },
+            {
+                "url": "assets/Audio/rogueHeavyStab.mp3",
+                "type": "audio",
+                "key": "rogueHeavyStab"
+            },
+            {
+                "url": "assets/Audio/rogueInvisibility.mp3",
+                "type": "audio",
+                "key": "rogueInvisibility"
+            },
+            {
+                "url": "assets/Audio/rogueShurikenToss.mp3",
+                "type": "audio",
+                "key": "rogueShurikenToss"
+            },
+            {
+                "url": "assets/Audio/mageSupernova.mp3",
+                "type": "audio",
+                "key": "mageSupernova"
+            },
+            {
+                "url": "assets/Audio/mageFreezeZone.mp3",
+                "type": "audio",
+                "key": "mageFreezeZone"
+            },
+            {
+                "url": "assets/Audio/magePoisonZone.mp3",
+                "type": "audio",
+                "key": "magePoisonZone"
+            },
+            {
+                "url": "assets/Audio/mageArcaneVortex.mp3",
+                "type": "audio",
+                "key": "mageArcaneVortex"
+            },
+            {
+                "url": "assets/Audio/mageEmpoweredStrikes.mp3",
+                "type": "audio",
+                "key": "mageEmpoweredStrikes"
+            },
+            {
+                "url": "assets/Audio/mageIceSpike.mp3",
+                "type": "audio",
+                "key": "mageIceSpike"
+            },
+            {
+                "url": "assets/Audio/archerPiercingArrow.mp3",
+                "type": "audio",
+                "key": "archerPiercingArrow"
+            },
+            {
+                "url": "assets/Audio/archerArchArrow.mp3",
+                "type": "audio",
+                "key": "archerArchArrow"
+            },
+            {
+                "url": "assets/Audio/archerHexArrow.mp3",
+                "type": "audio",
+                "key": "archerHexArrow"
+            },
+            {
+                "url": "assets/Audio/archerHelpfulCompanions.mp3",
+                "type": "audio",
+                "key": "archerHelpfulCompanions"
+            },
+            {
+                "url": "assets/Audio/archerTripleKnife.mp3",
+                "type": "audio",
+                "key": "archerTripleKnife"
+            },
+            {
+                "url": "assets/Audio/archerBladeWind.mp3",
+                "type": "audio",
+                "key": "archerBladeWind"
             },
             {
                 "url": "assets/Enemies/Rat/Enemy01idle-Sheet2x.png",
@@ -800,6 +965,276 @@
                     "frameWidth": 16,
                     "frameHeight": 16
                 }
+            },
+
+            {
+                "url": "assets/effects/fx2_slash_large_blue.png",
+                "type": "spritesheet",
+                "key": "fx2_slash_large_blue",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fx1_splash_large_red.png",
+                "type": "spritesheet",
+                "key": "fx1_splash_large_red",
+                "frameConfig": { "frameWidth": 76, "frameHeight": 68 }
+            },
+            {
+                "url": "assets/effects/fx1_energy_shield_large_blue.png",
+                "type": "spritesheet",
+                "key": "fx1_energy_shield_large_blue",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fire_looping_001_large_orange.png",
+                "type": "spritesheet",
+                "key": "fire_looping_001_large_orange",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/pj2_ground_shockwave_large_yellow.png",
+                "type": "spritesheet",
+                "key": "pj2_ground_shockwave_large_yellow",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/lightning_strike_003A_large_blue.png",
+                "type": "spritesheet",
+                "key": "lightning_strike_003A_large_blue",
+                "frameConfig": { "frameWidth": 96, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/epic_explosion_001_large_orange.png",
+                "type": "spritesheet",
+                "key": "epic_explosion_001_large_orange",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/fx2_ice_burst_large_blue.png",
+                "type": "spritesheet",
+                "key": "fx2_ice_burst_large_blue",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/spell_poison_001_large_green.png",
+                "type": "spritesheet",
+                "key": "spell_poison_001_large_green",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/fx2_electric_burst_large_blue.png",
+                "type": "spritesheet",
+                "key": "fx2_electric_burst_large_blue",
+                "frameConfig": { "frameWidth": 72, "frameHeight": 72 }
+            },
+            {
+                "url": "assets/effects/pj3_arrow_loop_large_yellow.png",
+                "type": "spritesheet",
+                "key": "pj3_arrow_loop_large_yellow",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 24 }
+            },
+            {
+                "url": "assets/effects/stylized_explosion_001_large_orange.png",
+                "type": "spritesheet",
+                "key": "stylized_explosion_001_large_orange",
+                "frameConfig": { "frameWidth": 96, "frameHeight": 96 }
+            },
+            {
+                "url": "assets/effects/pj3_arrow_impact_large_yellow.png",
+                "type": "spritesheet",
+                "key": "pj3_arrow_impact_large_yellow",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 24 }
+            },
+            {
+                "url": "assets/effects/spell_absorb_001_large_violet.png",
+                "type": "spritesheet",
+                "key": "spell_absorb_001_large_violet",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/scifi_analyze_001_large_blue.png",
+                "type": "spritesheet",
+                "key": "scifi_analyze_001_large_blue",
+                "frameConfig": { "frameWidth": 144, "frameHeight": 144 }
+            },
+            {
+                "url": "assets/effects/fx3_bite_large_red.png",
+                "type": "spritesheet",
+                "key": "fx3_bite_large_red",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fx1_magic_puff_large_green.png",
+                "type": "spritesheet",
+                "key": "fx1_magic_puff_large_green",
+                "frameConfig": { "frameWidth": 48, "frameHeight": 80 }
+            },
+            {
+                "url": "assets/effects/fx1_dash_large_gray.png",
+                "type": "spritesheet",
+                "key": "fx1_dash_large_gray",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fx1_impact_hit_large_red.png",
+                "type": "spritesheet",
+                "key": "fx1_impact_hit_large_red",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/scifi_warp_001_large_violet.png",
+                "type": "spritesheet",
+                "key": "scifi_warp_001_large_violet",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/directional_impact_002_large_red.png",
+                "type": "spritesheet",
+                "key": "directional_impact_002_large_red",
+                "frameConfig": { "frameWidth": 140, "frameHeight": 50 }
+            },
+            {
+                "url": "assets/effects/fanfx3_death_large_red.png",
+                "type": "spritesheet",
+                "key": "fanfx3_death_large_red",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fanfx2_claw_large_red.png",
+                "type": "spritesheet",
+                "key": "fanfx2_claw_large_red",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+
+            { "url": "assets/skill-icons/sk1_cleave_A.png", "type": "image", "key": "sk1_cleave_A" },
+            { "url": "assets/skill-icons/sk1_vampire_A.png", "type": "image", "key": "sk1_vampire_A" },
+            { "url": "assets/skill-icons/sk1_guard_A.png", "type": "image", "key": "sk1_guard_A" },
+            { "url": "assets/skill-icons/sk1_fire_burst_A.png", "type": "image", "key": "sk1_fire_burst_A" },
+            { "url": "assets/skill-icons/sk2_avalanche_A.png", "type": "image", "key": "sk2_avalanche_A" },
+            { "url": "assets/skill-icons/sk1_lightning_A.png", "type": "image", "key": "sk1_lightning_A" },
+            { "url": "assets/skill-icons/sk2_freeze_A.png", "type": "image", "key": "sk2_freeze_A" },
+            { "url": "assets/skill-icons/sk1_poison_A.png", "type": "image", "key": "sk1_poison_A" },
+            { "url": "assets/skill-icons/sk2_lightning_hand_A.png", "type": "image", "key": "sk2_lightning_hand_A" },
+            { "url": "assets/skill-icons/sk2_bow_and_arrow_A.png", "type": "image", "key": "sk2_bow_and_arrow_A" },
+            { "url": "assets/skill-icons/sk1_fireball_A.png", "type": "image", "key": "sk1_fireball_A" },
+            { "url": "assets/skill-icons/sk2_kunai_A.png", "type": "image", "key": "sk2_kunai_A" },
+            { "url": "assets/skill-icons/sk1_chain_A.png", "type": "image", "key": "sk1_chain_A" },
+            { "url": "assets/skill-icons/sk2_fairy_A.png", "type": "image", "key": "sk2_fairy_A" },
+            { "url": "assets/skill-icons/sk1_magic_dagger_A.png", "type": "image", "key": "sk1_magic_dagger_A" },
+            { "url": "assets/skill-icons/sk1_regenerate_A.png", "type": "image", "key": "sk1_regenerate_A" },
+            { "url": "assets/skill-icons/sk1_dash_A.png", "type": "image", "key": "sk1_dash_A" },
+            { "url": "assets/skill-icons/sk1_death_A.png", "type": "image", "key": "sk1_death_A" },
+            { "url": "assets/skill-icons/sk2_speed_up_A.png", "type": "image", "key": "sk2_speed_up_A" },
+
+            { "url": "assets/skill-icons/sk2_slice_A.png", "type": "image", "key": "sk2_slice_A" },
+            { "url": "assets/skill-icons/sk1_defense_up_A.png", "type": "image", "key": "sk1_defense_up_A" },
+            { "url": "assets/skill-icons/sk1_claw_A.png", "type": "image", "key": "sk1_claw_A" },
+            { "url": "assets/skill-icons/sk2_tornado_A.png", "type": "image", "key": "sk2_tornado_A" },
+            { "url": "assets/skill-icons/sk2_magic_up_A.png", "type": "image", "key": "sk2_magic_up_A" },
+            { "url": "assets/skill-icons/sk1_ice_spike_A.png", "type": "image", "key": "sk1_ice_spike_A" },
+            { "url": "assets/skill-icons/sk2_curse_A.png", "type": "image", "key": "sk2_curse_A" },
+            { "url": "assets/skill-icons/sk1_triple_knife_A.png", "type": "image", "key": "sk1_triple_knife_A" },
+            { "url": "assets/skill-icons/sk1_far_sight_A.png", "type": "image", "key": "sk1_far_sight_A" },
+            { "url": "assets/skill-icons/sk2_magic_sword_A.png", "type": "image", "key": "sk2_magic_sword_A" },
+            { "url": "assets/skill-icons/sk1_poison_dagger_A.png", "type": "image", "key": "sk1_poison_dagger_A" },
+            { "url": "assets/skill-icons/sk1_blind_A.png", "type": "image", "key": "sk1_blind_A" },
+            { "url": "assets/skill-icons/sk2_shuriken_A.png", "type": "image", "key": "sk2_shuriken_A" },
+
+            {
+                "url": "assets/effects/fanfx2_earth_spikes_large_orange.png",
+                "type": "spritesheet",
+                "key": "fanfx2_earth_spikes_large_orange",
+                "frameConfig": { "frameWidth": 160, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/pj4_energy_blast_A_large_red.png",
+                "type": "spritesheet",
+                "key": "pj4_energy_blast_A_large_red",
+                "frameConfig": { "frameWidth": 96, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/spell_attack_up_001_large_violet.png",
+                "type": "spritesheet",
+                "key": "spell_attack_up_001_large_violet",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/spell_defense_up_001_large_blue.png",
+                "type": "spritesheet",
+                "key": "spell_defense_up_001_large_blue",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/spell_haste_001_large_blue.png",
+                "type": "spritesheet",
+                "key": "spell_haste_001_large_blue",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 128 }
+            },
+            {
+                "url": "assets/effects/fx2_claw_large_red.png",
+                "type": "spritesheet",
+                "key": "fx2_claw_large_red",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fx2_magic_swirl_large_violet.png",
+                "type": "spritesheet",
+                "key": "fx2_magic_swirl_large_violet",
+                "frameConfig": { "frameWidth": 96, "frameHeight": 96 }
+            },
+            {
+                "url": "assets/effects/fx3_smoke_bomb_large_white.png",
+                "type": "spritesheet",
+                "key": "fx3_smoke_bomb_large_white",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fx1_splatter_large_green.png",
+                "type": "spritesheet",
+                "key": "fx1_splatter_large_green",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/pj2_ground_shockwave_large_blue.png",
+                "type": "spritesheet",
+                "key": "pj2_ground_shockwave_large_blue",
+                "frameConfig": { "frameWidth": 128, "frameHeight": 64 }
+            },
+            {
+                "url": "assets/effects/fanfx2_wind_spell_large_blue.png",
+                "type": "spritesheet",
+                "key": "fanfx2_wind_spell_large_blue",
+                "frameConfig": { "frameWidth": 192, "frameHeight": 192 }
+            },
+            {
+                "url": "assets/effects/pj3_magic_hex_large_violet.png",
+                "type": "spritesheet",
+                "key": "pj3_magic_hex_large_violet",
+                "frameConfig": { "frameWidth": 48, "frameHeight": 48 }
+            },
+            {
+                "url": "assets/effects/pj3_knife_large_red.png",
+                "type": "spritesheet",
+                "key": "pj3_knife_large_red",
+                "frameConfig": { "frameWidth": 32, "frameHeight": 32 }
+            },
+            {
+                "url": "assets/effects/pj2_ice_spike_large_blue.png",
+                "type": "spritesheet",
+                "key": "pj2_ice_spike_large_blue",
+                "frameConfig": { "frameWidth": 64, "frameHeight": 32 }
+            },
+            {
+                "url": "assets/effects/pj1_slash_large_blue.png",
+                "type": "spritesheet",
+                "key": "pj1_slash_large_blue",
+                "frameConfig": { "frameWidth": 96, "frameHeight": 48 }
+            },
+            {
+                "url": "assets/effects/pj2_shuriken_large_red.png",
+                "type": "spritesheet",
+                "key": "pj2_shuriken_large_red",
+                "frameConfig": { "frameWidth": 32, "frameHeight": 32 }
             }
         ]
     },

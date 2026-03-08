@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-70 -55 140 140" role="img" aria-label="Ship">
+  <defs>
+    <style>
+      .slot-primary { fill: var(--slot-primary, #00f0ff); }
+      .slot-secondary { fill: var(--slot-secondary, #ffffff); }
+      .slot-stroke { stroke: var(--slot-stroke, #ffffff); }
+      .stop-primary { stop-color: var(--slot-primary, #00f0ff); }
+      .stop-dark { stop-color: #07121a; }
+    </style>
+
+    <linearGradient id="hullGrad" x1="-45" y1="-45" x2="55" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" class="stop-primary" stop-opacity="0.95"/>
+      <stop offset="0.55" class="stop-primary" stop-opacity="0.60"/>
+      <stop offset="1" class="stop-dark" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <linearGradient id="wingGradL" x1="-62" y1="6" x2="-12" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" class="stop-primary" stop-opacity="0.80"/>
+      <stop offset="1" class="stop-dark" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <linearGradient id="wingGradR" x1="62" y1="6" x2="12" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" class="stop-primary" stop-opacity="0.80"/>
+      <stop offset="1" class="stop-dark" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <radialGradient id="coreGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(0 30) scale(28)">
+      <stop offset="0" class="stop-primary" stop-opacity="1.00"/>
+      <stop offset="0.45" class="stop-primary" stop-opacity="0.55"/>
+      <stop offset="1" class="stop-primary" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.25" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g id="visual" filter="url(#softGlow)">
+    <!-- Brighter core glow behind the overlapping diamond -->
+    <circle cx="0" cy="30" r="28" fill="url(#coreGlow)"/>
+
+    <!-- WINGS (moved inward ~7 units) -->
+    <polygon
+      points="-32.9,27.1 -49.9,22.7 -33.6,10.5 -19.2,23.0"
+      fill="url(#wingGradL)"
+      class="slot-stroke"
+      stroke-width="3"
+      stroke-linejoin="round"
+    />
+    <polygon
+      points="36.2,27.1 50.4,23.0 34.3,10.3 19.3,22.4"
+      fill="url(#wingGradR)"
+      class="slot-stroke"
+      stroke-width="3"
+      stroke-linejoin="round"
+    />
+
+    <!-- MAIN HULL (no notch; convex) -->
+    <polygon
+      points="0,-32 37,3 16,18 -16,18 -37,3"
+      fill="url(#hullGrad)"
+      class="slot-stroke"
+      stroke-width="3"
+      stroke-linejoin="round"
+    />
+
+    <!-- Simple facet shading (adds the “defined” look) -->
+    <polygon
+      points="0,-22 26,4 0,16"
+      fill="#000000"
+      opacity="0.18"
+    />
+    <polygon
+      points="0,-22 -26,4 0,16"
+      fill="#000000"
+      opacity="0.10"
+    />
+    <polygon
+      points="-16,18 0,16 16,18 0,10"
+      fill="#000000"
+      opacity="0.12"
+    />
+
+    <!-- Top inset window -->
+    <polygon
+      points="0,-24 15,-11 0,-7 -15,-11"
+      fill="#07121a"
+      opacity="0.85"
+    />
+
+    <!-- Highlight chevron -->
+    <path
+      class="slot-secondary"
+      d="M -16 -14 L 0 -28 L 16 -14 L 12 -10 L 0 -20 L -12 -10 Z"
+      opacity="0.95"
+    />
+
+    <!-- BOTTOM DIAMOND MODULE (moved up; overlaps hull; brighter) -->
+    <polygon
+      points="0,34 13,24 0,14 -13,24"
+      fill="var(--slot-primary, #00f0ff)"
+      opacity="0.35"
+      class="slot-stroke"
+      stroke-width="3"
+      stroke-linejoin="round"
+    />
+    <polygon
+      points="0,31 9,24 0,17 -9,24"
+      fill="var(--slot-primary, #00f0ff)"
+      opacity="0.55"
+    />
+  </g>
+
+  <!-- Single convex hull collider (updated to match new spacing & overlap) -->
+  <path
+    id="collider"
+    d="M 0 -32 L 37 3 L 50.4 23 L 13 34 L 0 41 L -13 34 L -49.9 22.7 L -37 3 Z"
+    fill="none"
+    stroke="none"
+  />
+</svg>

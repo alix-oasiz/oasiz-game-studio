@@ -1,12 +1,6 @@
 {
     "section1": {
-        "files": [
-            {
-                "url": "assets/FufuSuperDino.png",
-                "type": "image",
-                "key": "FufuSuperDino"
-            }
-        ]
+        "files": []
     },
     "meta": {
         "app": "Phaser Editor 2D - Asset Pack Editor",

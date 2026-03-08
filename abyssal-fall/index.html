@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Abyssal Fall</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: #0a2a50;
+            font-family: 'Press Start 2P', cursive;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-overflow-scrolling: touch;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        #game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a2a50;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* Overlays */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            pointer-events: none;
+            background: transparent;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .overlay:not(.hidden) {
+            pointer-events: auto;
+        }
+
+        .content {
+            text-align: center;
+            padding: 40px;
+            max-width: 90%;
+        }
+
+        /* Title */
+        .title-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .game-title {
+            font-size: 3.2rem;
+            font-weight: 400;
+            color: #ddf0ff;
+            margin-bottom: 0;
+            text-shadow:
+                2px 2px 0 #030f22,
+                4px 5px 0 rgba(0, 0, 0, 0.55);
+            letter-spacing: 4px;
+            line-height: 1.6;
+        }
+
+        .title-weed {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            image-rendering: pixelated;
+            pointer-events: none;
+            overflow: hidden;
+            animation: title-shell-float 2.6s ease-in-out infinite;
+        }
+
+        .title-weed img {
+            image-rendering: pixelated;
+            position: absolute;
+        }
+
+        .title-weed.weed-left {
+            left: -28px;
+            bottom: -10px;
+            animation-delay: 0s;
+        }
+
+        .title-weed.weed-right {
+            right: -28px;
+            bottom: -10px;
+            animation-delay: 0.5s;
+        }
+
+        .title-weed.weed-right img {
+            transform: scaleX(-1);
+        }
+
+        .title-weed.weed-top {
+            left: 50%;
+            top: -40px;
+            transform: translateX(-50%);
+            animation: title-shell-top-float 3.1s ease-in-out infinite;
+            animation-delay: 0.2s;
+        }
+
+        @keyframes title-shell-float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-4px) rotate(-2deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+
+        @keyframes title-shell-top-float {
+            0% { transform: translateX(-50%) translateY(0px) rotate(0deg); }
+            50% { transform: translateX(-50%) translateY(-5px) rotate(3deg); }
+            100% { transform: translateX(-50%) translateY(0px) rotate(0deg); }
+        }
+
+        /* Entrance animations */
+        @keyframes titleReveal {
+            0%   { opacity: 0; transform: translateY(-18px) scale(0.92); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes btnSlideUp {
+            0%   { opacity: 0; transform: translateY(24px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .start-title-animated {
+            animation: titleReveal 0.7s ease-out forwards;
+        }
+
+        .start-btn-animated {
+            opacity: 0;
+            animation: btnSlideUp 0.45s ease-out forwards;
+            animation-delay: 450ms;
+        }
+
+        .start-subtitle-animated {
+            opacity: 0;
+            animation: btnSlideUp 0.45s ease-out forwards;
+            animation-delay: 200ms;
+        }
+
+        .subtitle {
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 40px;
+            line-height: 2;
+        }
+
+        .how-to-play {
+            margin-top: 24px;
+            text-align: left;
+            display: inline-block;
+        }
+
+        .how-to-play-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 0.55rem;
+            color: rgba(255, 255, 255, 0.55);
+            line-height: 1.7;
+        }
+
+        .how-to-play-icon {
+            font-size: 0.75rem;
+            min-width: 18px;
+            text-align: center;
+            color: rgba(120, 200, 255, 0.85);
+            margin-top: 1px;
+        }
+
+        /* Buttons — pixel 3D style, no glow */
+        .btn {
+            background: #0d3d70;
+            color: #c8ecff;
+            border: 3px solid #040f1e;
+            padding: 16px 40px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+            margin: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 1px 1px 0 #020c1a;
+            box-shadow:
+                inset 2px 2px 0 rgba(80, 170, 255, 0.35),
+                inset -4px -4px 0 rgba(0, 0, 0, 0.55),
+                4px 4px 0 #020c1a;
+        }
+
+        .btn:hover {
+            background: #114e90;
+            transform: scale(1.03);
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+            box-shadow:
+                inset 4px 4px 0 rgba(0, 0, 0, 0.55),
+                inset -2px -2px 0 rgba(80, 170, 255, 0.2),
+                1px 1px 0 #020c1a;
+        }
+
+        #start-btn {
+            background: #8b1a1a;
+            color: #ffe8e8;
+            border-color: #1a0404;
+            text-shadow: 1px 1px 0 #1a0404;
+            box-shadow:
+                inset 2px 2px 0 rgba(255, 120, 120, 0.35),
+                inset -4px -4px 0 rgba(0, 0, 0, 0.55),
+                4px 4px 0 #1a0404;
+        }
+
+        #start-btn:hover {
+            background: #a82020;
+        }
+
+        #start-btn:active {
+            box-shadow:
+                inset 4px 4px 0 rgba(0, 0, 0, 0.55),
+                inset -2px -2px 0 rgba(255, 120, 120, 0.2),
+                1px 1px 0 #1a0404;
+        }
+
+        #restart-btn {
+            font-size: 1.05rem;
+            padding: 21px 52px;
+        }
+
+        /* Settings Button */
+        #settings-btn {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 48px);
+            right: 12px;
+            width: 52px;
+            height: 52px;
+            border-radius: 0;
+            background-color: transparent;
+            background-image: url("assets/ui/settings_icon.png");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            z-index: 15;
+            box-shadow: none;
+        }
+
+        #settings-btn.hidden {
+            display: none;
+        }
+
+        #settings-btn:hover {
+            transform: scale(1.04);
+        }
+
+        #settings-btn svg {
+            display: none;
+        }
+
+        /* Game Over Screen */
+        .game-over-title {
+            font-size: 2.8rem;
+            font-weight: 400;
+            color: #ff4444;
+            margin-bottom: 20px;
+            text-shadow:
+                2px 2px 0 #5a0000,
+                4px 5px 0 rgba(0, 0, 0, 0.55);
+        }
+
+        .final-score-container {
+            margin: 30px 0;
+        }
+
+        .final-score-label {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 12px;
+        }
+
+        .final-score {
+            font-size: 2.5rem;
+            font-weight: 400;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .final-depth {
+            font-size: 1rem;
+            color: #5de8ff;
+            margin-top: 16px;
+            text-shadow: 1px 1px 0 #021a2a;
+        }
+
+        .score-breakdown {
+            margin-top: 14px;
+            display: grid;
+            gap: 8px;
+            width: min(380px, 100%);
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .score-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            column-gap: 14px;
+            align-items: center;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.85);
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        .score-row.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .score-row .label {
+            color: rgba(255, 255, 255, 0.72);
+            white-space: nowrap;
+            text-align: left;
+            justify-self: start;
+        }
+
+        .score-row .value {
+            color: #fff;
+            min-width: 0;
+            text-align: right;
+            white-space: nowrap;
+            font-size: 0.78rem;
+            letter-spacing: 0;
+            justify-self: end;
+        }
+
+        #game-over-screen {
+            justify-content: center;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        #game-over-screen .content {
+            width: min(460px, 94vw);
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 18px 14px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Settings Modal — pixel 3D style, no glow */
+        .settings-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #0d2845;
+            border-radius: 0;
+            border: 3px solid #040f1e;
+            padding: 30px 40px;
+            z-index: 100;
+            min-width: 300px;
+            box-shadow:
+                inset 2px 2px 0 rgba(60, 140, 220, 0.2),
+                inset -4px -4px 0 rgba(0, 0, 0, 0.45),
+                6px 6px 0 #020c1a;
+        }
+
+        .settings-modal.hidden {
+            display: none;
+        }
+
+        .settings-title {
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: #c8ecff;
+            text-shadow: 1px 1px 0 #020c1a;
+            margin-bottom: 26px;
+            text-align: center;
+            letter-spacing: 3px;
+        }
+
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(30, 100, 170, 0.35);
+        }
+
+        .settings-row:last-of-type {
+            border-bottom: none;
+        }
+
+        .settings-label {
+            font-size: 0.68rem;
+            color: #a0cce8;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-label svg {
+            width: 18px;
+            height: 18px;
+            fill: #7ab8d8;
+        }
+
+        .toggle {
+            width: 50px;
+            height: 28px;
+            background: #040e1d;
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            border: 2px solid #040f1e;
+            box-shadow:
+                inset 2px 2px 0 rgba(0, 0, 0, 0.5),
+                inset -2px -2px 0 rgba(50, 120, 200, 0.2);
+        }
+
+        .toggle.active {
+            background: #0d4a8c;
+            border-color: #0a2e58;
+            box-shadow:
+                inset 2px 2px 0 rgba(0, 0, 0, 0.4),
+                inset -2px -2px 0 rgba(80, 170, 255, 0.3);
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #3a6a88;
+            border-radius: 2px;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.15s ease, background 0.15s ease;
+            box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .toggle.active::after {
+            transform: translateX(22px);
+            background: #7ec8e8;
+        }
+
+        .settings-close {
+            margin-top: 24px;
+            width: 100%;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 0 12px;
+            z-index: 5;
+            pointer-events: none;
+            display: none;
+            box-sizing: border-box;
+        }
+
+        #powerup-bar {
+            position: absolute;
+            top: 45px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(360px, 58vw);
+            z-index: 7;
+            pointer-events: none;
+            display: block;
+        }
+
+        #powerup-bar.hidden {
+            display: none;
+        }
+
+        #powerup-label {
+            color: #e9f8ff;
+            text-align: center;
+            font-size: 0.62rem;
+            letter-spacing: 1px;
+            text-shadow:
+                0 0 6px rgba(0, 0, 0, 0.9),
+                0 0 10px rgba(130, 230, 255, 0.45);
+            margin-bottom: 7px;
+        }
+
+        #powerup-track {
+            width: 100%;
+            height: 14px;
+            border-radius: 7px;
+            border: 1px solid rgba(170, 230, 255, 0.6);
+            background: rgba(5, 20, 38, 0.78);
+            box-shadow:
+                inset 0 1px 4px rgba(0, 0, 0, 0.45),
+                0 4px 12px rgba(0, 0, 0, 0.35);
+            overflow: hidden;
+        }
+
+        #powerup-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #00ffcc 0%, #8dfbe9 100%);
+            transition: width 0.1s linear;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+        }
+
+        .hud-left {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 172px;
+            min-height: 98px;
+            padding: 22px 20px 8px 20px;
+            align-items: center;
+            text-align: center;
+            background-image: url("assets/ui/scoreboard_panel.png");
+            background-repeat: no-repeat;
+            background-size: 100% 100%;
+            background-position: center;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            box-sizing: border-box;
+        }
+
+        .hud-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        #score {
+            color: #ffffff;
+            font-size: 1.08rem;
+            text-shadow:
+                0 0 6px rgba(0, 0, 0, 0.9),
+                0 0 12px rgba(255, 255, 255, 0.35);
+            letter-spacing: 1px;
+        }
+
+        #depth {
+            color: #85f2ff;
+            font-size: 0.74rem;
+            text-shadow:
+                0 0 5px rgba(0, 0, 0, 0.95),
+                0 0 9px rgba(0, 255, 255, 0.45);
+        }
+
+        #gems {
+            color: #ff7ad9;
+            font-size: 0.68rem;
+            text-shadow:
+                0 0 5px rgba(0, 0, 0, 0.95),
+                0 0 10px rgba(255, 122, 217, 0.48);
+        }
+
+        /* Vertical HP Heart Container (left side) */
+        #hp-bar {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 87px;
+            height: 216px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 0;
+            z-index: 5;
+            background-color: transparent;
+            background-image: url('assets/ui/health_bar_frame.png');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            box-shadow: none;
+            box-sizing: border-box;
+            --hp-heart-icon: url('assets/shop-icons/heart_red.png');
+            --hp-heart-size: 44px;
+            --hp-heart-offset-x: -10px;
+        }
+
+        #hp-bar.hidden {
+            display: none;
+        }
+
+        .hp-bubble {
+            width: var(--hp-heart-size);
+            height: var(--hp-heart-size);
+            background-image: var(--hp-heart-icon);
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            position: relative;
+            left: var(--hp-heart-offset-x);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            box-shadow: none;
+            margin: 0;
+        }
+
+        .hp-bubble::before,
+        .hp-bubble::after {
+            content: none;
+            display: none;
+        }
+
+        /* Lost heart slot state */
+        .hp-bubble.popped {
+            transform: scale(1.35);
+            opacity: 0;
+            transition: transform 0.35s ease-out, opacity 0.35s ease-out;
+        }
+
+        /* Gained heart slot — bounces in */
+        @keyframes hpGain {
+            0%   { transform: scale(0.4); opacity: 0.3; }
+            55%  { transform: scale(1.3); opacity: 1; }
+            80%  { transform: scale(0.92); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .hp-bubble.gained {
+            animation: hpGain 0.5s ease-out forwards;
+        }
+
+        /* Empty heart slot (after pop animation finishes) */
+        .hp-bubble.empty {
+            opacity: 0.22;
+            transform: scale(0.5);
+            filter: grayscale(1) brightness(0.55);
+        }
+
+        #hp {
+            display: none; /* Hidden, using vertical hp-bar instead */
+        }
+
+        #ammo {
+            display: none; /* Hidden, using vertical slider instead */
+        }
+
+        /* Vertical Ammo Slider */
+        #ammo-slider {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 72px;
+            height: 129px;
+            --ammo-track-left: 9.2px;
+            --ammo-track-bottom: 30.5px;
+            --ammo-track-width: 9.6px;
+            --ammo-track-height: 84px;
+            background-color: transparent;
+            background-image: url('assets/ui/ammo_pipe.png');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 100% 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            z-index: 5;
+            overflow: visible;
+            box-shadow: none;
+            /* Position is dynamically set by JS to center between wall and screen edge */
+        }
+
+        #ammo-slider-fill {
+            position: absolute;
+            bottom: var(--ammo-track-bottom);
+            left: var(--ammo-track-left);
+            width: var(--ammo-track-width);
+            height: 0;
+            background: linear-gradient(90deg, #d72222 0%, #ff2f2f 45%, #c91414 100%);
+            border-radius: 5px;
+            transition: height 0.1s ease;
+            box-shadow: inset 0 0 2px rgba(255, 120, 120, 0.6);
+            z-index: 2;
+        }
+
+        /* Full fill gets top rounding too */
+        #ammo-slider-fill[style*="height: 86px"],
+        #ammo-slider-fill[style*="height:86px"] {
+            border-radius: 5px;
+        }
+
+        #ammo-slider-segments {
+            position: absolute;
+            left: var(--ammo-track-left);
+            bottom: var(--ammo-track-bottom);
+            width: var(--ammo-track-width);
+            height: var(--ammo-track-height);
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .ammo-segment {
+            flex: 1;
+            border-bottom: 1px solid rgba(130, 130, 130, 0.35);
+        }
+
+        .ammo-segment:last-child {
+            border-bottom: none;
+        }
+
+        /* White steam tube background behind red heat fill */
+        #ammo-slider::before {
+            content: '';
+            position: absolute;
+            left: var(--ammo-track-left);
+            bottom: var(--ammo-track-bottom);
+            width: var(--ammo-track-width);
+            height: var(--ammo-track-height);
+            background: linear-gradient(90deg, #e8e8e8 0%, #ffffff 48%, #d8d8d8 100%);
+            border-radius: 5px;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Remove old triangle pointer style */
+        #ammo-slider::after {
+            content: none;
+        }
+
+        #ammo-slider.hidden {
+            display: none;
+        }
+
+        #combo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0;
+            font-size: 1rem;
+            text-shadow: 0 0 20px rgba(255, 255, 0, 0.8);
+            transition: opacity 0.3s ease;
+            opacity: 0;
+        }
+
+
+        /* Mobile adjustments */
+        @media (pointer: coarse) {
+            .game-title {
+                font-size: 2.4rem;
+            }
+            .subtitle {
+                font-size: 0.7rem;
+            }
+            .content {
+                padding: 28px;
+            }
+            .btn {
+                padding: 14px 32px;
+                font-size: 0.72rem;
+            }
+            #settings-btn {
+                top: calc(env(safe-area-inset-top, 0px) + 48px);
+                right: 12px;
+                width: 58px;
+                height: 58px;
+            }
+            #powerup-bar {
+                top: 120px;
+                width: min(320px, 70vw);
+            }
+            .hud-top {
+                padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+            }
+            .hud-left {
+                width: 164px;
+                min-height: 94px;
+                padding: 20px 18px 8px 18px;
+            }
+            #score {
+                font-size: 1rem;
+            }
+            #depth {
+                font-size: 0.7rem;
+            }
+            #hp {
+                font-size: 0.55rem;
+            }
+            #ammo {
+                font-size: 0.45rem;
+            }
+            #combo {
+                font-size: 0.75rem;
+            }
+
+            .game-over-title {
+                font-size: 1.9rem;
+                margin-bottom: 8px;
+            }
+
+            .final-score-container {
+                margin: 8px 0;
+                width: 100%;
+            }
+
+            .final-score {
+                font-size: 1.55rem;
+            }
+
+            .final-depth {
+                font-size: 0.82rem;
+                margin-top: 10px;
+            }
+
+            .score-breakdown {
+                gap: 6px;
+            }
+
+            .score-row {
+                font-size: 0.64rem;
+                column-gap: 8px;
+            }
+
+            .score-row .value {
+                font-size: 0.6rem;
+            }
+
+            #restart-btn {
+                font-size: 0.78rem;
+                padding: 14px 26px;
+                margin-top: 8px;
+            }
+        }
+
+        /* Small screens */
+        @media (max-width: 400px) {
+            .game-title {
+                font-size: 1.9rem;
+            }
+            .settings-modal {
+                min-width: 260px;
+                padding: 20px;
+            }
+
+            .final-score {
+                font-size: 1.55rem;
+            }
+
+            .score-row {
+                font-size: 0.56rem;
+                column-gap: 6px;
+            }
+
+            .score-row .value {
+                font-size: 0.52rem;
+            }
+        }
+
+        /* ============================================================
+           Chest Offer Cards
+           ============================================================ */
+        @keyframes cardReveal {
+            from { transform: translateY(48px) scale(0.88); opacity: 0; }
+            to   { transform: translateY(0)    scale(1);    opacity: 1; }
+        }
+        @keyframes offerShake {
+            0%,100% { transform: translateX(0); }
+            20%     { transform: translateX(-6px); }
+            40%     { transform: translateX(6px); }
+            60%     { transform: translateX(-4px); }
+            80%     { transform: translateX(4px); }
+        }
+
+        /* Cave interior as % of 448×640 internal resolution:
+           left wall 54px (12%), right wall 54px (12%), top 98px (15.3%), bottom 584px (91.3%)
+           We use these percentages so cards sit inside the rendered cave area. */
+        .chest-offers {
+            position: absolute;
+            top: 16%;
+            left: 13%;
+            right: 13%;
+            max-height: 72%;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            /* stretch so all cards share the same height */
+            align-items: stretch;
+            gap: 2%;
+            padding: 0;
+            pointer-events: none;
+            z-index: 80;
+            overflow: hidden;
+        }
+        .chest-offers.hidden {
+            display: none;
+        }
+
+        /* Each card has a FIXED height so all three are always identical.
+           Interior = 180px - 14px padding = 166px split into 5 grid rows. */
+        .chest-offer-card {
+            flex: 1 1 0;
+            min-width: 0;
+            height: 158px;
+            box-sizing: border-box;
+            background: #0d2845;
+            border: 3px solid #040f1e;
+            box-shadow:
+                inset 2px 2px 0 rgba(80,170,255,0.28),
+                inset -3px -3px 0 rgba(0,0,0,0.5),
+                4px 4px 0 #020c1a;
+            padding: 6px 5px 5px;
+            /* Grid rows: icon(42) | name(18) | desc(40) | cost(18) | btn(24) = 142px interior */
+            display: grid;
+            grid-template-rows: 42px 18px 40px 18px 24px;
+            justify-items: center;
+            align-items: center;
+            pointer-events: auto;
+            animation: cardReveal 0.28s cubic-bezier(0.22,1,0.36,1) both;
+            border-top: 3px solid var(--offer-accent, #00A1E4);
+            overflow: hidden;
+        }
+
+        .chest-offer-card.offer-cant-buy {
+            opacity: 0.6;
+        }
+
+        .chest-offer-card.offer-insufficient {
+            animation: offerShake 0.4s ease-out;
+            opacity: 1 !important;
+        }
+
+        .offer-icon {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .offer-name {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.45rem;
+            color: var(--offer-accent, #c8ecff);
+            text-align: center;
+            text-shadow: 1px 1px 0 #020c1a;
+            letter-spacing: 0.5px;
+            line-height: 1.4;
+            word-break: break-word;
+            width: 100%;
+            align-self: center;
+            overflow: hidden;
+        }
+
+        .offer-desc {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.35rem;
+            color: #7ab8d8;
+            text-align: center;
+            line-height: 1.5;
+            word-break: break-word;
+            width: 100%;
+            align-self: center;
+            overflow: hidden;
+        }
+
+        .offer-cost-val {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.5rem;
+            text-shadow: 1px 1px 0 #020c1a;
+        }
+
+        .offer-cost-val.affordable {
+            color: #55ee88;
+        }
+
+        .offer-cost-val.unaffordable {
+            color: #888a90;
+        }
+
+        .offer-buy-btn {
+            font-size: 0.44rem !important;
+            padding: 5px 6px !important;
+            margin: 0 !important;
+            width: 100%;
+            text-align: center;
+            align-self: end;
+        }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translateY(0px);  filter: brightness(1);   }
+            50%       { transform: translateY(-5px); filter: brightness(1.25); }
+        }
+
+        @media (pointer: coarse) {
+            .chest-offers {
+                top: calc(120px + 3vh);
+                max-height: calc(55vh);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div id="powerup-bar" class="hidden">
+                <div id="powerup-label">LASER!</div>
+                <div id="powerup-track">
+                    <div id="powerup-fill"></div>
+                </div>
+            </div>
+            <div class="hud-top">
+                <div class="hud-left">
+                    <div id="score">0</div>
+                    <div id="depth">0m</div>
+                    <div id="gems">GEMS: 0</div>
+                </div>
+                <div class="hud-right">
+                    <div id="hp"></div>
+                    <div id="ammo">AMMO: ●●●●●●●●</div>
+                </div>
+            </div>
+            <div id="combo">x1</div>
+        </div>
+
+        <!-- Vertical Ammo Slider -->
+        <div id="ammo-slider" class="hidden">
+            <div id="ammo-slider-fill"></div>
+            <div id="ammo-slider-segments">
+                <div class="ammo-segment"></div>
+                <div class="ammo-segment"></div>
+                <div class="ammo-segment"></div>
+                <div class="ammo-segment"></div>
+                <div class="ammo-segment"></div>
+                <div class="ammo-segment"></div>
+                <div class="ammo-segment"></div>
+                <div class="ammo-segment"></div>
+            </div>
+        </div>
+
+        <!-- Vertical HP Bubble Bar (left side) -->
+        <div id="hp-bar" class="hidden">
+            <div class="hp-bubble" data-hp="3"></div>
+            <div class="hp-bubble" data-hp="2"></div>
+            <div class="hp-bubble" data-hp="1"></div>
+            <div class="hp-bubble" data-hp="0"></div>
+        </div>
+
+        <!-- Settings Button -->
+        <button id="settings-btn" class="hidden">
+            <svg viewBox="0 0 24 24">
+                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+        </button>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="overlay" style="background: linear-gradient(180deg, rgba(0,0,0,0.88) 0%, rgba(4,12,28,0.6) 50%, rgba(0,0,0,0) 100%);">
+            <div class="content">
+                <div class="title-wrapper start-title-animated">
+                    <h1 class="game-title">Abyssal<br>Fall</h1>
+                    <div class="title-weed weed-left">
+                        <canvas id="weed-canvas-left" width="48" height="48"></canvas>
+                    </div>
+                    <div class="title-weed weed-right">
+                        <canvas id="weed-canvas-right" width="48" height="48"></canvas>
+                    </div>
+                    <div class="title-weed weed-top">
+                        <canvas id="weed-canvas-top" width="48" height="48"></canvas>
+                    </div>
+                </div>
+                <p class="subtitle start-subtitle-animated">
+                    Dive as deep as you can!
+                </p>
+                <button class="btn start-btn-animated" id="start-btn">START</button>
+                <button class="btn start-btn-animated" id="how-to-play-btn">HOW TO PLAY</button>
+            </div>
+        </div>
+
+        <!-- How to Play Screen -->
+        <div id="how-to-play-screen" class="overlay hidden" style="background: linear-gradient(180deg, rgba(0,0,0,0.88) 0%, rgba(4,12,28,0.6) 50%, rgba(0,0,0,0) 100%);">
+            <div class="content">
+                <h1 class="game-title" style="font-size: 1.1rem; margin-bottom: 28px;">HOW TO PLAY</h1>
+                <div class="how-to-play">
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#8592;&#8594;</span>
+                        <span>Left / Right to move</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#8593;</span>
+                        <span>Up / Action to jump &amp; shoot</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#128163;</span>
+                        <span>Land on an enemy's head to stomp it</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#128148;</span>
+                        <span>Side contact hurts you — stay on top!</span>
+                    </div>
+                    <div class="how-to-play-row">
+                        <span class="how-to-play-icon">&#9888;</span>
+                        <span>Beware puffers — they're spiky, shoot them instead!</span>
+                    </div>
+                </div>
+                <button class="btn" id="how-to-play-back-btn" style="margin-top: 28px;">BACK</button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="overlay hidden">
+            <div class="content">
+                <h1 class="game-over-title">GAME OVER</h1>
+                <div class="final-score-container">
+                    <div class="final-score-label">FINAL SCORE</div>
+                    <div class="final-score" id="final-score">0</div>
+                    <div class="final-depth" id="final-depth">Depth: 0m</div>
+                    <div class="score-breakdown" id="score-breakdown">
+                        <div class="score-row" id="score-row-depth">
+                            <span class="label">Depth Bonus</span>
+                            <span class="value" id="score-depth">0</span>
+                        </div>
+                        <div class="score-row" id="score-row-enemies">
+                            <span class="label">Enemy Kills</span>
+                            <span class="value" id="score-enemies">0</span>
+                        </div>
+                        <div class="score-row" id="score-row-gems">
+                            <span class="label">Gems</span>
+                            <span class="value" id="score-gems">0</span>
+                        </div>
+                        <div class="score-row" id="score-row-breakables">
+                            <span class="label">Breakables</span>
+                            <span class="value" id="score-breakables">0</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn" id="restart-btn">RESTART</button>
+            </div>
+        </div>
+
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="settings-modal hidden">
+            <div class="settings-title">SETTINGS</div>
+            <div class="settings-row">
+                <div class="settings-label">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                    </svg>
+                    Music
+                </div>
+                <div class="toggle active" id="toggle-music"></div>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                    </svg>
+                    FX
+                </div>
+                <div class="toggle active" id="toggle-fx"></div>
+            </div>
+            <div class="settings-row">
+                <div class="settings-label">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M0 15.998l.001-3.999.002-.017v-.02h-.002L0 11.98l.003-.015A.89.89 0 010 11.962V7.997c0-.553.45-1 .998-1h7.004c.553 0 1 .447 1 1v8c0 .553-.447 1-1 1H.998c-.552 0-.998-.447-.998-1zm2-6.999v5h5v-5H2zm16.5 8.5c.828 0 1.5-.672 1.5-1.5s-.672-1.5-1.5-1.5-1.5.672-1.5 1.5.672 1.5 1.5 1.5zm2.5-1.5c0 1.381-1.119 2.5-2.5 2.5s-2.5-1.119-2.5-2.5 1.119-2.5 2.5-2.5 2.5 1.119 2.5 2.5zm-5-8c.828 0 1.5-.672 1.5-1.5S16.828 5 16 5s-1.5.672-1.5 1.5.672 1.5 1.5 1.5zm2.5-1.5c0 1.381-1.119 2.5-2.5 2.5s-2.5-1.119-2.5-2.5S14.619 4 16 4s2.5 1.119 2.5 2.5zM13 15l6-9"/>
+                    </svg>
+                    Haptics
+                </div>
+                <div class="toggle active" id="toggle-haptics"></div>
+            </div>
+            <button class="btn settings-close" id="settings-close">CLOSE</button>
+        </div>
+
+        <!-- Chest Offer Cards -->
+        <div id="chest-offers" class="chest-offers hidden">
+            <div class="chest-offer-card" id="chest-offer-0" style="--offer-accent: #ff4466;">
+                <div class="offer-icon" id="offer-icon-0"></div>
+                <div class="offer-name" id="offer-name-0"></div>
+                <div class="offer-desc" id="offer-desc-0"></div>
+                <span id="offer-cost-0" class="offer-cost-val affordable"></span>
+                <button class="btn offer-buy-btn" id="offer-buy-0">BUY</button>
+            </div>
+            <div class="chest-offer-card" id="chest-offer-1" style="--offer-accent: #00ffcc;">
+                <div class="offer-icon" id="offer-icon-1"></div>
+                <div class="offer-name" id="offer-name-1"></div>
+                <div class="offer-desc" id="offer-desc-1"></div>
+                <span id="offer-cost-1" class="offer-cost-val affordable"></span>
+                <button class="btn offer-buy-btn" id="offer-buy-1">BUY</button>
+            </div>
+            <div class="chest-offer-card" id="chest-offer-2" style="--offer-accent: #cc88ff;">
+                <div class="offer-icon" id="offer-icon-2"></div>
+                <div class="offer-name" id="offer-name-2"></div>
+                <div class="offer-desc" id="offer-desc-2"></div>
+                <span id="offer-cost-2" class="offer-cost-val affordable"></span>
+                <button class="btn offer-buy-btn" id="offer-buy-2">BUY</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -80,46 +80,129 @@ body {
     image-rendering: crisp-edges;
     background-repeat: no-repeat;
     background-position: 0 0;
-    transform-origin: center center;
 }
 
 .char-sprite-knight {
-    width: 19px;
-    height: 20px;
-    transform: scale(2.6);
-    background-image: url("/assets/PlayerSprites/Hero03 Knight Idle-Sheet.png");
+    width: 49px;
+    height: 52px;
+    background-size: 593px 52px;
+    background-image: url("./assets/PlayerSprites/Hero03 Knight Idle-Sheet.png");
     animation: char-idle-knight 0.8s steps(12) infinite;
 }
 
 .char-sprite-mage {
-    width: 32px;
-    height: 36px;
-    transform: scale(1.45);
-    background-image: url("/assets/MagePlayer/Hero01 Mage Idle2x-Sheet.png");
+    width: 46px;
+    height: 52px;
+    background-size: 557px 52px;
+    background-image: url("./assets/MagePlayer/Hero01 Mage Idle2x-Sheet.png");
     animation: char-idle-mage 0.8s steps(12) infinite;
 }
 
 .char-sprite-archer {
-    width: 30px;
-    height: 34px;
-    transform: scale(1.5);
-    background-image: url("/assets/ArcherPlayer/Hero02 Archer Idle-Sheet2x.png");
+    width: 45px;
+    height: 51px;
+    background-size: 540px 51px;
+    background-image: url("./assets/ArcherPlayer/Hero02 Archer Idle-Sheet2x.png");
     animation: char-idle-archer 0.8s steps(12) infinite;
 }
 
 .char-sprite-rogue {
-    width: 42px;
-    height: 34px;
-    transform: scale(1.34);
-    background-image: url("/assets/RoguePlayer/Hero04 Rogue Idle2x-Sheet.png");
+    width: 56px;
+    height: 46px;
+    background-size: 338px 46px;
+    background-image: url("./assets/RoguePlayer/Hero04 Rogue Idle2x-Sheet.png");
     animation: char-idle-rogue 0.6s steps(6) infinite;
+}
+
+/* Character stats header in skill window */
+.char-stats-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 12px;
+    border: 3px solid #000000;
+    background: rgba(0, 0, 0, 0.92);
+    margin-bottom: 6px;
+}
+
+.char-stats-sprite-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    min-height: 80px;
+}
+
+.char-stats-sprite-wrap .char-sprite {
+    transform: scale(1.8);
+    transform-origin: center center;
+}
+
+.char-stats-grid {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 6px 18px;
+    flex: 1;
+    min-width: 0;
+}
+
+.char-stat-label {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.95rem;
+    color: #888899;
+    white-space: nowrap;
+    line-height: 1.8;
+}
+
+.char-stat-value {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.95rem;
+    font-weight: bold;
+    white-space: nowrap;
+    text-align: right;
+    line-height: 1.8;
+}
+
+.char-stat-value.stat-hp { color: #66dd77; }
+.char-stat-value.stat-damage { color: #ff8866; }
+.char-stat-value.stat-speed { color: #77aaff; }
+.char-stat-value.stat-crit { color: #ddcc55; }
+.char-stat-value.stat-defense { color: #77aaff; }
+.char-stat-value.stat-utility { color: #aaaacc; }
+
+/* Tab bar */
+.skill-tab-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 6px;
+}
+
+.skill-tab-btn {
+    flex: 1;
+    padding: 14px 0;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.9rem;
+    text-align: center;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #666;
+    transition: color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+.skill-tab-btn.active {
+    color: #00A1E4;
+    border-bottom-color: #00A1E4;
 }
 
 .skill-info-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-height: min(52vh, 430px);
     overflow-y: auto;
     padding: 4px;
 }
@@ -128,21 +211,18 @@ body {
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 10px;
+    padding: 14px;
     border: 3px solid #000000;
     background: rgba(0, 0, 0, 0.88);
     box-shadow: inset -3px -3px 0 rgba(255, 255, 255, 0.08);
 }
 
 .skill-info-icon {
-    width: 32px;
-    height: 32px;
-    flex: 0 0 32px;
+    width: 56px;
+    height: 56px;
+    flex: 0 0 56px;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    background-image: url("/assets/CustomTiles/Icon2x.png");
-    background-repeat: no-repeat;
-    background-size: 256px 96px;
 }
 
 .skill-info-text {
@@ -151,17 +231,120 @@ body {
 
 .skill-info-name {
     font-family: 'Press Start 2P', cursive;
-    font-size: 0.66rem;
+    font-size: 1.05rem;
     color: #ffe08a;
-    line-height: 1.25;
+    line-height: 1.3;
     margin-bottom: 6px;
 }
 
 .skill-info-desc {
     font-family: 'Press Start 2P', cursive;
-    font-size: 0.52rem;
+    font-size: 0.85rem;
     color: #f3f4f6;
-    line-height: 1.45;
+    line-height: 1.5;
+}
+
+.skill-info-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+.skill-upgrade-btn {
+    flex: 0 0 auto;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.8rem;
+    padding: 10px 14px;
+    border: 3px solid #000;
+    color: #fff;
+    background: #2d6b2e;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.skill-upgrade-btn:hover { background: #3a8c3b; }
+.skill-upgrade-btn:active { transform: scale(0.95); }
+.skill-upgrade-btn.btn-disabled {
+    background: #444;
+    color: #888;
+    cursor: default;
+    pointer-events: none;
+}
+.skill-upgrade-btn.btn-maxed {
+    background: #4a3a1a;
+    color: #c8a22a;
+    cursor: default;
+    pointer-events: none;
+}
+
+.skill-level-badge {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.66rem;
+    color: #c8a22a;
+    margin-top: 2px;
+    text-align: right;
+}
+
+/* Skill stat pills */
+.skill-stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.skill-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.54rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.skill-stat-pill .stat-label {
+    opacity: 0.8;
+}
+
+.skill-stat-pill .stat-value {
+    font-weight: bold;
+}
+
+/* Stat type colors */
+.skill-stat-pill.stat-physical {
+    background: rgba(220, 80, 60, 0.25);
+    color: #ff8866;
+    border: 1px solid rgba(220, 80, 60, 0.4);
+}
+
+.skill-stat-pill.stat-skill {
+    background: rgba(80, 120, 220, 0.25);
+    color: #77aaff;
+    border: 1px solid rgba(80, 120, 220, 0.4);
+}
+
+.skill-stat-pill.stat-buff {
+    background: rgba(60, 180, 80, 0.25);
+    color: #66dd77;
+    border: 1px solid rgba(60, 180, 80, 0.4);
+}
+
+.skill-stat-pill.stat-debuff {
+    background: rgba(200, 160, 40, 0.25);
+    color: #ddcc55;
+    border: 1px solid rgba(200, 160, 40, 0.4);
+}
+
+.skill-stat-pill.stat-utility {
+    background: rgba(160, 160, 180, 0.2);
+    color: #aaaacc;
+    border: 1px solid rgba(160, 160, 180, 0.3);
 }
 
 @keyframes char-idle-knight {
@@ -169,7 +352,7 @@ body {
         background-position: 0 0;
     }
     to {
-        background-position: -228px 0;
+        background-position: -593px 0;
     }
 }
 
@@ -178,7 +361,7 @@ body {
         background-position: 0 0;
     }
     to {
-        background-position: -384px 0;
+        background-position: -557px 0;
     }
 }
 
@@ -187,7 +370,7 @@ body {
         background-position: 0 0;
     }
     to {
-        background-position: -360px 0;
+        background-position: -540px 0;
     }
 }
 
@@ -196,7 +379,7 @@ body {
         background-position: 0 0;
     }
     to {
-        background-position: -252px 0;
+        background-position: -338px 0;
     }
 }
 
@@ -224,7 +407,6 @@ body.force-landscape #ui-layer {
         height: 100% !important;
         max-width: none !important;
         max-height: none !important;
-        object-fit: contain;
     }
 
     #pause-menu {
@@ -291,12 +473,14 @@ body.force-landscape #ui-layer {
     #skills-info-menu {
         width: min(98vw, 760px) !important;
         max-width: min(98vw, 760px) !important;
+        max-height: 88vh !important;
         padding: 6px !important;
     }
 
     #skills-info-menu .pixel-border {
-        padding: 14px !important;
-        gap: 10px !important;
+        padding: 12px !important;
+        gap: 8px !important;
+        max-height: calc(88vh - 16px) !important;
     }
 
     #skills-info-menu h2 {
@@ -305,7 +489,6 @@ body.force-landscape #ui-layer {
     }
 
     #skills-info-menu .skill-info-list {
-        max-height: min(48vh, 360px) !important;
         gap: 8px !important;
     }
 
@@ -315,13 +498,26 @@ body.force-landscape #ui-layer {
     }
 
     #skills-info-menu .skill-info-name {
-        font-size: 0.48rem !important;
+        font-size: 0.82rem !important;
         margin-bottom: 4px !important;
     }
 
     #skills-info-menu .skill-info-desc {
-        font-size: 0.42rem !important;
-        line-height: 1.35 !important;
+        font-size: 0.72rem !important;
+        line-height: 1.4 !important;
+    }
+
+    #skills-info-menu .char-stat-label {
+        font-size: 0.75rem !important;
+    }
+
+    #skills-info-menu .char-stat-value {
+        font-size: 0.75rem !important;
+    }
+
+    #skills-info-menu .skill-upgrade-btn {
+        font-size: 0.7rem !important;
+        padding: 8px 10px !important;
     }
 
     #skills-info-menu #btn-skillinfo-close {
@@ -334,6 +530,14 @@ body.force-landscape #ui-layer {
     body.force-landscape #skills-info-menu {
         width: min(96vh, 760px) !important;
         max-width: min(96vh, 760px) !important;
+    }
+
+    body.force-landscape #skills-info-menu {
+        max-height: 90vw !important;
+    }
+
+    body.force-landscape #skills-info-menu .pixel-border {
+        max-height: calc(90vw - 16px) !important;
     }
 
     body.force-landscape #pause-menu {

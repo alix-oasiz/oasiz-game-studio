@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Solar Horizon Challenge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --text-main: rgba(237, 246, 255, 0.96);
+        --text-soft: rgba(198, 218, 239, 0.72);
+        --panel-bg: rgba(9, 16, 28, 0.9);
+        --panel-edge: rgba(130, 169, 207, 0.28);
+        --glow: #8ad9ff;
+        --glow-strong: #ffd89f;
+        --danger: #ff8d75;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        background: #030712;
+        color: var(--text-main);
+        font-family: "Rajdhani", sans-serif;
+      }
+
+      canvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .hud {
+        position: fixed;
+        top: 45px;
+        left: 18px;
+        z-index: 10;
+        pointer-events: none;
+        display: grid;
+        gap: 10px;
+      }
+
+      .stat-card {
+        min-width: 154px;
+        border: 1px solid rgba(138, 217, 255, 0.26);
+        border-radius: 13px;
+        padding: 10px 12px;
+        background: linear-gradient(165deg, rgba(9, 21, 39, 0.88), rgba(6, 12, 24, 0.68));
+        box-shadow: 0 14px 28px rgba(2, 6, 15, 0.42);
+      }
+
+      .stat-label {
+        font-size: 0.72rem;
+        line-height: 1;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+
+      .stat-value {
+        margin-top: 4px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(1.3rem, 5vw, 2rem);
+        line-height: 1;
+        letter-spacing: 0.03em;
+      }
+
+      .compact-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .compact-card {
+        flex: 1;
+        border: 1px solid rgba(138, 217, 255, 0.2);
+        border-radius: 12px;
+        padding: 8px 10px;
+        background: rgba(7, 14, 25, 0.62);
+      }
+
+      .compact-value {
+        margin-top: 2px;
+        font-family: "Orbitron", sans-serif;
+        font-size: 1.05rem;
+      }
+
+      .energy-wrap {
+        margin-top: 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 216, 159, 0.38);
+        height: 10px;
+        overflow: hidden;
+        background: rgba(255, 216, 159, 0.13);
+      }
+
+      .energy-fill {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #ff845f 0%, #ffc477 55%, #fff0bb 100%);
+        box-shadow: 0 0 16px rgba(255, 196, 119, 0.52);
+        transition: width 0.1s linear;
+      }
+
+      .settings-btn {
+        position: fixed;
+        top: 45px;
+        right: 18px;
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        border: 1px solid rgba(147, 184, 220, 0.4);
+        background: rgba(6, 15, 28, 0.72);
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+        z-index: 14;
+        transition: transform 0.14s ease, background 0.14s ease;
+      }
+
+      .settings-btn:active {
+        transform: scale(0.95);
+      }
+
+      .settings-btn svg {
+        width: 24px;
+        height: 24px;
+        fill: currentColor;
+      }
+
+      .mobile-controls {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 0 20px 120px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        z-index: 12;
+      }
+
+      .steer-btn {
+        width: 86px;
+        height: 86px;
+        border-radius: 22px;
+        border: 1px solid rgba(156, 191, 226, 0.48);
+        background: linear-gradient(180deg, rgba(17, 34, 55, 0.9), rgba(7, 18, 32, 0.85));
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+      }
+
+      .steer-btn:active {
+        transform: translateY(2px);
+      }
+
+      .steer-btn svg {
+        width: 30px;
+        height: 30px;
+        fill: currentColor;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 30;
+        background:
+          radial-gradient(circle at 50% 30%, rgba(247, 178, 89, 0.18), rgba(247, 178, 89, 0) 48%),
+          linear-gradient(180deg, rgba(4, 11, 20, 0.72), rgba(4, 9, 18, 0.92));
+      }
+
+      .panel {
+        width: min(100%, 480px);
+        border-radius: 24px;
+        border: 1px solid var(--panel-edge);
+        background: var(--panel-bg);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.52);
+        padding: 26px 22px;
+        text-align: center;
+        backdrop-filter: blur(8px);
+      }
+
+      .title {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(2rem, 10vw, 3.5rem);
+        line-height: 0.95;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        text-shadow: 0 0 20px rgba(130, 211, 255, 0.45);
+      }
+
+      .subtitle {
+        margin-top: 10px;
+        font-size: clamp(0.88rem, 3.7vw, 1.05rem);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+
+      .accent {
+        margin: 20px auto;
+        width: 100px;
+        height: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(255, 191, 114, 0.08), rgba(255, 191, 114, 1), rgba(255, 191, 114, 0.08));
+      }
+
+      .details {
+        font-size: clamp(0.92rem, 3.8vw, 1.06rem);
+        line-height: 1.56;
+        color: rgba(230, 240, 249, 0.88);
+      }
+
+      .primary-btn,
+      .secondary-btn {
+        width: 100%;
+        border-radius: 14px;
+        border: 0;
+        padding: 14px 18px;
+        font-family: "Orbitron", sans-serif;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .primary-btn {
+        margin-top: 20px;
+        background: linear-gradient(180deg, #ffd8a2, #f2a257);
+        color: #2a1608;
+        font-weight: 700;
+      }
+
+      .secondary-btn {
+        margin-top: 18px;
+        border: 1px solid rgba(147, 184, 220, 0.36);
+        background: rgba(9, 19, 33, 0.76);
+        color: var(--text-main);
+      }
+
+      .score-block {
+        margin-top: 16px;
+        border: 1px solid rgba(255, 216, 159, 0.32);
+        border-radius: 16px;
+        padding: 14px;
+        background: rgba(14, 24, 38, 0.75);
+      }
+
+      .score-label {
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+
+      .score-value {
+        margin-top: 6px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(2.2rem, 12vw, 3.6rem);
+      }
+
+      .reason {
+        margin-top: 8px;
+        font-size: 0.9rem;
+        letter-spacing: 0.04em;
+        color: var(--danger);
+      }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(3, 7, 13, 0.74);
+        backdrop-filter: blur(6px);
+      }
+
+      .modal-card {
+        width: min(100%, 400px);
+        border-radius: 18px;
+        border: 1px solid rgba(147, 184, 220, 0.28);
+        background: rgba(7, 14, 24, 0.95);
+        padding: 18px;
+      }
+
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .modal-title {
+        font-family: "Orbitron", sans-serif;
+        font-size: 1.1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .close-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        border: 1px solid rgba(147, 184, 220, 0.32);
+        background: transparent;
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+      }
+
+      .close-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+
+      .setting-row {
+        width: 100%;
+        margin-top: 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(147, 184, 220, 0.28);
+        background: rgba(12, 24, 40, 0.64);
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--text-main);
+      }
+
+      .setting-copy {
+        text-align: left;
+      }
+
+      .setting-name {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .setting-state {
+        margin-top: 2px;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-soft);
+      }
+
+      .switch {
+        width: 52px;
+        height: 28px;
+        border-radius: 999px;
+        background: rgba(170, 191, 211, 0.28);
+        position: relative;
+      }
+
+      .switch::after {
+        content: "";
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        top: 3px;
+        left: 3px;
+        border-radius: 999px;
+        background: #ffffff;
+        transition: transform 0.16s ease;
+      }
+
+      .setting-row.active .switch {
+        background: rgba(138, 217, 255, 0.54);
+      }
+
+      .setting-row.active .switch::after {
+        transform: translateX(24px);
+      }
+
+      .desktop-only {
+        display: inline;
+      }
+
+      .mobile-only {
+        display: none;
+      }
+
+      @media (pointer: coarse) {
+        .hud {
+          top: 120px;
+          left: 14px;
+          gap: 8px;
+        }
+
+        .settings-btn {
+          top: 120px;
+          right: 14px;
+        }
+
+        .desktop-only {
+          display: none;
+        }
+
+        .mobile-only {
+          display: flex;
+        }
+
+        .panel {
+          padding: 22px 18px;
+        }
+
+        .primary-btn,
+        .secondary-btn,
+        .setting-row,
+        .steer-btn {
+          min-height: 56px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="hud" class="hud hidden">
+      <div class="stat-card">
+        <div class="stat-label">Score</div>
+        <div id="scoreValue" class="stat-value">0</div>
+        <div class="energy-wrap">
+          <div id="energyFill" class="energy-fill"></div>
+        </div>
+      </div>
+      <div class="compact-row">
+        <div class="compact-card">
+          <div class="stat-label">Tris</div>
+          <div id="trisValue" class="compact-value">0</div>
+        </div>
+        <div class="compact-card">
+          <div class="stat-label">Speed</div>
+          <div id="speedValue" class="compact-value">0</div>
+        </div>
+        <div class="compact-card">
+          <div class="stat-label">Region</div>
+          <div id="regionValue" class="compact-value">1</div>
+        </div>
+      </div>
+    </div>
+
+    <button id="settingsBtn" class="settings-btn hidden" aria-label="Open settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M19.43 12.98a7.55 7.55 0 0 0 .05-.98 7.55 7.55 0 0 0-.05-.98l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.06 7.06 0 0 0-1.7-.98l-.38-2.65A.5.5 0 0 0 14 1h-4a.5.5 0 0 0-.49.41l-.38 2.65a7.06 7.06 0 0 0-1.7.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64L4.57 11a7.55 7.55 0 0 0-.05.98 7.55 7.55 0 0 0 .05.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .6.22l2.49-1a7.06 7.06 0 0 0 1.7.98l.38 2.65a.5.5 0 0 0 .49.41h4a.5.5 0 0 0 .49-.41l.38-2.65a7.06 7.06 0 0 0 1.7-.98l2.49 1a.5.5 0 0 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"
+        />
+      </svg>
+    </button>
+
+    <div id="mobileControls" class="mobile-controls mobile-only hidden">
+      <button id="leftBtn" class="steer-btn" aria-label="Move left">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15.4 5.4 8.8 12l6.6 6.6-1.4 1.4L6 12l8-8z" />
+        </svg>
+      </button>
+      <button id="rightBtn" class="steer-btn" aria-label="Move right">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m8.6 18.6 6.6-6.6-6.6-6.6L10 4l8 8-8 8z" />
+        </svg>
+      </button>
+    </div>
+
+    <div id="startScreen" class="overlay">
+      <div class="panel">
+        <div class="title">Solar Horizon</div>
+        <div class="subtitle">Challenge Edition Style Run</div>
+        <div class="accent"></div>
+        <div class="details">
+          Fly the solar craft through obstacle fields.<br />
+          Stay in sunlight and collect Tris to extend the run.<br />
+          <span class="desktop-only">Use Arrow keys or A / D to steer.</span>
+          <span class="mobile-only">Tap left and right controls to steer.</span>
+        </div>
+        <button id="startBtn" class="primary-btn">Launch Run</button>
+      </div>
+    </div>
+
+    <div id="gameOverScreen" class="overlay hidden">
+      <div class="panel">
+        <div class="title">Run Over</div>
+        <div class="subtitle">Sunline Lost</div>
+        <div class="score-block">
+          <div class="score-label">Final Score</div>
+          <div id="finalScore" class="score-value">0</div>
+          <div id="gameOverReason" class="reason">Collision</div>
+        </div>
+        <button id="restartBtn" class="secondary-btn">Run Again</button>
+      </div>
+    </div>
+
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">Settings</div>
+          <button id="closeSettingsBtn" class="close-btn" aria-label="Close settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.29 19.7 2.87 18.3 9.17 12 2.87 5.71 4.29 4.3l6.3 6.3 6.29-6.3z" />
+            </svg>
+          </button>
+        </div>
+
+        <button id="musicToggle" class="setting-row active" aria-label="Toggle music">
+          <span class="setting-copy">
+            <span class="setting-name">Music</span>
+            <span id="musicState" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+
+        <button id="fxToggle" class="setting-row active" aria-label="Toggle effects">
+          <span class="setting-copy">
+            <span class="setting-name">FX</span>
+            <span id="fxState" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+
+        <button id="hapticsToggle" class="setting-row active" aria-label="Toggle haptics">
+          <span class="setting-copy">
+            <span class="setting-name">Haptics</span>
+            <span id="hapticsState" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

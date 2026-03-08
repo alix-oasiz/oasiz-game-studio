@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Archery Attack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Sora', sans-serif;
+      background: #0a0812;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* ============ OVERLAYS ============ */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 8, 18, 0.95);
+      z-index: 100;
+      transition: opacity 0.3s ease;
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    /* ============ START SCREEN ============ */
+    #startScreen {
+      background: linear-gradient(135deg, rgba(10, 15, 25, 0.98) 0%, rgba(20, 30, 40, 0.95) 100%);
+      padding: 10vh 20px;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #startScreen > * {
+      flex-shrink: 0;
+    }
+
+    #rotatePrompt {
+      z-index: 150;
+      background: linear-gradient(135deg, rgba(12, 10, 20, 0.98) 0%, rgba(18, 24, 36, 0.96) 100%);
+      text-align: center;
+      padding: 28px;
+    }
+
+    .rotate-title {
+      font-family: 'Sora', sans-serif;
+      font-size: clamp(28px, 7vw, 44px);
+      color: #dd7733;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .rotate-copy {
+      color: #bba98a;
+      font-size: clamp(14px, 3.6vw, 18px);
+      line-height: 1.5;
+      margin-bottom: 24px;
+      max-width: 420px;
+    }
+
+    .game-title {
+      font-family: 'Sora', sans-serif;
+      font-size: clamp(24px, 6.2vw, 46px);
+      font-weight: 900;
+      color: #dd7733;
+      text-shadow:
+        0 0 30px rgba(221, 119, 51, 0.6),
+        0 0 60px rgba(221, 119, 51, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.8);
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .game-subtitle {
+      font-size: clamp(12px, 3vw, 16px);
+      color: #aa8866;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    .start-tip {
+      max-width: min(520px, 86vw);
+      margin: 0 auto 16px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(28, 18, 10, 0.58);
+      border: 1px solid rgba(196, 160, 88, 0.28);
+      font-family: 'Sora', sans-serif;
+      color: #e5d1ac;
+      font-size: clamp(12px, 2vw, 16px);
+      font-weight: 600;
+      line-height: 1.45;
+      letter-spacing: 0.3px;
+      text-align: center;
+    }
+
+    .how-to-play {
+      max-width: 340px;
+      margin-bottom: 30px;
+      text-align: left;
+    }
+
+    .how-to-play h3 {
+      font-family: 'Sora', sans-serif;
+      font-size: 14px;
+      color: #dd7733;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .mechanic {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+      align-items: flex-start;
+    }
+
+    .mechanic-icon {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-top: 2px;
+    }
+
+    .mechanic-icon.timing {
+      background: rgba(50, 220, 50, 0.15);
+      border: 1px solid rgba(50, 220, 50, 0.4);
+    }
+
+    .mechanic-icon.power {
+      background: rgba(255, 200, 50, 0.15);
+      border: 1px solid rgba(255, 200, 50, 0.4);
+    }
+
+    .mechanic-text {
+      flex: 1;
+    }
+
+    .mechanic-text strong {
+      display: block;
+      font-size: 13px;
+      color: #ddc8a0;
+      margin-bottom: 2px;
+    }
+
+    .mechanic-text span {
+      font-size: 12px;
+      color: #887766;
+      line-height: 1.4;
+    }
+
+    .start-btn {
+      background: linear-gradient(180deg, #dd7733 0%, #aa5522 100%);
+      color: #fff;
+      font-family: 'Sora', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      padding: 14px 42px;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow:
+        0 6px 0 #773311,
+        0 8px 20px rgba(0, 0, 0, 0.4),
+        0 0 30px rgba(221, 119, 51, 0.3);
+      transition: all 0.15s ease;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    #startSettingsBtn {
+      margin-top: 12px !important;
+      min-width: 180px;
+      padding: 10px 26px;
+    }
+
+    .start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 8px 0 #773311,
+        0 12px 30px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(221, 119, 51, 0.5);
+    }
+
+    .start-btn:active {
+      transform: translateY(4px);
+      box-shadow:
+        0 2px 0 #773311,
+        0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    /* ============ BUTTONS ============ */
+    .icon-btn {
+      position: fixed;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(221, 119, 51, 0.9);
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(221, 119, 51, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      z-index: 70;
+    }
+
+    .icon-btn:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.95);
+    }
+
+    .icon-btn.hidden {
+      display: none;
+    }
+
+    #settingsBtn {
+      top: 120px;
+      right: 20px;
+    }
+
+    #pauseBtn {
+      top: 120px;
+      right: 80px;
+    }
+
+    .icon-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    /* ============ GAME OVER SCREEN ============ */
+    #gameOverScreen {
+      background: radial-gradient(circle at center, rgba(15, 20, 30, 0.98) 0%, rgba(5, 5, 10, 0.99) 100%);
+    }
+
+    .game-over-title {
+      font-family: 'Sora', sans-serif;
+      font-size: clamp(32px, 8vw, 48px);
+      font-weight: 900;
+      color: #445566;
+      text-shadow: 0 0 20px rgba(68, 85, 102, 0.8);
+      margin-bottom: 30px;
+    }
+
+    .final-score {
+      font-size: 16px;
+      color: #aa8866;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    #finalScore {
+      font-family: 'Sora', sans-serif;
+      font-size: clamp(48px, 12vw, 72px);
+      font-weight: 700;
+      color: #dd7733;
+      text-shadow: 0 0 30px rgba(221, 119, 51, 0.5);
+      margin-bottom: 40px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .menu-btn {
+      background: linear-gradient(180deg, #dd7733 0%, #aa5522 100%);
+      color: #fff;
+      font-family: 'Sora', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 14px 40px;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #773311, 0 6px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.15s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      min-width: 200px;
+    }
+
+    .menu-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .menu-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #773311;
+    }
+
+    .menu-btn.secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #aa8866;
+      box-shadow: none;
+      border: 2px solid #dd7733;
+    }
+
+    .menu-btn.secondary:hover {
+      background: rgba(221, 119, 51, 0.2);
+    }
+
+    /* ============ PAUSE SCREEN ============ */
+    #pauseScreen {
+      background: rgba(10, 8, 18, 0.95);
+    }
+
+    .pause-title {
+      font-family: 'Sora', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      color: #dd7733;
+      margin-bottom: 40px;
+    }
+
+    /* ============ WAVE UPGRADE SCREEN ============ */
+    #upgradeScreen {
+      background: radial-gradient(circle at center, rgba(18, 22, 35, 0.98) 0%, rgba(8, 10, 16, 0.98) 100%);
+      z-index: 140;
+      padding: 16px;
+      justify-content: flex-start;
+      overflow-y: auto;
+    }
+
+    .upgrade-panel {
+      width: min(760px, 92vw);
+      max-height: calc(100vh - 32px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin: auto;
+    }
+
+    .upgrade-title {
+      font-family: 'Sora', sans-serif;
+      font-size: clamp(24px, 4.2vw, 36px);
+      color: #dd7733;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-align: center;
+    }
+
+    .upgrade-subtitle {
+      color: #ccb290;
+      font-size: clamp(14px, 2.6vw, 18px);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .upgrade-list {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .upgrade-option {
+      width: 100%;
+      min-height: 74px;
+      border-radius: 18px;
+      border: 2px solid rgba(221, 119, 51, 0.6);
+      background: linear-gradient(180deg, rgba(48, 33, 22, 0.96) 0%, rgba(34, 24, 16, 0.96) 100%);
+      color: #f1e4cd;
+      text-align: left;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    }
+
+    .upgrade-option:active {
+      transform: scale(0.98);
+    }
+
+    .upgrade-option:hover {
+      border-color: rgba(255, 186, 90, 0.9);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+    }
+
+    .upgrade-option.hidden {
+      display: none;
+    }
+
+    .upgrade-name {
+      display: block;
+      font-family: 'Sora', sans-serif;
+      font-size: clamp(16px, 2.6vw, 22px);
+      color: #ffcc7a;
+      margin-bottom: 2px;
+      letter-spacing: 0.5px;
+    }
+
+    .upgrade-desc {
+      display: block;
+      font-size: clamp(12px, 1.9vw, 14px);
+      color: #e2d1b7;
+      line-height: 1.3;
+    }
+
+    @media (pointer: coarse) {
+      #startScreen {
+        padding-top: 8vh;
+        padding-bottom: 8vh;
+      }
+
+      #upgradeScreen {
+        padding-top: 122px;
+      }
+
+      .upgrade-option {
+        min-height: 82px;
+      }
+    }
+
+    @media (max-height: 740px) {
+      .game-title {
+        font-size: clamp(22px, 5.8vw, 40px);
+        margin-bottom: 6px;
+      }
+
+      .game-subtitle {
+        margin-bottom: 8px;
+      }
+
+      .start-tip {
+        margin-bottom: 12px;
+        padding: 9px 12px;
+      }
+
+      .start-btn {
+        font-size: 18px;
+        padding: 12px 36px;
+      }
+    }
+
+    @media (max-height: 620px) {
+      #startScreen {
+        padding-top: 6vh;
+        padding-bottom: 6vh;
+      }
+
+      .game-title {
+        font-size: clamp(20px, 5.2vw, 34px);
+        letter-spacing: 2px;
+      }
+
+      .start-tip {
+        font-size: clamp(11px, 1.8vw, 14px);
+        margin-bottom: 10px;
+      }
+
+      #startSettingsBtn {
+        margin-top: 8px !important;
+      }
+    }
+
+    @media (max-height: 480px) {
+      .upgrade-title {
+        font-size: clamp(20px, 3.6vw, 28px);
+      }
+
+      .upgrade-subtitle {
+        font-size: 12px;
+        margin-bottom: 2px;
+      }
+
+      .upgrade-option {
+        min-height: 66px;
+        padding: 10px 12px;
+      }
+
+      .upgrade-name {
+        font-size: 15px;
+      }
+
+      .upgrade-desc {
+        font-size: 11px;
+      }
+    }
+
+    /* ============ SETTINGS MODAL ============ */
+    #settingsModal {
+      background: rgba(10, 12, 20, 0.95);
+    }
+
+    #settingsModal.hidden {
+      display: none;
+    }
+
+    .settings-panel {
+      background: rgba(20, 30, 45, 0.95);
+      border-radius: 20px;
+      padding: 30px;
+      min-width: 280px;
+      max-width: 90vw;
+      border: 1px solid rgba(221, 119, 51, 0.3);
+    }
+
+    .settings-title {
+      font-family: 'Sora', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #dd7733;
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(221, 119, 51, 0.2);
+    }
+
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+
+    .settings-label {
+      font-size: 16px;
+      color: #aa8866;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toggle {
+      width: 52px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s ease;
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: #555;
+      border-radius: 50%;
+      transition: all 0.2s ease;
+    }
+
+    .toggle.active {
+      background: rgba(221, 119, 51, 0.3);
+    }
+
+    .toggle.active::after {
+      left: 27px;
+      background: #dd7733;
+    }
+
+    .settings-close {
+      margin-top: 25px;
+      width: 100%;
+      padding: 12px;
+      background: rgba(221, 119, 51, 0.1);
+      border: 1px solid #dd7733;
+      border-radius: 10px;
+      color: #dd7733;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.2s ease;
+    }
+
+    .settings-close:hover {
+      background: rgba(221, 119, 51, 0.2);
+    }
+
+    /* ============ FIRE BUTTON ============ */
+    #fireBtn {
+      position: fixed;
+      bottom: 40px;
+      left: 75%;
+      transform: translateX(-50%);
+      width: 156px;
+      height: 156px;
+      border-radius: 50%;
+      border: none;
+      --btn-fill: #3b2a1d;
+      --btn-glow: 0 0 24px rgba(57, 33, 14, 0.45), 0 0 16px rgba(244, 198, 118, 0.2);
+      background: transparent;
+      color: #f8ecd5;
+      font-family: 'Sora', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      cursor: pointer;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+      transition: transform 0.15s ease;
+    }
+
+    #fireBtn::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 50%;
+      background: var(--btn-fill);
+      box-shadow: var(--btn-glow);
+      z-index: 1;
+      pointer-events: none;
+      transition: background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    #fireBtn::after {
+      content: "";
+      position: absolute;
+      inset: 24px;
+      border-radius: 50%;
+      border: 3px solid rgba(226, 197, 148, 0.9);
+      box-shadow:
+        inset 0 0 0 2px rgba(64, 44, 28, 0.6),
+        0 0 0 1px rgba(255, 236, 198, 0.24);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+
+    #fireBtn .fire-label {
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 4;
+      pointer-events: none;
+      text-align: center;
+      line-height: 1.05;
+      font-weight: 800;
+      font-size: clamp(14px, 1.7vw, 20px);
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+    }
+
+    #fireBtn .fire-icon {
+      position: absolute;
+      width: 36%;
+      height: 36%;
+      top: 56%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(135deg);
+      z-index: 4;
+      pointer-events: none;
+      object-fit: contain;
+      opacity: 0.9;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+    }
+
+    #fireBtn.hidden {
+      display: none !important;
+    }
+
+    #fireBtn.state-focusing {
+      --btn-fill: #4a311f;
+      --btn-glow: 0 0 30px rgba(243, 166, 87, 0.28);
+    }
+
+    #fireBtn.state-steady {
+      --btn-fill: #23483c;
+      --btn-glow: 0 0 40px rgba(120, 206, 166, 0.36);
+    }
+
+    #fireBtn.state-flash {
+      --btn-fill: #6d5521;
+      --btn-glow: 0 0 48px rgba(255, 224, 140, 0.54);
+    }
+
+    #fireBtn:active {
+      transform: translateX(-50%) scale(0.95);
+    }
+
+    #fireBtn:focus,
+    #fireBtn:focus-visible {
+      outline: none;
+      box-shadow: none;
+    }
+
+    #fireBtn.state-drawing {
+      --btn-fill: #5a3d1f;
+      --btn-glow: 0 0 40px rgba(244, 198, 118, 0.38);
+      transform: translateX(-50%) scale(0.93);
+    }
+
+    #fireBtn.state-wobble {
+      --btn-fill: #5a2525;
+      --btn-glow: 0 0 42px rgba(236, 103, 103, 0.46);
+      transform: translateX(-50%) scale(0.93);
+      animation: wobble-shake 0.1s infinite;
+    }
+
+    @keyframes wobble-shake {
+      0%, 100% { transform: translateX(-50%) scale(0.93) rotate(0deg); }
+      25% { transform: translateX(calc(-50% + 2px)) scale(0.93) rotate(1deg); }
+      75% { transform: translateX(calc(-50% - 2px)) scale(0.93) rotate(-1deg); }
+    }
+
+    @media (pointer: coarse) {
+      #fireBtn {
+        bottom: 30px;
+        width: 172px;
+        height: 172px;
+        font-size: 22px;
+      }
+
+      #fireBtn .fire-label {
+        font-size: clamp(14px, 4vw, 19px);
+        letter-spacing: 0.6px;
+      }
+    }
+
+    /* ============ HIDDEN UTILITY ============ */
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Fire Button -->
+  <button id="fireBtn" class="hidden" aria-label="Fire">
+    <img class="fire-icon" src="/bow.png" alt="" aria-hidden="true" />
+    <span class="fire-label">Pull!</span>
+  </button>
+
+  <!-- Settings Button -->
+  <button id="settingsBtn" class="icon-btn hidden" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
+
+  <!-- Pause Button -->
+  <button id="pauseBtn" class="icon-btn hidden" aria-label="Pause">
+    <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+  </button>
+
+  <!-- Rotate / Landscape Prompt -->
+  <div id="rotatePrompt" class="overlay hidden">
+    <h2 class="rotate-title">Landscape Only</h2>
+    <p class="rotate-copy">Rotate your device to landscape to play. Tap below to request fullscreen for a larger view.</p>
+    <button id="fullscreenBtn" class="menu-btn">Enter Fullscreen</button>
+  </div>
+
+  <!-- Start Screen -->
+  <div id="startScreen" class="overlay">
+    <h1 class="game-title">ARCHERY<br>ATTACK</h1>
+    <p class="game-subtitle">Ride & Strike</p>
+    <p id="startTip" class="start-tip">Shoot arrows to hit targets! You have 30 seconds to hit 10!</p>
+    <button id="startButton" class="start-btn">Play</button>
+    <button id="startSettingsBtn" class="menu-btn secondary" style="margin-top: 20px;">Settings</button>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="gameOverScreen" class="overlay hidden">
+    <h2 class="game-over-title">GAME OVER</h2>
+    <p class="final-score">Final Score</p>
+    <div id="finalScore">0</div>
+    <div class="btn-group">
+      <button id="restartButton" class="menu-btn">Play Again</button>
+      <button id="backToStartButton" class="menu-btn secondary">Main Menu</button>
+    </div>
+  </div>
+
+  <!-- Pause Screen -->
+  <div id="pauseScreen" class="overlay hidden">
+    <h2 class="pause-title">PAUSED</h2>
+    <div class="btn-group">
+      <button id="resumeButton" class="menu-btn">Resume</button>
+      <button id="pauseRestartButton" class="menu-btn secondary">Restart</button>
+      <button id="pauseMenuButton" class="menu-btn secondary">Main Menu</button>
+    </div>
+  </div>
+
+  <!-- Wave Upgrade Screen -->
+  <div id="upgradeScreen" class="overlay hidden">
+    <div class="upgrade-panel">
+      <h2 id="upgradeWaveTitle" class="upgrade-title">Wave Cleared</h2>
+      <p id="upgradeSubtitle" class="upgrade-subtitle">Pick One Upgrade</p>
+      <div class="upgrade-list">
+        <button id="upgradeOption1" class="upgrade-option">
+          <span class="upgrade-name">Upgrade Name</span>
+          <span class="upgrade-desc">Upgrade description</span>
+        </button>
+        <button id="upgradeOption2" class="upgrade-option">
+          <span class="upgrade-name">Upgrade Name</span>
+          <span class="upgrade-desc">Upgrade description</span>
+        </button>
+        <button id="upgradeOption3" class="upgrade-option">
+          <span class="upgrade-name">Upgrade Name</span>
+          <span class="upgrade-desc">Upgrade description</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="overlay hidden">
+    <div class="settings-panel">
+      <h3 class="settings-title">Settings</h3>
+      <div class="settings-row">
+        <span class="settings-label">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#c4a058"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          Music
+        </span>
+        <div id="musicToggle" class="toggle active"></div>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#c4a058"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          Sound FX
+        </span>
+        <div id="fxToggle" class="toggle active"></div>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#c4a058"><path d="M0 15.998l5.002 5 1.412-1.416L1.418 14.58 0 15.998zm2.293-4.291A5.498 5.498 0 0 1 12 6.499a5.502 5.502 0 0 1 5.499 5.5c0 3.037-2.462 5.499-5.499 5.499a5.498 5.498 0 0 1-5.207-7.291L2.293 11.707zm19.122 3.706l1.412 1.416L17.825 22l-1.412-1.414 4.002-4.173z"/></svg>
+          Haptics
+        </span>
+        <div id="hapticToggle" class="toggle active"></div>
+      </div>
+      <button id="settingsClose" class="settings-close">Close</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

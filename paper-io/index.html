@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paper.io 3D</title>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f0fae8; font-family: 'Quicksand', sans-serif; color: #5A5A5A; touch-action: none; }
+    .hidden { display: none !important; }
+
+    #game-wrapper {
+      width: 100vw;
+      height: 100vh;
+      position: relative; overflow: hidden;
+    }
+    #game-canvas { width: 100%; height: 100%; display: block; }
+
+    /* ─── Menu ─── */
+    #menu-screen {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; background: #f0fae8; z-index: 100;
+    }
+    #menu-screen h1 {
+      font-family: 'Quicksand', sans-serif; font-size: 2.8rem; font-weight: 700;
+      color: #E8736C; margin-bottom: 0.5rem; letter-spacing: 2px;
+    }
+    .game-desc { font-size: 0.95rem; opacity: 0.5; font-weight: 500; margin-bottom: 2rem; text-align: center; }
+
+    /* ─── Shop Open Button (on menu) ─── */
+    #shop-open-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 28px; font-family: 'Quicksand', sans-serif;
+      font-size: 1rem; font-weight: 700; color: #5A5A5A;
+      background: rgba(255,255,255,0.7); border: 2px solid rgba(222,214,200,0.9);
+      border-radius: 14px; cursor: pointer; letter-spacing: 0.5px;
+      transition: all 0.2s ease; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      margin-bottom: 0.4rem;
+    }
+    #shop-open-btn:hover { background: rgba(255,255,255,0.9); transform: scale(1.03); }
+    #shop-open-btn:active { transform: scale(0.97); }
+    #shop-open-btn .preview-swatch {
+      width: 20px; height: 20px; border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.9);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+    #shop-open-btn svg { width: 18px; height: 18px; fill: currentColor; opacity: 0.5; flex-shrink: 0; }
+
+    /* ─── Shop Modal ─── */
+    #shop-modal {
+      position: absolute; inset: 0; z-index: 110; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 22px; background: rgba(245,240,232,0.95); backdrop-filter: blur(14px);
+    }
+    #shop-modal.visible { display: flex; }
+
+    .shop-card {
+      width: min(100%, 320px); max-height: 80vh; display: flex; flex-direction: column;
+      align-items: center; gap: 24px; overflow-y: auto; padding-bottom: 12px;
+    }
+    .shop-header {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+    }
+    .shop-modal-title {
+      font-family: 'Quicksand', sans-serif; color: #E8736C;
+      font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    #shop-close-btn {
+      width: 40px; height: 40px; border-radius: 12px;
+      border: 2px solid rgba(222,214,200,0.7); background: rgba(255,255,255,0.6);
+      color: #5A5A5A; display: grid; place-items: center;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    #shop-close-btn:hover { background: rgba(255,255,255,0.9); }
+    #shop-close-btn:active { transform: scale(0.93); }
+    #shop-close-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+    .shop-section-label {
+      font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 700; opacity: 0.45; align-self: flex-start;
+    }
+    #shop-colors {
+      width: 100%; display: grid;
+      grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .shop-color-btn {
+      border: 2px solid rgba(222,214,200,0.9);
+      background: rgba(255,255,255,0.75);
+      border-radius: 14px; height: 56px;
+      display: grid; place-items: center;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .shop-color-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .shop-color-btn:active { transform: scale(0.95); }
+    .shop-color-btn.selected {
+      border-color: #E8736C;
+      background: rgba(232,115,108,0.12);
+      box-shadow: 0 2px 10px rgba(232,115,108,0.25);
+    }
+    .shop-swatch {
+      width: 26px; height: 26px;
+      border-radius: 999px;
+      border: 2.5px solid rgba(255,255,255,0.85);
+      box-shadow: 0 1px 5px rgba(0,0,0,0.14);
+    }
+    .shop-color-btn.selected .shop-swatch {
+      width: 30px; height: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+
+    /* ─── Model & Texture Skin Buttons ─── */
+    #shop-skins {
+      width: 100%; display: grid;
+      grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .shop-skin-btn {
+      border: 2px solid rgba(222,214,200,0.9);
+      background: rgba(255,255,255,0.75);
+      border-radius: 14px; padding: 8px 4px;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 4px;
+      cursor: pointer; position: relative; overflow: hidden;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .shop-skin-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .shop-skin-btn:active { transform: scale(0.95); }
+    .shop-skin-btn.selected {
+      border-color: #E8736C;
+      background: rgba(232,115,108,0.12);
+      box-shadow: 0 2px 10px rgba(232,115,108,0.25);
+    }
+    .shop-skin-btn.locked {
+      cursor: default;
+    }
+    .shop-skin-btn.locked:hover { transform: none; box-shadow: none; }
+    .shop-skin-btn.locked:active { transform: none; }
+    .skin-preview {
+      width: 44px; height: 44px; border-radius: 8px;
+      object-fit: cover; border: 2px solid rgba(255,255,255,0.7);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+      image-rendering: pixelated;
+    }
+    .skin-preview.model-preview {
+      width: 52px; height: 52px; border-radius: 10px;
+      image-rendering: auto;
+      border: 2px solid rgba(232,115,108,0.15);
+      background: transparent;
+    }
+    .model-preview-placeholder {
+      width: 52px; height: 52px; border-radius: 10px;
+      border: 2px solid rgba(222,214,200,0.7);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .shop-skin-btn.selected .skin-preview {
+      width: 48px; height: 48px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .shop-skin-btn.selected .skin-preview.model-preview {
+      width: 56px; height: 56px;
+    }
+    .skin-name {
+      font-size: 0.62rem; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      color: #5A5A5A; opacity: 0.7;
+    }
+    .skin-lock-overlay {
+      position: absolute; inset: 0; display: flex;
+      flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(40,40,40,0.55); border-radius: 12px;
+      color: white; font-size: 0.6rem; font-weight: 700; gap: 3px;
+      backdrop-filter: blur(2px);
+    }
+
+    /* ─── Unlock notification in Game Over ─── */
+    #go-unlocks {
+      display: none; margin-top: 8px; font-size: 0.9rem;
+      font-weight: 500; color: #5A5A5A; opacity: 0.9;
+    }
+
+    #play-btn {
+      margin-top: 2rem; padding: 14px 60px; font-family: 'Quicksand', sans-serif;
+      font-size: 1.3rem; font-weight: 700; background: #E8736C; color: #fff;
+      border: none; border-radius: 14px; cursor: pointer; letter-spacing: 1px;
+      transition: all 0.3s; box-shadow: 0 4px 16px rgba(232,115,108,0.3);
+    }
+    #play-btn:hover { box-shadow: 0 6px 24px rgba(232,115,108,0.5); transform: scale(1.05); }
+
+    .how-to-play { margin-top: 1.5rem; opacity: 0.45; font-size: 0.85rem; cursor: pointer; font-weight: 600; }
+    .how-to-play:hover { opacity: 0.7; }
+    #how-to-content { display: none; margin-top: 0.8rem; font-size: 0.8rem; opacity: 0.5; line-height: 1.8; text-align: center; font-weight: 500; }
+    #how-to-content.show { display: block; }
+
+    /* ─── HUD ─── */
+    #hud {
+      position: absolute; top: 0; left: 0; right: 0; pointer-events: none;
+      padding: 50px 20px 16px; display: none; z-index: 50;
+    }
+    @media (pointer: coarse) { #hud { padding-top: 120px; } }
+    #hud.visible { display: flex; justify-content: space-between; align-items: flex-start; }
+
+    #hud-left { display: flex; flex-direction: column; gap: 8px; }
+    #hud-player {
+      font-family: 'Quicksand', sans-serif; font-size: 1.1rem; font-weight: 700;
+      display: flex; align-items: center; gap: 8px; color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid rgba(255,255,255,0.4); }
+    #hud-timer { font-size: 0.9rem; opacity: 0.7; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.3); font-weight: 600; }
+    #mute-btn {
+      pointer-events: all; background: none; border: none; color: #fff;
+      font-size: 1.3rem; cursor: pointer; opacity: 0.7; margin-top: 4px;
+    }
+    #mute-btn:hover { opacity: 1; }
+
+    #leaderboard {
+      min-width: 186px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+      color: #15316e;
+    }
+    #leaderboard h3 {
+      align-self: flex-end;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      color: rgba(21,49,110,0.56);
+      margin-bottom: 0;
+      letter-spacing: 0.16em;
+      font-weight: 800;
+      padding-right: 4px;
+      text-shadow: 0 2px 0 rgba(255,255,255,0.55);
+    }
+    #lb-entries {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      align-items: flex-end;
+    }
+    .lb-entry {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 800;
+      will-change: transform;
+    }
+    .lb-entry.dead { opacity: 0.42; }
+    .lb-card {
+      width: 146px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 11px 0 8px;
+      background: url('/leaderboard-nameplate.svg') center / contain no-repeat;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .lb-avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 0.58rem;
+      font-weight: 800;
+      border: 1.5px solid rgba(246,249,251,0.92);
+      flex-shrink: 0;
+      margin-left: 7px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.24);
+    }
+    .lb-name {
+      flex: 1;
+      min-width: 0;
+      padding-right: 2px;
+      color: #f6f9fb;
+      font-size: 0.72rem;
+      letter-spacing: 0.01em;
+      text-shadow: 0 2px 0 rgba(30,118,157,0.32);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lb-pct {
+      min-width: 62px;
+      text-align: right;
+      font-weight: 900;
+      font-size: 1rem;
+      line-height: 1;
+      letter-spacing: -0.045em;
+      -webkit-text-stroke: 0.8px rgba(246,249,251,0.96);
+      text-shadow:
+        0 1px 0 rgba(246,249,251,0.95),
+        0 2px 0 rgba(46,153,201,0.9),
+        0 3px 0 rgba(24,111,153,0.88),
+        0 4px 5px rgba(19,86,121,0.18);
+    }
+    .lb-rank {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      font-size: 0.62rem;
+      font-weight: 900;
+      margin-left: auto;
+      margin-right: 4px;
+      color: #2D8AB4;
+      text-shadow:
+        0 1px 0 rgba(255,255,255,0.9),
+        0 2px 0 rgba(124,214,247,0.45);
+    }
+
+    /* ─── Game Over ─── */
+    #game-over {
+      position: absolute; inset: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; background: rgba(245,240,232,0.94);
+      z-index: 80; backdrop-filter: blur(8px);
+    }
+    #game-over.visible { display: flex; }
+    #game-over h2 { font-family: 'Quicksand', sans-serif; font-size: 2.2rem; font-weight: 700; color: #E8736C; margin-bottom: 1.5rem; }
+    .go-stat { font-size: 1rem; opacity: 0.6; margin: 4px 0; font-weight: 500; }
+    .go-stat span { font-weight: 700; color: #5A5A5A; }
+    .go-buttons { display: flex; gap: 12px; margin-top: 1.5rem; }
+    .go-btn {
+      padding: 12px 32px; font-family: 'Quicksand', sans-serif; font-size: 0.95rem;
+      font-weight: 700; border: none; border-radius: 12px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .go-btn.primary { background: #E8736C; color: #fff; box-shadow: 0 3px 12px rgba(232,115,108,0.3); }
+    .go-btn.secondary { background: #EDE6D9; color: #5A5A5A; border: 2px solid #DED6C8; }
+    .go-btn:hover { transform: scale(1.05); }
+
+    /* ─── Pause ─── */
+    #pause-overlay {
+      position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+      background: rgba(245,240,232,0.8); z-index: 70; backdrop-filter: blur(6px);
+    }
+    #pause-overlay.visible { display: flex; }
+    #pause-overlay h2 { font-family: 'Quicksand', sans-serif; font-size: 2rem; font-weight: 700; color: #E8736C; opacity: 0.7; }
+
+    /* ─── Settings Button ─── */
+    #settings-btn {
+      position: absolute; bottom: 30px; right: 20px; width: 48px; height: 48px;
+      border: 2px solid rgba(232,115,108,0.25); border-radius: 14px;
+      background: rgba(245,240,232,0.85); color: #E8736C;
+      display: grid; place-items: center; z-index: 55; cursor: pointer;
+      transition: transform 0.16s ease, background 0.16s ease;
+      backdrop-filter: blur(6px);
+    }
+    #settings-btn:hover { background: rgba(245,240,232,0.95); }
+    #settings-btn:active { transform: scale(0.94); }
+    #settings-btn svg { width: 22px; height: 22px; fill: currentColor; }
+    @media (pointer: coarse) { #settings-btn { bottom: 120px; right: 16px; } }
+
+    /* ─── Settings Modal ─── */
+    #settings-modal {
+      position: absolute; inset: 0; z-index: 90; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 22px; background: rgba(245,240,232,0.92); backdrop-filter: blur(12px);
+    }
+    #settings-modal.visible { display: flex; }
+
+    .modal-card {
+      width: min(100%, 320px); display: flex; flex-direction: column;
+      align-items: center; gap: 28px;
+    }
+    .modal-title {
+      font-family: 'Quicksand', sans-serif; color: #E8736C;
+      font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .settings-list {
+      width: 100%; display: flex; flex-direction: column; gap: 6px;
+    }
+    .setting-row {
+      width: 100%; border: none; background: transparent; color: #5A5A5A;
+      padding: 14px 0; display: flex; align-items: center; justify-content: space-between;
+      text-align: left; border-bottom: 1px solid rgba(222,214,200,0.5);
+      cursor: pointer; font-family: 'Quicksand', sans-serif;
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-name { display: flex; flex-direction: column; gap: 2px; }
+    .setting-title {
+      font-size: 1rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .setting-state {
+      font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: rgba(90,90,90,0.5);
+    }
+    .switch {
+      width: 46px; height: 26px; border-radius: 999px;
+      background: rgba(90,90,90,0.15); position: relative; flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .switch::after {
+      content: ""; position: absolute; width: 20px; height: 20px;
+      border-radius: 999px; background: rgba(90,90,90,0.4);
+      top: 3px; left: 3px; transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .setting-row.active .switch { background: rgba(232,115,108,0.35); }
+    .setting-row.active .switch::after { transform: translateX(20px); background: #E8736C; }
+    @media (pointer: coarse) { .setting-row { min-height: 56px; } }
+
+    /* ─── Joystick ─── */
+    #joystick-zone {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 40%; z-index: 40; pointer-events: auto;
+      display: none;
+    }
+    #joystick-zone.visible { display: block; }
+    #joystick-base {
+      position: absolute; width: 120px; height: 120px;
+      border-radius: 50%; background: rgba(255,255,255,0.18);
+      border: 2.5px solid rgba(255,255,255,0.3);
+      transform: translate(-50%, -50%);
+      pointer-events: none; display: none;
+      backdrop-filter: blur(4px);
+    }
+    #joystick-knob {
+      position: absolute; width: 52px; height: 52px;
+      border-radius: 50%; background: rgba(255,255,255,0.55);
+      border: 2px solid rgba(255,255,255,0.6);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+      transform: translate(-50%, -50%);
+      pointer-events: none; display: none;
+    }
+
+  </style>
+</head>
+<body>
+<div id="game-wrapper">
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Menu -->
+  <div id="menu-screen">
+    <h1>Paper.io</h1>
+    <p class="game-desc">Conquer territory by drawing loops. Don't get caught!</p>
+    <button id="shop-open-btn">
+      <span class="preview-swatch" id="shop-preview" style="background:#00E5FF"></span>
+      Shop
+      <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 0 0 0 1.41L13.17 12l-3.88 3.88a1 1 0 1 0 1.41 1.41l4.59-4.59a1 1 0 0 0 0-1.41L10.7 6.71a1 1 0 0 0-1.41 0z"/></svg>
+    </button>
+    <button id="play-btn">Play</button>
+    <div class="how-to-play" id="how-to-toggle">How to Play</div>
+    <div id="how-to-content">
+      Arrow Keys / WASD to move<br>
+      Leave your territory to draw a trail<br>
+      Return home to capture the enclosed area<br>
+      Don't let anyone cross your trail!<br>
+      P to Pause &bull; R to Restart
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hud-left">
+      <div id="hud-player"><span class="color-dot" id="player-dot"></span> YOU <span id="player-pct">0%</span></div>
+      <div id="hud-timer">00:00</div>
+    </div>
+    <div id="leaderboard">
+      <h3>Top 3</h3>
+      <div id="lb-entries"></div>
+    </div>
+  </div>
+
+  <!-- Game Over -->
+  <div id="game-over">
+    <h2>Game Over</h2>
+    <div class="go-stat">Final Score: <span id="go-score">0%</span></div>
+    <div class="go-stat">Rank: <span id="go-rank">#1</span></div>
+    <div class="go-stat">Time: <span id="go-time">00:00</span></div>
+    <div id="go-unlocks"></div>
+    <div class="go-buttons">
+      <button class="go-btn primary" id="go-play-again">Play Again</button>
+      <button class="go-btn secondary" id="go-main-menu">Main Menu</button>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause-overlay"><h2>Paused</h2></div>
+
+  <!-- Joystick -->
+  <div id="joystick-zone" class="hidden">
+    <div id="joystick-base"></div>
+    <div id="joystick-knob"></div>
+  </div>
+
+  <!-- Settings Button -->
+  <button id="settings-btn" class="hidden" aria-label="Settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M19.43 12.98a7.55 7.55 0 0 0 .05-.98 7.55 7.55 0 0 0-.05-.98l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.06 7.06 0 0 0-1.7-.98l-.38-2.65A.5.5 0 0 0 14 1h-4a.5.5 0 0 0-.49.41l-.38 2.65a7.06 7.06 0 0 0-1.7.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64L4.57 11a7.55 7.55 0 0 0-.05.98 7.55 7.55 0 0 0 .05.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .6.22l2.49-1a7.06 7.06 0 0 0 1.7.98l.38 2.65a.5.5 0 0 0 .49.41h4a.5.5 0 0 0 .49-.41l.38-2.65a7.06 7.06 0 0 0 1.7-.98l2.49 1a.5.5 0 0 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/>
+    </svg>
+  </button>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal">
+    <div class="modal-card">
+      <div class="modal-title">Settings</div>
+      <div class="settings-list">
+        <button id="music-toggle" class="setting-row active">
+          <span class="setting-name">
+            <span class="setting-title">Music</span>
+            <span id="music-state" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+        <button id="fx-toggle" class="setting-row active">
+          <span class="setting-name">
+            <span class="setting-title">FX</span>
+            <span id="fx-state" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+        <button id="haptics-toggle" class="setting-row active">
+          <span class="setting-name">
+            <span class="setting-title">Haptics</span>
+            <span id="haptics-state" class="setting-state">On</span>
+          </span>
+          <span class="switch"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shop Modal -->
+  <div id="shop-modal">
+    <div class="shop-card">
+      <div class="shop-header">
+        <div class="shop-modal-title">Shop</div>
+        <button id="shop-close-btn" aria-label="Close shop">
+          <svg viewBox="0 0 24 24"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>
+        </button>
+      </div>
+      <div class="shop-section-label">Colors</div>
+      <div id="shop-colors"></div>
+      <div class="shop-section-label">Animals & Skins</div>
+      <div id="shop-skins"></div>
+    </div>
+  </div>
+
+</div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

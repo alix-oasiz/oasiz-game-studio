@@ -1,29 +1,23 @@
-Run 'bun run build' after making/changing games
-
 # Game Development Rules
 Follow these rules for any game development task:
 
-### 1. Setup
-- **Clone Template**: `cp -r seed-templates/template/ seed-templates/<game-name>`
-- **Structure**: Logic in `src/main.ts`, entry in `index.html`.
-- **Install**: Run `bun install` in the game folder.
-- **Build**: Run `bun run build` **from within the game folder** (e.g., `cd seed-templates/police-chase && bun run build`). Do NOT run from root or frontend—those are separate builds.
+### SDK Integration (Required)
+- Install the platform SDK in every game: `bun add @oasiz/sdk`
+- Import the SDK once in game logic files: `import { oasiz } from "@oasiz/sdk";`
+- Use `oasiz.*` methods for platform integration instead of direct `window.*` bridge calls.
+- For no-build HTML games or CDN usage: `<script src="https://www.oasiz.gg/sdk/v1/oasiz.min.js"></script>` (exposes `window.oasiz`)
+
+### 1. Logic & Style
+- **TypeScript**: Use TypeScript for all logic. No JavaScript in `index.html`.
+- **CSS**: Place CSS in `<style>` tag in `index.html`.
+- **Logs**: Always use `console.log('[FunctionName]', message)`.
+- **Backticks**: Never use backticks inside template literals.
 
 ### 2. Multiplayer Games (Playroom Kit)
 
-If you are building a **multiplayer game**, use [Playroom Kit](https://docs.joinplayroom.com/) for real-time networking. Reference `draw-the-thing/` as a working example.
+If you are building a **multiplayer game**, use [Playroom Kit](https://docs.joinplayroom.com/) for real-time networking.
 
-#### Setup
-1. Install the Playroom Kit npm package:
-   ```bash
-   bun add playroomkit
-   ```
-2. Include the UMD script in your HTML (for non-bundled usage):
-   ```html
-   <script src="https://unpkg.com/playroomkit/multiplayer.full.umd.js" crossorigin="anonymous"></script>
-   ```
-
-#### Key Patterns (from `draw-the-thing`)
+#### Key Patterns
 
 **Connecting to a Room:**
 ```typescript
@@ -41,20 +35,15 @@ await insertCoin({
 ```
 
 **Broadcasting Room Code to Platform (CRITICAL):**
-The platform needs to know the room code so friends can join. Call `window.shareRoomCode()` after connecting:
+The platform needs to know the room code so friends can join. Call `oasiz.shareRoomCode()` after connecting:
 ```typescript
-// Share room code with parent so friends can join
-function shareRoomCode(roomCode: string | null): void {
-  if (typeof (window as any).shareRoomCode === "function") {
-    (window as any).shareRoomCode(roomCode);
-  }
-}
+import { oasiz } from "@oasiz/sdk";
 
 // After successful insertCoin:
-shareRoomCode(getRoomCode());
+oasiz.shareRoomCode(getRoomCode());
 
 // When leaving the room, clear it:
-shareRoomCode(null);
+oasiz.shareRoomCode(null);
 ```
 
 **Handling Player Join/Quit:**
@@ -89,56 +78,31 @@ if (isHost()) {
 }
 ```
 
-#### Injected Window Variables
-The platform may inject these variables for auto-joining:
+#### Platform-Injected Properties
+The SDK exposes read-only properties populated by the platform (all `undefined` in local dev):
+
+| Property             | Type                | Description                              |
+| -------------------- | ------------------- | ---------------------------------------- |
+| `oasiz.gameId`       | string \| undefined | The platform's game ID                   |
+| `oasiz.roomCode`     | string \| undefined | Pre-filled room code from an invite link |
+| `oasiz.playerName`   | string \| undefined | The player's display name                |
+| `oasiz.playerAvatar` | string \| undefined | URL to the player's profile picture      |
+
 ```typescript
-declare global {
-  interface Window {
-    __ROOM_CODE__?: string;     // Pre-filled room code
-    __PLAYER_NAME__?: string;   // Player's display name
-    __PLAYER_AVATAR__?: string; // Player's avatar URL
-  }
+import { oasiz } from "@oasiz/sdk";
+
+if (oasiz.roomCode) {
+  await connectToRoom(oasiz.roomCode);
 }
 
-// Check on init:
-if (window.__ROOM_CODE__) {
-  await connectToRoom(window.__ROOM_CODE__);
+if (oasiz.playerName) {
+  this.hudNameLabel.text = oasiz.playerName;
 }
 ```
 
-See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for complete implementation.
-
-> 📚 **For more in-depth Playroom Kit knowledge**, see [`playroom_js.md`](./playroom_js.md) which covers additional API functions like RPC calls, kicking players, and detailed state management examples.
-
 ---
 
-### 3. External Tools & APIs
-- **Image Generation**: Use `tools/imageGenerator.ts` to generate 2D images via Replicate (`openai/gpt-image-1.5`). 
-  - **Asset Creation**: Proactively use this tool to create all necessary game assets including textures, backgrounds, buttons, and UI elements.
-  - **Prompting**: Instruct the model to create solid borders with a white background for sprites and objects.
-- **Background Removal**: Use `tools/backgroundRemover.ts` to remove backgrounds from images via Replicate. 
-  - Use this for game sprites, characters, items, or any objects that need transparent backgrounds for canvas layering.
-  - Call: `await removeBackground('input.png', 'output.png')` — returns a Buffer with transparent background.
-- **Music Generation**: Use `tools/musicGenerator.ts` to generate music and audio via Replicate (`google/lyria-2`).
-  - **Audio Creation**: Use this tool to create background music, sound effects, and ambient audio for games.
-  - **Call**: `await generateMusic('upbeat retro game soundtrack', 'output.wav')` — returns a Buffer with audio data.
-  - **Options**: Optionally pass `{ negativePrompt: '...', seed: 123 }` as third parameter for more control.
-  - **Prompting Tips**: Be descriptive about genre, mood, tempo, and instruments. Examples:
-    - "epic orchestral battle theme with dramatic drums and brass"
-    - "peaceful 8-bit chiptune melody for a puzzle game menu"
-    - "tense electronic ambient music with synth pads for a sci-fi game"
-  - **Audio CDN**: Generated audio files are hosted at `https://assets.oasiz.ai/audio/`. Reference audio in games using this base URL (e.g., `fetch("https://assets.oasiz.ai/audio/game-music.wav")`).
-- **UploadThing (File Hosting)**: Use `UTApi` from `uploadthing/server` to upload local files and get public URLs. Requires `UPLOADTHING_TOKEN`.
-  - To upload a Buffer: `await utapi.uploadFiles([new File([buffer], 'filename.png')])`
-  - Get URL from response: `response.data.url`
-
-### 4. Logic & Style
-- **TypeScript**: Use TypeScript for all logic. No JavaScript in `index.html`.
-- **CSS**: Place CSS in `<style>` tag in `index.html`.
-- **Logs**: Always use `console.log('[FunctionName]', message)`.
-- **Backticks**: Never use backticks inside template literals.
-
-### 5. Design & Polish
+### 3. Design & Polish
 - **Professionalism**: These games will be shown to thousands of people; they must look and feel professional.
 - **Aesthetics**: Make the games beautiful. Use high-quality visual assets, smooth animations, and polished UI.
 - **Start Screens**: Create stunning start screens that immediately engage players and establish the game's theme.
@@ -146,7 +110,7 @@ See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for com
 - **Settings Button (REQUIRED)**: Every game MUST include a settings button with toggles for Music, FX, and Haptics. See Technical Requirements for full details.
 
 
-### 6. Technical Requirements
+### 4. Technical Requirements
 
 - **No Emojis**: Use icons from a library instead of Emojis, they look unprofessional and inconsistent across platforms.
 
@@ -230,6 +194,38 @@ See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for com
       localStorage.setItem("gameSettings", JSON.stringify(this.settings));
     }
     ```
+  - **Toggle Event Handler Pattern (CRITICAL for mobile)**:
+    - On touch devices, a single tap fires both `touchend` and a synthetic `click`, causing toggles to flip twice (back to the original state).
+    - **ALWAYS** use `e.preventDefault()`, `e.stopPropagation()`, and a **300ms debounce** on every settings toggle handler.
+    - Use a shared wrapper function so every toggle gets the same protection:
+    ```typescript
+    let lastToggle = 0;
+    function settingsToggle(cb: () => void): (e: Event) => void {
+      return (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (Date.now() - lastToggle < 300) return;
+        lastToggle = Date.now();
+        cb();
+        saveSettings();
+        updateSettingsToggles();
+        triggerHaptic("light");
+      };
+    }
+
+    document.getElementById("toggle-music")!.addEventListener("click", settingsToggle(() => {
+      settings.music = !settings.music;
+      if (!settings.music) pauseMusic();
+      else if (gamePhase === "playing") playMusic();
+    }));
+    document.getElementById("toggle-fx")!.addEventListener("click", settingsToggle(() => {
+      settings.fx = !settings.fx;
+    }));
+    document.getElementById("toggle-haptics")!.addEventListener("click", settingsToggle(() => {
+      settings.haptics = !settings.haptics;
+    }));
+    ```
+    - This same debounce pattern should also be applied to **shop carousel arrows** and any other button that users report as "double-firing" on mobile.
   - **Best Practices**:
     1. **Separation**: Do not bundle FX and haptics into a single toggle. A user may want to feel the game without hearing it.
     2. **Coupling**: While toggled separately, FX and haptics should be triggered at the same point in code to maintain synchronization.
@@ -281,7 +277,56 @@ See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for com
     ```
 
 
-### 7. Performance & Code Quality
+### 5. Performance & Code Quality
+
+- **Game Loop Must Stop When Not Playing (CRITICAL)**:
+  - The `requestAnimationFrame` loop **must never run in the background**. If the tab is hidden or the platform backgrounds the app, the loop must be fully cancelled with `cancelAnimationFrame`.
+  - Track the RAF handle and expose `startLoop` / `stopLoop` helpers. Reset `lastFrameTime` on restart to prevent a huge delta-time spike on the first resumed frame.
+  - Wire `stopLoop` to both `document.visibilitychange` (tab hidden) and `oasiz.onPause` (platform backgrounding). Wire `startLoop` to `visibilitychange` (tab visible) and `oasiz.onResume`.
+  - **User-pause via the pause button should NOT stop the loop** — the loop must keep running to render the pause screen. Only background/platform events kill it entirely.
+  - **Required pattern (use this in every game)**:
+  ```typescript
+  let rafId = 0;
+
+  function startLoop(): void {
+    if (rafId) return;             // already running — guard against double-start
+    lastFrameTime = 0;             // reset so first frame dt is 0, not a huge spike
+    rafId = requestAnimationFrame(gameLoop);
+  }
+
+  function stopLoop(): void {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  }
+
+  // Inside gameLoop — store the handle on every frame
+  function gameLoop(timestamp: number): void {
+    // ... update & draw ...
+    rafId = requestAnimationFrame(gameLoop);
+  }
+
+  // In init()
+  oasiz.onPause(() => {
+    if (gameState === "PLAYING") pauseGame(); // update game state
+    stopLoop();                               // kill the RAF
+  });
+
+  oasiz.onResume(() => {
+    startLoop();                              // restart RAF; game state stays PAUSED until user taps Resume
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stopLoop();
+    } else {
+      startLoop();
+    }
+  });
+
+  startLoop();   // kick off the loop once on init
+  ```
 
 - **No Random Values in Render Loops (CRITICAL)**:
   - NEVER use `Math.random()` or `randomRange()` inside `draw*()` or `render()` functions
@@ -331,7 +376,7 @@ See `draw-the-thing/src/main.ts` and `draw-the-thing/src/GameManager.ts` for com
 - **Meta Tags**:
   - Use `<meta name="mobile-web-app-capable" content="yes">` (NOT `apple-mobile-web-app-capable` which is deprecated)
 
-### 8. Handheld Console (Game Boy) UI Design
+### 6. Handheld Console (Game Boy) UI Design
 
 When creating games that use a physical handheld console (Game Boy) aesthetic, follow these precise sizing and positioning guidelines to ensure a professional feel and mobile ergonomics:
 
@@ -361,115 +406,269 @@ When creating games that use a physical handheld console (Game Boy) aesthetic, f
 - **Interactive UI (Pause/Settings)**:
   - Follow the **Top Safe Area** requirements: `top: 115px - 120px` on mobile and `45px` on desktop.
 
-# Coding Agent Guidelines: High Score Submission & Haptics
+# Coding Agent Guidelines: Oasiz SDK Integration
 
-This document explains how games generated by the Oasis coding agent must handle score submission and haptic feedback to integrate with the platform's systems on both web and mobile.
+This document explains how games must use the Oasiz SDK (`@oasiz/sdk`) for score submission, haptic feedback, lifecycle events, player identity, and persistent game state.
 
-## 1. High Score Submission: `window.submitScore`
+Games run inside a sandboxed iframe (web) or WebView (mobile). The SDK communicates with the platform through bridge functions — your game never makes network requests directly. No API keys, tokens, or auth setup needed.
 
-To maintain platform-agnosticism, games should not worry about how scores are saved or transmitted. Instead, they must call a global function provided by the host environment. **Games MUST NOT track high scores, best scores, or persistent history locally.** The platform handles all score persistence and leaderboard logic.
+## Installation
 
-```javascript
-window.submitScore(score);
+### Install via npm (recommended for TypeScript/JavaScript projects)
+
+```bash
+bun add @oasiz/sdk
+```
+
+```typescript
+import { oasiz } from "@oasiz/sdk";
+```
+
+Named exports are also available:
+
+```typescript
+import {
+  submitScore,
+  triggerHaptic,
+  loadGameState,
+  saveGameState,
+  onPause,
+  onResume,
+} from "@oasiz/sdk";
+```
+
+### Install via CDN (for no-build HTML games or Unity WebGL exports)
+
+The SDK is available globally as `window.oasiz`.
+
+```html
+<script src="https://www.oasiz.gg/sdk/v1/oasiz.min.js"></script>
+<script>
+  oasiz.submitScore(42);
+  oasiz.triggerHaptic("medium");
+</script>
+```
+
+---
+
+## 1. Score Submission: `oasiz.submitScore`
+
+**Games MUST NOT track high scores, best scores, or persistent history locally.** The platform handles all score persistence and leaderboard logic.
+
+```typescript
+oasiz.submitScore(score);
+```
+
+| Parameter | Type   | Description                                  |
+| --------- | ------ | -------------------------------------------- |
+| `score`   | number | Floats are floored, negatives clamped to 0.  |
+
+**When to call** — frequency depends on your game type:
+
+| Game type                | When to submit                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| Endless / single-session | Once at game over                                                                               |
+| Level-based              | At the end of each level                                                                        |
+| Long sessions            | Periodically on a timer (e.g. every 60s), plus once at game over. Gate behind a minimum interval to avoid spamming. |
+
+
+Tells the platform when the player is actively playing so it can suppress background tasks like notifications.
+
+```typescript
+oasiz.gameplayStart();
+oasiz.gameplayStop();
+```
+
+| Method            | When to call                                          |
+| ----------------- | ----------------------------------------------------- |
+| `gameplayStart()` | Game starts, resume after pause, entering next level  |
+| `gameplayStop()`  | Entering a menu, pausing, game over                   |
+
+> Don't call `gameplayStop()` when the user switches tabs — the platform handles this via `onPause` / `onResume`.
+
+## 4. Multiplayer & Room Sharing
+
+```typescript
+oasiz.shareRoomCode(code);
+```
+
+| Parameter | Type           | Description                  |
+| --------- | -------------- | ---------------------------- |
+| `code`    | string \| null | Room code, or null to clear. |
+
+```typescript
+await insertCoin({ skipLobby: true });
+oasiz.shareRoomCode(getRoomCode());
+
+// When disconnecting
+oasiz.shareRoomCode(null);
+```
+
+## 5. Lifecycle Events: `oasiz.onPause` / `oasiz.onResume`
+
+Fires when the app goes to background / returns to foreground. Use to pause game loops, mute audio, and save state.
+
+```typescript
+const offPause = oasiz.onPause(() => {
+  this.gameLoop.stop();
+  this.bgMusic.pause();
+});
+
+const offResume = oasiz.onResume(() => {
+  this.gameLoop.start();
+  if (this.settings.music) this.bgMusic.play();
+});
+
+// Cleanup when game is destroyed
+offPause();
+offResume();
+```
+
+## 6. Game State Persistence: `oasiz.loadGameState` / `oasiz.saveGameState`
+
+Save and load game progress across sessions, devices, and app reinstalls. Writes are automatically debounced (2 seconds).
+
+```typescript
+const state = oasiz.loadGameState();
+oasiz.saveGameState({ ...state, level: 3 });
 ```
 
 ### Requirements:
-1. **`score`**: Must be a **non-negative integer**.
-2. **Availability**: The platform (Web or Mobile) automatically injects this function into the game's environment. The game code should check for its existence before calling it to prevent errors during local development.
-3. **No Local Persistence**: Do not use `localStorage` or other local state to save high scores. Only display the current session's score.
+1. **Object Only**: State payloads must be plain JSON objects (not arrays, not primitives).
+2. **No Custom Persistence Layer**: Do not build your own backend bridge in game code.
+3. **No Local Progress Storage**: Do not use `localStorage` for cross-session game progress/state. Use `oasiz.saveGameState`.
 
-## 2. Haptic Feedback: `window.triggerHaptic`
+### Runtime API:
+- `oasiz.loadGameState(): Record<string, unknown>` — Returns `{}` if no state saved yet. Always validate the shape.
+- `oasiz.saveGameState(state: Record<string, unknown>): void` — Queues a debounced save.
+- `oasiz.flushGameState(): void` — Forces an immediate write. Use at game over or before page might close.
 
-Games can trigger native haptic feedback on mobile devices by calling:
+### When to Save
+Use `oasiz.saveGameState` at meaningful checkpoints: level completions, inventory changes, checkpoint snapshots, user-created content updates.
 
-```javascript
-window.triggerHaptic(type);
-```
+---
 
-### Available Types:
-| Type | Use Case | Feel |
-|------|----------|------|
-| `"light"` | UI taps, button presses, minor interactions | Soft tap |
-| `"medium"` | Collecting items, standard impacts | Standard tap |
-| `"heavy"` | Explosions, major collisions, screen shake | Strong thud |
-| `"success"` | Level complete, achievements, high score | Celebratory pattern |
-| `"error"` | Damage taken, game over, invalid action | Warning pattern |
-
-### When to Use Haptics:
-- **Collisions**: Use `heavy` for wall/enemy hits or screen shake events.
-- **Pickups**: Use `light` or `medium` for coins, power-ups, or items.
-- **Damage**: Use `error` when the player takes damage.
-- **Victory**: Use `success` on level complete or reaching a high score.
-- **UI**: Use `light` for button presses or menu navigation.
-
-### Best Practices (The "Paddle Bounce" Standard):
-- **UI Button Rule**: Every single menu button (Start, Restart, Settings, Pause) should trigger a `"light"` haptic on click/tap.
-- **Tiered Feedback**: Use haptic intensity to communicate quality. 
-    - *Example (Threes)*: `light` for a small merge, `medium` for a good merge, and `success` for discovering a new character.
-    - *Example (Paddle Bounce)*: `success` for a perfect center hit, `medium` for an edge hit.
-- **Continuous Actions**: For continuous controls (like a D-Pad or tilt buttons), trigger a `"light"` haptic on the initial press to provide a tactile "click."
-- **Major Events**: Use `"heavy"` sparingly for game-changing events like bomb explosions or major screen shakes.
-
-## When to Submit Scores
-
-The agent should implement score submission **only** at the end of the game:
-
-1. **Game Over**: This is the only time to submit the final score. Do not submit intermediate scores or track "best" scores within the game UI.
-
-## Implementation Pattern
-
-The following patterns should be used in the game's main logic (e.g., `main.ts` or `GameManager`):
+## Implementation Patterns
 
 ### Score Submission Pattern
 ```typescript
+import { oasiz } from "@oasiz/sdk";
+
 private submitFinalScore(): void {
   console.log("[Game] Submitting final score:", this.score);
-  
-  // Always check if the function exists to avoid crashes
-  if (typeof (window as any).submitScore === "function") {
-    (window as any).submitScore(this.score);
-  }
+  oasiz.submitScore(this.score);
 }
 ```
 
 ### Haptic Feedback Pattern
 ```typescript
-// Helper for UI buttons
+import { oasiz } from "@oasiz/sdk";
+
 private triggerLightHaptic(): void {
-  if (this.settings.haptics && typeof (window as any).triggerHaptic === "function") {
-    (window as any).triggerHaptic("light");
+  if (this.settings.haptics) {
+    oasiz.triggerHaptic("light");
   }
 }
 
 private handleCollision(isPerfect: boolean): void {
-  if (this.settings.haptics && typeof (window as any).triggerHaptic === "function") {
-    // Tiered feedback based on hit quality
-    (window as any).triggerHaptic(isPerfect ? "success" : "medium");
+  if (this.settings.haptics) {
+    oasiz.triggerHaptic(isPerfect ? "success" : "medium");
   }
 }
 
 private onGameOver(): void {
+  oasiz.gameplayStop();
   this.submitFinalScore();
-  
-  // Trigger error haptic on game over
-  if (this.settings.haptics && typeof (window as any).triggerHaptic === "function") {
-    (window as any).triggerHaptic("error");
+  if (this.settings.haptics) {
+    oasiz.triggerHaptic("error");
   }
 }
 ```
 
+### Game State Pattern
+```typescript
+import { oasiz } from "@oasiz/sdk";
+
+private loadPersistentState(): Record<string, unknown> {
+  return oasiz.loadGameState();
+}
+
+private savePersistentState(nextState: Record<string, unknown>): void {
+  oasiz.saveGameState(nextState);
+}
+```
+
+### Lifecycle Pattern
+```typescript
+import { oasiz } from "@oasiz/sdk";
+
+class Game {
+  start(): void {
+    oasiz.gameplayStart();
+    this.gameLoop.start();
+  }
+
+  pause(): void {
+    oasiz.gameplayStop();
+    this.showPauseMenu();
+  }
+
+  resume(): void {
+    oasiz.gameplayStart();
+    this.gameLoop.start();
+  }
+
+  gameOver(): void {
+    oasiz.gameplayStop();
+    oasiz.submitScore(this.score);
+    oasiz.saveGameState({ level: this.level });
+    oasiz.flushGameState();
+  }
+}
+```
+
+---
+
+## Development & Testing
+
+### Local Development
+During local development, bridge functions are not present. The SDK detects this and falls back to safe no-ops with console warnings. No special configuration needed.
+
+| Method                        | Local behavior              |
+| ----------------------------- | --------------------------- |
+| `submitScore()`               | Logs warning, no-op         |
+| `emitScoreConfig()`           | Logs warning, no-op         |
+| `triggerHaptic()`             | Logs warning, no-op         |
+| `loadGameState()`             | Returns `{}`                |
+| `saveGameState()`             | Logs warning, no-op         |
+| `shareRoomCode()`             | Logs warning, no-op         |
+| `onPause()` / `onResume()`   | Fires on visibility change  |
+
+### Pre-submission Checklist
+- [ ] `submitScore()` called at the right time for your game type
+- [ ] `emitScoreConfig()` called once with 4 anchors during init
+- [ ] Haptics wired to key interactions (buttons, hits, game over)
+- [ ] `gameplayStart()` / `gameplayStop()` called on play/pause/game-over transitions
+- [ ] `onPause` / `onResume` pause game loops
+- [ ] Game state saved at meaningful checkpoints (if needed for progression)
+- [ ] `flushGameState()` called at game over
+- [ ] `loadGameState()` validates fields and handles empty state
+- [ ] No `localStorage` for cross-session progress
+- [ ] No "best score" or "high score" UI — platform handles leaderboards
+
 ## How It Works Under the Hood (For Context)
 
-- **On Web**: The platform injects scripts that listen for these calls. `submitScore` sends a `postMessage` to the parent window. `triggerHaptic` uses the Web Vibration API as a fallback.
-- **On Mobile**: The platform injects a bridge into the WebView. Both functions send messages to the native React Native layer via `ReactNativeWebView.postMessage`, which handles the API calls and triggers native haptic styles.
+- **On Web**: The platform injects scripts that listen for these calls. `submitScore` and `saveGameState` send `postMessage` events to the parent window. `triggerHaptic` uses the Web Vibration API as a fallback.
+- **On Mobile**: The platform injects a bridge into the WebView. `submitScore`, `triggerHaptic`, and `saveGameState` route through `ReactNativeWebView.postMessage`, which forwards to native handlers.
 
 ## Agent Instructions
 
 When writing game logic:
 - **Always** include a `score` variable for the current session.
-- **Always** call `window.submitScore(this.score)` when the game ends (Game Over).
+- **Always** call `oasiz.submitScore(this.score)` when the game ends (Game Over).
+- **Always** call `oasiz.emitScoreConfig()` once during initialization with 4 anchors.
 - **Always** implement haptic feedback for key interactions (hits, pickups, UI).
-- **Check** for the existence of these functions before calling them.
-- **Never** track high scores, "best" scores, or most recent scores locally.
-- **Never** display a "Best" or "High Score" UI element. Only show the current session's score.
-- **Never** attempt to implement the storage logic or native bridge within the game code itself.
+- **Always** call `oasiz.gameplayStart()` / `oasiz.gameplayStop()` on play/pause/game-over transitions.
+- **Always** use `oasiz.loadGameState()` / `oasiz.saveGameState(state)` for per-user persistent game data.
+- **Always** subscribe to `oasiz.onPause()` / `oasiz.onResume()` for lifecycle events.
+- **Never** use raw `window.*` bridge calls — use the SDK instead.

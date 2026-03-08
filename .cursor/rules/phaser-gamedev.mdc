@@ -1,0 +1,291 @@
+---
+description: Phaser 3 game development patterns, architecture, physics, tilemaps, spritesheets, and performance optimization. Use when building or modifying Phaser games.
+globs: ["**/src/scenes/**", "**/src/gameObjects/**", "**/src/systems/**", "**/src/config/**"]
+alwaysApply: false
+---
+
+# Phaser 3 Game Development Skill
+
+Build fast, polished 2D browser games using Phaser 3's scene-based architecture and physics systems.
+
+## Philosophy: Games as Living Systems
+
+Games are not static UIs—they are **dynamic systems** where entities interact, state evolves, and player input drives everything.
+
+**Before building, ask**:
+- What **scenes** does this game need? (Boot, Menu, Game, Pause, GameOver, UI overlay)
+- What are the **core entities** and how do they interact?
+- What **state** must persist across scenes (and what must not)?
+- What **physics** model fits? (Arcade for speed, Matter for realism)
+- What **input methods** will players use? (keyboard/gamepad/touch)
+
+**Core principles**:
+1. **Scene-first architecture**: Organize code around scene lifecycle and transitions.
+2. **Composition over inheritance**: Build entities from sprite/body/controllers, not deep class trees.
+3. **Physics-aware design**: Choose collision model early; don't retrofit physics late.
+4. **Asset pipeline discipline**: Preload everything; reference by keys; keep loading deterministic.
+5. **Frame-rate independence**: Use `delta` for motion and timers; avoid frame counting.
+
+## Workflow: Build the Spine First
+
+- Define the minimal playable loop (movement + win/lose + restart) before content/polish.
+- Decide scene graph and transitions (including UI overlay scene if needed).
+- Choose physics system early:
+  - **Arcade** for most games (platformers/top-down/shooters).
+  - **Matter** for realistic collision/constraints/ragdolls.
+  - **None** for non-physics scenes (menus, VN, card games).
+- Implement a reliable asset-loading path (Boot scene), then scale out content.
+- Add debug toggles/profiling early so performance doesn't become a late surprise.
+
+## Game Configuration
+
+### Common configuration pattern
+
+```typescript
+const config: Phaser.Types.Core.GameConfig = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  parent: 'game-container',
+  backgroundColor: '#2d2d2d',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { y: 300 },
+      debug: false
+    }
+  },
+  scene: [BootScene, MenuScene, GameScene, GameOverScene]
+};
+```
+
+### Physics system choice
+
+| System | Use when |
+|---|---|
+| Arcade | Platformers, shooters, most 2D games; fast AABB collisions |
+| Matter | Physics puzzles, ragdolls, realistic collisions; slower but more accurate |
+| None | Menu scenes, visual novels, card games |
+
+## Scene Architecture
+
+### Scene lifecycle methods
+
+```typescript
+class GameScene extends Phaser.Scene {
+  constructor() {
+    super('GameScene');
+  }
+
+  init(data: { level?: number }) {
+    this.level = data.level || 1;
+  }
+
+  preload() {
+    this.load.image('player', 'assets/player.png');
+    this.load.spritesheet('enemy', 'assets/enemy.png', {
+      frameWidth: 32, frameHeight: 32
+    });
+  }
+
+  create() {
+    this.player = this.physics.add.sprite(100, 100, 'player');
+    this.cursors = this.input.keyboard!.createCursorKeys();
+  }
+
+  update(time: number, delta: number) {
+    this.player.x += this.speed * (delta / 1000);
+  }
+}
+```
+
+### Scene transitions
+
+```typescript
+this.scene.start('GameOverScene', { score: this.score });
+this.scene.launch('UIScene');  // parallel
+this.scene.pause('GameScene');
+this.scene.resume('GameScene');
+this.scene.stop('UIScene');
+```
+
+### Recommended scene structure
+
+```
+scenes/
+├── BootScene.ts      # Asset loading, progress bar
+├── MenuScene.ts      # Title screen, options
+├── GameScene.ts      # Main gameplay
+├── UIScene.ts        # HUD overlay (launched parallel)
+├── PauseScene.ts     # Pause menu overlay
+└── GameOverScene.ts  # End screen, restart option
+```
+
+## Physics (Arcade)
+
+### Dynamic bodies
+
+```typescript
+const player = this.physics.add.sprite(100, 100, 'player');
+player.body.setVelocity(100, -200);
+player.body.setBounce(0.5, 0.5);
+player.body.setCollideWorldBounds(true);
+player.body.setGravityY(500);
+```
+
+### Static groups
+
+```typescript
+const platforms = this.physics.add.staticGroup();
+platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+```
+
+### Collision detection
+
+```typescript
+this.physics.add.collider(player, platforms);
+this.physics.add.overlap(player, coins, collectCoin, null, this);
+
+function collectCoin(player: Phaser.GameObjects.Sprite, coin: Phaser.GameObjects.Sprite) {
+  coin.disableBody(true, true);
+  this.score += 10;
+}
+```
+
+### Object pooling (critical for performance)
+
+```typescript
+this.bulletPool = this.physics.add.group({
+  defaultKey: 'bullet',
+  maxSize: 100,
+});
+
+// Spawn
+const bullet = this.bulletPool.get(x, y);
+if (bullet) {
+  bullet.setActive(true).setVisible(true);
+  bullet.body.enable = true;
+  bullet.body.reset(x, y);
+  bullet.setVelocity(velocityX, velocityY);
+}
+
+// Kill
+bullet.setActive(false);
+bullet.setVisible(false);
+bullet.body.enable = false;
+bullet.body.stop();
+```
+
+### Platformer movement
+
+```typescript
+update(time: number, delta: number) {
+  if (cursors.left.isDown) {
+    player.setVelocityX(-160);
+    player.anims.play('walk', true);
+    player.flipX = true;
+  } else if (cursors.right.isDown) {
+    player.setVelocityX(160);
+    player.anims.play('walk', true);
+    player.flipX = false;
+  } else {
+    player.setVelocityX(0);
+    player.anims.play('idle', true);
+  }
+
+  if (cursors.up.isDown && player.body.blocked.down) {
+    player.setVelocityY(-330);
+  }
+}
+```
+
+## Tilemaps (with Tiled)
+
+```typescript
+preload() {
+  this.load.tilemapTiledJSON('level1', 'assets/tilemaps/level1.json');
+  this.load.image('tiles', 'assets/tilesets/tileset.png');
+}
+
+create() {
+  const map = this.make.tilemap({ key: 'level1' });
+  const tileset = map.addTilesetImage('tileset-name-in-tiled', 'tiles');
+  const groundLayer = map.createLayer('Ground', tileset, 0, 0);
+  groundLayer.setCollisionByProperty({ collides: true });
+  this.physics.add.collider(player, groundLayer);
+
+  // Camera follows player in larger world
+  this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+  this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+  this.cameras.main.startFollow(player, true, 0.1, 0.1);
+}
+```
+
+## Spritesheets
+
+### Inspection protocol (CRITICAL)
+
+Before writing spritesheet loader code:
+1. Open the asset file in an image viewer
+2. Note total dimensions
+3. Count rows and columns
+4. Measure one frame's actual size
+5. Check for gaps (spacing) and padding (margin)
+6. Calculate and verify: `imageWidth = (frameWidth * cols) + (spacing * (cols - 1)) + (margin * 2)`
+
+### Loading with spacing
+
+```typescript
+this.load.spritesheet('ui-panel', 'assets/panel.png', {
+  frameWidth: 144,
+  frameHeight: 144,
+  spacing: 8
+});
+```
+
+## Performance Optimization
+
+### Critical rules
+
+- **Pool frequently spawned objects** (bullets, particles, enemies)
+- **Disable physics for off-screen objects**: `sprite.body.enable = false`
+- **Use texture atlases** to reduce draw calls
+- **Throttle expensive operations** (AI, pathfinding) to every 100ms
+- **Avoid object creation in update loop** — reuse or use primitives
+- **Always use delta time**: `sprite.x += speed * (delta / 1000)`
+
+### Camera culling
+
+```typescript
+update() {
+  const bounds = this.cameras.main.worldView;
+  this.enemies.children.iterate(enemy => {
+    const visible = Phaser.Geom.Rectangle.Contains(bounds, enemy.x, enemy.y);
+    enemy.setActive(visible).setVisible(visible);
+  });
+}
+```
+
+## Anti-Patterns to Avoid
+
+- **Global state soup**: Use scene data/registries, not `window` globals
+- **Loading in create()**: Always load assets in `preload()` or Boot scene
+- **Frame-dependent logic**: Use `delta / 1000`, not frame counts
+- **Monolithic scenes**: Separate gameplay, UI overlay, menus
+- **Magic numbers**: Use config objects for tuning values
+- **No pooling for spammy objects**: Pool bullets/particles/enemies
+- **Assuming spritesheet dimensions**: Always measure the source asset first
+- **Missing spacing param**: Check for gaps between frames in the source
+
+## Reference Files
+
+Full detailed references available at:
+- `~/.codex/skills/phaser-gamedev/references/core-patterns.md`
+- `~/.codex/skills/phaser-gamedev/references/arcade-physics.md`
+- `~/.codex/skills/phaser-gamedev/references/tilemaps.md`
+- `~/.codex/skills/phaser-gamedev/references/performance.md`
+- `~/.codex/skills/phaser-gamedev/references/spritesheets-nineslice.md`

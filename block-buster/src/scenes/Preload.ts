@@ -62,10 +62,21 @@ export default class Preload extends Phaser.Scene {
 		this.load.on("progress", (value: number) => {
 
 			this.progressBar.width = width * value;
+
+			// Drive the HTML loading bar
+			const bar = document.getElementById("loading-bar");
+			if (bar) bar.style.width = (value * 100) + "%";
 		});
 	}
 
 	create() {
+
+		// Hide the HTML loading screen
+		const loadingScreen = document.getElementById("loading-screen");
+		if (loadingScreen) {
+			loadingScreen.style.opacity = "0";
+			setTimeout(() => loadingScreen.remove(), 400);
+		}
 
 		if (process.env.NODE_ENV === "development") {
 

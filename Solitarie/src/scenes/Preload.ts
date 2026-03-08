@@ -78,6 +78,21 @@ export default class Preload extends Phaser.Scene {
 		const bgUrl = new URL('../../public/assets/bg/table-bg.png', import.meta.url).href;
 		this.load.image("table_bg", bgUrl);
 
+		const shuffleUrl = new URL('../../public/assets/audio/shuffle.mp3', import.meta.url).href;
+		this.load.audio("shuffle_draw", shuffleUrl);
+		const cardPickUrl = new URL('../../public/assets/audio/card-pick.mp3', import.meta.url).href;
+		this.load.audio("card_pick", cardPickUrl);
+		const cardDropUrl = new URL('../../public/assets/audio/card-drop.mp3', import.meta.url).href;
+		this.load.audio("card_drop", cardDropUrl);
+		const foundationSuccessUrl = new URL('../../public/assets/audio/foundation-success.mp3', import.meta.url).href;
+		this.load.audio("foundation_success", foundationSuccessUrl);
+		const uiButtonUrl = new URL('../../public/assets/audio/ui-button.mp3', import.meta.url).href;
+		this.load.audio("ui_button", uiButtonUrl);
+		const bgTrack1Url = new URL('../../public/assets/audio/bg-track-1.mp3', import.meta.url).href;
+		this.load.audio("bg_track_1", bgTrack1Url);
+		const bgTrack2Url = new URL('../../public/assets/audio/bg-track-2.mp3', import.meta.url).href;
+		this.load.audio("bg_track_2", bgTrack2Url);
+
 		// Load all backgrounds from the Background directory
 		const backgroundImages = import.meta.glob('/public/assets/Background/*.png', { eager: true, query: '?url', import: 'default' });
 		for (const path in backgroundImages) {

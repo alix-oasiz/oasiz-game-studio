@@ -24,6 +24,7 @@
         "vite": "^5.1.4"
     },
     "dependencies": {
+        "@oasiz/sdk": "^1.0.1",
         "@phaserjs/editor-scripts-base": "^1.0.0",
         "phaser": "3.80.1"
     }

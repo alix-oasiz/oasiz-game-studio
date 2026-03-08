@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40" role="img" aria-label="Astro Party pilot hi-fi">
+  <defs>
+    <style>
+      .slot-secondary { fill: var(--slot-secondary, #f5f5f5); }
+      .slot-stroke { stroke: var(--slot-outline, #ffffff); }
+      .stop-primary { stop-color: var(--slot-primary, #00f0ff); }
+      .stop-dark { stop-color: var(--slot-tertiary, #1d2636); }
+    </style>
+
+    <linearGradient id="suitGrad" x1="0.05" y1="0.15" x2="0.95" y2="0.85">
+      <stop offset="0" class="stop-primary" stop-opacity="1"/>
+      <stop offset="0.58" class="stop-primary" stop-opacity="1"/>
+      <stop offset="1" class="stop-dark" stop-opacity="1"/>
+    </linearGradient>
+
+    <linearGradient id="panelGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" class="stop-dark" stop-opacity="1"/>
+      <stop offset="0.42" class="stop-primary" stop-opacity="0.85"/>
+      <stop offset="1" class="stop-primary" stop-opacity="1"/>
+    </linearGradient>
+
+    <radialGradient id="visorGlow" cx="62%" cy="48%" r="52%">
+      <stop offset="0" class="stop-primary" stop-opacity="0.95"/>
+      <stop offset="55%" class="stop-primary" stop-opacity="0.35"/>
+      <stop offset="100%" class="stop-dark" stop-opacity="1"/>
+    </radialGradient>
+
+    <radialGradient id="thrusterGlow" cx="25%" cy="50%" r="60%">
+      <stop offset="0" class="stop-primary" stop-opacity="1"/>
+      <stop offset="45%" class="stop-primary" stop-opacity="0.55"/>
+      <stop offset="100%" class="stop-primary" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="0.55" result="b"/>
+      <feOffset in="b" dx="0.35" dy="0.45" result="o"/>
+      <feColorMatrix in="o" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0.24 0" result="s"/>
+      <feMerge>
+        <feMergeNode in="s"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g id="visual" filter="url(#softShadow)" transform="scale(0.62)">
+    <circle cx="-12.4" cy="0" r="7.2" fill="url(#thrusterGlow)"/>
+
+    <path
+      d="M -16.0 -5.6 L -11.2 -8.6 L -9.0 -2.6 L -9.0 2.6 L -11.2 8.6 L -16.0 5.6 L -17.2 0 Z"
+      fill="var(--slot-tertiary, #1d2636)"
+      opacity="0.94"
+      class="slot-stroke"
+      stroke-width="0.9"
+      stroke-linejoin="round"
+    />
+
+    <path
+      d="M -14.6 -4.5 L -11.4 -6.4 L -10.0 -2.0 L -10.0 2.0 L -11.4 6.4 L -14.6 4.5 L -15.4 0 Z"
+      fill="url(#panelGrad)"
+      opacity="0.9"
+    />
+
+    <path
+      d="M -9.6 -7.2
+         L 2.8 -7.2
+         Q 5.0 -7.2 6.6 -5.6
+         L 8.4 -3.8
+         Q 9.6 -2.6 9.6 -0.8
+         L 9.6 0.8
+         Q 9.6 2.6 8.4 3.8
+         L 6.6 5.6
+         Q 5.0 7.2 2.8 7.2
+         L -8.0 7.2
+         Q -10.2 7.2 -11.2 5.2
+         L -12.6 2.4
+         Q -13.2 1.2 -13.2 0
+         Q -13.2 -1.2 -12.6 -2.4
+         L -11.2 -5.2
+         Q -10.2 -7.2 -9.6 -7.2 Z"
+      fill="url(#suitGrad)"
+      class="slot-stroke"
+      stroke-width="1.05"
+      stroke-linejoin="round"
+    />
+
+    <path
+      d="M -9.1 -6.2
+         L 2.7 -6.2
+         Q 4.6 -6.2 5.9 -4.9
+         L 7.5 -3.3
+         Q 8.5 -2.3 8.5 -0.9
+         L 8.5 0.9
+         Q 8.5 2.3 7.5 3.3
+         L 5.9 4.9
+         Q 4.6 6.2 2.7 6.2
+         L -7.9 6.2
+         Q -9.5 6.2 -10.2 4.8
+         L -11.4 2.4
+         Q -11.9 1.2 -11.9 0
+         Q -11.9 -1.2 -11.4 -2.4
+         L -10.2 -4.8
+         Q -9.5 -6.2 -9.1 -6.2 Z"
+      fill="none"
+      class="slot-stroke"
+      stroke-width="0.45"
+      opacity="0.65"
+      stroke-linejoin="round"
+    />
+
+    <g opacity="0.95">
+      <polygon points="-2.8,-3.0 1.0,0 -2.8,3.0 -6.2,0" fill="var(--slot-primary, #00f0ff)"/>
+      <polygon points="-3.6,-1.8 -1.2,0 -3.6,1.8 -5.6,0" fill="var(--slot-tertiary, #1d2636)" opacity="0.28"/>
+      <path d="M -2.8 -3.0 L 1.0 0 L -2.8 3.0" fill="none" stroke="var(--slot-secondary, #f5f5f5)" opacity="0.26" stroke-width="0.35"/>
+    </g>
+
+    <!-- Internal body paneling -->
+    <polygon points="-0.6,-5.7 5.6,-0.3 -0.6,5.1" fill="#000" opacity="0.16"/>
+    <polygon points="-0.6,-5.7 -6.8,-0.3 -0.6,5.1" fill="#000" opacity="0.16"/>
+    <polygon points="-5.8,4.8 -0.6,4.2 4.6,4.8 -0.6,2.4" fill="#000" opacity="0.12"/>
+    <path d="M -3.8 -3.5 L -0.6 -5.9 L 2.6 -3.5 L 1.8 -2.7 L -0.6 -4.5 L -3.0 -2.7 Z" fill="var(--slot-secondary, #f5f5f5)" opacity="0.42"/>
+
+    <path d="M -7.6 -4.2 L 4.8 -4.2" stroke="var(--slot-tertiary, #1d2636)" stroke-width="0.55" opacity="0.22"/>
+    <path d="M -8.5 4.2 L 4.0 4.2" stroke="var(--slot-tertiary, #1d2636)" stroke-width="0.55" opacity="0.18"/>
+    <path d="M -0.8 -6.8 L -0.8 6.8" stroke="var(--slot-tertiary, #1d2636)" stroke-width="0.45" opacity="0.16"/>
+
+    <circle
+      cx="13.2"
+      cy="0"
+      r="6.5"
+      fill="var(--slot-tertiary, #1d2636)"
+      opacity="0.96"
+      class="slot-stroke"
+      stroke-width="1.05"
+    />
+
+    <circle
+      cx="13.2"
+      cy="0"
+      r="5.6"
+      fill="none"
+      class="slot-stroke"
+      stroke="var(--slot-secondary, #f5f5f5)"
+      stroke-width="0.7"
+      opacity="0.9"
+    />
+
+    <path
+      d="M 9.6 -3.3
+         Q 12.4 -5.2 15.2 -4.0
+         Q 17.8 -2.8 17.8 0
+         Q 17.8 2.8 15.2 4.0
+         Q 12.4 5.2 9.6 3.3
+         Q 10.8 0 9.6 -3.3 Z"
+      fill="url(#visorGlow)"
+    />
+
+    <path
+      d="M 11.0 -2.4
+         Q 13.2 -3.8 15.2 -3.0
+         Q 16.6 -2.4 17.0 -1.0
+         Q 15.4 -1.2 14.0 -0.4
+         Q 12.2 0.6 11.2 2.0
+         Q 11.8 0 11.0 -2.4 Z"
+      fill="var(--slot-secondary, #f5f5f5)"
+      opacity="0.14"
+    />
+    <circle cx="16.0" cy="-1.4" r="0.55" fill="var(--slot-secondary, #f5f5f5)" opacity="0.22"/>
+    <circle cx="15.4" cy="1.6" r="0.40" fill="var(--slot-secondary, #f5f5f5)" opacity="0.18"/>
+  </g>
+
+  <!-- Editor-only dash FX guide (removed by generate-entity-assets via #editor-hardpoints) -->
+  <g id="editor-hardpoints">
+    <!-- Pilot dash hardpoint (used by runtime dash FX spawn) -->
+    <circle id="hardpoint-pilot-dash" cx="-10.6" cy="0" r="0.95" fill="#00ff9d" stroke="#ffffff" stroke-width="0.25"/>
+    <circle cx="-10.6" cy="0" r="1.75" fill="none" stroke="#00ff9d" stroke-width="0.22" opacity="0.8"/>
+    <path d="M -11.45 0 L -9.75 0 M -10.6 -0.85 L -10.6 0.85" stroke="#0b1120" stroke-width="0.18" opacity="0.9"/>
+
+    <!-- Arm anchor guides for swim animation -->
+    <circle id="hardpoint-pilot-arm-left" cx="-0.8" cy="-5.8" r="0.95" fill="#ff5ca8" stroke="#ffffff" stroke-width="0.25"/>
+    <circle id="hardpoint-pilot-arm-right" cx="-0.8" cy="5.8" r="0.95" fill="#ff5ca8" stroke="#ffffff" stroke-width="0.25"/>
+
+    <!-- Release fan reference: renderer uses pilotAngle + PI (backward in local -X) -->
+    <path d="M -10.6 0 L -16.4 0" stroke="#ffd65e" stroke-width="0.22" stroke-linecap="round" opacity="0.9"/>
+    <path d="M -16.4 0 L -14.95 -0.9 L -14.95 0.9 Z" fill="#ffd65e" opacity="0.9"/>
+  </g>
+
+  <!-- Keep pilot collider stable for gameplay parity; M/L/Z only for extractor -->
+  <path
+    id="collider"
+    d="M -10.664 0 L -9.92 -3.472 L -6.944 -5.332 L -5.952 -4.464 L 1.736 -4.464 L 4.092 -3.472 L 5.208 -2.356 L 5.952 -2.046 L 7.688 -3.224 L 9.424 -2.48 L 11.036 -1.736 L 11.346 0 L 11.036 1.736 L 9.424 2.48 L 7.688 3.224 L 5.952 2.046 L 5.208 2.356 L 4.092 3.472 L 1.736 4.464 L -4.96 4.464 L -6.944 5.332 L -9.92 3.472 Z"
+    fill="none"
+    stroke="none"
+  />
+</svg>

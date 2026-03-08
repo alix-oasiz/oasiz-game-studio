@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Alto's Adventure Clone</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;700&family=Manrope:wght@400;500;700;800&display=swap");
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        background: radial-gradient(circle at 50% -15%, #f4c27f 0%, #df9c61 35%, #35516f 100%);
+        font-family: "Manrope", "Segoe UI", sans-serif;
+      }
+
+      #game-root {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      #hud {
+        position: fixed;
+        top: 45px;
+        left: 16px;
+        right: 16px;
+        z-index: 15;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+      }
+
+      .hud-strip {
+        width: min(560px, 100%);
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .hud-card {
+        border: 1px solid rgba(250, 247, 240, 0.62);
+        border-radius: 14px;
+        padding: 8px 12px;
+        background: linear-gradient(
+          135deg,
+          rgba(36, 53, 73, 0.7),
+          rgba(20, 32, 46, 0.78)
+        );
+        box-shadow: 0 12px 28px rgba(6, 12, 20, 0.42);
+        text-align: center;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+
+      .hud-label {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(243, 241, 234, 0.84);
+      }
+
+      .hud-value {
+        display: block;
+        margin-top: 2px;
+        font-size: 20px;
+        font-weight: 800;
+        color: #fffdf8;
+      }
+
+      #settings-btn {
+        position: fixed;
+        top: 45px;
+        right: 16px;
+        width: 52px;
+        height: 52px;
+        border: 1px solid rgba(255, 247, 234, 0.8);
+        border-radius: 50%;
+        background: linear-gradient(
+          145deg,
+          rgba(45, 64, 84, 0.86),
+          rgba(20, 30, 44, 0.92)
+        );
+        color: #f5efe3;
+        box-shadow: 0 14px 26px rgba(7, 11, 19, 0.46);
+        display: grid;
+        place-items: center;
+        z-index: 16;
+        cursor: pointer;
+      }
+
+      #settings-btn:active {
+        transform: translateY(1px);
+      }
+
+      #settings-btn svg {
+        width: 22px;
+        height: 22px;
+        fill: currentColor;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 50% -20%, rgba(249, 219, 163, 0.26), transparent 48%),
+          linear-gradient(to bottom, rgba(14, 25, 38, 0.38), rgba(14, 25, 38, 0.72));
+      }
+
+      .panel {
+        width: min(92vw, 460px);
+        border-radius: 24px;
+        border: 1px solid rgba(252, 243, 230, 0.6);
+        background:
+          radial-gradient(circle at 20% 0%, rgba(255, 218, 171, 0.12), transparent 55%),
+          linear-gradient(160deg, rgba(31, 50, 70, 0.88), rgba(13, 24, 38, 0.92));
+        box-shadow:
+          0 30px 80px rgba(2, 5, 8, 0.56),
+          inset 0 1px 0 rgba(255, 240, 214, 0.22);
+        padding: 26px 24px 22px;
+        text-align: center;
+      }
+
+      .title {
+        margin: 0;
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(34px, 9vw, 54px);
+        font-weight: 700;
+        line-height: 0.95;
+        color: #fff8eb;
+        text-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+      }
+
+      .subtitle {
+        margin: 14px auto 18px;
+        max-width: 330px;
+        color: rgba(246, 238, 225, 0.92);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .instruction-list {
+        margin: 0 auto 20px;
+        display: grid;
+        gap: 8px;
+        text-align: left;
+        max-width: 320px;
+        color: rgba(235, 227, 214, 0.95);
+        font-size: 13px;
+      }
+
+      .instruction-item {
+        padding: 9px 12px;
+        border-radius: 11px;
+        border: 1px solid rgba(255, 241, 216, 0.2);
+        background: rgba(8, 16, 25, 0.34);
+      }
+
+      .cta-button {
+        width: 100%;
+        border: none;
+        border-radius: 14px;
+        padding: 14px 18px;
+        background: linear-gradient(140deg, #f2cc8e, #e7a861);
+        color: #35200d;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 12px 24px rgba(11, 17, 22, 0.4);
+      }
+
+      .cta-button:active {
+        transform: translateY(1px);
+      }
+
+      .muted-button {
+        width: 100%;
+        margin-top: 10px;
+        border: 1px solid rgba(249, 241, 226, 0.42);
+        border-radius: 12px;
+        padding: 11px 15px;
+        background: rgba(24, 38, 54, 0.56);
+        color: #f2eadc;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .result-value {
+        margin: 16px 0 4px;
+        color: #fff7e8;
+        font-size: 42px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .result-label {
+        margin: 0 0 16px;
+        color: rgba(238, 229, 214, 0.9);
+        font-size: 13px;
+      }
+
+      #settings-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        background: rgba(5, 10, 15, 0.5);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+      }
+
+      .settings-card {
+        width: min(92vw, 380px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 247, 234, 0.6);
+        background: linear-gradient(160deg, rgba(24, 39, 55, 0.96), rgba(12, 22, 35, 0.96));
+        box-shadow: 0 24px 70px rgba(4, 8, 12, 0.52);
+        padding: 22px 18px 18px;
+      }
+
+      .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+
+      .settings-title {
+        margin: 0;
+        color: #fff8ec;
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      #settings-close {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 245, 224, 0.45);
+        background: rgba(14, 25, 36, 0.66);
+        color: #f6ecda;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .setting-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 2px;
+        border-top: 1px solid rgba(255, 243, 224, 0.14);
+      }
+
+      .setting-row:first-of-type {
+        border-top: none;
+      }
+
+      .setting-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #f4ebdb;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .setting-label svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+
+      .toggle {
+        width: 64px;
+        height: 34px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 241, 216, 0.45);
+        background: rgba(24, 39, 55, 0.75);
+        position: relative;
+        cursor: pointer;
+      }
+
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #f2dfc2;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.42);
+        transition: transform 0.18s ease, background-color 0.18s ease;
+      }
+
+      .toggle.active {
+        background: linear-gradient(140deg, #f2cc8e, #e5a664);
+      }
+
+      .toggle.active::after {
+        transform: translateX(30px);
+        background: #fff7e8;
+      }
+
+      @media (pointer: coarse) {
+        #hud {
+          top: 120px;
+          left: 12px;
+          right: 12px;
+        }
+
+        #settings-btn {
+          top: 120px;
+          right: 14px;
+          width: 54px;
+          height: 54px;
+        }
+
+        .hud-value {
+          font-size: 18px;
+        }
+
+        .panel {
+          width: min(94vw, 430px);
+          padding: 24px 18px 20px;
+        }
+
+        .cta-button {
+          min-height: 54px;
+        }
+
+        .muted-button {
+          min-height: 50px;
+        }
+
+        .toggle {
+          width: 68px;
+          height: 38px;
+        }
+
+        .toggle::after {
+          width: 28px;
+          height: 28px;
+        }
+
+        .toggle.active::after {
+          transform: translateX(30px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-root">
+      <canvas id="game-canvas"></canvas>
+
+      <div id="hud" class="hidden">
+        <div class="hud-strip">
+          <div class="hud-card">
+            <span class="hud-label">Score</span>
+            <span id="score-value" class="hud-value">0</span>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">Distance</span>
+            <span id="distance-value" class="hud-value">0 m</span>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">Combo</span>
+            <span id="combo-value" class="hud-value">x1</span>
+          </div>
+        </div>
+      </div>
+
+      <button id="settings-btn" class="hidden" aria-label="Open settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19.43 12.98a7.82 7.82 0 0 0 .05-.98 7.82 7.82 0 0 0-.05-.98l2.11-1.65a.48.48 0 0 0 .11-.61l-2-3.46a.5.5 0 0 0-.58-.22l-2.49 1a7.12 7.12 0 0 0-1.7-.98l-.38-2.65A.48.48 0 0 0 14 2h-4a.48.48 0 0 0-.49.41l-.38 2.65c-.6.24-1.17.56-1.7.98l-2.49-1a.5.5 0 0 0-.58.22l-2 3.46a.48.48 0 0 0 .11.61l2.11 1.65c-.03.32-.05.66-.05.98s.02.66.05.98l-2.11 1.65a.48.48 0 0 0-.11.61l2 3.46a.5.5 0 0 0 .58.22l2.49-1c.53.42 1.1.74 1.7.98l.38 2.65a.48.48 0 0 0 .49.41h4c.24 0 .44-.17.49-.41l.38-2.65c.6-.24 1.17-.56 1.7-.98l2.49 1a.5.5 0 0 0 .58-.22l2-3.46a.48.48 0 0 0-.11-.61l-2.11-1.65ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"
+          ></path>
+        </svg>
+      </button>
+
+      <div id="start-screen" class="overlay">
+        <div class="panel">
+          <h1 class="title">Alto's<br />Adventure</h1>
+          <p class="subtitle">
+            Endless downhill flow inspired by Alto. Time jumps, hold to flip, and chain clean
+            landings for huge combo runs.
+          </p>
+          <div class="instruction-list">
+            <div class="instruction-item">Tap or press Space to jump.</div>
+            <div class="instruction-item">Hold while airborne to spin.</div>
+            <div class="instruction-item">Land upright, avoid rocks, clear chasms.</div>
+          </div>
+          <button id="start-btn" class="cta-button">Start Ride</button>
+        </div>
+      </div>
+
+      <div id="game-over-screen" class="overlay hidden">
+        <div class="panel">
+          <h2 class="title" style="font-size: clamp(30px, 8vw, 44px)">Run Ended</h2>
+          <p id="final-score" class="result-value">0</p>
+          <p class="result-label">Final score submitted to leaderboard</p>
+          <button id="restart-btn" class="cta-button">Ride Again</button>
+          <button id="menu-btn" class="muted-button">Back to Start</button>
+        </div>
+      </div>
+
+      <div id="settings-modal" class="hidden">
+        <div class="settings-card">
+          <div class="settings-header">
+            <h3 class="settings-title">Settings</h3>
+            <button id="settings-close" aria-label="Close settings">X</button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 3a1 1 0 0 1 1 1v10.59l2.3-2.29a1 1 0 1 1 1.4 1.42l-4 3.98a1 1 0 0 1-1.4 0l-4-3.98a1 1 0 1 1 1.4-1.42L11 14.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1 2 2 0 0 0 2 2h8a2 2 0 0 0 2-2 1 1 0 1 1 2 0 4 4 0 0 1-4 4H8a4 4 0 0 1-4-4 1 1 0 0 1 1-1Z"
+                ></path>
+              </svg>
+              Music
+            </div>
+            <button id="music-toggle" class="toggle active" aria-label="Toggle music"></button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 10v4a1 1 0 0 0 1 1h3l4 4a1 1 0 0 0 1.7-.7V5.7A1 1 0 0 0 11 5l-4 4H4a1 1 0 0 0-1 1Zm13.54-2.54a1 1 0 0 1 1.42 0A6 6 0 0 1 20 12a6 6 0 0 1-2.04 4.54 1 1 0 1 1-1.34-1.48A4 4 0 0 0 18 12a4 4 0 0 0-1.46-3.06 1 1 0 0 1 0-1.48Zm-2.83 2.83a1 1 0 0 1 1.41 0A2 2 0 0 1 16 12a2 2 0 0 1-.88 1.71 1 1 0 1 1-1.12-1.66A.98.98 0 0 0 14 12a.98.98 0 0 0-.29-.71 1 1 0 0 1 0-1.41Z"
+                ></path>
+              </svg>
+              FX
+            </div>
+            <button id="fx-toggle" class="toggle active" aria-label="Toggle effects"></button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M7 3a4 4 0 0 0-4 4v4a4 4 0 0 0 3 3.87V17a1 1 0 1 0 2 0v-2h8v2a1 1 0 1 0 2 0v-2.13A4 4 0 0 0 21 11V7a4 4 0 0 0-4-4H7Zm0 2h10a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
+                ></path>
+              </svg>
+              Haptics
+            </div>
+            <button id="haptics-toggle" class="toggle active" aria-label="Toggle haptics"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

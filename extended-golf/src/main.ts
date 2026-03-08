@@ -30,42 +30,47 @@ window.addEventListener('load', async function () {
 
 	const game = new Phaser.Game({
 		type: Phaser.AUTO,
-		width: 1280,
-		height: 720,
 		backgroundColor: "#2f2f2f",
 		parent: "game-container",
 		scale: {
-			mode: Phaser.Scale.FIT,
-			autoCenter: Phaser.Scale.CENTER_BOTH,
-			width: 1280,
-			height: 720
+			mode: Phaser.Scale.NONE,
+			autoCenter: Phaser.Scale.NO_CENTER
 		},
 		scene: [Boot, Preload, Level, Menu, BallSelect, MapSelect],
-		physics: {
-			default: 'matter',
-			matter: {
-				debug: false,
-				gravity: { y: 1, x: 0 },
-				runner: {
-					isFixed: false, // Variable delta-time: prevents "slow motion" when FPS drops
-					fps: 60
-				},
-				autoUpdate: false // We will step the world manually in Level.ts for perfect Delta-Time sync
-			}
-		}
+		// Box2D is standalone (not a Phaser plugin) - no Phaser physics needed
+		physics: false as any
 	});
 
 	// Handle window resize and orientation for better mobile experience
 	const updateScale = () => {
 		const isPortrait = window.innerHeight > window.innerWidth;
 		const container = document.getElementById('game-container');
-		const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+		const isMobile = window.matchMedia('(pointer: coarse)').matches;
+		const forceLandscape = isMobile && isPortrait;
 
 		if (container) {
-			if (isPortrait && isMobile) {
+			// Container pixel dimensions (what the container should display as)
+			const viewW = forceLandscape ? window.innerHeight : window.innerWidth;
+			const viewH = forceLandscape ? window.innerWidth : window.innerHeight;
+
+			// Game resolution: use a fixed base height (720) and match aspect ratio.
+			// This keeps game elements (ball, terrain, UI) the same size regardless of device,
+			// while eliminating letterboxing by matching the phone's exact aspect ratio.
+			const BASE_H = 720;
+			const aspect = viewW / viewH;
+			const gameW = Math.round(BASE_H * aspect);
+			const gameH = BASE_H;
+
+			if (forceLandscape) {
+				// Rotate the entire game container in mobile-portrait so gameplay is landscape.
 				container.classList.add('force-landscape');
-				// Inform Phaser about the rotated parent dimensions so input mapping works
-				game.scale.setParentSize(window.innerHeight * 0.92, window.innerWidth * 0.92);
+				container.style.position = 'fixed';
+				container.style.left = '50%';
+				container.style.top = '50%';
+				container.style.width = `${viewW}px`;
+				container.style.height = `${viewH}px`;
+				container.style.transform = 'translate(-50%, -50%) rotate(90deg)';
+				container.style.transformOrigin = 'center center';
 
 				// Fix coordinate mapping for CSS rotation by overriding transformPointer
 				const inputManager = game.input as any;
@@ -73,33 +78,34 @@ window.addEventListener('load', async function () {
 					inputManager._originalTransform = inputManager.transformPointer;
 					inputManager.transformPointer = function (pointer: any, pageX: number, pageY: number, wasMove: boolean) {
 						const isPortraitNow = window.innerHeight > window.innerWidth;
-						if (isPortraitNow && /Mobi|Android/i.test(navigator.userAgent)) {
+						const isMobileNow = window.matchMedia('(pointer: coarse)').matches;
+						if (isPortraitNow && isMobileNow) {
 							const winW = window.innerWidth;
 							const winH = window.innerHeight;
 
-							// High precision mapping based on viewport center and FIT scale
-							const gameW = 1280;
-							const gameH = 720;
-							const parentW = winH * 0.92;
-							const parentH = winW * 0.92;
-							const scale = Math.min(parentW / gameW, parentH / gameH);
+							// Game uses a scaled coordinate space; calculate the CSS-to-game scale
+							const curGameW = game.scale.width;
+							const curGameH = game.scale.height;
+							const curViewW = winH; // After rotation
+							const curViewH = winW;
+							const scaleX = curGameW / curViewW;
+							const scaleY = curGameH / curViewH;
 
 							// Center points
 							const centerX = winW / 2;
 							const centerY = winH / 2;
 
-							// Relative to center
+							// Relative to center in screen pixels
 							const dx = (pageX - window.scrollX) - centerX;
 							const dy = (pageY - window.scrollY) - centerY;
 
 							// Rotate -90 degrees (CCW) to match game orientation
-							// (dx, dy) rotates to (dy, -dx)
 							const rotatedDx = dy;
 							const rotatedDy = -dx;
 
-							// Offset back to game pixels from (640, 360)
-							pointer.x = 640 + (rotatedDx / scale);
-							pointer.y = 360 + (rotatedDy / scale);
+							// Map to game coordinates using the CSS-to-game scale
+							pointer.x = curGameW / 2 + rotatedDx * scaleX;
+							pointer.y = curGameH / 2 + rotatedDy * scaleY;
 
 							// Update world coordinates
 							game.scene.getScenes(true).forEach((scene: Phaser.Scene) => {
@@ -115,8 +121,27 @@ window.addEventListener('load', async function () {
 					};
 				}
 			} else {
+				// Normal mode - reset inline styles and use CSS defaults
 				container.classList.remove('force-landscape');
-				game.scale.setParentSize(window.innerWidth, window.innerHeight);
+				container.style.position = 'relative';
+				container.style.left = '0';
+				container.style.top = '0';
+				container.style.width = '100%';
+				container.style.height = '100%';
+				container.style.transform = 'none';
+				container.style.transformOrigin = 'center center';
+			}
+
+			// With NONE mode, we manually control canvas sizing.
+			// Game resolution uses fixed 720 height with aspect-matched width.
+			// Canvas CSS fills the container; Phaser renders at the game resolution.
+			game.scale.resize(gameW, gameH);
+
+			// Size the canvas element to fill its container
+			const canvas = container.querySelector('canvas');
+			if (canvas) {
+				(canvas as HTMLCanvasElement).style.width = '100%';
+				(canvas as HTMLCanvasElement).style.height = '100%';
 			}
 		}
 

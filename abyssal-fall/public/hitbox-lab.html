@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Abyssal Fall Hitbox Lab</title>
+  <style>
+    :root {
+      --bg: #07111b;
+      --panel: #0e1c2b;
+      --panel2: #12243a;
+      --text: #d8f0ff;
+      --muted: #89b5d1;
+      --line: #2b4662;
+      --accent: #4cc5ff;
+      --warn: #ffc95a;
+      --ok: #66e38f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: var(--text);
+      background: linear-gradient(180deg, #081421 0%, #050b12 100%);
+      height: 100vh;
+      overflow: hidden;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 360px 1fr 360px;
+      height: 100vh;
+      gap: 8px;
+      padding: 8px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel h2 {
+      margin: 0;
+      padding: 10px 12px;
+      font-size: 13px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      background: var(--panel2);
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .frames {
+      overflow: auto;
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+    .frame-group {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0d1a28;
+      padding: 6px;
+      display: grid;
+      gap: 6px;
+    }
+    .frame-group-title {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .frame-group-frames {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .frame-btn {
+      border: 1px solid var(--line);
+      background: #0d1a28;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px;
+      text-align: left;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .frame-btn:hover { border-color: var(--accent); }
+    .frame-btn.active {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px #1a7ba6;
+      background: #102236;
+    }
+    .frame-btn.small {
+      min-width: 44px;
+      text-align: center;
+      padding: 6px 8px;
+    }
+    .frame-meta { color: var(--muted); font-size: 11px; }
+
+    .center {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 0;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel2);
+    }
+    button, select, input, textarea {
+      background: #0b1624;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    button.primary { border-color: #1f7ea7; }
+    button.good { border-color: #1e8e4f; color: var(--ok); }
+    button.warn { border-color: #a57f27; color: var(--warn); }
+
+    .canvas-wrap {
+      display: grid;
+      place-items: center;
+      padding: 10px;
+      min-height: 0;
+      overflow: auto;
+    }
+    canvas {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background:
+        linear-gradient(45deg, #0a1726 25%, transparent 25%),
+        linear-gradient(-45deg, #0a1726 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #0a1726 75%),
+        linear-gradient(-45deg, transparent 75%, #0a1726 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+    }
+
+    .controls {
+      overflow: auto;
+      padding: 10px;
+      display: grid;
+      gap: 10px;
+    }
+    .group {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+      background: #0d1a28;
+    }
+    .group h3 {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      align-items: center;
+      gap: 6px;
+    }
+    .row input[type="number"] { width: 100%; }
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--line);
+      background: #0a1622;
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="panel">
+      <h2>Frames (<span id="frameCount">0</span>)</h2>
+      <div id="frameList" class="frames"></div>
+      <div class="hint">Frames are grouped by animation. Moving x/y on one frame propagates that position to all later frames in the same animation.</div>
+    </section>
+
+    <section class="panel center">
+      <div class="toolbar">
+        <button id="prevBtn">Prev</button>
+        <button id="nextBtn">Next</button>
+        <button id="copyFrameBtn">Copy Frame JSON</button>
+        <button id="copyAllBtn">Copy All JSON</button>
+        <button id="saveProjectBtn" class="primary">Save to Project</button>
+        <button id="saveBtn" class="good">Save to File</button>
+        <button id="loadFileBtn">Load File</button>
+        <input id="loadFileInput" type="file" accept=".json" style="display:none" />
+        <button id="resetFrameBtn" class="warn">Reset Frame</button>
+        <button id="resetAllBtn" class="warn">Reset All</button>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="preview" width="720" height="640"></canvas>
+      </div>
+      <div class="hint" id="status">Ready.</div>
+    </section>
+
+    <section class="panel">
+      <h2>Collider Editor</h2>
+      <div class="controls">
+        <div class="group">
+          <h3>Frame</h3>
+          <div class="row"><label>Name</label><div id="currentName">-</div></div>
+          <div class="row"><label>Source</label><div id="currentSource">-</div></div>
+          <div class="row"><label>Size</label><div id="currentSize">-</div></div>
+        </div>
+
+        <div class="group">
+          <h3>Shape</h3>
+          <div class="row">
+            <label>Zone</label>
+            <select id="zoneType">
+              <option value="unsafe">Unsafe</option>
+              <option value="safe">Safe</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Type</label>
+            <select id="shapeType">
+              <option value="rect">Rect</option>
+              <option value="circle">Circle</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="group" id="rectGroup">
+          <h3>Rect</h3>
+          <div class="row"><label>x</label><input id="rectX" type="number" step="1" /></div>
+          <div class="row"><label>y</label><input id="rectY" type="number" step="1" /></div>
+          <div class="row"><label>width</label><input id="rectW" type="number" step="1" min="1" /></div>
+          <div class="row"><label>height</label><input id="rectH" type="number" step="1" min="1" /></div>
+        </div>
+
+        <div class="group" id="circleGroup" style="display:none">
+          <h3>Circle</h3>
+          <div class="row"><label>cx</label><input id="circleCx" type="number" step="1" /></div>
+          <div class="row"><label>cy</label><input id="circleCy" type="number" step="1" /></div>
+          <div class="row"><label>radius</label><input id="circleR" type="number" step="1" min="1" /></div>
+        </div>
+
+        <div class="group">
+          <h3>Export / Import</h3>
+          <textarea id="jsonBox" placeholder="Paste JSON here to import"></textarea>
+          <div style="display:flex; gap:6px;">
+            <button id="importBtn">Import JSON</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "downwellHitboxLabFramesV1";
+
+    const SOURCES = [
+      { key: "player_idle", label: "Player Idle", src: "./assets/characters/pixel_adventure_virtual_guy/idle.png", frameW: 32, frameH: 32, count: 11, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_run", label: "Player Run", src: "./assets/characters/pixel_adventure_virtual_guy/run.png", frameW: 32, frameH: 32, count: 12, defaults: { type: "rect", x: 8, y: 10, width: 16, height: 21 } },
+      { key: "player_jump", label: "Player Jump", src: "./assets/characters/pixel_adventure_virtual_guy/jump.png", frameW: 32, frameH: 32, count: 1, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_fall", label: "Player Fall", src: "./assets/characters/pixel_adventure_virtual_guy/fall.png", frameW: 32, frameH: 32, count: 1, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_shoot", label: "Player Shoot", src: "./assets/characters/pixel_adventure_virtual_guy/hit.png", frameW: 32, frameH: 32, count: 7, defaults: { type: "rect", x: 8, y: 8, width: 16, height: 23 } },
+
+      { key: "crab_idle", label: "Crab Idle", src: "./assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Idle.png", frameW: 96, frameH: 96, count: 4, defaults: { type: "rect", x: 13, y: 33, width: 70, height: 50 } },
+      { key: "crab_attack", label: "Crab Attack", src: "./assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Attack3.png", frameW: 96, frameH: 96, count: 6, defaults: { type: "rect", x: 10, y: 28, width: 76, height: 56 } },
+
+      { key: "shark_walk", label: "Shark Walk", src: "./assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/1/Walk.png", frameW: 96, frameH: 96, count: 6, defaults: { type: "rect", x: 8, y: 23, width: 82, height: 58 } },
+      { key: "squid_walk", label: "Squid Walk", src: "./assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/2/Walk.png", frameW: 96, frameH: 96, count: 6, defaults: { type: "rect", x: 12, y: 12, width: 72, height: 72 } },
+
+      // Decorative weeds from weeds.png (4x2 sheet). We skip fish-like entries (3, 4, 6).
+      { key: "weed_decor", label: "Weed Decor", src: "./assets/weeds.png", gridCols: 4, gridRows: 2, gridIndices: [0, 1, 2, 7], count: 4, defaults: { type: "rect", x: 8, y: 8, width: 22, height: 24 } },
+
+      // Puffer comes from weeds.png (row 1, col 1 -> index 5 in a 4x2 sheet).
+      { key: "puffer", label: "Puffer", src: "./assets/weeds.png", gridCols: 4, gridRows: 2, gridCol: 1, gridRow: 1, count: 1, defaults: { type: "circle", cx: 16, cy: 16, radius: 14 } },
+    ];
+
+    const state = {
+      frames: [],
+      colliders: {},
+      selected: 0,
+      activeZone: "unsafe",
+      images: new Map(),
+      view: { dx: 0, dy: 0, scale: 1, frameW: 1, frameH: 1 },
+      hover: { type: "none" },
+      drag: {
+        active: false,
+        type: "none",
+        startFx: 0,
+        startFy: 0,
+        start: null,
+      },
+    };
+
+    const els = {
+      frameCount: document.getElementById("frameCount"),
+      frameList: document.getElementById("frameList"),
+      status: document.getElementById("status"),
+      canvas: document.getElementById("preview"),
+      currentName: document.getElementById("currentName"),
+      currentSource: document.getElementById("currentSource"),
+      currentSize: document.getElementById("currentSize"),
+      zoneType: document.getElementById("zoneType"),
+      shapeType: document.getElementById("shapeType"),
+      rectGroup: document.getElementById("rectGroup"),
+      circleGroup: document.getElementById("circleGroup"),
+      rectX: document.getElementById("rectX"),
+      rectY: document.getElementById("rectY"),
+      rectW: document.getElementById("rectW"),
+      rectH: document.getElementById("rectH"),
+      circleCx: document.getElementById("circleCx"),
+      circleCy: document.getElementById("circleCy"),
+      circleR: document.getElementById("circleR"),
+      jsonBox: document.getElementById("jsonBox"),
+      prevBtn: document.getElementById("prevBtn"),
+      nextBtn: document.getElementById("nextBtn"),
+      copyFrameBtn: document.getElementById("copyFrameBtn"),
+      copyAllBtn: document.getElementById("copyAllBtn"),
+      saveProjectBtn: document.getElementById("saveProjectBtn"),
+      saveBtn: document.getElementById("saveBtn"),
+      loadFileBtn: document.getElementById("loadFileBtn"),
+      loadFileInput: document.getElementById("loadFileInput"),
+      resetFrameBtn: document.getElementById("resetFrameBtn"),
+      resetAllBtn: document.getElementById("resetAllBtn"),
+      importBtn: document.getElementById("importBtn"),
+    };
+
+    const ctx = els.canvas.getContext("2d", { alpha: true });
+    ctx.imageSmoothingEnabled = false;
+
+    function deepClone(x) {
+      return JSON.parse(JSON.stringify(x));
+    }
+
+    function status(msg) {
+      els.status.textContent = msg;
+    }
+
+    async function loadImage(src) {
+      if (state.images.has(src)) return state.images.get(src);
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      state.images.set(src, img);
+      return img;
+    }
+
+    function makeFrameId(sourceKey, index) {
+      return `${sourceKey}#${index}`;
+    }
+
+    function isColliderShape(x) {
+      return x && typeof x === "object" && (x.type === "rect" || x.type === "circle");
+    }
+
+    function isZoneSetEntry(x) {
+      return x && typeof x === "object" && !Array.isArray(x) && ("safe" in x || "unsafe" in x);
+    }
+
+    function usesZoneSet(frame) {
+      return frame.sourceKey.startsWith("crab_") || frame.sourceKey.startsWith("shark_") || frame.sourceKey.startsWith("squid_");
+    }
+
+    function ensureZoneSet(frame, entry) {
+      if (isZoneSetEntry(entry)) {
+        if (!isColliderShape(entry.unsafe)) entry.unsafe = deepClone(frame.defaults);
+        if (!isColliderShape(entry.safe)) entry.safe = deepClone(frame.defaults);
+        return entry;
+      }
+      if (isColliderShape(entry)) {
+        return { unsafe: deepClone(entry), safe: deepClone(frame.defaults) };
+      }
+      return { unsafe: deepClone(frame.defaults), safe: deepClone(frame.defaults) };
+    }
+
+    async function buildFrames() {
+      const frames = [];
+      for (const source of SOURCES) {
+        let img;
+        try {
+          img = await loadImage(source.src);
+        } catch (err) {
+          console.warn("Skipping source that failed to decode:", source.src, err);
+          continue;
+        }
+        if (source.gridCols && source.gridRows && Array.isArray(source.gridIndices) && source.gridIndices.length > 0) {
+          const fw = Math.floor(img.naturalWidth / source.gridCols);
+          const fh = Math.floor(img.naturalHeight / source.gridRows);
+          for (const cellIndex of source.gridIndices) {
+            const col = cellIndex % source.gridCols;
+            const row = Math.floor(cellIndex / source.gridCols);
+            const sx = col * fw;
+            const sy = row * fh;
+            frames.push({
+              id: makeFrameId(source.key, cellIndex),
+              sourceKey: source.key,
+              sourceLabel: source.label,
+              sourcePath: source.src,
+              frameIndex: cellIndex,
+              frameW: fw,
+              frameH: fh,
+              sx,
+              sy,
+              sw: fw,
+              sh: fh,
+              defaults: deepClone(source.defaults),
+            });
+          }
+          continue;
+        }
+
+        if (source.gridCols && source.gridRows) {
+          const fw = Math.floor(img.naturalWidth / source.gridCols);
+          const fh = Math.floor(img.naturalHeight / source.gridRows);
+          const sx = source.gridCol * fw;
+          const sy = source.gridRow * fh;
+          frames.push({
+            id: makeFrameId(source.key, 0),
+            sourceKey: source.key,
+            sourceLabel: source.label,
+            sourcePath: source.src,
+            frameIndex: 0,
+            frameW: fw,
+            frameH: fh,
+            sx,
+            sy,
+            sw: fw,
+            sh: fh,
+            defaults: deepClone(source.defaults),
+          });
+          continue;
+        }
+
+        for (let i = 0; i < source.count; i++) {
+          const sx = i * source.frameW;
+          frames.push({
+            id: makeFrameId(source.key, i),
+            sourceKey: source.key,
+            sourceLabel: source.label,
+            sourcePath: source.src,
+            frameIndex: i,
+            frameW: source.frameW,
+            frameH: source.frameH,
+            sx,
+            sy: 0,
+            sw: source.frameW,
+            sh: source.frameH,
+            defaults: deepClone(source.defaults),
+          });
+        }
+      }
+      state.frames = frames;
+      els.frameCount.textContent = String(frames.length);
+    }
+
+    function getColliderEntry(frame) {
+      const existing = state.colliders[frame.id];
+      if (usesZoneSet(frame)) {
+        const normalized = ensureZoneSet(frame, existing);
+        state.colliders[frame.id] = normalized;
+        return normalized;
+      }
+      if (!isColliderShape(existing)) {
+        state.colliders[frame.id] = deepClone(frame.defaults);
+      }
+      return state.colliders[frame.id];
+    }
+
+    function getActiveCollider(frame) {
+      const entry = getColliderEntry(frame);
+      if (isZoneSetEntry(entry)) {
+        const zone = state.activeZone === "safe" ? "safe" : "unsafe";
+        if (!isColliderShape(entry[zone])) entry[zone] = deepClone(frame.defaults);
+        return entry[zone];
+      }
+      return entry;
+    }
+
+    async function loadSaved() {
+      // Try committed file first, fall back to localStorage
+      try {
+        const res = await fetch("./hitbox-colliders.json");
+        if (res.ok) {
+          const parsed = await res.json();
+          if (parsed && typeof parsed === "object") {
+            state.colliders = parsed;
+            status("Loaded hitbox-colliders.json from repo.");
+            return;
+          }
+        }
+      } catch (_) {}
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") state.colliders = parsed;
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+
+    function saveAll() {
+      const json = JSON.stringify(state.colliders, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "hitbox-colliders.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      // Also keep localStorage as session backup
+      localStorage.setItem(STORAGE_KEY, json);
+      status("Downloaded hitbox-colliders.json; commit it to public/");
+    }
+
+    async function saveProject() {
+      const json = JSON.stringify(state.colliders, null, 2);
+      try {
+        const res = await fetch("/__hitbox/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: json,
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || `HTTP ${res.status}`);
+        }
+        localStorage.setItem(STORAGE_KEY, json);
+        status("Saved to project file: public/hitbox-colliders.json");
+      } catch (err) {
+        status("Project save failed: " + err.message);
+      }
+    }
+
+    function resetFrame() {
+      const frame = state.frames[state.selected];
+      if (usesZoneSet(frame)) {
+        state.colliders[frame.id] = { unsafe: deepClone(frame.defaults), safe: deepClone(frame.defaults) };
+      } else {
+        state.colliders[frame.id] = deepClone(frame.defaults);
+      }
+      syncControls();
+      drawFrame();
+      status(`Reset ${frame.id} to defaults.`);
+    }
+
+    function resetAll() {
+      const next = {};
+      for (const frame of state.frames) {
+        if (usesZoneSet(frame)) {
+          next[frame.id] = { unsafe: deepClone(frame.defaults), safe: deepClone(frame.defaults) };
+        } else {
+          next[frame.id] = deepClone(frame.defaults);
+        }
+      }
+      state.colliders = next;
+      syncControls();
+      drawFrame();
+      status("Reset all frames to defaults.");
+    }
+
+    function renderFrameList() {
+      els.frameList.innerHTML = "";
+      const groups = new Map();
+      state.frames.forEach((frame, idx) => {
+        if (!groups.has(frame.sourceKey)) groups.set(frame.sourceKey, { label: frame.sourceLabel, items: [] });
+        groups.get(frame.sourceKey).items.push({ frame, idx });
+      });
+
+      for (const [, group] of groups) {
+        const wrap = document.createElement("div");
+        wrap.className = "frame-group";
+
+        const title = document.createElement("div");
+        title.className = "frame-group-title";
+        title.innerHTML = `<span>${group.label}</span><span>${group.items.length}f</span>`;
+        wrap.appendChild(title);
+
+        const row = document.createElement("div");
+        row.className = "frame-group-frames";
+        group.items.forEach(({ frame, idx }) => {
+          const btn = document.createElement("button");
+          btn.className = "frame-btn small" + (idx === state.selected ? " active" : "");
+          btn.innerHTML = `#${frame.frameIndex}`;
+          btn.title = `${frame.sourceLabel} #${frame.frameIndex} (${frame.frameW}x${frame.frameH})`;
+          btn.onclick = () => {
+            state.selected = idx;
+            renderFrameList();
+            syncControls();
+            drawFrame();
+          };
+          row.appendChild(btn);
+        });
+        wrap.appendChild(row);
+        els.frameList.appendChild(wrap);
+      }
+    }
+
+    function syncControls() {
+      const frame = state.frames[state.selected];
+      const entry = getColliderEntry(frame);
+      const collider = getActiveCollider(frame);
+
+      els.currentName.textContent = `${frame.sourceLabel} #${frame.frameIndex}`;
+      els.currentSource.textContent = frame.sourcePath;
+      els.currentSize.textContent = `${frame.frameW}x${frame.frameH}`;
+
+      els.zoneType.disabled = !isZoneSetEntry(entry);
+      els.zoneType.value = state.activeZone;
+
+      els.shapeType.value = collider.type;
+      els.rectGroup.style.display = collider.type === "rect" ? "grid" : "none";
+      els.circleGroup.style.display = collider.type === "circle" ? "grid" : "none";
+
+      els.rectX.value = collider.x ?? 0;
+      els.rectY.value = collider.y ?? 0;
+      els.rectW.value = collider.width ?? 1;
+      els.rectH.value = collider.height ?? 1;
+
+      els.circleCx.value = collider.cx ?? 0;
+      els.circleCy.value = collider.cy ?? 0;
+      els.circleR.value = collider.radius ?? 1;
+    }
+
+    function drawFrame() {
+      const frame = state.frames[state.selected];
+      const entry = getColliderEntry(frame);
+      const collider = getActiveCollider(frame);
+      const img = state.images.get(frame.sourcePath);
+      if (!img) return;
+
+      const W = els.canvas.width;
+      const H = els.canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const maxW = W - 80;
+      const maxH = H - 80;
+      const scale = Math.max(1, Math.floor(Math.min(maxW / frame.sw, maxH / frame.sh)));
+      const drawW = frame.sw * scale;
+      const drawH = frame.sh * scale;
+      const dx = Math.floor((W - drawW) / 2);
+      const dy = Math.floor((H - drawH) / 2);
+      state.view = { dx, dy, scale, frameW: frame.sw, frameH: frame.sh };
+
+      ctx.drawImage(img, frame.sx, frame.sy, frame.sw, frame.sh, dx, dy, drawW, drawH);
+
+      ctx.strokeStyle = "rgba(0,0,0,0.85)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(dx, dy, drawW, drawH);
+
+      const drawCollider = (col, colors, drawHandles) => {
+        ctx.lineWidth = 2;
+        if (col.type === "circle") {
+          const cx = dx + col.cx * scale;
+          const cy = dy + col.cy * scale;
+          const r = col.radius * scale;
+          ctx.fillStyle = colors.fill;
+          ctx.strokeStyle = colors.stroke;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          if (!drawHandles) return;
+          const hr = 5;
+          const hx = dx + (col.cx + col.radius) * scale;
+          const hy = cy;
+          ctx.fillStyle = "rgba(255, 240, 120, 0.95)";
+          ctx.strokeStyle = "rgba(0,0,0,0.9)";
+          ctx.beginPath();
+          ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          return;
+        }
+
+        const rx = dx + col.x * scale;
+        const ry = dy + col.y * scale;
+        const rw = col.width * scale;
+        const rh = col.height * scale;
+        ctx.fillStyle = colors.fill;
+        ctx.strokeStyle = colors.stroke;
+        ctx.fillRect(rx, ry, rw, rh);
+        ctx.strokeRect(rx, ry, rw, rh);
+        if (!drawHandles) return;
+
+        const hs = 8;
+        const handles = [
+          [rx, ry], [rx + rw / 2, ry], [rx + rw, ry],
+          [rx + rw, ry + rh / 2], [rx + rw, ry + rh],
+          [rx + rw / 2, ry + rh], [rx, ry + rh], [rx, ry + rh / 2],
+        ];
+        ctx.fillStyle = "rgba(255, 240, 120, 0.95)";
+        ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        for (const [hx, hy] of handles) {
+          ctx.fillRect(Math.round(hx - hs / 2), Math.round(hy - hs / 2), hs, hs);
+          ctx.strokeRect(Math.round(hx - hs / 2), Math.round(hy - hs / 2), hs, hs);
+        }
+      };
+
+      if (isZoneSetEntry(entry)) {
+        if (isColliderShape(entry.unsafe)) {
+          drawCollider(entry.unsafe, { fill: "rgba(255, 100, 100, 0.15)", stroke: "rgba(255, 100, 100, 0.95)" }, state.activeZone === "unsafe");
+        }
+        if (isColliderShape(entry.safe)) {
+          drawCollider(entry.safe, { fill: "rgba(110, 255, 140, 0.15)", stroke: "rgba(110, 255, 140, 0.95)" }, state.activeZone === "safe");
+        }
+      } else {
+        drawCollider(collider, { fill: "rgba(120, 255, 170, 0.15)", stroke: "rgba(120, 255, 170, 0.95)" }, true);
+      }
+
+      ctx.fillStyle = "rgba(215,240,255,0.9)";
+      ctx.font = "12px monospace";
+      ctx.fillText(`${frame.sourceLabel} #${frame.frameIndex}`, 12, 22);
+      ctx.fillText(`Frame ${frame.sw}x${frame.sh} | Scale ${scale}x`, 12, 40);
+    }
+
+    function canvasToFrame(clientX, clientY) {
+      const rect = els.canvas.getBoundingClientRect();
+      const canvasX = ((clientX - rect.left) * els.canvas.width) / rect.width;
+      const canvasY = ((clientY - rect.top) * els.canvas.height) / rect.height;
+      const { dx, dy, scale } = state.view;
+      const fx = (canvasX - dx) / scale;
+      const fy = (canvasY - dy) / scale;
+      return { fx, fy };
+    }
+
+    function frameToCanvas(fx, fy) {
+      const { dx, dy, scale } = state.view;
+      return { cx: dx + fx * scale, cy: dy + fy * scale };
+    }
+
+    function clampRect(collider, frame) {
+      collider.width = Math.max(1, Math.round(collider.width));
+      collider.height = Math.max(1, Math.round(collider.height));
+      collider.x = Math.round(collider.x);
+      collider.y = Math.round(collider.y);
+      collider.width = Math.min(collider.width, frame.frameW);
+      collider.height = Math.min(collider.height, frame.frameH);
+      collider.x = Math.max(0, Math.min(collider.x, frame.frameW - collider.width));
+      collider.y = Math.max(0, Math.min(collider.y, frame.frameH - collider.height));
+    }
+
+    function clampCircle(collider, frame) {
+      collider.radius = Math.max(1, Math.round(collider.radius));
+      collider.cx = Math.round(collider.cx);
+      collider.cy = Math.round(collider.cy);
+      collider.radius = Math.min(collider.radius, Math.floor(Math.min(frame.frameW, frame.frameH) / 2));
+      collider.cx = Math.max(collider.radius, Math.min(collider.cx, frame.frameW - collider.radius));
+      collider.cy = Math.max(collider.radius, Math.min(collider.cy, frame.frameH - collider.radius));
+    }
+
+    function propagatePositionToFutureFrames(frame, before, after) {
+      if (!before || !after) return 0;
+      const changed =
+        before.type !== after.type ||
+        before.x !== after.x ||
+        before.y !== after.y ||
+        before.width !== after.width ||
+        before.height !== after.height ||
+        before.cx !== after.cx ||
+        before.cy !== after.cy ||
+        before.radius !== after.radius;
+      if (!changed) return 0;
+
+      let count = 0;
+      for (const targetFrame of state.frames) {
+        if (targetFrame.sourceKey !== frame.sourceKey) continue;
+        if (targetFrame.frameIndex <= frame.frameIndex) continue;
+        const target = deepClone(after);
+        if (target.type === "rect") clampRect(target, targetFrame);
+        if (target.type === "circle") clampCircle(target, targetFrame);
+        if (usesZoneSet(targetFrame)) {
+          const entry = ensureZoneSet(targetFrame, state.colliders[targetFrame.id]);
+          const zone = state.activeZone === "safe" ? "safe" : "unsafe";
+          entry[zone] = target;
+          state.colliders[targetFrame.id] = entry;
+        } else {
+          state.colliders[targetFrame.id] = target;
+        }
+        count++;
+      }
+      return count;
+    }
+
+    function distanceSq(ax, ay, bx, by) {
+      const dx = ax - bx;
+      const dy = ay - by;
+      return dx * dx + dy * dy;
+    }
+
+    function getRectHandle(frame, collider, fx, fy) {
+      const tol = Math.max(2, 8 / Math.max(1, state.view.scale));
+      const left = collider.x;
+      const top = collider.y;
+      const right = collider.x + collider.width;
+      const bottom = collider.y + collider.height;
+      const midX = (left + right) / 2;
+      const midY = (top + bottom) / 2;
+      const near = (x, y) => distanceSq(fx, fy, x, y) <= tol * tol;
+
+      if (near(left, top)) return "resize-nw";
+      if (near(midX, top)) return "resize-n";
+      if (near(right, top)) return "resize-ne";
+      if (near(right, midY)) return "resize-e";
+      if (near(right, bottom)) return "resize-se";
+      if (near(midX, bottom)) return "resize-s";
+      if (near(left, bottom)) return "resize-sw";
+      if (near(left, midY)) return "resize-w";
+
+      const inside = fx >= left && fx <= right && fy >= top && fy <= bottom;
+      if (inside) return "move-rect";
+      return "none";
+    }
+
+    function getCircleHandle(frame, collider, fx, fy) {
+      const tol = Math.max(2, 8 / Math.max(1, state.view.scale));
+      const centerDist = Math.sqrt(distanceSq(fx, fy, collider.cx, collider.cy));
+      const handleX = collider.cx + collider.radius;
+      const handleY = collider.cy;
+      if (distanceSq(fx, fy, handleX, handleY) <= tol * tol) return "resize-circle";
+      if (centerDist <= collider.radius) return "move-circle";
+      return "none";
+    }
+
+    function updateCanvasCursor(hitType) {
+      const map = {
+        "none": "default",
+        "move-rect": "move",
+        "move-circle": "move",
+        "resize-nw": "nwse-resize",
+        "resize-se": "nwse-resize",
+        "resize-ne": "nesw-resize",
+        "resize-sw": "nesw-resize",
+        "resize-n": "ns-resize",
+        "resize-s": "ns-resize",
+        "resize-e": "ew-resize",
+        "resize-w": "ew-resize",
+        "resize-circle": "ew-resize",
+      };
+      els.canvas.style.cursor = map[hitType] || "default";
+    }
+
+    function detectHit(frame, collider, fx, fy) {
+      if (collider.type === "circle") return getCircleHandle(frame, collider, fx, fy);
+      return getRectHandle(frame, collider, fx, fy);
+    }
+
+    function applyDrag(frame, collider, fx, fy) {
+      const d = state.drag;
+      if (!d.active || !d.start) return false;
+      const start = d.start;
+      const dx = fx - d.startFx;
+      const dy = fy - d.startFy;
+
+      if (d.type === "move-rect" && collider.type === "rect") {
+        collider.x = start.x + dx;
+        collider.y = start.y + dy;
+        clampRect(collider, frame);
+        return true;
+      }
+      if (d.type === "move-circle" && collider.type === "circle") {
+        collider.cx = start.cx + dx;
+        collider.cy = start.cy + dy;
+        clampCircle(collider, frame);
+        return true;
+      }
+      if (d.type === "resize-circle" && collider.type === "circle") {
+        const dist = Math.sqrt(distanceSq(fx, fy, start.cx, start.cy));
+        collider.cx = start.cx;
+        collider.cy = start.cy;
+        collider.radius = dist;
+        clampCircle(collider, frame);
+        return true;
+      }
+      if (collider.type !== "rect") return false;
+
+      const left = start.x;
+      const top = start.y;
+      const right = start.x + start.width;
+      const bottom = start.y + start.height;
+
+      if (d.type === "resize-nw") {
+        collider.x = Math.min(fx, right - 1);
+        collider.y = Math.min(fy, bottom - 1);
+        collider.width = right - collider.x;
+        collider.height = bottom - collider.y;
+      } else if (d.type === "resize-n") {
+        collider.y = Math.min(fy, bottom - 1);
+        collider.height = bottom - collider.y;
+        collider.x = left;
+        collider.width = start.width;
+      } else if (d.type === "resize-ne") {
+        const newRight = Math.max(fx, left + 1);
+        collider.y = Math.min(fy, bottom - 1);
+        collider.x = left;
+        collider.width = newRight - left;
+        collider.height = bottom - collider.y;
+      } else if (d.type === "resize-e") {
+        const newRight = Math.max(fx, left + 1);
+        collider.x = left;
+        collider.y = top;
+        collider.width = newRight - left;
+        collider.height = start.height;
+      } else if (d.type === "resize-se") {
+        const newRight = Math.max(fx, left + 1);
+        const newBottom = Math.max(fy, top + 1);
+        collider.x = left;
+        collider.y = top;
+        collider.width = newRight - left;
+        collider.height = newBottom - top;
+      } else if (d.type === "resize-s") {
+        const newBottom = Math.max(fy, top + 1);
+        collider.x = left;
+        collider.y = top;
+        collider.width = start.width;
+        collider.height = newBottom - top;
+      } else if (d.type === "resize-sw") {
+        const newBottom = Math.max(fy, top + 1);
+        collider.x = Math.min(fx, right - 1);
+        collider.y = top;
+        collider.width = right - collider.x;
+        collider.height = newBottom - top;
+      } else if (d.type === "resize-w") {
+        collider.x = Math.min(fx, right - 1);
+        collider.y = top;
+        collider.width = right - collider.x;
+        collider.height = start.height;
+      } else {
+        return false;
+      }
+
+      clampRect(collider, frame);
+      return true;
+    }
+
+    function bindControls() {
+      const numberInputs = [
+        [els.rectX, "x"], [els.rectY, "y"], [els.rectW, "width"], [els.rectH, "height"],
+        [els.circleCx, "cx"], [els.circleCy, "cy"], [els.circleR, "radius"],
+      ];
+
+      numberInputs.forEach(([el, key]) => {
+        el.addEventListener("input", () => {
+          const frame = state.frames[state.selected];
+          const collider = getActiveCollider(frame);
+          const before = deepClone(collider);
+          const n = Number(el.value);
+          if (!Number.isFinite(n)) return;
+          collider[key] = key === "width" || key === "height" || key === "radius" ? Math.max(1, Math.round(n)) : Math.round(n);
+          if (collider.type === "rect") clampRect(collider, frame);
+          if (collider.type === "circle") clampCircle(collider, frame);
+          const changed = propagatePositionToFutureFrames(frame, before, collider);
+          if (changed > 0) status(`Updated current + ${changed} later frame(s) in ${frame.sourceLabel}.`);
+          syncControls();
+          drawFrame();
+        });
+      });
+
+      els.shapeType.addEventListener("change", () => {
+        const frame = state.frames[state.selected];
+        const collider = getActiveCollider(frame);
+        collider.type = els.shapeType.value;
+        if (collider.type === "circle") {
+          if (collider.cx == null) collider.cx = Math.floor(frame.frameW / 2);
+          if (collider.cy == null) collider.cy = Math.floor(frame.frameH / 2);
+          if (collider.radius == null) collider.radius = Math.floor(Math.min(frame.frameW, frame.frameH) * 0.3);
+        } else {
+          if (collider.x == null) collider.x = 0;
+          if (collider.y == null) collider.y = 0;
+          if (collider.width == null) collider.width = Math.floor(frame.frameW * 0.5);
+          if (collider.height == null) collider.height = Math.floor(frame.frameH * 0.5);
+        }
+        syncControls();
+        drawFrame();
+      });
+
+      els.zoneType.addEventListener("change", () => {
+        state.activeZone = els.zoneType.value === "safe" ? "safe" : "unsafe";
+        syncControls();
+        drawFrame();
+      });
+
+      els.prevBtn.onclick = () => {
+        state.selected = (state.selected - 1 + state.frames.length) % state.frames.length;
+        renderFrameList();
+        syncControls();
+        drawFrame();
+      };
+      els.nextBtn.onclick = () => {
+        state.selected = (state.selected + 1) % state.frames.length;
+        renderFrameList();
+        syncControls();
+        drawFrame();
+      };
+
+      els.saveProjectBtn.onclick = () => void saveProject();
+      els.saveBtn.onclick = () => saveAll();
+
+      els.loadFileBtn.onclick = () => els.loadFileInput.click();
+      els.loadFileInput.addEventListener("change", () => {
+        const file = els.loadFileInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target.result);
+            if (!parsed || typeof parsed !== "object") throw new Error("JSON must be an object");
+            state.colliders = parsed;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            syncControls();
+            drawFrame();
+            status("Loaded " + file.name);
+          } catch (err) {
+            status("Load failed: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+        els.loadFileInput.value = "";
+      });
+      els.resetFrameBtn.onclick = () => resetFrame();
+      els.resetAllBtn.onclick = () => {
+        if (!window.confirm("Reset ALL frame colliders to defaults? This affects every creature.")) return;
+        resetAll();
+      };
+
+      els.copyFrameBtn.onclick = async () => {
+        const frame = state.frames[state.selected];
+        const payload = { id: frame.id, collider: getColliderEntry(frame) };
+        await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        status(`Copied ${frame.id}.`);
+      };
+
+      els.copyAllBtn.onclick = async () => {
+        await navigator.clipboard.writeText(JSON.stringify(state.colliders, null, 2));
+        status("Copied all frame colliders as JSON.");
+      };
+
+      els.importBtn.onclick = () => {
+        try {
+          const parsed = JSON.parse(els.jsonBox.value.trim());
+          if (!parsed || typeof parsed !== "object") throw new Error("JSON must be an object");
+          state.colliders = parsed;
+          syncControls();
+          drawFrame();
+          status("Imported JSON into current session.");
+        } catch (err) {
+          status("Import failed: " + err.message);
+        }
+      };
+
+      els.canvas.addEventListener("mousedown", (ev) => {
+        const frame = state.frames[state.selected];
+        const collider = getActiveCollider(frame);
+        const { fx, fy } = canvasToFrame(ev.clientX, ev.clientY);
+        const hit = detectHit(frame, collider, fx, fy);
+        if (hit === "none") return;
+        state.drag.active = true;
+        state.drag.type = hit;
+        state.drag.startFx = fx;
+        state.drag.startFy = fy;
+        state.drag.start = deepClone(collider);
+        updateCanvasCursor(hit);
+        status(`Dragging ${hit}.`);
+      });
+
+      window.addEventListener("mousemove", (ev) => {
+        const frame = state.frames[state.selected];
+        const collider = getActiveCollider(frame);
+        const { fx, fy } = canvasToFrame(ev.clientX, ev.clientY);
+        if (state.drag.active) {
+          const before = deepClone(collider);
+          if (!applyDrag(frame, collider, fx, fy)) return;
+          propagatePositionToFutureFrames(frame, before, collider);
+          syncControls();
+          drawFrame();
+        } else {
+          const hit = detectHit(frame, collider, fx, fy);
+          state.hover.type = hit;
+          updateCanvasCursor(hit);
+        }
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (!state.drag.active) return;
+        state.drag.active = false;
+        state.drag.type = "none";
+        state.drag.start = null;
+        const frame = state.frames[state.selected];
+        const collider = getActiveCollider(frame);
+        const hit = detectHit(frame, collider, state.drag.startFx, state.drag.startFy);
+        updateCanvasCursor(hit);
+        status("Hitbox updated. Click Save to keep it.");
+      });
+    }
+
+    async function main() {
+      status("Loading assets...");
+      await buildFrames();
+      await loadSaved();
+      renderFrameList();
+      bindControls();
+      syncControls();
+      drawFrame();
+      status("Loaded. Tune frame colliders, then Save.");
+    }
+
+    main().catch((err) => {
+      console.error(err);
+      status("Failed to initialize: " + err.message);
+    });
+  </script>
+</body>
+</html>
+

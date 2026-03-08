@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { oasiz } from '@oasiz/sdk';
 
 interface Wall {
     distance: number;
@@ -69,7 +70,7 @@ export default class Scene extends Phaser.Scene {
         this.load.audio('lose', 'audio/Lose.wav');
         this.load.audio('pop', 'audio/PopBlock.wav');
         this.load.audio('go', 'audio/Go.wav');
-        this.load.audio('bgm', 'audio/BgMusic.mp3');
+        // BGM is lazy-loaded after game starts to avoid blocking initial load
     }
 
     create(data: { startActive?: boolean }) {
@@ -100,7 +101,7 @@ export default class Scene extends Phaser.Scene {
 
             // Safe Area Logic (per Oasiz Guide)
             const isMobile = window.matchMedia('(pointer: coarse)').matches;
-            const topMargin = isMobile ? 60 : 30; // Reduced margin as req
+            const topMargin = isMobile ? 120 : 45;
             const leftMargin = 20;
 
             // --- Score Container (3D Card Style) ---
@@ -148,6 +149,7 @@ export default class Scene extends Phaser.Scene {
             if (startActive) {
                 this.scoreContainer.setVisible(true);
                 this.gameState = 'SPAWNING';
+                this.loadAndPlayBgm();
             } else {
                 this.scoreContainer.setVisible(false); // Hide in Menu by default
                 this.gameState = 'MENU';
@@ -172,25 +174,16 @@ export default class Scene extends Phaser.Scene {
                 }
             });
 
-            // Start BGM
-            if ((window as any).platform && (window as any).platform.musicEnabled) {
-                // Clean up any existing BGM to avoid duplicates
-                const existingSounds = this.sound.getAll('bgm');
-                existingSounds.forEach(s => s.stop());
+            // BGM is lazy-loaded in startGame() to avoid blocking initial load
 
-                // Create and play new instance
-                this.bgMusic = this.sound.add('bgm', { loop: true, volume: 0.4 });
-                this.bgMusic.play();
-
-                // Ensure music stops when scene shuts down (restarts)
-                this.events.once('shutdown', () => {
-                    if (this.bgMusic) {
-                        this.bgMusic.stop();
-                        this.bgMusic.destroy();
-                        this.bgMusic = undefined;
-                    }
-                });
-            }
+            // Ensure music stops when scene shuts down (restarts)
+            this.events.once('shutdown', () => {
+                if (this.bgMusic) {
+                    this.bgMusic.stop();
+                    this.bgMusic.destroy();
+                    this.bgMusic = undefined;
+                }
+            });
 
             // Start Automation Loop - managed in update()
             // Start in MENU state - wait for PLAY button
@@ -237,7 +230,7 @@ export default class Scene extends Phaser.Scene {
 
             // Expose Restart to Window
             (window as any).restartGame = () => {
-                this.scene.restart();
+                this.scene.restart({ startActive: true });
             };
             (window as any).pauseGame = () => {
                 this.scene.pause();
@@ -248,7 +241,12 @@ export default class Scene extends Phaser.Scene {
 
                 // If in MENU, just resume music and return (No countdown)
                 if (this.gameState === 'MENU') {
-                    if (this.bgMusic && !this.bgMusic.isPlaying) this.bgMusic.resume();
+                    if ((window as any).platform?.musicEnabled && this.bgMusic && !this.bgMusic.isPlaying) this.bgMusic.resume();
+                    return;
+                }
+
+                // If game is over, don't resume gameplay
+                if (this.isGameOver) {
                     return;
                 }
 
@@ -259,6 +257,40 @@ export default class Scene extends Phaser.Scene {
                 this.isResuming = true;
                 this.startResumeCountdown();
             };
+
+            // Expose music toggle so HTML settings can control BGM
+            (window as any).toggleMusic = (enabled: boolean) => {
+                if (enabled) {
+                    // Resume or start BGM
+                    if (this.bgMusic && this.bgMusic.isPaused) {
+                        this.bgMusic.resume();
+                    } else if (!this.bgMusic && this.gameState !== 'MENU') {
+                        this.loadAndPlayBgm();
+                    }
+                } else {
+                    // Stop BGM
+                    if (this.bgMusic && this.bgMusic.isPlaying) {
+                        this.bgMusic.pause();
+                    }
+                }
+            };
+
+            oasiz.onPause(() => {
+                this.scene.pause();
+                if (this.bgMusic && this.bgMusic.isPlaying) this.bgMusic.pause();
+            });
+
+            oasiz.onResume(() => {
+                this.scene.resume();
+                if (this.gameState === 'MENU') {
+                    if ((window as any).platform?.musicEnabled && this.bgMusic && !this.bgMusic.isPlaying) this.bgMusic.resume();
+                    return;
+                }
+                if (this.isResuming) return;
+                this.isGameRunning = false;
+                this.isResuming = true;
+                this.startResumeCountdown();
+            });
 
             // Signal HTML that Game is Ready
             if ((window as any).onGameReady) {
@@ -296,6 +328,37 @@ export default class Scene extends Phaser.Scene {
 
         // Start Spawning soon
         this.nextSpawnTime = this.time.now + 500;
+
+        // Lazy-load and play BGM (non-blocking)
+        this.loadAndPlayBgm();
+    }
+
+    private loadAndPlayBgm() {
+        if (!(window as any).platform?.musicEnabled) return;
+
+        // If already loaded from a previous round, just play it
+        if (this.cache.audio.exists('bgm')) {
+            const existingSounds = this.sound.getAll('bgm');
+            existingSounds.forEach(s => s.stop());
+            this.bgMusic = this.sound.add('bgm', { loop: true, volume: 0 });
+            this.bgMusic.play();
+            this.tweens.add({ targets: this.bgMusic, volume: 0.4, duration: 2000 });
+            return;
+        }
+
+        // First time: load asynchronously then play with fade-in
+        this.load.audio('bgm', 'audio/BgMusic.mp3');
+        this.load.once('complete', () => {
+            console.log('[Scene] BGM loaded, starting playback');
+            if (this.isGameOver) return; // Game ended before music loaded
+            const existingSounds = this.sound.getAll('bgm');
+            existingSounds.forEach(s => s.stop());
+            this.bgMusic = this.sound.add('bgm', { loop: true, volume: 0 });
+            this.bgMusic.play();
+            // Smooth 2-second fade-in so music doesn't appear abruptly
+            this.tweens.add({ targets: this.bgMusic, volume: 0.4, duration: 2000 });
+        });
+        this.load.start();
     }
 
     updateGameLoop(time: number, _delta: number) {
@@ -856,8 +919,9 @@ export default class Scene extends Phaser.Scene {
                     wall.onHitCenter();
                 }
 
-                // Haptic on impact
-                if ((window as any).triggerHaptic) (window as any).triggerHaptic("medium");
+                if ((window as any).platform?.hapticsEnabled) {
+                    oasiz.triggerHaptic("medium");
+                }
 
                 // Retro Pulse Effect
                 this.playPulseEffect();
@@ -1140,13 +1204,11 @@ export default class Scene extends Phaser.Scene {
         this.cameras.main.shake(500, 0.05);
         this.cameras.main.flash(500, 255, 0, 0);
 
-        // Haptic
-        if ((window as any).triggerHaptic) (window as any).triggerHaptic("error");
-
-        // Submit Score
-        if ((window as any).submitScore) {
-            (window as any).submitScore(this.score);
+        if ((window as any).platform?.hapticsEnabled) {
+            oasiz.triggerHaptic("error");
         }
+
+        oasiz.submitScore(Math.floor(this.score));
 
         // Show HTML UI
         if ((window as any).showGameOver) {
@@ -1353,7 +1415,7 @@ export default class Scene extends Phaser.Scene {
                         countText.destroy();
                         this.isGameRunning = true;
                         this.isResuming = false;
-                        if (this.bgMusic && this.bgMusic.isPaused) this.bgMusic.resume();
+                        if ((window as any).platform?.musicEnabled && this.bgMusic && this.bgMusic.isPaused) this.bgMusic.resume();
                     });
                 }
             }

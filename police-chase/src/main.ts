@@ -2,6 +2,7 @@
 // Drive freely across infinite procedural biomes, make police cars crash!
 
 import * as Tone from "tone";
+import { oasiz } from "@oasiz/sdk";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -38,12 +39,29 @@ interface VehicleType {
   acceleration: number;
   turnSpeed: number;
   grip: number;
+  cost: number;
   colors: {
     main: string;
     dark: string;
     accent: string;
   };
 }
+
+interface Coin {
+  x: number;
+  y: number;
+  collected: boolean;
+  bobPhase: number;
+  collectTime: number;
+}
+
+interface CoinPopup {
+  x: number;
+  y: number;
+  time: number;
+}
+
+type EnemyType = "patrol" | "interceptor" | "swat";
 
 interface PoliceCar {
   x: number;
@@ -56,6 +74,8 @@ interface PoliceCar {
   id: number;
   lightPhase: number;
   state: "chase" | "crashed";
+  enemyType: EnemyType;
+  health: number;
 }
 
 interface Explosion {
@@ -133,6 +153,7 @@ interface Chunk {
   roadSegments: RoadSegment[];
   decorations: Decoration[];
   landmarks: Landmark[];
+  coins: Coin[];
 }
 
 interface Landmark {
@@ -178,7 +199,7 @@ interface Settings {
 }
 
 type BiomeType = "desert" | "forest" | "snow" | "city" | "beach" | "volcanic";
-type GamePhase = "start" | "playing" | "gameOver";
+type GamePhase = "start" | "playing" | "paused" | "gameOver";
 type InputState = { up: boolean; down: boolean; left: boolean; right: boolean };
 
 // ============================================================================
@@ -199,13 +220,22 @@ const PLAYER_TURN_SPEED = 0.08;
 const PLAYER_GRIP = 0.14;
 const PLAYER_DRAG = 0.993;
 
-// Police settings
+// Enemy settings
 const POLICE_MAX_SPEED = 16;
 const POLICE_ACCELERATION = 0.15;
 const POLICE_SPAWN_INTERVAL_START = 2000;
 const POLICE_SPAWN_INTERVAL_MIN = 600;
 const POLICE_COLLISION_RADIUS = 38;
 const MAX_POLICE = 15;
+
+const INTERCEPTOR_UNLOCK_TIME = 20000;
+const SWAT_UNLOCK_TIME = 40000;
+
+const ENEMY_STATS: Record<EnemyType, { width: number; height: number; maxSpeed: number; accel: number; turnRate: number; health: number; points: number }> = {
+  patrol: { width: 30, height: 52, maxSpeed: 16, accel: 0.15, turnRate: 0.05, health: 1, points: 100 },
+  interceptor: { width: 26, height: 48, maxSpeed: 22, accel: 0.22, turnRate: 0.08, health: 1, points: 150 },
+  swat: { width: 44, height: 72, maxSpeed: 12, accel: 0.10, turnRate: 0.03, health: 2, points: 250 },
+};
 
 // Explosion settings
 const EXPLOSION_DURATION = 700;
@@ -312,78 +342,84 @@ const COLORS = {
   skidMark: "#3a3a3a",
 };
 
-// Vehicle definitions
+// Vehicle definitions — purely cosmetic skins
 const VEHICLES: VehicleType[] = [
   {
     id: "sedan",
     name: "Street Sedan",
-    description: "Your everyday getaway car. Nothing special, but reliable.",
+    description: "Clean silver finish. The classic getaway look.",
     width: 34,
     height: 58,
     maxSpeed: 22,
     acceleration: 0.35,
     turnSpeed: 0.08,
     grip: 0.14,
+    cost: 0,
     colors: { main: "#c8c8c8", dark: "#909090", accent: "#ffffff" },
   },
   {
     id: "sports",
     name: "Viper X",
-    description: "Low, fast, and impossible to control. Good luck!",
-    width: 30,
-    height: 52,
-    maxSpeed: 30,
-    acceleration: 0.48,
-    turnSpeed: 0.055,
-    grip: 0.08,
+    description: "Racing red with gold trim. A head-turner.",
+    width: 33,
+    height: 56,
+    maxSpeed: 22,
+    acceleration: 0.35,
+    turnSpeed: 0.08,
+    grip: 0.14,
+    cost: 100,
     colors: { main: "#ff2233", dark: "#990011", accent: "#ffdd00" },
   },
   {
     id: "muscle",
     name: "69 Charger",
-    description: "Classic American muscle. Drifts like butter on a hot pan.",
-    width: 38,
-    height: 66,
-    maxSpeed: 24,
-    acceleration: 0.30,
-    turnSpeed: 0.065,
-    grip: 0.10,
+    description: "Matte black with orange stripes. Old school cool.",
+    width: 35,
+    height: 60,
+    maxSpeed: 22,
+    acceleration: 0.35,
+    turnSpeed: 0.08,
+    grip: 0.14,
+    cost: 200,
     colors: { main: "#1a1a2a", dark: "#0a0a12", accent: "#ff6600" },
   },
   {
     id: "buggy",
     name: "Dune Rat",
-    description: "Tiny terror. Bounces off everything and keeps going.",
-    width: 30,
-    height: 42,
-    maxSpeed: 20,
-    acceleration: 0.55,
-    turnSpeed: 0.14,
-    grip: 0.16,
+    description: "Lime green with exposed roll cage. Stands out anywhere.",
+    width: 33,
+    height: 54,
+    maxSpeed: 22,
+    acceleration: 0.35,
+    turnSpeed: 0.08,
+    grip: 0.14,
+    cost: 150,
     colors: { main: "#44cc66", dark: "#228844", accent: "#ffff44" },
   },
   {
     id: "tank",
     name: "Iron Beast",
-    description: "Slow but UNSTOPPABLE. Crushes police on contact!",
-    width: 48,
-    height: 70,
-    maxSpeed: 14,
-    acceleration: 0.18,
-    turnSpeed: 0.04,
-    grip: 0.25,
+    description: "Military olive drab with steel plating. Looks tough.",
+    width: 36,
+    height: 60,
+    maxSpeed: 22,
+    acceleration: 0.35,
+    turnSpeed: 0.08,
+    grip: 0.14,
+    cost: 350,
     colors: { main: "#556655", dark: "#334433", accent: "#aabbaa" },
   },
   {
     id: "hotrod",
     name: "Devil Rod",
-    description: "Flames shoot out. You slide everywhere. Pure chaos.",
-    width: 32,
-    height: 62,
-    maxSpeed: 26,
-    acceleration: 0.60,
-    turnSpeed: 0.07,
-    grip: 0.07,
+    description: "Deep crimson with flame decals. All attitude.",
+    width: 34,
+    height: 58,
+    maxSpeed: 22,
+    acceleration: 0.35,
+    turnSpeed: 0.08,
+    grip: 0.14,
+    cost: 500,
     colors: { main: "#880000", dark: "#550000", accent: "#ff4400" },
   },
 ];
@@ -429,16 +465,27 @@ let crashCount = 0;
 let survivalScore = 0;
 
 let camera = { x: 0, y: 0 };
+let interceptorWarningShown = false;
+let swatWarningShown = false;
 
 let w = 0;
 let h = 0;
 let isMobile = false;
 
-const settings: Settings = {
+let settings: Settings = {
   music: true,
   fx: true,
   haptics: true,
 };
+
+let totalCoins = 0;
+let sessionCoins = 0;
+let coinPopups: CoinPopup[] = [];
+let ownedVehicles: Set<string> = new Set(["sedan"]);
+let shopIndex = 0;
+
+const COIN_COLLECT_RADIUS = 35;
+const COIN_SIZE = 12;
 
 // Background music
 const MUSIC_URL = "https://assets.oasiz.ai/audio/car-song.mp3";
@@ -619,6 +666,39 @@ function getBiomeColors(worldX: number, worldY: number): typeof BIOME_COLORS["de
 // INITIALIZATION
 // ============================================================================
 
+function loadSettings(): void {
+  try {
+    const saved = localStorage.getItem("policeChase_settings");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      settings = { music: !!parsed.music, fx: !!parsed.fx, haptics: !!parsed.haptics };
+    }
+  } catch { /* use defaults */ }
+}
+
+function saveSettings(): void {
+  localStorage.setItem("policeChase_settings", JSON.stringify(settings));
+}
+
+function loadPersistentState(): void {
+  const gs = oasiz.loadGameState();
+  if (gs && typeof gs.coins === "number") {
+    totalCoins = gs.coins;
+  }
+  if (gs && Array.isArray(gs.owned)) {
+    ownedVehicles = new Set(gs.owned as string[]);
+    if (!ownedVehicles.has("sedan")) ownedVehicles.add("sedan");
+  }
+  if (gs && typeof gs.selectedVehicle === "string" && ownedVehicles.has(gs.selectedVehicle as string)) {
+    selectedVehicleId = gs.selectedVehicle as string;
+  }
+  console.log("[loadPersistentState] Coins:", totalCoins, "Owned:", [...ownedVehicles]);
+}
+
+function savePersistentState(): void {
+  oasiz.saveGameState({ coins: totalCoins, owned: [...ownedVehicles], selectedVehicle: selectedVehicleId });
+}
+
 function init(): void {
   console.log("[init] Starting Police Chase - Infinite World");
 
@@ -627,20 +707,36 @@ function init(): void {
 
   isMobile = window.matchMedia("(pointer: coarse)").matches;
 
+  loadSettings();
+  loadPersistentState();
+
+  oasiz.onPause(() => {
+    if (bgMusic) bgMusic.pause();
+    if (gamePhase === "playing") {
+      pauseGame();
+    }
+  });
+
+  oasiz.onResume(() => {
+    if (bgMusic && settings.music && gamePhase === "playing") {
+      bgMusic.play().catch(() => {});
+    }
+  });
+
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();
 
-  // Initialize player and chunks for start screen background
   chunks.clear();
   loadedChunks = [];
   initPlayer();
   updateLoadedChunks();
   
-  // Initialize music (will play on first user interaction)
   initMusic();
   
   setupInputHandlers();
   setupUIHandlers();
+
+  updateStartScreenUI();
 
   requestAnimationFrame(gameLoop);
 }
@@ -754,8 +850,8 @@ function generateChunk(cx: number, cy: number): Chunk {
     }
   }
   
-  // Generate rocks (very sparse - easy to drive through)
-  const numRocks = Math.floor(rand() * 2); // 0-1 rocks per chunk
+  // Generate rocks (1-3 per chunk)
+  const numRocks = 1 + Math.floor(rand() * 3);
   for (let i = 0; i < numRocks; i++) {
     const rx = chunkLeft + 50 + rand() * (CHUNK_SIZE - 100);
     const ry = chunkTop + 50 + rand() * (CHUNK_SIZE - 100);
@@ -788,8 +884,8 @@ function generateChunk(cx: number, cy: number): Chunk {
     }
   }
   
-  // Generate decorations (visual only, no collision)
-  const numDecorations = 8 + Math.floor(rand() * 12);
+  // Generate decorations (visual only, no collision) - denser
+  const numDecorations = 15 + Math.floor(rand() * 20);
   for (let i = 0; i < numDecorations; i++) {
     const dx = chunkLeft + rand() * CHUNK_SIZE;
     const dy = chunkTop + rand() * CHUNK_SIZE;
@@ -799,28 +895,59 @@ function generateChunk(cx: number, cy: number): Chunk {
     let decorSize: number;
     
     if (biome === "forest") {
-      decorType = rand() > 0.3 ? "tree" : "bush";
+      const r = rand();
+      if (r < 0.35) { decorType = "tree"; }
+      else if (r < 0.55) { decorType = "bush"; }
+      else if (r < 0.70) { decorType = "fallenlog"; }
+      else if (r < 0.82) { decorType = "mushroom"; }
+      else if (r < 0.92) { decorType = "flowers"; }
+      else { decorType = "tree"; }
       decorColor = colors.accent;
       decorSize = 15 + rand() * 25;
     } else if (biome === "desert") {
-      decorType = rand() > 0.6 ? "cactus" : "shrub";
+      const r = rand();
+      if (r < 0.30) { decorType = "cactus"; }
+      else if (r < 0.50) { decorType = "shrub"; }
+      else if (r < 0.65) { decorType = "skull"; }
+      else if (r < 0.80) { decorType = "tumbleweed"; }
+      else { decorType = "shrub"; }
       decorColor = colors.accent;
       decorSize = 10 + rand() * 20;
     } else if (biome === "snow") {
-      decorType = rand() > 0.5 ? "pine" : "snowdrift";
+      const r = rand();
+      if (r < 0.35) { decorType = "pine"; }
+      else if (r < 0.55) { decorType = "snowdrift"; }
+      else if (r < 0.70) { decorType = "snowman"; }
+      else if (r < 0.85) { decorType = "icepatch"; }
+      else { decorType = "pine"; }
       decorColor = rand() > 0.5 ? "#2a4a3a" : "#ffffff";
       decorSize = 12 + rand() * 22;
     } else if (biome === "beach") {
-      decorType = rand() > 0.6 ? "palm" : "umbrella";
+      const r = rand();
+      if (r < 0.30) { decorType = "palm"; }
+      else if (r < 0.50) { decorType = "umbrella"; }
+      else if (r < 0.65) { decorType = "sandcastle"; }
+      else if (r < 0.80) { decorType = "surfboard"; }
+      else { decorType = "palm"; }
       decorColor = rand() > 0.5 ? colors.accent : "#ff6666";
       decorSize = 15 + rand() * 20;
     } else if (biome === "volcanic") {
-      decorType = rand() > 0.7 ? "vent" : "ashpile";
+      const r = rand();
+      if (r < 0.30) { decorType = "vent"; }
+      else if (r < 0.50) { decorType = "ashpile"; }
+      else if (r < 0.70) { decorType = "lavapool"; }
+      else if (r < 0.85) { decorType = "charredtree"; }
+      else { decorType = "vent"; }
       decorColor = rand() > 0.5 ? "#ff4400" : "#2a2a2a";
       decorSize = 12 + rand() * 18;
     } else {
-      // city
-      decorType = rand() > 0.5 ? "lamppost" : "bench";
+      const r = rand();
+      if (r < 0.25) { decorType = "lamppost"; }
+      else if (r < 0.45) { decorType = "bench"; }
+      else if (r < 0.60) { decorType = "parkedcar"; }
+      else if (r < 0.75) { decorType = "dumpster"; }
+      else if (r < 0.88) { decorType = "hydrant"; }
+      else { decorType = "lamppost"; }
       decorColor = "#666666";
       decorSize = 8 + rand() * 12;
     }
@@ -835,9 +962,9 @@ function generateChunk(cx: number, cy: number): Chunk {
     });
   }
   
-  // Generate landmarks (rare - ~12% of chunks have one, but they're BIG)
+  // Generate landmarks (~18% of chunks)
   const landmarks: Landmark[] = [];
-  if (rand() < 0.12) {
+  if (rand() < 0.18) {
     const lx = chunkLeft + CHUNK_SIZE / 2 + (rand() - 0.5) * 400;
     const ly = chunkTop + CHUNK_SIZE / 2 + (rand() - 0.5) * 400;
     
@@ -887,7 +1014,32 @@ function generateChunk(cx: number, cy: number): Chunk {
     }
   }
   
-  return { cx, cy, biome, rocks, lakes, roadSegments, decorations, landmarks };
+  const coins: Coin[] = [];
+  const numCoins = 2 + Math.floor(rand() * 4);
+  for (let i = 0; i < numCoins; i++) {
+    const coinX = chunkLeft + 60 + rand() * (CHUNK_SIZE - 120);
+    const coinY = chunkTop + 60 + rand() * (CHUNK_SIZE - 120);
+    let blocked = false;
+    for (const lake of lakes) {
+      const ldx = coinX - lake.x;
+      const ldy = coinY - lake.y;
+      if (Math.sqrt(ldx * ldx + ldy * ldy) < Math.max(lake.radiusX, lake.radiusY)) {
+        blocked = true;
+      }
+    }
+    for (const rock of rocks) {
+      const rdx = coinX - rock.x;
+      const rdy = coinY - rock.y;
+      if (Math.sqrt(rdx * rdx + rdy * rdy) < rock.radius + 20) {
+        blocked = true;
+      }
+    }
+    if (!blocked) {
+      coins.push({ x: coinX, y: coinY, collected: false, bobPhase: rand() * Math.PI * 2, collectTime: 0 });
+    }
+  }
+
+  return { cx, cy, biome, rocks, lakes, roadSegments, decorations, landmarks, coins };
 }
 
 function updateLoadedChunks(): void {
@@ -1069,6 +1221,202 @@ function updateJoystickInput(): void {
   input.down = dy > deadzone;
 }
 
+function drawChipVehicle(chip: Element, vehicleId: string): void {
+  const chipCanvas = chip.querySelector("canvas") as HTMLCanvasElement;
+  if (!chipCanvas) return;
+  const chipCtx = chipCanvas.getContext("2d");
+  if (!chipCtx) return;
+  const vehicle = VEHICLES.find(v => v.id === vehicleId);
+  if (!vehicle) return;
+  
+  chipCtx.clearRect(0, 0, chipCanvas.width, chipCanvas.height);
+  chipCtx.save();
+  chipCtx.translate(chipCanvas.width / 2, chipCanvas.height / 2);
+  const scale = 0.55;
+  chipCtx.scale(scale, scale);
+  drawVehicleShape(chipCtx, vehicle, vehicle.width, vehicle.height, false);
+  chipCtx.restore();
+}
+
+function updateStartScreenUI(): void {
+  document.getElementById("start-coin-count")!.textContent = String(totalCoins);
+  
+  const vehicleChips = document.querySelectorAll(".vehicle-chip");
+  vehicleChips.forEach(chip => {
+    const vid = chip.getAttribute("data-vehicle");
+    if (!vid) return;
+    
+    drawChipVehicle(chip, vid);
+    
+    const isOwned = ownedVehicles.has(vid);
+    chip.classList.toggle("locked", !isOwned);
+    chip.classList.toggle("selected", vid === selectedVehicleId);
+    
+    let lockIcon = chip.querySelector(".chip-lock");
+    if (!isOwned) {
+      if (!lockIcon) {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("class", "chip-lock");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z");
+        svg.appendChild(path);
+        chip.appendChild(svg);
+      }
+    } else if (lockIcon) {
+      lockIcon.remove();
+    }
+  });
+}
+
+function updateSettingsToggles(): void {
+  document.getElementById("toggle-music")!.classList.toggle("active", settings.music);
+  document.getElementById("toggle-fx")!.classList.toggle("active", settings.fx);
+  document.getElementById("toggle-haptics")!.classList.toggle("active", settings.haptics);
+  document.getElementById("musicState")!.textContent = settings.music ? "On" : "Off";
+  document.getElementById("fxState")!.textContent = settings.fx ? "On" : "Off";
+  document.getElementById("hapticsState")!.textContent = settings.haptics ? "On" : "Off";
+}
+
+function openShop(): void {
+  document.getElementById("shop-modal")!.classList.remove("hidden");
+  updateShopUI();
+  triggerHaptic("light");
+}
+
+function closeShop(): void {
+  document.getElementById("shop-modal")!.classList.add("hidden");
+}
+
+function updateShopUI(): void {
+  const vehicle = VEHICLES[shopIndex];
+  document.getElementById("shop-coin-count")!.textContent = String(totalCoins);
+  document.getElementById("shop-vehicle-name")!.textContent = vehicle.name;
+  document.getElementById("shop-vehicle-desc")!.textContent = vehicle.description;
+  
+  const shopCanvas = document.getElementById("shop-canvas") as HTMLCanvasElement;
+  const sCtx = shopCanvas.getContext("2d");
+  if (sCtx) {
+    sCtx.clearRect(0, 0, shopCanvas.width, shopCanvas.height);
+    sCtx.save();
+    sCtx.translate(shopCanvas.width / 2, shopCanvas.height / 2);
+    const scale = 1.2;
+    sCtx.scale(scale, scale);
+    drawVehicleShape(sCtx, vehicle, vehicle.width, vehicle.height, false);
+    sCtx.restore();
+  }
+  
+  const priceArea = document.getElementById("shop-price-area")!;
+  const actionBtn = document.getElementById("shop-action-btn")!;
+  const isOwned = ownedVehicles.has(vehicle.id);
+  const isEquipped = vehicle.id === selectedVehicleId;
+  
+  if (isOwned) {
+    priceArea.innerHTML = '<div class="shop-owned-badge">OWNED</div>';
+    if (isEquipped) {
+      actionBtn.className = "shop-buy-btn equipped";
+      actionBtn.textContent = "EQUIPPED";
+      (actionBtn as HTMLButtonElement).disabled = true;
+    } else {
+      actionBtn.className = "shop-buy-btn select";
+      actionBtn.textContent = "SELECT";
+      (actionBtn as HTMLButtonElement).disabled = false;
+    }
+  } else {
+    priceArea.innerHTML = '<div class="shop-price"><div class="start-coin-icon">$</div><span>' + vehicle.cost + '</span></div>';
+    actionBtn.className = "shop-buy-btn buy";
+    actionBtn.textContent = "BUY";
+    (actionBtn as HTMLButtonElement).disabled = totalCoins < vehicle.cost;
+  }
+}
+
+function buyOrSelectVehicle(): void {
+  const vehicle = VEHICLES[shopIndex];
+  if (ownedVehicles.has(vehicle.id)) {
+    if (vehicle.id !== selectedVehicleId) {
+      selectedVehicleId = vehicle.id;
+      initPlayer();
+      updateLoadedChunks();
+      triggerHaptic("light");
+      savePersistentState();
+      updateStartScreenUI();
+    }
+  } else if (totalCoins >= vehicle.cost) {
+    totalCoins -= vehicle.cost;
+    ownedVehicles.add(vehicle.id);
+    selectedVehicleId = vehicle.id;
+    initPlayer();
+    updateLoadedChunks();
+    triggerHaptic("success");
+    savePersistentState();
+    updateStartScreenUI();
+    console.log("[buyOrSelectVehicle] Bought:", vehicle.id, "Remaining coins:", totalCoins);
+  }
+  updateShopUI();
+}
+
+function pauseGame(): void {
+  if (gamePhase !== "playing") return;
+  gamePhase = "paused";
+  pauseMusic();
+  gameplayStop();
+  document.getElementById("pause-modal")!.classList.remove("hidden");
+}
+
+function resumeGame(): void {
+  if (gamePhase !== "paused") return;
+  gamePhase = "playing";
+  lastTime = performance.now();
+  playMusic();
+  gameplayStart();
+  document.getElementById("pause-modal")!.classList.add("hidden");
+}
+
+function quitToHome(): void {
+  gamePhase = "start";
+  pauseMusic();
+  gameplayStop();
+  
+  document.getElementById("pause-modal")!.classList.add("hidden");
+  document.getElementById("settings-modal")!.classList.add("hidden");
+  document.getElementById("shop-modal")!.classList.add("hidden");
+  document.getElementById("game-over")!.classList.add("hidden");
+  document.getElementById("hud")!.classList.add("hidden");
+  hideGameplayUI();
+  document.getElementById("start-screen")!.classList.remove("hidden");
+  
+  chunks.clear();
+  loadedChunks = [];
+  policeCars = [];
+  explosions = [];
+  skidMarks = [];
+  driftSmoke = [];
+  scorePopups = [];
+  coinPopups = [];
+  
+  initPlayer();
+  updateLoadedChunks();
+  updateStartScreenUI();
+}
+
+function showGameplayUI(): void {
+  document.getElementById("settings-btn")!.classList.remove("hidden");
+  document.getElementById("pause-btn")!.classList.remove("hidden");
+  document.getElementById("ingame-shop-btn")!.classList.remove("hidden");
+  document.getElementById("control-hint")!.classList.remove("hidden");
+  document.getElementById("mobile-hint")!.classList.remove("hidden");
+  document.getElementById("mobile-controls")!.classList.remove("hidden");
+}
+
+function hideGameplayUI(): void {
+  document.getElementById("settings-btn")!.classList.add("hidden");
+  document.getElementById("pause-btn")!.classList.add("hidden");
+  document.getElementById("ingame-shop-btn")!.classList.add("hidden");
+  document.getElementById("control-hint")!.classList.add("hidden");
+  document.getElementById("mobile-hint")!.classList.add("hidden");
+  document.getElementById("mobile-controls")!.classList.add("hidden");
+}
+
 function setupUIHandlers(): void {
   const startBtn = document.getElementById("start-btn")!;
   const restartBtn = document.getElementById("restart-btn")!;
@@ -1083,109 +1431,145 @@ function setupUIHandlers(): void {
     restartGame();
   });
   
-  // Vehicle selection
-  const vehicleCards = document.querySelectorAll(".vehicle-card");
-  const carousel = document.querySelector(".vehicle-carousel") as HTMLElement;
-  const prevBtn = document.getElementById("prev-vehicle");
-  const nextBtn = document.getElementById("next-vehicle");
-  const showcaseCar = document.getElementById("showcase-car");
-  const showcaseName = document.getElementById("showcase-name");
-  const showcaseDesc = document.getElementById("showcase-desc");
-  const statSpeed = document.getElementById("stat-speed");
-  const statAccel = document.getElementById("stat-accel");
-  const statGrip = document.getElementById("stat-grip");
-  
-  const showcaseCanvas = document.getElementById("showcase-canvas") as HTMLCanvasElement;
-  const showcaseCtx = showcaseCanvas?.getContext("2d");
-  
-  function drawShowcaseVehicle(vehicleId: string): void {
-    if (!showcaseCanvas || !showcaseCtx) return;
-    const vehicle = VEHICLES.find(v => v.id === vehicleId);
-    if (!vehicle) return;
-    
-    const cw = showcaseCanvas.width;
-    const ch = showcaseCanvas.height;
-    
-    // Clear
-    showcaseCtx.clearRect(0, 0, cw, ch);
-    
-    // Draw vehicle centered
-    showcaseCtx.save();
-    showcaseCtx.translate(cw / 2, ch / 2);
-    
-    // Scale up for showcase
-    const scale = 1.4;
-    showcaseCtx.scale(scale, scale);
-    
-    drawVehicleShape(showcaseCtx, vehicle, vehicle.width, vehicle.height, false);
-    
-    showcaseCtx.restore();
-  }
-  
-  function updateShowcase(vehicleId: string): void {
-    const vehicle = VEHICLES.find(v => v.id === vehicleId);
-    if (!vehicle) return;
-    
-    // Update canvas preview
-    drawShowcaseVehicle(vehicleId);
-    
-    // Update text
-    if (showcaseName) showcaseName.textContent = vehicle.name;
-    if (showcaseDesc) showcaseDesc.textContent = vehicle.description;
-    
-    // Update stat bars (normalize to percentage based on ranges)
-    // Speed: 14-30 range
-    const speedPct = ((vehicle.maxSpeed - 14) / 16) * 100;
-    // Accel: 0.18-0.60 range
-    const accelPct = ((vehicle.acceleration - 0.18) / 0.42) * 100;
-    // Grip: 0.07-0.25 range
-    const gripPct = ((vehicle.grip - 0.07) / 0.18) * 100;
-    
-    if (statSpeed) statSpeed.style.width = Math.min(100, Math.max(10, speedPct)) + "%";
-    if (statAccel) statAccel.style.width = Math.min(100, Math.max(10, accelPct)) + "%";
-    if (statGrip) statGrip.style.width = Math.min(100, Math.max(10, gripPct)) + "%";
-  }
-  
-  // Initial showcase render
-  updateShowcase(selectedVehicleId);
-  
-  vehicleCards.forEach(card => {
-    card.addEventListener("click", () => {
-      const vehicleId = card.getAttribute("data-vehicle");
-      if (vehicleId) {
-        selectedVehicleId = vehicleId;
-        
-        // Update carousel selection
-        vehicleCards.forEach(c => c.classList.remove("selected"));
-        card.classList.add("selected");
-        
-        // Update showcase
-        updateShowcase(vehicleId);
-        
-        // Reinitialize player with new vehicle for preview
-        initPlayer();
-        updateLoadedChunks();
-        
-        triggerHaptic("light");
-        console.log("[setupUIHandlers] Selected vehicle:", vehicleId);
+  // Vehicle chip selection on start screen
+  const vehicleChips = document.querySelectorAll(".vehicle-chip");
+  vehicleChips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      const vid = chip.getAttribute("data-vehicle");
+      if (!vid) return;
+      
+      if (!ownedVehicles.has(vid)) {
+        shopIndex = VEHICLES.findIndex(v => v.id === vid);
+        if (shopIndex < 0) shopIndex = 0;
+        openShop();
+        return;
       }
+      
+      selectedVehicleId = vid;
+      initPlayer();
+      updateLoadedChunks();
+      triggerHaptic("light");
+      savePersistentState();
+      updateStartScreenUI();
+      console.log("[setupUIHandlers] Selected vehicle:", vid);
     });
   });
   
-  // Arrow buttons for scrolling
-  if (prevBtn && carousel) {
-    prevBtn.addEventListener("click", () => {
-      carousel.scrollBy({ left: -100, behavior: "smooth" });
-      triggerHaptic("light");
-    });
-  }
+  // Start screen shop button
+  document.getElementById("start-shop-btn")!.addEventListener("click", () => {
+    triggerHaptic("light");
+    openShop();
+  });
   
-  if (nextBtn && carousel) {
-    nextBtn.addEventListener("click", () => {
-      carousel.scrollBy({ left: 100, behavior: "smooth" });
+  // Settings button + modal (does NOT trigger pause UI)
+  let settingsWasPlaying = false;
+  document.getElementById("settings-btn")!.addEventListener("click", () => {
+    triggerHaptic("light");
+    settingsWasPlaying = gamePhase === "playing";
+    if (settingsWasPlaying) {
+      gamePhase = "paused";
+      pauseMusic();
+      gameplayStop();
+    }
+    document.getElementById("settings-modal")!.classList.remove("hidden");
+    updateSettingsToggles();
+  });
+  document.getElementById("settings-close")!.addEventListener("click", () => {
+    document.getElementById("settings-modal")!.classList.add("hidden");
+    if (settingsWasPlaying && gamePhase === "paused") {
+      gamePhase = "playing";
+      lastTime = performance.now();
+      if (settings.music) playMusic();
+      gameplayStart();
+    }
+  });
+  
+  let lastToggle = 0;
+  function settingsToggle(cb: () => void): (e: Event) => void {
+    return (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (Date.now() - lastToggle < 300) return;
+      lastToggle = Date.now();
+      cb();
+      saveSettings();
+      updateSettingsToggles();
       triggerHaptic("light");
-    });
+    };
   }
+
+  document.getElementById("toggle-music")!.addEventListener("click", settingsToggle(() => {
+    settings.music = !settings.music;
+    if (!settings.music) pauseMusic();
+    else if (gamePhase === "playing") playMusic();
+  }));
+  document.getElementById("toggle-fx")!.addEventListener("click", settingsToggle(() => {
+    settings.fx = !settings.fx;
+  }));
+  document.getElementById("toggle-haptics")!.addEventListener("click", settingsToggle(() => {
+    settings.haptics = !settings.haptics;
+  }));
+  
+  // Pause button + modal
+  document.getElementById("pause-btn")!.addEventListener("click", () => {
+    triggerHaptic("light");
+    pauseGame();
+  });
+  document.getElementById("pause-resume")!.addEventListener("click", () => {
+    triggerHaptic("light");
+    document.getElementById("settings-modal")!.classList.add("hidden");
+    resumeGame();
+  });
+  document.getElementById("pause-quit")!.addEventListener("click", () => {
+    triggerHaptic("light");
+    document.getElementById("pause-modal")!.classList.add("hidden");
+    endGame();
+  });
+  document.getElementById("pause-home")!.addEventListener("click", () => {
+    triggerHaptic("light");
+    quitToHome();
+  });
+  
+  // In-game shop button
+  document.getElementById("ingame-shop-btn")!.addEventListener("click", () => {
+    triggerHaptic("light");
+    if (gamePhase === "playing") pauseGame();
+    openShop();
+  });
+  
+  // Shop modal
+  document.getElementById("shop-close")!.addEventListener("click", () => {
+    closeShop();
+  });
+  let shopNavLock = false;
+  function shopNav(delta: number): void {
+    if (shopNavLock) return;
+    shopNavLock = true;
+    shopIndex = (shopIndex + delta + VEHICLES.length) % VEHICLES.length;
+    updateShopUI();
+    triggerHaptic("light");
+    setTimeout(() => { shopNavLock = false; }, 200);
+  }
+  document.getElementById("shop-prev")!.addEventListener("click", () => shopNav(-1));
+  document.getElementById("shop-next")!.addEventListener("click", () => shopNav(1));
+  document.getElementById("shop-action-btn")!.addEventListener("click", () => {
+    buyOrSelectVehicle();
+  });
+  
+  // Escape key for pause
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (gamePhase === "playing") {
+        pauseGame();
+      } else if (gamePhase === "paused") {
+        document.getElementById("settings-modal")!.classList.add("hidden");
+        closeShop();
+        resumeGame();
+      }
+    }
+  });
+  
+  updateSettingsToggles();
 }
 
 // ============================================================================
@@ -1194,15 +1578,25 @@ function setupUIHandlers(): void {
 
 function triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error"): void {
   if (!settings.haptics) return;
-  if (typeof (window as any).triggerHaptic === "function") {
-    (window as any).triggerHaptic(type);
-  }
+  oasiz.triggerHaptic(type);
 }
 
 function submitFinalScore(): void {
   console.log("[submitFinalScore] Submitting score:", score);
-  if (typeof (window as any).submitScore === "function") {
-    (window as any).submitScore(score);
+  oasiz.submitScore(score);
+}
+
+function gameplayStart(): void {
+  console.log("[gameplayStart] Gameplay started");
+  if (typeof (window as any).gameplayStart === "function") {
+    (window as any).gameplayStart();
+  }
+}
+
+function gameplayStop(): void {
+  console.log("[gameplayStop] Gameplay stopped");
+  if (typeof (window as any).gameplayStop === "function") {
+    (window as any).gameplayStop();
   }
 }
 
@@ -1221,6 +1615,8 @@ function startGame(): void {
   lastCrashTime = 0;
   crashCount = 0;
   survivalScore = 0;
+  sessionCoins = 0;
+  coinPopups = [];
   difficultyMultiplier = 1;
   spawnInterval = POLICE_SPAWN_INTERVAL_START;
   nextPoliceSpawn = 1000;
@@ -1232,11 +1628,13 @@ function startGame(): void {
   driftSmoke = [];
   scorePopups = [];
 
+  interceptorWarningShown = false;
+  swatWarningShown = false;
+
   input = { up: false, down: false, left: false, right: false };
   screenShake = 0;
   freezeFrame = 0;
 
-  // Clear and regenerate chunks
   chunks.clear();
   loadedChunks = [];
   
@@ -1247,11 +1645,11 @@ function startGame(): void {
 
   document.getElementById("start-screen")!.classList.add("hidden");
   document.getElementById("hud")!.classList.remove("hidden");
+  showGameplayUI();
 
-  // Start background music
   playMusic();
-
   updateScoreDisplay();
+  gameplayStart();
 }
 
 function restartGame(): void {
@@ -1264,29 +1662,33 @@ function endGame(): void {
   console.log("[endGame] Game over! Survival score:", Math.floor(survivalScore), "Crashes:", crashCount);
 
   gamePhase = "gameOver";
+  gameplayStop();
+  pauseMusic();
   
-  // Calculate final score: survival points + crash bonus
   const survivalPoints = Math.floor(survivalScore);
-  const crashBonus = crashCount * 100;
-  score = survivalPoints + crashBonus;
+  score = survivalPoints + score;
+  
+  totalCoins += sessionCoins;
   
   submitFinalScore();
+  savePersistentState();
+  oasiz.flushGameState();
   triggerHaptic("error");
   screenShake = SHAKE_INTENSITY * 2;
 
   document.getElementById("hud")!.classList.add("hidden");
+  document.getElementById("pause-modal")!.classList.add("hidden");
+  document.getElementById("settings-modal")!.classList.add("hidden");
+  document.getElementById("shop-modal")!.classList.add("hidden");
+  hideGameplayUI();
   
-  // Display time survived in MM:SS format
   const totalSeconds = Math.floor(gameTime / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   document.getElementById("final-time")!.textContent = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
-  
-  // Display crashes caused
   document.getElementById("final-crashes")!.textContent = String(crashCount);
-  
-  // Display total score
   document.getElementById("final-score")!.textContent = String(score);
+  document.getElementById("gameover-coins")!.textContent = "+" + sessionCoins;
 
   setTimeout(() => {
     document.getElementById("game-over")!.classList.remove("hidden");
@@ -1294,14 +1696,12 @@ function endGame(): void {
 }
 
 function updateScoreDisplay(): void {
-  // Display time survived in MM:SS format
   const totalSeconds = Math.floor(gameTime / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   document.getElementById("time-display")!.textContent = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
-  
-  // Update crash counter
   document.getElementById("crash-display")!.textContent = String(crashCount);
+  document.getElementById("coin-display")!.textContent = String(totalCoins + sessionCoins);
 }
 
 // ============================================================================
@@ -1329,14 +1729,59 @@ function gameLoop(currentTime: number): void {
   requestAnimationFrame(gameLoop);
 }
 
+function updateCoins(dt: number): void {
+  for (const chunk of loadedChunks) {
+    for (const coin of chunk.coins) {
+      if (coin.collected) continue;
+      const dx = player.x - coin.x;
+      const dy = player.y - coin.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < COIN_COLLECT_RADIUS + player.width / 2) {
+        coin.collected = true;
+        coin.collectTime = performance.now();
+        sessionCoins++;
+        coinPopups.push({ x: coin.x, y: coin.y, time: 0 });
+        triggerHaptic("light");
+        if (settings.fx) playCoinSound();
+      }
+    }
+  }
+  
+  for (const popup of coinPopups) {
+    popup.time += dt;
+  }
+  coinPopups = coinPopups.filter(p => p.time < 800);
+}
+
+let coinSynthInitialized = false;
+let coinSynth: Tone.Synth | null = null;
+
+function initCoinSound(): void {
+  if (coinSynthInitialized) return;
+  coinSynth = new Tone.Synth({
+    oscillator: { type: "triangle" },
+    envelope: { attack: 0.005, decay: 0.15, sustain: 0, release: 0.1 },
+  }).toDestination();
+  coinSynth.volume.value = -6;
+  coinSynthInitialized = true;
+}
+
+function playCoinSound(): void {
+  if (!settings.fx) return;
+  if (!coinSynthInitialized) initCoinSound();
+  if (Tone.getContext().state !== "running") {
+    Tone.start().then(() => { coinSynth?.triggerAttackRelease("C6", "16n"); });
+  } else {
+    coinSynth?.triggerAttackRelease("C6", "16n");
+  }
+}
+
 function update(dt: number): void {
   if (gamePhase === "playing") {
     gameTime += dt;
     
-    // Time-based survival score (1 point per 100ms = 10 points per second)
     survivalScore += dt * 0.01;
     
-    // Update time display every frame
     updateScoreDisplay();
     
     updateDifficulty();
@@ -1346,6 +1791,7 @@ function update(dt: number): void {
     updatePoliceSpawning(dt);
     updatePolice(dt);
     checkCollisions();
+    updateCoins(dt);
     updateExplosions(dt);
     updateSkidMarks(dt);
     updateDriftSmoke(dt);
@@ -1605,8 +2051,43 @@ function updateCamera(dt: number): void {
 // POLICE AI
 // ============================================================================
 
+function showWaveWarning(text: string): void {
+  const el = document.getElementById("wave-warning");
+  if (!el) return;
+  const span = el.querySelector("span");
+  if (span) span.textContent = text;
+  el.classList.remove("visible");
+  void el.offsetWidth;
+  el.classList.add("visible");
+  setTimeout(() => el.classList.remove("visible"), 2200);
+}
+
+function pickEnemyType(): EnemyType {
+  if (gameTime >= SWAT_UNLOCK_TIME) {
+    const r = Math.random();
+    if (r < 0.40) return "patrol";
+    if (r < 0.75) return "interceptor";
+    return "swat";
+  }
+  if (gameTime >= INTERCEPTOR_UNLOCK_TIME) {
+    return Math.random() < 0.60 ? "patrol" : "interceptor";
+  }
+  return "patrol";
+}
+
 function updatePoliceSpawning(dt: number): void {
   nextPoliceSpawn -= dt;
+
+  if (!interceptorWarningShown && gameTime >= INTERCEPTOR_UNLOCK_TIME) {
+    interceptorWarningShown = true;
+    showWaveWarning("INTERCEPTORS INCOMING");
+    triggerHaptic("heavy");
+  }
+  if (!swatWarningShown && gameTime >= SWAT_UNLOCK_TIME) {
+    swatWarningShown = true;
+    showWaveWarning("SWAT DEPLOYED");
+    triggerHaptic("heavy");
+  }
 
   if (nextPoliceSpawn <= 0 && policeCars.length < MAX_POLICE) {
     spawnPoliceCar();
@@ -1621,21 +2102,26 @@ function spawnPoliceCar(): void {
   const x = player.x + Math.cos(angle) * distance;
   const y = player.y + Math.sin(angle) * distance;
 
+  const enemyType = pickEnemyType();
+  const stats = ENEMY_STATS[enemyType];
+
   const police: PoliceCar = {
     x,
     y,
-    width: 30,
-    height: 52,
+    width: stats.width,
+    height: stats.height,
     angle: Math.atan2(player.y - y, player.x - x),
     speed: 0,
-    maxSpeed: POLICE_MAX_SPEED * (0.9 + Math.random() * 0.2) * difficultyMultiplier,
+    maxSpeed: stats.maxSpeed * (0.9 + Math.random() * 0.2) * difficultyMultiplier,
     id: policeIdCounter++,
     lightPhase: Math.random() * Math.PI * 2,
     state: "chase",
+    enemyType,
+    health: stats.health,
   };
 
   policeCars.push(police);
-  console.log("[spawnPoliceCar] Police", police.id, "spawned");
+  console.log("[spawnPoliceCar]", enemyType, police.id, "spawned");
 }
 
 function updatePolice(dt: number): void {
@@ -1646,22 +2132,36 @@ function updatePolice(dt: number): void {
 
     const dx = player.x - police.x;
     const dy = player.y - police.y;
-    const targetAngle = Math.atan2(dy, dx);
+    const distToPlayer = Math.sqrt(dx * dx + dy * dy);
+    const stats = ENEMY_STATS[police.enemyType];
+
+    let targetAngle: number;
+
+    if (police.enemyType === "interceptor") {
+      const predTime = Math.min(distToPlayer / Math.max(police.speed, 1), 1.5);
+      const predX = player.x + player.vx * predTime * 30;
+      const predY = player.y + player.vy * predTime * 30;
+      targetAngle = Math.atan2(predY - police.y, predX - police.x);
+    } else if (police.enemyType === "swat") {
+      const aheadX = player.x + Math.cos(player.angle) * 200;
+      const aheadY = player.y + Math.sin(player.angle) * 200;
+      targetAngle = Math.atan2(aheadY - police.y, aheadX - police.x);
+    } else {
+      targetAngle = Math.atan2(dy, dx);
+    }
 
     let angleDiff = targetAngle - police.angle;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     
-    police.angle += angleDiff * 0.05 * dtFactor;
+    police.angle += angleDiff * stats.turnRate * dtFactor;
 
-    const distToPlayer = Math.sqrt(dx * dx + dy * dy);
     if (distToPlayer > 80) {
-      police.speed += POLICE_ACCELERATION * dtFactor;
+      police.speed += stats.accel * dtFactor;
     } else {
       police.speed *= 0.97;
     }
     
-    // Speed based on road for police
     const policeOnRoad = isOnRoad(police.x, police.y);
     const policeMaxSpd = policeOnRoad ? police.maxSpeed * 1.15 : police.maxSpeed * 0.85;
     police.speed = Math.min(policeMaxSpd, police.speed);
@@ -1669,27 +2169,79 @@ function updatePolice(dt: number): void {
     police.x += Math.cos(police.angle) * police.speed * dtFactor;
     police.y += Math.sin(police.angle) * police.speed * dtFactor;
 
-    // Rock avoidance (from chunks)
     for (const chunk of loadedChunks) {
       for (const rock of chunk.rocks) {
         const odx = police.x - rock.x;
         const ody = police.y - rock.y;
         const odist = Math.sqrt(odx * odx + ody * ody);
-        const minDist = rock.radius + police.width / 2 + 25;
-        
+        const minDist = rock.radius + police.width / 2;
+
         if (odist < minDist) {
-          const nx = odx / odist || 0;
-          const ny = ody / odist || 0;
-          police.x += nx * 10;
-          police.y += ny * 10;
-          police.speed *= 0.65;
+          police.health = 0;
+          createExplosion(police.x, police.y);
+          police.state = "crashed";
+          crashCount++;
+
+          if (gameTime - lastCrashTime < COMBO_TIMEOUT) {
+            combo++;
+          } else {
+            combo = 1;
+          }
+          lastCrashTime = gameTime;
+
+          const pts = ENEMY_STATS[police.enemyType].points;
+          score += pts * Math.max(1, combo);
+          scorePopups.push({
+            x: 0, y: 0,
+            worldX: police.x,
+            worldY: police.y - 50,
+            text: "+" + pts,
+            time: 0,
+            color: "#ff9944",
+          });
+          triggerHaptic("medium");
+          screenShake = SHAKE_INTENSITY * 0.5;
+          break;
+        }
+      }
+      if (police.state === "crashed") break;
+
+      for (const lake of chunk.lakes) {
+        const ldx = (police.x - lake.x) / lake.radiusX;
+        const ldy = (police.y - lake.y) / lake.radiusY;
+        if (ldx * ldx + ldy * ldy < 0.85) {
+          police.health = 0;
+          createExplosion(police.x, police.y);
+          police.state = "crashed";
+          crashCount++;
+
+          if (gameTime - lastCrashTime < COMBO_TIMEOUT) {
+            combo++;
+          } else {
+            combo = 1;
+          }
+          lastCrashTime = gameTime;
+
+          const pts = ENEMY_STATS[police.enemyType].points;
+          score += pts * Math.max(1, combo);
+          scorePopups.push({
+            x: 0, y: 0,
+            worldX: police.x,
+            worldY: police.y - 50,
+            text: "+" + pts,
+            time: 0,
+            color: "#44aaff",
+          });
+          triggerHaptic("medium");
+          screenShake = SHAKE_INTENSITY * 0.4;
+          break;
         }
       }
     }
   }
 
-  // Remove police too far from player
   policeCars = policeCars.filter((p) => {
+    if (p.state === "crashed") return false;
     const dx = p.x - player.x;
     const dy = p.y - player.y;
     return Math.sqrt(dx * dx + dy * dy) < 2500;
@@ -1703,6 +2255,7 @@ function updatePolice(dt: number): void {
 function checkCollisions(): void {
   const toRemove = new Set<number>();
   let crashesThisFrame = 0;
+  let framePoints = 0;
 
   for (let i = 0; i < policeCars.length; i++) {
     for (let j = i + 1; j < policeCars.length; j++) {
@@ -1713,16 +2266,36 @@ function checkCollisions(): void {
       const dx = p1.x - p2.x;
       const dy = p1.y - p2.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
+      const collisionDist = (p1.width + p2.width) / 2 + 10;
 
-      if (dist < POLICE_COLLISION_RADIUS * 2) {
-        toRemove.add(p1.id);
-        toRemove.add(p2.id);
+      if (dist < collisionDist) {
+        let p1Destroyed = false;
+        let p2Destroyed = false;
 
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-        createExplosion(midX, midY);
-        crashesThisFrame++;
-        crashCount++;
+        p1.health--;
+        p2.health--;
+
+        if (p1.health <= 0) { p1Destroyed = true; toRemove.add(p1.id); }
+        if (p2.health <= 0) { p2Destroyed = true; toRemove.add(p2.id); }
+
+        if (p1Destroyed || p2Destroyed) {
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          createExplosion(midX, midY);
+          crashesThisFrame++;
+          crashCount++;
+          if (p1Destroyed) framePoints += ENEMY_STATS[p1.enemyType].points;
+          if (p2Destroyed) framePoints += ENEMY_STATS[p2.enemyType].points;
+        } else {
+          const nx = (dx / dist) || 0;
+          const ny = (dy / dist) || 0;
+          p1.x += nx * 15;
+          p1.y += ny * 15;
+          p2.x -= nx * 15;
+          p2.y -= ny * 15;
+          p1.speed *= 0.5;
+          p2.speed *= 0.5;
+        }
       }
     }
   }
@@ -1735,16 +2308,17 @@ function checkCollisions(): void {
     }
     lastCrashTime = gameTime;
 
-    // Each crash = +100 points
-    const points = crashesThisFrame * 100;
+    const comboMult = Math.max(1, combo);
+    score += framePoints * comboMult;
 
     for (const p of policeCars) {
       if (toRemove.has(p.id)) {
+        const pts = ENEMY_STATS[p.enemyType].points;
         scorePopups.push({
           x: 0, y: 0,
           worldX: p.x,
           worldY: p.y - 50,
-          text: combo > 1 ? "+100 x" + combo + " COMBO!" : "+100",
+          text: combo > 1 ? "+" + pts + " x" + combo + " COMBO!" : "+" + pts,
           time: 0,
           color: combo > 3 ? "#00ffcc" : combo > 1 ? "#ffcc00" : "#ffffff",
         });
@@ -1767,7 +2341,6 @@ function checkCollisions(): void {
 
   policeCars = policeCars.filter((p) => !toRemove.has(p.id));
 
-  // Player collision with police
   const vehicle = getSelectedVehicle();
   
   for (const police of policeCars) {
@@ -1778,44 +2351,12 @@ function checkCollisions(): void {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < (player.width + police.width) / 2 * 0.75) {
-      // TANK IS INVINCIBLE! Crushes police on contact
-      if (vehicle.id === "tank") {
-        // Destroy the police car instead
-        createExplosion(police.x, police.y);
-        police.state = "crashed";
-        crashCount++;
-        
-        // Add combo
-        if (gameTime - lastCrashTime < COMBO_TIMEOUT) {
-          combo++;
-        } else {
-          combo = 1;
-        }
-        lastCrashTime = gameTime;
-        
-        scorePopups.push({
-          x: 0, y: 0,
-          worldX: police.x,
-          worldY: police.y - 50,
-          text: "CRUSHED! +100",
-          time: 0,
-          color: "#ff6600",
-        });
-        
-        triggerHaptic("heavy");
-        screenShake = SHAKE_INTENSITY * 0.8;
-        
-        console.log("[checkCollisions] Tank crushed police! Total:", crashCount);
-      } else {
-        // Normal vehicles get busted
-        createExplosion(player.x, player.y);
-        endGame();
-        return;
-      }
+      createExplosion(player.x, player.y);
+      endGame();
+      return;
     }
   }
   
-  // Remove crushed police
   policeCars = policeCars.filter(p => p.state !== "crashed");
 }
 
@@ -1827,10 +2368,7 @@ function createExplosion(x: number, y: number): void {
   // Play explosion sound effect
   playExplosionSound();
   
-  // Trigger haptic feedback
-  if (settings.haptics && typeof (window as any).triggerHaptic === "function") {
-    (window as any).triggerHaptic("heavy");
-  }
+  triggerHaptic("heavy");
   
   const particles: Particle[] = [];
   const debris: Debris[] = [];
@@ -1946,40 +2484,35 @@ function render(): void {
   // Draw chunks (ground, roads, lakes, decorations, rocks)
   drawChunks();
 
+  // Draw coins on map (visible even on start screen for ambiance)
+  drawWorldCoins();
+
   // Only draw gameplay elements when not on start screen
   if (gamePhase !== "start") {
-    // Draw skid marks
     drawSkidMarks();
-
-    // Draw drift smoke
     drawDriftSmoke();
 
-    // Draw police cars
     for (const police of policeCars) {
       drawPoliceCar(police);
     }
 
-    // Draw player
-    if (gamePhase === "playing" || gamePhase === "gameOver") {
+    if (gamePhase === "playing" || gamePhase === "paused" || gamePhase === "gameOver") {
       drawPlayerCar();
     }
 
-    // Draw explosions
     drawExplosions();
-
-    // Draw score popups
     drawScorePopups();
+    drawCoinPopups();
   }
 
   ctx.restore();
 
-  // UI elements (only during gameplay)
   if (gamePhase !== "start") {
     if (joystick.active) {
       drawJoystick();
     }
 
-    if (combo > 1 && gamePhase === "playing") {
+    if (combo > 1 && (gamePhase === "playing" || gamePhase === "paused")) {
       drawComboIndicator();
     }
 
@@ -2000,7 +2533,7 @@ function drawChunks(): void {
     if (Math.abs(chunkLeft + CHUNK_SIZE / 2 - camera.x) > w / 2 + CHUNK_SIZE) continue;
     if (Math.abs(chunkTop + CHUNK_SIZE / 2 - camera.y) > h / 2 + CHUNK_SIZE) continue;
     
-    // Draw ground tiles
+    // Draw ground tiles with subtle noise shading
     const tileSize = 100;
     for (let tx = 0; tx < CHUNK_SIZE; tx += tileSize) {
       for (let ty = 0; ty < CHUNK_SIZE; ty += tileSize) {
@@ -2015,19 +2548,29 @@ function drawChunks(): void {
         else ctx.fillStyle = colors.ground3;
         
         ctx.fillRect(wx, wy, tileSize, tileSize);
+        
+        // Subtle noise variation per tile
+        const noiseVal = ((hash >> 4) % 20) - 10;
+        if (noiseVal > 3) {
+          ctx.fillStyle = "rgba(255,255,255,0.04)";
+          ctx.fillRect(wx, wy, tileSize, tileSize);
+        } else if (noiseVal < -3) {
+          ctx.fillStyle = "rgba(0,0,0,0.04)";
+          ctx.fillRect(wx, wy, tileSize, tileSize);
+        }
       }
     }
     
-    // Draw lakes
+    // Draw lakes with shoreline and ripples
     for (const lake of chunk.lakes) {
       ctx.save();
       ctx.translate(lake.x, lake.y);
       ctx.rotate(lake.rotation);
       
-      // Lake shadow
-      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      // Shoreline ring (sand-colored)
+      ctx.fillStyle = chunk.biome === "volcanic" ? "rgba(60,40,30,0.5)" : "rgba(200,180,140,0.4)";
       ctx.beginPath();
-      ctx.ellipse(5, 5, lake.radiusX, lake.radiusY, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, lake.radiusX + 18, lake.radiusY + 18, 0, 0, Math.PI * 2);
       ctx.fill();
       
       // Lake body
@@ -2036,20 +2579,44 @@ function drawChunks(): void {
       ctx.ellipse(0, 0, lake.radiusX, lake.radiusY, 0, 0, Math.PI * 2);
       ctx.fill();
       
+      // Ripple rings
+      const t = Date.now() * 0.001;
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = 1.5;
+      for (let r = 0; r < 3; r++) {
+        const ripplePhase = (t * 0.5 + r * 0.8) % 1;
+        const rippleR = ripplePhase * 0.6 + 0.2;
+        ctx.globalAlpha = 1 - ripplePhase;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, lake.radiusX * rippleR, lake.radiusY * rippleR, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      
       // Highlight
-      ctx.fillStyle = "rgba(255,255,255,0.2)";
+      ctx.fillStyle = "rgba(255,255,255,0.15)";
       ctx.beginPath();
-      ctx.ellipse(-lake.radiusX * 0.3, -lake.radiusY * 0.3, lake.radiusX * 0.4, lake.radiusY * 0.3, 0, 0, Math.PI * 2);
+      ctx.ellipse(-lake.radiusX * 0.3, -lake.radiusY * 0.3, lake.radiusX * 0.35, lake.radiusY * 0.25, 0, 0, Math.PI * 2);
       ctx.fill();
       
       ctx.restore();
     }
     
-    // Draw roads
+    // Draw roads with curbs and markings
     for (const road of chunk.roadSegments) {
       const angle = Math.atan2(road.y2 - road.y1, road.x2 - road.x1);
       const perpX = Math.cos(angle + Math.PI / 2);
       const perpY = Math.sin(angle + Math.PI / 2);
+      
+      // Curb extrusion (slightly wider, darker)
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.beginPath();
+      ctx.moveTo(road.x1 + perpX * (road.width / 2 + 6), road.y1 + perpY * (road.width / 2 + 6));
+      ctx.lineTo(road.x2 + perpX * (road.width / 2 + 6), road.y2 + perpY * (road.width / 2 + 6));
+      ctx.lineTo(road.x2 - perpX * (road.width / 2 + 6), road.y2 - perpY * (road.width / 2 + 6));
+      ctx.lineTo(road.x1 - perpX * (road.width / 2 + 6), road.y1 - perpY * (road.width / 2 + 6));
+      ctx.closePath();
+      ctx.fill();
       
       // Road surface
       ctx.fillStyle = colors.road;
@@ -2061,7 +2628,7 @@ function drawChunks(): void {
       ctx.closePath();
       ctx.fill();
       
-      // Road edge lines
+      // Road edge lines (white)
       ctx.strokeStyle = colors.roadLine;
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -2081,56 +2648,387 @@ function drawChunks(): void {
       ctx.lineTo(road.x2, road.y2);
       ctx.stroke();
       ctx.setLineDash([]);
+      
+      // Manhole covers along road (deterministic placement)
+      const roadLen = Math.sqrt((road.x2 - road.x1) ** 2 + (road.y2 - road.y1) ** 2);
+      const dirX = (road.x2 - road.x1) / roadLen;
+      const dirY = (road.y2 - road.y1) / roadLen;
+      const manholeHash = ((chunk.cx * 31 + chunk.cy * 17) & 0xff);
+      if (manholeHash % 3 === 0) {
+        const mx = road.x1 + dirX * roadLen * 0.4 + perpX * road.width * 0.15;
+        const my = road.y1 + dirY * roadLen * 0.4 + perpY * road.width * 0.15;
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        ctx.beginPath();
+        ctx.arc(mx, my, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.2)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(mx, my, 10, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(mx - 6, my);
+        ctx.lineTo(mx + 6, my);
+        ctx.moveTo(mx, my - 6);
+        ctx.lineTo(mx, my + 6);
+        ctx.stroke();
+      }
     }
     
-    // Draw decorations (no collision, just visual)
+    // Draw decorations with pseudo-3D depth
     for (const dec of chunk.decorations) {
       if (Math.abs(dec.x - camera.x) > w / 2 + 100) continue;
       if (Math.abs(dec.y - camera.y) > h / 2 + 100) continue;
       
       ctx.save();
       ctx.translate(dec.x, dec.y);
-      ctx.rotate(dec.rotation);
-      ctx.fillStyle = dec.color;
-      ctx.globalAlpha = 0.7;
+      const s = dec.size;
       
-      if (dec.type === "tree" || dec.type === "pine" || dec.type === "palm") {
-        // Simple tree
+      if (dec.type === "tree") {
+        // Ground shadow
+        ctx.fillStyle = "rgba(0,0,0,0.18)";
+        ctx.beginPath();
+        ctx.ellipse(6, 8, s * 0.55, s * 0.3, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        // Trunk
         ctx.fillStyle = "#5a3a2a";
-        ctx.fillRect(-3, -dec.size * 0.3, 6, dec.size * 0.8);
+        ctx.fillRect(-4, -s * 0.2, 8, s * 0.9);
+        ctx.fillStyle = "#4a2a1a";
+        ctx.fillRect(-4, -s * 0.2, 3, s * 0.9);
+        // Canopy layers (dark to light, offset up)
+        ctx.fillStyle = "#1a5a1a";
+        ctx.beginPath();
+        ctx.arc(2, -s * 0.35, s * 0.55, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = dec.color;
         ctx.beginPath();
-        ctx.arc(0, -dec.size * 0.5, dec.size * 0.6, 0, Math.PI * 2);
+        ctx.arc(0, -s * 0.45, s * 0.5, 0, Math.PI * 2);
         ctx.fill();
-      } else if (dec.type === "bush" || dec.type === "shrub") {
+        ctx.fillStyle = "#3a8a3a";
         ctx.beginPath();
-        ctx.arc(0, 0, dec.size * 0.5, 0, Math.PI * 2);
+        ctx.arc(-2, -s * 0.55, s * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (dec.type === "pine") {
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        ctx.beginPath();
+        ctx.ellipse(5, 8, s * 0.4, s * 0.25, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#4a2a1a";
+        ctx.fillRect(-3, -s * 0.1, 6, s * 0.7);
+        // Layered triangular tiers
+        for (let t = 0; t < 3; t++) {
+          const ty = -s * 0.2 - t * s * 0.28;
+          const tw = s * (0.5 - t * 0.1);
+          ctx.fillStyle = t === 0 ? "#1a4a2a" : t === 1 ? "#2a5a3a" : "#3a6a4a";
+          ctx.beginPath();
+          ctx.moveTo(0, ty - s * 0.25);
+          ctx.lineTo(-tw, ty + s * 0.08);
+          ctx.lineTo(tw, ty + s * 0.08);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else if (dec.type === "palm") {
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        ctx.beginPath();
+        ctx.ellipse(8, 10, s * 0.5, s * 0.25, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        // Curved trunk
+        ctx.strokeStyle = "#6a4a2a";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(0, s * 0.4);
+        ctx.quadraticCurveTo(s * 0.15, -s * 0.2, 0, -s * 0.6);
+        ctx.stroke();
+        // Fronds
+        ctx.fillStyle = "#3a7a3a";
+        for (let f = 0; f < 6; f++) {
+          const fa = (f / 6) * Math.PI * 2;
+          ctx.save();
+          ctx.translate(0, -s * 0.6);
+          ctx.rotate(fa);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.quadraticCurveTo(s * 0.15, -s * 0.1, s * 0.3, 0);
+          ctx.quadraticCurveTo(s * 0.15, s * 0.03, 0, 0);
+          ctx.fill();
+          ctx.restore();
+        }
+      } else if (dec.type === "bush" || dec.type === "shrub") {
+        ctx.fillStyle = "rgba(0,0,0,0.12)";
+        ctx.beginPath();
+        ctx.ellipse(3, 4, s * 0.45, s * 0.25, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#2a5a2a";
+        ctx.beginPath();
+        ctx.arc(2, 1, s * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = dec.color;
+        ctx.beginPath();
+        ctx.arc(-1, -2, s * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#4a8a4a";
+        ctx.beginPath();
+        ctx.arc(1, -3, s * 0.22, 0, Math.PI * 2);
         ctx.fill();
       } else if (dec.type === "cactus") {
-        ctx.fillRect(-dec.size * 0.15, -dec.size * 0.8, dec.size * 0.3, dec.size * 1.6);
-        ctx.fillRect(-dec.size * 0.6, -dec.size * 0.3, dec.size * 0.4, dec.size * 0.2);
-        ctx.fillRect(dec.size * 0.2, -dec.size * 0.5, dec.size * 0.4, dec.size * 0.2);
-      } else if (dec.type === "snowdrift" || dec.type === "ashpile") {
+        ctx.fillStyle = "rgba(0,0,0,0.12)";
         ctx.beginPath();
-        ctx.ellipse(0, 0, dec.size * 0.7, dec.size * 0.3, 0, 0, Math.PI * 2);
+        ctx.ellipse(4, s * 0.5, s * 0.3, s * 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Side extrusion
+        ctx.fillStyle = "#1a4a1a";
+        ctx.fillRect(-s * 0.13, -s * 0.75, s * 0.26, s * 1.5);
+        // Main body
+        ctx.fillStyle = dec.color;
+        ctx.fillRect(-s * 0.15, -s * 0.8, s * 0.3, s * 1.6);
+        // Arms
+        ctx.fillRect(-s * 0.6, -s * 0.3, s * 0.45, s * 0.18);
+        ctx.fillRect(-s * 0.6, -s * 0.3, s * 0.18, -s * 0.3);
+        ctx.fillRect(s * 0.15, -s * 0.5, s * 0.45, s * 0.18);
+        ctx.fillRect(s * 0.42, -s * 0.5, s * 0.18, -s * 0.25);
+        // Highlight
+        ctx.fillStyle = "rgba(255,255,255,0.15)";
+        ctx.fillRect(-s * 0.05, -s * 0.75, s * 0.04, s * 1.4);
+      } else if (dec.type === "snowdrift" || dec.type === "ashpile") {
+        ctx.fillStyle = "rgba(0,0,0,0.08)";
+        ctx.beginPath();
+        ctx.ellipse(2, 3, s * 0.65, s * 0.28, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = dec.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.7, s * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.2)";
+        ctx.beginPath();
+        ctx.ellipse(-s * 0.15, -s * 0.08, s * 0.3, s * 0.12, -0.2, 0, Math.PI * 2);
         ctx.fill();
       } else if (dec.type === "vent") {
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
         ctx.beginPath();
-        ctx.arc(0, 0, dec.size * 0.4, 0, Math.PI * 2);
+        ctx.arc(2, 3, s * 0.42, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "#ff2200";
-        ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.01 + dec.x) * 0.3;
+        ctx.fillStyle = "#3a2a2a";
         ctx.beginPath();
-        ctx.arc(0, 0, dec.size * 0.25, 0, Math.PI * 2);
+        ctx.arc(0, 0, s * 0.4, 0, Math.PI * 2);
         ctx.fill();
+        // Glow rings
+        const gp = 0.5 + Math.sin(Date.now() * 0.008 + dec.x) * 0.3;
+        ctx.strokeStyle = "rgba(255,80,0," + (gp * 0.4) + ")";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.35, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,50,0," + gp + ")";
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (dec.type === "fallenlog") {
+        ctx.fillStyle = "rgba(0,0,0,0.1)";
+        ctx.beginPath();
+        ctx.ellipse(0, 3, s * 0.7, s * 0.2, dec.rotation, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#5a3a1a";
+        ctx.save();
+        ctx.rotate(dec.rotation);
+        ctx.fillRect(-s * 0.6, -s * 0.12, s * 1.2, s * 0.24);
+        ctx.fillStyle = "#4a2a0a";
+        ctx.beginPath();
+        ctx.arc(-s * 0.6, 0, s * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (dec.type === "mushroom") {
+        ctx.fillStyle = "#e8d8b8";
+        ctx.fillRect(-2, -s * 0.1, 4, s * 0.3);
+        ctx.fillStyle = "#cc4444";
+        ctx.beginPath();
+        ctx.arc(0, -s * 0.15, s * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(-s * 0.06, -s * 0.2, s * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(s * 0.08, -s * 0.12, s * 0.04, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (dec.type === "flowers") {
+        const flowerColors = ["#ff6688", "#ffaa44", "#aa66ff", "#66aaff"];
+        for (let f = 0; f < 5; f++) {
+          const fx = Math.sin(f * 2.5 + dec.rotation) * s * 0.3;
+          const fy = Math.cos(f * 1.8 + dec.rotation) * s * 0.3;
+          ctx.fillStyle = "#3a7a3a";
+          ctx.fillRect(fx - 1, fy, 2, s * 0.15);
+          ctx.fillStyle = flowerColors[f % 4];
+          ctx.beginPath();
+          ctx.arc(fx, fy, s * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (dec.type === "skull") {
+        ctx.fillStyle = "#d8d0c0";
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#2a2a2a";
+        ctx.beginPath();
+        ctx.arc(-s * 0.06, -s * 0.04, s * 0.04, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(s * 0.06, -s * 0.04, s * 0.04, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (dec.type === "tumbleweed") {
+        ctx.fillStyle = "rgba(0,0,0,0.08)";
+        ctx.beginPath();
+        ctx.arc(2, 3, s * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#8a7a5a";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.25, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.15, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (dec.type === "snowman") {
+        ctx.fillStyle = "rgba(0,0,0,0.1)";
+        ctx.beginPath();
+        ctx.ellipse(2, s * 0.2, s * 0.3, s * 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f0f0f8";
+        ctx.beginPath();
+        ctx.arc(0, s * 0.1, s * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, -s * 0.15, s * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, -s * 0.35, s * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ff6600";
+        ctx.beginPath();
+        ctx.moveTo(0, -s * 0.35);
+        ctx.lineTo(s * 0.15, -s * 0.33);
+        ctx.lineTo(0, -s * 0.31);
+        ctx.fill();
+      } else if (dec.type === "icepatch") {
+        ctx.fillStyle = "rgba(150,200,240,0.35)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.5, s * 0.35, dec.rotation, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        ctx.beginPath();
+        ctx.ellipse(-s * 0.1, -s * 0.05, s * 0.2, s * 0.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (dec.type === "sandcastle") {
+        ctx.fillStyle = "rgba(0,0,0,0.1)";
+        ctx.beginPath();
+        ctx.ellipse(2, 3, s * 0.35, s * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#d4b484";
+        ctx.fillRect(-s * 0.25, -s * 0.2, s * 0.5, s * 0.35);
+        ctx.fillRect(-s * 0.15, -s * 0.4, s * 0.3, s * 0.2);
+        ctx.fillRect(-s * 0.08, -s * 0.5, s * 0.16, s * 0.1);
+      } else if (dec.type === "surfboard") {
+        ctx.save();
+        ctx.rotate(dec.rotation);
+        ctx.fillStyle = "rgba(0,0,0,0.08)";
+        ctx.beginPath();
+        ctx.ellipse(2, 2, s * 0.08, s * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ff4488";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.07, s * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffaa44";
+        ctx.fillRect(-s * 0.04, -s * 0.15, s * 0.08, s * 0.05);
+        ctx.restore();
+      } else if (dec.type === "lavapool") {
+        const lp = 0.6 + Math.sin(Date.now() * 0.005 + dec.x) * 0.2;
+        ctx.fillStyle = "rgba(80,20,0,0.4)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.55, s * 0.4, dec.rotation, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,80,0," + lp + ")";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.45, s * 0.3, dec.rotation, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,200,50," + (lp * 0.6) + ")";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.2, s * 0.12, dec.rotation, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (dec.type === "charredtree") {
+        ctx.fillStyle = "rgba(0,0,0,0.12)";
+        ctx.beginPath();
+        ctx.ellipse(4, 6, s * 0.3, s * 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1a1a";
+        ctx.fillRect(-3, -s * 0.3, 6, s * 0.8);
+        ctx.strokeStyle = "#2a2a2a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, -s * 0.2);
+        ctx.lineTo(-s * 0.2, -s * 0.45);
+        ctx.moveTo(0, -s * 0.15);
+        ctx.lineTo(s * 0.15, -s * 0.4);
+        ctx.stroke();
+      } else if (dec.type === "parkedcar") {
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        ctx.beginPath();
+        ctx.ellipse(2, 4, s * 0.5, s * 0.3, dec.rotation, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        ctx.rotate(dec.rotation);
+        const carColors = ["#884444", "#446688", "#888844", "#448844"];
+        ctx.fillStyle = carColors[Math.floor(Math.abs(Math.sin(dec.x * 0.1)) * 4)];
+        ctx.beginPath();
+        ctx.roundRect(-s * 0.3, -s * 0.5, s * 0.6, s * 1.0, 5);
+        ctx.fill();
+        ctx.fillStyle = "#334";
+        ctx.beginPath();
+        ctx.roundRect(-s * 0.2, -s * 0.2, s * 0.4, s * 0.3, 3);
+        ctx.fill();
+        ctx.restore();
+      } else if (dec.type === "dumpster") {
+        ctx.fillStyle = "rgba(0,0,0,0.12)";
+        ctx.fillRect(2, 2, s * 0.6, s * 0.4);
+        ctx.fillStyle = "#3a5a3a";
+        ctx.fillRect(-s * 0.3, -s * 0.2, s * 0.6, s * 0.4);
+        ctx.fillStyle = "#2a4a2a";
+        ctx.fillRect(-s * 0.3, -s * 0.25, s * 0.6, s * 0.06);
+      } else if (dec.type === "hydrant") {
+        ctx.fillStyle = "rgba(0,0,0,0.1)";
+        ctx.beginPath();
+        ctx.ellipse(2, s * 0.1, s * 0.12, s * 0.08, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#cc2222";
+        ctx.fillRect(-s * 0.08, -s * 0.2, s * 0.16, s * 0.3);
+        ctx.beginPath();
+        ctx.arc(0, -s * 0.2, s * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (dec.type === "lamppost") {
+        ctx.fillStyle = "rgba(0,0,0,0.1)";
+        ctx.beginPath();
+        ctx.ellipse(3, 5, s * 0.15, s * 0.08, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#555";
+        ctx.fillRect(-2, -s * 0.5, 4, s * 0.8);
+        ctx.shadowColor = "#ffeeaa";
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = "#ffeeaa";
+        ctx.beginPath();
+        ctx.arc(0, -s * 0.5, s * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
       } else {
-        // Generic decoration
+        // Generic fallback
+        ctx.fillStyle = "rgba(0,0,0,0.1)";
         ctx.beginPath();
-        ctx.arc(0, 0, dec.size * 0.4, 0, Math.PI * 2);
+        ctx.arc(2, 3, s * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = dec.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.4, 0, Math.PI * 2);
         ctx.fill();
       }
       
-      ctx.globalAlpha = 1;
       ctx.restore();
     }
     
@@ -3056,7 +3954,7 @@ function drawChunks(): void {
       ctx.restore();
     }
     
-    // Draw rocks (collision)
+    // Draw rocks with ambient occlusion and highlights
     for (const rock of chunk.rocks) {
       if (Math.abs(rock.x - camera.x) > w / 2 + rock.radius * 2) continue;
       if (Math.abs(rock.y - camera.y) > h / 2 + rock.radius * 2) continue;
@@ -3065,10 +3963,35 @@ function drawChunks(): void {
       ctx.translate(rock.x, rock.y);
       ctx.rotate(rock.rotation);
       
-      // Shadow
-      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      // Ambient occlusion ring
+      ctx.fillStyle = "rgba(0,0,0,0.12)";
       ctx.beginPath();
-      ctx.ellipse(4, 4, rock.radius * 0.9, rock.radius * 0.7, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 2, rock.radius * 1.1, rock.radius * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Ground shadow
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath();
+      ctx.ellipse(5, 6, rock.radius * 0.85, rock.radius * 0.65, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Extruded base (darker)
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      if (rock.variant === 0) {
+        ctx.moveTo(rock.radius * 0.8 + 2, 3);
+        ctx.lineTo(rock.radius * 0.5 + 2, rock.radius * 0.7 + 3);
+        ctx.lineTo(-rock.radius * 0.3 + 2, rock.radius * 0.9 + 3);
+        ctx.lineTo(-rock.radius * 0.9 + 2, rock.radius * 0.2 + 3);
+        ctx.lineTo(-rock.radius * 0.7 + 2, -rock.radius * 0.5 + 3);
+        ctx.lineTo(2, -rock.radius * 0.85 + 3);
+        ctx.lineTo(rock.radius * 0.6 + 2, -rock.radius * 0.4 + 3);
+      } else if (rock.variant === 1) {
+        ctx.ellipse(2, 3, rock.radius * 0.9, rock.radius * 0.7, 0, 0, Math.PI * 2);
+      } else {
+        ctx.arc(2, 3, rock.radius * 0.85, 0, Math.PI * 2);
+      }
+      ctx.closePath();
       ctx.fill();
       
       // Rock shape
@@ -3090,10 +4013,15 @@ function drawChunks(): void {
       ctx.closePath();
       ctx.fill();
       
-      // Highlight
-      ctx.fillStyle = "rgba(255,255,255,0.15)";
+      // Bright highlight spot
+      ctx.fillStyle = "rgba(255,255,255,0.22)";
       ctx.beginPath();
-      ctx.arc(-rock.radius * 0.25, -rock.radius * 0.25, rock.radius * 0.3, 0, Math.PI * 2);
+      ctx.arc(-rock.radius * 0.25, -rock.radius * 0.3, rock.radius * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      // Secondary smaller highlight
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
+      ctx.beginPath();
+      ctx.arc(-rock.radius * 0.1, -rock.radius * 0.15, rock.radius * 0.12, 0, Math.PI * 2);
       ctx.fill();
       
       ctx.restore();
@@ -3152,14 +4080,22 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
   bodyGrad.addColorStop(0, vehicle.colors.dark);
   bodyGrad.addColorStop(0.5, vehicle.colors.main);
   bodyGrad.addColorStop(1, vehicle.colors.dark);
+
+  const extH = 5;
+  
+  // Ground shadow for all vehicles
+  c.fillStyle = "rgba(0,0,0,0.22)";
+  c.beginPath();
+  c.ellipse(3, 6, w2 * 0.52, h2 * 0.38, 0, 0, Math.PI * 2);
+  c.fill();
+  
+  // Extruded side (dark underside visible below body)
+  c.fillStyle = "rgba(0,0,0,0.45)";
+  c.beginPath();
+  c.roundRect(-w2 / 2 + 2, -h2 / 2 + extH, w2, h2, 8);
+  c.fill();
   
   if (vehicle.id === "sedan") {
-    // Classic sedan shape
-    c.fillStyle = "rgba(0,0,0,0.3)";
-    c.beginPath();
-    c.roundRect(-w2 / 2 + 4, -h2 / 2 + 4, w2, h2, 8);
-    c.fill();
-    
     c.fillStyle = bodyGrad;
     c.beginPath();
     c.roundRect(-w2 / 2, -h2 / 2, w2, h2, 8);
@@ -3408,11 +4344,23 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.fill();
   }
   
-  // Common lights for all vehicles
-  // Headlights
+  // Rim highlight (top edge)
+  const rimGrad = c.createLinearGradient(-w2 / 2, -h2 / 2, w2 / 2, -h2 / 2);
+  rimGrad.addColorStop(0, "rgba(255,255,255,0)");
+  rimGrad.addColorStop(0.3, "rgba(255,255,255,0.35)");
+  rimGrad.addColorStop(0.7, "rgba(255,255,255,0.35)");
+  rimGrad.addColorStop(1, "rgba(255,255,255,0)");
+  c.strokeStyle = rimGrad;
+  c.lineWidth = 1.5;
+  c.beginPath();
+  c.moveTo(-w2 * 0.35, -h2 / 2 + 2);
+  c.lineTo(w2 * 0.35, -h2 / 2 + 2);
+  c.stroke();
+  
+  // Headlights with glow
   c.fillStyle = "#fff";
   c.shadowColor = "#ffffaa";
-  c.shadowBlur = 8;
+  c.shadowBlur = 10;
   c.beginPath();
   c.ellipse(-w2 * 0.3, -h2 / 2 + 6, 4, 3, 0, 0, Math.PI * 2);
   c.fill();
@@ -3424,7 +4372,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
   // Tail lights
   c.fillStyle = isBraking ? "#ff0000" : "#880000";
   if (isBraking) {
-    c.shadowBlur = 12;
+    c.shadowBlur = 14;
     c.shadowColor = "#ff0000";
   }
   c.fillRect(-w2 * 0.38, h2 / 2 - 5, 7, 4);
@@ -3451,8 +4399,8 @@ function drawPlayerCar(): void {
 }
 
 function drawPoliceCar(police: PoliceCar): void {
-  if (Math.abs(police.x - camera.x) > w / 2 + 60) return;
-  if (Math.abs(police.y - camera.y) > h / 2 + 60) return;
+  if (Math.abs(police.x - camera.x) > w / 2 + 80) return;
+  if (Math.abs(police.y - camera.y) > h / 2 + 80) return;
 
   ctx.save();
   ctx.translate(police.x, police.y);
@@ -3463,65 +4411,179 @@ function drawPoliceCar(police: PoliceCar): void {
 
   const lightPhase = (gameTime * 0.015 + police.lightPhase) % (Math.PI * 2);
   const isRed = Math.sin(lightPhase) > 0;
-  
-  ctx.shadowColor = isRed ? COLORS.policeLight1 : COLORS.policeLight2;
-  ctx.shadowBlur = 25;
 
-  // Shadow
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  ctx.shadowBlur = 0;
+  // Ground shadow
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.beginPath();
-  ctx.ellipse(3, 3, w2 * 0.4, h2 * 0.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(3, 7, w2 * 0.55, h2 * 0.38, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Body
-  ctx.fillStyle = COLORS.policeCar;
-  ctx.strokeStyle = "#111";
-  ctx.lineWidth = 2;
+  // Extruded underside
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
   ctx.beginPath();
-  ctx.roundRect(-w2 / 2, -h2 / 2, w2, h2, 8);
-  ctx.fill();
-  ctx.stroke();
-
-  // White stripe
-  ctx.fillStyle = COLORS.policeWhite;
-  ctx.fillRect(-w2 / 2 + 3, -h2 * 0.05, w2 - 6, h2 * 0.1);
-
-  // Windshield
-  ctx.fillStyle = "#334";
-  ctx.beginPath();
-  ctx.roundRect(-w2 * 0.32, -h2 * 0.34, w2 * 0.64, h2 * 0.22, 4);
+  ctx.roundRect(-w2 / 2 + 2, -h2 / 2 + 5, w2, h2, 8);
   ctx.fill();
 
-  // Light bar
-  ctx.fillStyle = "#222";
-  ctx.fillRect(-w2 * 0.28, -h2 * 0.12, w2 * 0.56, h2 * 0.1);
-
-  // Flashing lights
-  ctx.shadowBlur = 15;
-  if (isRed) {
-    ctx.shadowColor = COLORS.policeLight1;
-    ctx.fillStyle = COLORS.policeLight1;
+  if (police.enemyType === "interceptor") {
+    // Sleek black body with gold stripe
+    const intGrad = ctx.createLinearGradient(-w2 / 2, 0, w2 / 2, 0);
+    intGrad.addColorStop(0, "#111");
+    intGrad.addColorStop(0.5, "#222");
+    intGrad.addColorStop(1, "#111");
+    ctx.fillStyle = intGrad;
     ctx.beginPath();
-    ctx.arc(-w2 * 0.14, -h2 * 0.07, 5, 0, Math.PI * 2);
+    ctx.moveTo(-w2 / 2, h2 * 0.4);
+    ctx.lineTo(-w2 * 0.35, -h2 / 2);
+    ctx.lineTo(w2 * 0.35, -h2 / 2);
+    ctx.lineTo(w2 / 2, h2 * 0.4);
+    ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Gold racing stripe
+    ctx.fillStyle = "#d4a020";
+    ctx.fillRect(-2.5, -h2 / 2, 5, h2 * 0.9);
+
+    // Windshield
+    const wsGrad = ctx.createLinearGradient(-w2 * 0.2, -h2 * 0.15, w2 * 0.2, -h2 * 0.05);
+    wsGrad.addColorStop(0, "#446688");
+    wsGrad.addColorStop(1, "#223344");
+    ctx.fillStyle = wsGrad;
+    ctx.beginPath();
+    ctx.roundRect(-w2 * 0.22, -h2 * 0.15, w2 * 0.44, h2 * 0.15, 3);
+    ctx.fill();
+
+    // Amber warning lights
+    ctx.fillStyle = "#222";
+    ctx.fillRect(-w2 * 0.2, -h2 * 0.02, w2 * 0.4, h2 * 0.06);
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = "#ffaa00";
+    ctx.fillStyle = isRed ? "#ffaa00" : "#664400";
+    ctx.beginPath();
+    ctx.arc(-w2 * 0.1, h2 * 0.01, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = isRed ? "#664400" : "#ffaa00";
+    ctx.beginPath();
+    ctx.arc(w2 * 0.1, h2 * 0.01, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+  } else if (police.enemyType === "swat") {
+    // Wide armored SWAT van
+    ctx.fillStyle = "#2a3a2a";
+    ctx.beginPath();
+    ctx.roundRect(-w2 / 2, -h2 / 2, w2, h2, 5);
+    ctx.fill();
+    ctx.strokeStyle = "#1a2a1a";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Armored panels
+    ctx.fillStyle = "#3a4a3a";
+    ctx.fillRect(-w2 / 2 + 3, -h2 * 0.4, w2 - 6, h2 * 0.3);
+    ctx.fillRect(-w2 / 2 + 3, h2 * 0.1, w2 - 6, h2 * 0.3);
+
+    // Reinforced bumper
+    ctx.fillStyle = "#444";
+    ctx.fillRect(-w2 * 0.45, -h2 / 2, w2 * 0.9, h2 * 0.08);
+    ctx.fillRect(-w2 * 0.45, h2 / 2 - h2 * 0.06, w2 * 0.9, h2 * 0.06);
+
+    // Windshield (small, armored)
+    ctx.fillStyle = "#2a3a4a";
+    ctx.beginPath();
+    ctx.roundRect(-w2 * 0.3, -h2 * 0.28, w2 * 0.6, h2 * 0.14, 3);
+    ctx.fill();
+
+    // Roof spotlight
+    ctx.fillStyle = "#555";
+    ctx.beginPath();
+    ctx.arc(0, 0, w2 * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = isRed ? "#ff2244" : "#2244ff";
+    ctx.fillStyle = isRed ? "#ff2244" : "#2244ff";
+    ctx.beginPath();
+    ctx.arc(0, 0, w2 * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Damage indicator
+    if (police.health < ENEMY_STATS.swat.health) {
+      ctx.strokeStyle = "#666";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-w2 * 0.3, -h2 * 0.15);
+      ctx.lineTo(-w2 * 0.1, h2 * 0.1);
+      ctx.moveTo(w2 * 0.2, -h2 * 0.2);
+      ctx.lineTo(w2 * 0.05, h2 * 0.05);
+      ctx.stroke();
+    }
+
   } else {
-    ctx.shadowColor = COLORS.policeLight2;
-    ctx.fillStyle = COLORS.policeLight2;
+    // Patrol car (default)
+    ctx.fillStyle = COLORS.policeCar;
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(w2 * 0.14, -h2 * 0.07, 5, 0, Math.PI * 2);
+    ctx.roundRect(-w2 / 2, -h2 / 2, w2, h2, 8);
     ctx.fill();
+    ctx.stroke();
+
+    // White stripe
+    ctx.fillStyle = COLORS.policeWhite;
+    ctx.fillRect(-w2 / 2 + 3, -h2 * 0.05, w2 - 6, h2 * 0.1);
+
+    // Windshield with reflection
+    const wsGrad = ctx.createLinearGradient(-w2 * 0.3, -h2 * 0.34, w2 * 0.3, -h2 * 0.12);
+    wsGrad.addColorStop(0, "#445566");
+    wsGrad.addColorStop(1, "#223344");
+    ctx.fillStyle = wsGrad;
+    ctx.beginPath();
+    ctx.roundRect(-w2 * 0.32, -h2 * 0.34, w2 * 0.64, h2 * 0.22, 4);
+    ctx.fill();
+
+    // Light bar
+    ctx.fillStyle = "#222";
+    ctx.fillRect(-w2 * 0.28, -h2 * 0.12, w2 * 0.56, h2 * 0.1);
+
+    ctx.shadowBlur = 15;
+    if (isRed) {
+      ctx.shadowColor = COLORS.policeLight1;
+      ctx.fillStyle = COLORS.policeLight1;
+      ctx.beginPath();
+      ctx.arc(-w2 * 0.14, -h2 * 0.07, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.shadowColor = COLORS.policeLight2;
+      ctx.fillStyle = COLORS.policeLight2;
+      ctx.beginPath();
+      ctx.arc(w2 * 0.14, -h2 * 0.07, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
   }
-  ctx.shadowBlur = 0;
+
+  // Rim highlight
+  ctx.strokeStyle = "rgba(255,255,255,0.2)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-w2 * 0.3, -h2 / 2 + 2);
+  ctx.lineTo(w2 * 0.3, -h2 / 2 + 2);
+  ctx.stroke();
 
   // Headlights
   ctx.fillStyle = "#fff";
+  ctx.shadowColor = "#ffffaa";
+  ctx.shadowBlur = 8;
   ctx.beginPath();
-  ctx.ellipse(-w2 * 0.22, -h2 / 2 + 6, 4, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(-w2 * 0.25, -h2 / 2 + 6, 4, 3, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(w2 * 0.22, -h2 / 2 + 6, 4, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(w2 * 0.25, -h2 / 2 + 6, 4, 3, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.shadowBlur = 0;
 
   ctx.restore();
 }
@@ -3673,7 +4735,7 @@ function drawMinimap(): void {
 
   const mapSize = isMobile ? 100 : 140;
   const mapX = w - mapSize - 15;
-  const mapY = isMobile ? 125 : 55;
+  const mapY = isMobile ? 185 : 95;
   const viewRadius = CHUNK_SIZE * 3; // How much world to show
   const scale = mapSize / (viewRadius * 2);
 
@@ -3763,6 +4825,89 @@ function drawMinimap(): void {
   ctx.stroke();
 
   ctx.restore();
+}
+
+// ============================================================================
+// COIN RENDERING
+// ============================================================================
+
+function drawWorldCoins(): void {
+  const now = performance.now();
+  for (const chunk of loadedChunks) {
+    for (const coin of chunk.coins) {
+      if (coin.collected) {
+        const elapsed = now - coin.collectTime;
+        if (elapsed < 300) {
+          const progress = elapsed / 300;
+          const scale = 1 + progress * 0.5;
+          const alpha = 1 - progress;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.translate(coin.x, coin.y);
+          ctx.scale(scale, scale);
+          drawCoinSprite(0, 0);
+          ctx.restore();
+        }
+        continue;
+      }
+      
+      const bob = Math.sin(gameTime * 0.004 + coin.bobPhase) * 3;
+      drawCoinSprite(coin.x, coin.y + bob);
+    }
+  }
+}
+
+function drawCoinSprite(x: number, y: number): void {
+  const r = COIN_SIZE;
+  
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.beginPath();
+  ctx.ellipse(x + 2, y + 4, r * 0.9, r * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  const grad = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, r);
+  grad.addColorStop(0, "#fff8b0");
+  grad.addColorStop(0.4, "#ffd700");
+  grad.addColorStop(0.8, "#daa520");
+  grad.addColorStop(1, "#b8860b");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.strokeStyle = "#8b6914";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  ctx.strokeStyle = "#8b6914";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.65, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  ctx.fillStyle = "#8b6914";
+  ctx.font = "bold " + Math.round(r * 1.1) + "px 'Nunito', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("$", x, y + 1);
+}
+
+function drawCoinPopups(): void {
+  for (const popup of coinPopups) {
+    const progress = popup.time / 800;
+    const alpha = 1 - progress;
+    const yOff = -30 * progress;
+    
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = "bold 16px 'Bangers', cursive";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffd700";
+    ctx.fillText("+1", popup.x, popup.y + yOff);
+    ctx.restore();
+  }
 }
 
 // ============================================================================

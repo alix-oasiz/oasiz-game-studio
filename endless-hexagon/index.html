@@ -1,415 +1,309 @@
 <!doctype html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="/style.css">
-    <title>Phaser - Template</title>
-</head>
-
-<body>
-    <div id="app" class="relative w-full h-full bg-slate-900">
-        <div id="game-container" class="w-full h-full"></div>
-
-        <!-- Main Menu -->
-        <div id="main-menu"
-            class="absolute inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-700">
-            <!-- Title -->
-            <div class="mb-24 -mt-24 text-center animate-float">
-                <h1
-                    class="font-display text-5xl md:text-7xl text-white tracking-widest drop-shadow-[5px_5px_0_rgba(0,0,0,1)] mb-4 glitch-text">
-                    ENDLESS<br>HEXAGON
-                </h1>
-                <p
-                    class="font-display text-xs md:text-sm text-white tracking-[0.5em] animate-pulse drop-shadow-[2px_2px_0_rgba(0,0,0,1)] stroke-black">
-                    PRESS PLAY TO START
-                </p>
-            </div>
-
-            <!-- Play Button -->
-            <button id="play-btn"
-                class="group relative px-16 py-6 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-display text-2xl transition-all hover:-translate-y-1 hover:shadow-[0_10px_0_rgba(0,0,0,0.5)] active:translate-y-1 active:shadow-none pixel-btn">
-                <span class="relative z-10">PLAY</span>
-                <!-- Pixel Corners -->
-                <div class="absolute inset-0 border-4 border-black group-hover:border-slate-800"></div>
-            </button>
-
-
-        </div>
-
-        <!-- Settings Button (Gear) -->
-        <button id="settings-btn"
-            class="absolute settings-pos right-5 z-50 w-12 h-12 bg-slate-800 text-white flex items-center justify-center pixel-border-sm hover:bg-slate-700 transition-colors">
-            <span class="material-icons">settings</span>
-        </button>
-
-        <!-- Game Over Modal -->
-        <div id="game-over-modal" class="absolute inset-0 z-40 bg-black/80 flex items-center justify-center hidden">
-            <div class="w-full max-w-md bg-slate-200 dark:bg-slate-800 p-8 pixel-card shadow-2xl relative">
-                <div class="mb-8 text-center">
-                    <h1 class="font-display text-4xl text-red-500 mb-2">GAME OVER</h1>
-                    <div class="h-2 w-full bg-white mx-auto"></div>
-                </div>
-
-                <div class="text-center mb-8">
-                    <p class="text-slate-600 dark:text-slate-400 text-sm mb-2">FINAL SCORE</p>
-                    <p id="final-score" class="font-display text-5xl text-slate-800 dark:text-slate-100 mb-4">0</p>
-
-                    <div class="inline-block px-4 py-2 bg-yellow-100 dark:bg-yellow-900/30 rounded pixel-border-sm">
-                        <p class="text-xs text-yellow-700 dark:text-yellow-400 font-bold tracking-widest">HIGH SCORE</p>
-                        <p id="high-score-display" class="font-display text-xl text-yellow-600 dark:text-yellow-300">0
-                        </p>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <button id="restart-btn"
-                        class="w-full p-4 bg-white text-slate-900 font-bold pixel-border-sm hover:translate-y-[-2px] hover:shadow-lg transition-all active:translate-y-1">
-                        RESTART
-                    </button>
-                    <button id="go-settings-btn"
-                        class="w-full p-4 bg-slate-700 text-slate-200 font-bold pixel-border-sm hover:bg-slate-600 transition-colors">
-                        SETTINGS
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings Modal (Retro Style) -->
-        <div id="settings-modal" class="absolute inset-0 z-50 bg-black/80 flex items-center justify-center hidden">
-            <div class="w-full max-w-md bg-slate-200 dark:bg-slate-800 p-8 pixel-card shadow-2xl">
-                <div class="mb-10 text-center">
-                    <h2 class="font-display text-2xl text-slate-800 dark:text-slate-100 mb-2">SETTINGS</h2>
-                    <div class="h-2 w-32 bg-white mx-auto"></div>
-                </div>
-
-                <div class="space-y-6">
-                    <!-- Music -->
-                    <div class="flex items-center justify-between p-4 bg-slate-300 dark:bg-slate-700 pixel-border-sm">
-                        <div class="flex items-center gap-4">
-                            <span class="material-icons text-slate-600 dark:text-slate-300">music_note</span>
-                            <span class="font-bold text-slate-700 dark:text-slate-200">MUSIC</span>
-                        </div>
-                        <label class="switch">
-                            <input type="checkbox" id="music-toggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-
-                    <!-- FX -->
-                    <div class="flex items-center justify-between p-4 bg-slate-300 dark:bg-slate-700 pixel-border-sm">
-                        <div class="flex items-center gap-4">
-                            <span class="material-icons text-slate-600 dark:text-slate-300">volume_up</span>
-                            <span class="font-bold text-slate-700 dark:text-slate-200">SOUND FX</span>
-                        </div>
-                        <label class="switch">
-                            <input type="checkbox" id="fx-toggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-
-                    <!-- Haptics -->
-                    <div class="flex items-center justify-between p-4 bg-slate-300 dark:bg-slate-700 pixel-border-sm">
-                        <div class="flex items-center gap-4">
-                            <span class="material-icons text-slate-600 dark:text-slate-300">vibration</span>
-                            <span class="font-bold text-slate-700 dark:text-slate-200">HAPTICS</span>
-                        </div>
-                        <label class="switch">
-                            <input type="checkbox" id="haptics-toggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="mt-8">
-                    <button id="close-settings"
-                        class="w-full p-3 bg-slate-600 text-white pixel-border-sm hover:bg-slate-500 transition-colors">
-                        CLOSE
-                    </button>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Tailwind & Fonts -->
-    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        primary: "#fbbf24",
-                        "background-light": "#cbd5e1",
-                        "background-dark": "#1e293b",
-                    },
-                    fontFamily: {
-                        display: ["'Press Start 2P'", "cursive"],
-                    },
-                },
-            },
-        };
-    </script>
-
-    <!-- Game & UI Logic -->
-    <script>
-        // Platform State
-        window.platform = {
-            musicEnabled: localStorage.getItem('musicEnabled') !== 'false',
-            fxEnabled: localStorage.getItem('fxEnabled') !== 'false',
-            hapticsEnabled: localStorage.getItem('hapticsEnabled') !== 'false',
-        };
-
-        // Elements
-        const settingsBtn = document.getElementById('settings-btn');
-        const settingsModal = document.getElementById('settings-modal');
-        const closeSettingsBtn = document.getElementById('close-settings');
-        const gameOverModal = document.getElementById('game-over-modal');
-        const finalScoreEl = document.getElementById('final-score');
-        const restartBtn = document.getElementById('restart-btn');
-        const goSettingsBtn = document.getElementById('go-settings-btn'); // Settings from Game Over
-
-        const mainMenu = document.getElementById('main-menu');
-        const playBtn = document.getElementById('play-btn');
-
-        const musicToggle = document.getElementById('music-toggle');
-        const fxToggle = document.getElementById('fx-toggle');
-        const hapticsToggle = document.getElementById('haptics-toggle');
-
-        function updateToggles() {
-            musicToggle.checked = window.platform.musicEnabled;
-            fxToggle.checked = window.platform.fxEnabled;
-            hapticsToggle.checked = window.platform.hapticsEnabled;
-        }
-        updateToggles();
-
-        // Event Listeners
-        function openSettings() {
-            settingsModal.classList.remove('hidden');
-            if (window.triggerHaptic) window.triggerHaptic('light');
-            if (window.pauseGame) window.pauseGame();
-        }
-        function closeSettings() {
-            settingsModal.classList.add('hidden');
-            if (window.triggerHaptic) window.triggerHaptic('light');
-            if (window.resumeGame) window.resumeGame();
-        }
-
-        settingsBtn.onclick = openSettings;
-        closeSettingsBtn.onclick = closeSettings;
-        goSettingsBtn.onclick = openSettings;
-
-        restartBtn.onclick = () => {
-            if (window.triggerHaptic) window.triggerHaptic('medium');
-            location.reload();
-        };
-
-        // Main Menu Logic
-        // Main Menu Logic
-        const playBtnText = playBtn.querySelector('span'); // Get text span
-
-        // Disable Button Initially
-        playBtn.disabled = true;
-        playBtn.classList.add('opacity-50', 'cursor-wait');
-        playBtn.classList.remove('hover:bg-yellow-300', 'hover:-translate-y-1');
-        if (playBtnText) playBtnText.textContent = "LOADING...";
-
-        // Game Ready Hook (Called from Scene.ts)
-        window.onGameReady = () => {
-            playBtn.disabled = false;
-            playBtn.classList.remove('opacity-50', 'cursor-wait');
-            playBtn.classList.add('hover:bg-yellow-300', 'hover:-translate-y-1');
-            if (playBtnText) playBtnText.textContent = "PLAY";
-        };
-
-        playBtn.onclick = () => {
-            if (window.triggerHaptic) window.triggerHaptic('medium');
-
-            // Start Game IMMEDIATELY
-            if (window.startGame) window.startGame();
-
-            // Fade out visuals
-            mainMenu.classList.add('opacity-0', 'pointer-events-none');
-        };
-
-        // Expose Show Menu
-        window.showMainMenu = () => {
-            mainMenu.classList.remove('opacity-0', 'pointer-events-none');
-            gameOverModal.classList.add('hidden');
-        };
-
-        // Toggles
-        musicToggle.onchange = (e) => {
-            window.platform.musicEnabled = e.target.checked;
-            localStorage.setItem('musicEnabled', e.target.checked);
-        };
-        fxToggle.onchange = (e) => {
-            window.platform.fxEnabled = e.target.checked;
-            localStorage.setItem('fxEnabled', e.target.checked);
-        };
-        hapticsToggle.onchange = (e) => {
-            window.platform.hapticsEnabled = e.target.checked;
-            localStorage.setItem('hapticsEnabled', e.target.checked);
-        };
-
-        // Oasiz / Global Hooks
-        window.showGameOver = (score) => {
-            finalScoreEl.textContent = score;
-
-            // --- High Score Logic ---
-            const currentHigh = parseInt(localStorage.getItem('highScore') || '0');
-            let newHigh = currentHigh;
-
-            if (score > currentHigh) {
-                newHigh = score;
-                localStorage.setItem('highScore', newHigh);
-                // Optional: visual flair for new high score can be added here
-            }
-
-            const highScoreDisplay = document.getElementById('high-score-display');
-            if (highScoreDisplay) highScoreDisplay.textContent = newHigh;
-
-            gameOverModal.classList.remove('hidden');
-
-            // Re-enable settings button on game over? logic separate
-        };
-
-        window.submitScore = (score) => {
-            console.log("Submitting Score:", score);
-            // Platform injection handle
-        };
-
-        window.triggerHaptic = (type) => {
-            if (!window.platform.hapticsEnabled) return;
-            // Simple navigator.vibrate fallback
-            if (navigator.vibrate) navigator.vibrate(10);
-        };
-
-        // --- UI Sounds ---
-        const clickSound = new Audio('/audio/ButtonClick.wav');
-        function playClick() {
-            if (window.platform.fxEnabled) {
-                clickSound.currentTime = 0;
-                clickSound.play().catch(() => { });
-            }
-        }
-        // Attach to controls
-        document.querySelectorAll('button').forEach(btn => btn.addEventListener('click', playClick));
-        document.querySelectorAll('input[type="checkbox"]').forEach(inp => inp.addEventListener('change', playClick));
-
-    </script>
-    <script type="module" src="/src/main.ts"></script>
+    <title>Endless Hexagon</title>
     <style>
-        .pixel-border {
-            box-shadow: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000;
+        @font-face {
+            font-family: 'Press Start 2P';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('./fonts/PressStart2P.ttf') format('truetype');
         }
-
-        .pixel-border-sm {
-            box-shadow: 0 -2px 0 0 #000, 0 2px 0 0 #000, -2px 0 0 0 #000, 2px 0 0 0 #000;
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden; touch-action: none;
+            font-family: 'Press Start 2P', monospace, cursive;
+            -webkit-tap-highlight-color: transparent;
         }
+        .hidden { display: none !important; }
+        #app { position: relative; width: 100%; height: 100%; background-color: #0f172a; }
+        #game-container { width: 100%; height: 100%; }
 
-        .pixel-card {
-            border: 4px solid #475569;
-            position: relative;
+        /* ===== MAIN MENU ===== */
+        #main-menu {
+            position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 50;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 700ms ease, visibility 700ms ease;
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15) 0%, transparent 60%);
         }
-
-        .pixel-card::after {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            border: 4px solid #000;
-            pointer-events: none;
+        #main-menu.menu-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+        .menu-title-wrap { margin-bottom: 6rem; margin-top: -6rem; text-align: center; animation: float 4s ease-in-out infinite; }
+        
+        .menu-title { 
+            font-family: 'Press Start 2P', monospace, cursive; 
+            font-size: 3rem; line-height: 1.2; 
+            color: #ffffff;
+            text-shadow: 5px 5px 0 #000, -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000;
+            letter-spacing: 0.1em; 
+            margin-bottom: 1rem; 
         }
+        @media (min-width: 768px) { .menu-title { font-size: 4.5rem; text-shadow: 8px 8px 0 #000, -4px -4px 0 #000, 4px -4px 0 #000, -4px 4px 0 #000, 4px 4px 0 #000; } }
+        .menu-subtitle { font-family: 'Press Start 2P', monospace, cursive; font-size: 0.65rem; color: #ffffff; text-shadow: 2px 2px 0 #000; letter-spacing: 0.4em; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @media (min-width: 768px) { .menu-subtitle { font-size: 0.8rem; } }
 
-        /* Toggle Switch Custom */
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 28px;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
+        /* ===== PLAY BUTTON ===== */
+        #play-btn {
+            position: relative; padding: 1.25rem 3.5rem;
+            background-color: #ffffff; color: #000000;
+            font-family: 'Press Start 2P', monospace, cursive; font-size: 1.25rem;
+            border: 4px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000; 
+            border-bottom-width: 8px; border-right-width: 8px;
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #555;
-            transition: .4s;
-            border-radius: 34px;
+            transition: all 100ms ease;
+        }
+        #play-btn:not(.loading):hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 10px; border-right-width: 10px; }
+        #play-btn:not(.loading):active { transform: translate(4px, 4px); border-bottom-width: 4px; border-right-width: 4px; }
+        #play-btn.loading { opacity: 0.5; cursor: wait; }
+
+        /* ===== SETTINGS GEAR ===== */
+        #settings-btn {
+            position: absolute; top: 45px; right: 1.25rem; z-index: 50;
+            width: 3rem; height: 3rem;
+            background-color: #ffffff; color: #000000;
+            display: flex; align-items: center; justify-content: center;
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
+            cursor: pointer;
+            transition: all 100ms ease;
+        }
+        #settings-btn:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #settings-btn:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
+        @media (pointer: coarse) { #settings-btn { top: 120px; } }
+        #settings-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+        /* ===== MODAL OVERLAY ===== */
+        .modal-overlay {
+            position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+        }
+        #game-over-modal { z-index: 40; }
+        #settings-modal { z-index: 50; }
+
+        /* ===== MODAL CARD (Colorful Retro) ===== */
+        .modal-card {
+            width: 90%; max-width: 24rem;
+            background-color: #2f2f2f;
+            padding: 2rem 1.5rem;
+            border: 4px solid #ffffff;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 12px; border-right-width: 12px;
+            position: relative;
         }
 
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 20px;
-            width: 20px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
+        /* ===== GAME OVER MODAL ===== */
+        .go-header { margin-bottom: 1.5rem; text-align: center; }
+        .go-header h1 {
+            font-family: 'Press Start 2P', monospace, cursive;
+            font-size: 1.5rem; color: #EF5350;
+            margin-bottom: 0.75rem;
+            text-shadow: 3px 3px 0 #000;
         }
+        @media (min-width: 768px) { .go-header h1 { font-size: 2rem; } }
+        .go-divider { height: 4px; width: 100%; background: linear-gradient(90deg, transparent, #ffffff, transparent); }
+        .go-scores { text-align: center; margin: 1.5rem 0 2rem; }
+        .go-scores .label {
+            font-family: 'Press Start 2P', monospace, cursive;
+            color: #888888; font-size: 0.6rem; letter-spacing: 0.2em; margin-bottom: 0.75rem;
+        }
+        #final-score {
+            font-family: 'Press Start 2P', monospace, cursive;
+            font-size: 2.5rem; line-height: 1; color: #F9A825;
+            text-shadow: 3px 3px 0 #000;
+        }
+        @media (min-width: 768px) { #final-score { font-size: 3rem; } }
 
-        input:checked+.slider {
+        /* ===== MODAL BUTTONS ===== */
+        .modal-buttons { display: flex; flex-direction: column; gap: 0.75rem; }
+        .modal-btn {
+            width: 100%; padding: 0.9rem;
+            font-family: 'Press Start 2P', monospace, cursive;
+            font-size: 0.7rem; letter-spacing: 0.1em;
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
+            cursor: pointer;
+            transition: all 100ms ease;
+            color: #000000;
+        }
+        #restart-btn {
             background-color: #ffffff;
         }
+        #restart-btn:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #restart-btn:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
+        
+        #go-settings-btn {
+            background-color: #888888; border-color: #2f2f2f; color: #ffffff;
+        }
+        #go-settings-btn:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #go-settings-btn:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
 
-        /* Primary Color */
-        input:checked+.slider:before {
-            transform: translateX(22px);
-            background-color: #333;
+        /* ===== SETTINGS MODAL ===== */
+        .settings-header { margin-bottom: 1.5rem; text-align: center; }
+        .settings-header h2 {
+            font-family: 'Press Start 2P', monospace, cursive;
+            font-size: 1.1rem; color: #ffffff;
+            margin-bottom: 0.75rem;
+            text-shadow: 2px 2px 0 #000;
+        }
+        .settings-divider { height: 4px; width: 6rem; background: linear-gradient(90deg, transparent, #ffffff, transparent); margin: 0 auto; }
+
+        .settings-list { display: flex; flex-direction: column; gap: 1rem; }
+        .settings-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
+        }
+        .settings-row-left { display: flex; align-items: center; gap: 0.75rem; }
+        .settings-row-left svg { width: 20px; height: 20px; fill: #ffffff; filter: drop-shadow(2px 2px 0 #000); }
+        .settings-row-left .setting-label {
+            font-family: 'Press Start 2P', monospace, cursive;
+            font-size: 0.55rem; color: #ffffff;
+            text-shadow: 1px 1px 0 #000;
         }
 
-        /* Animations */
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translateY(0);
-            }
-
-            50% {
-                transform: translateY(-10px);
-            }
+        /* ===== PIXEL TOGGLE ===== */
+        .pixel-toggle {
+            width: 56px; height: 28px;
+            background-color: #888888; border: 3px solid #2f2f2f;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 5px; border-right-width: 5px;
+            cursor: pointer; position: relative;
+            transition: all 150ms ease;
+            display: flex; align-items: center;
         }
-
-        .animate-float {
-            animation: float 4s ease-in-out infinite;
+        .pixel-toggle.active {
+            background-color: #66BB6A; border-color: #1B5E20;
         }
-
-        .pixel-btn {
-            box-shadow: 0 6px 0 0 #000;
+        .pixel-toggle .toggle-knob {
+            width: 18px; height: 18px;
+            background-color: #2f2f2f;
+            position: absolute; left: 3px;
+            transition: all 150ms ease;
         }
-
-        .stroke-black {
-            -webkit-text-stroke: 1px black;
+        .pixel-toggle.active .toggle-knob {
+            left: calc(100% - 21px);
+            background-color: #ffffff;
         }
-
-        /* Settings Alignment to match Phaser */
-        .settings-pos {
-            top: 30px;
+        .pixel-toggle .toggle-label {
+            font-family: 'Press Start 2P', monospace, cursive;
+            font-size: 0.35rem; color: #94a3b8;
+            position: absolute; width: 100%; text-align: center;
+            pointer-events: none; letter-spacing: 0.05em;
+            display: none;
         }
+        .pixel-toggle.active .toggle-label { color: #ffffff; }
 
-        @media (pointer: coarse) {
-            .settings-pos {
-                top: 60px;
-            }
+        /* ===== CLOSE BUTTON ===== */
+        .settings-close-wrap { margin-top: 1.5rem; }
+        #close-settings {
+            width: 100%; padding: 0.75rem;
+            background-color: #ffffff; color: #000000;
+            font-family: 'Press Start 2P', monospace, cursive;
+            font-size: 0.6rem; letter-spacing: 0.1em;
+            border: 3px solid #888888;
+            border-bottom-color: #000000; border-right-color: #000000;
+            border-bottom-width: 6px; border-right-width: 6px;
+            cursor: pointer;
+            transition: all 100ms ease;
         }
+        #close-settings:hover { background-color: #66BB6A; border-color: #1B5E20; border-bottom-color: #000000; border-right-color: #000000; color: #ffffff; transform: translate(-2px, -2px); border-bottom-width: 8px; border-right-width: 8px; }
+        #close-settings:active { transform: translate(2px, 2px); border-bottom-width: 4px; border-right-width: 4px; }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
     </style>
-</body>
+</head>
+<body>
+    <div id="app">
+        <div id="game-container"></div>
+        <div id="main-menu">
+            <div class="menu-title-wrap">
+                <h1 class="menu-title">ENDLESS<br>HEXAGON</h1>
+                <p class="menu-subtitle">PRESS PLAY TO START</p>
+            </div>
+            <button id="play-btn">PLAY</button>
+        </div>
+        <button id="settings-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+        </button>
 
+        <!-- GAME OVER MODAL -->
+        <div id="game-over-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="go-header">
+                    <h1>GAME OVER</h1>
+                    <div class="go-divider"></div>
+                </div>
+                <div class="go-scores">
+                    <p class="label">FINAL SCORE</p>
+                    <p id="final-score">0</p>
+                </div>
+                <div class="modal-buttons">
+                    <button id="restart-btn" class="modal-btn">RESTART</button>
+                    <button id="go-settings-btn" class="modal-btn">SETTINGS</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS MODAL -->
+        <div id="settings-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="settings-header">
+                    <h2>SETTINGS</h2>
+                    <div class="settings-divider"></div>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div class="settings-row-left">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            <span class="setting-label">MUSIC</span>
+                        </div>
+                        <div class="pixel-toggle active" id="music-toggle">
+                            <div class="toggle-knob"></div>
+                            <span class="toggle-label">ON</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-left">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                            <span class="setting-label">SOUND FX</span>
+                        </div>
+                        <div class="pixel-toggle active" id="fx-toggle">
+                            <div class="toggle-knob"></div>
+                            <span class="toggle-label">ON</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-left">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 15h2V9H0v6zm3 2h2V7H3v10zm19-8v6h2V9h-2zm-3 8h2V7h-2v10zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z"/></svg>
+                            <span class="setting-label">HAPTICS</span>
+                        </div>
+                        <div class="pixel-toggle active" id="haptics-toggle">
+                            <div class="toggle-knob"></div>
+                            <span class="toggle-label">ON</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-close-wrap">
+                    <button id="close-settings">CLOSE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
 </html>

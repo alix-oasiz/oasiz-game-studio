@@ -1,0 +1,85 @@
+:root {
+  --bg: #e7edf5;
+  --panel: #ffffff;
+  --border: #c8d4e4;
+  --text: #14273f;
+  --muted: #4e6076;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: radial-gradient(1200px 700px at 10% -10%, #f7fbff 0%, var(--bg) 52%, #d8e2ee 100%);
+  color: var(--text);
+  font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+.app {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.header {
+  margin-bottom: 14px;
+}
+
+.header h1 {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+}
+
+.meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.empty-state {
+  border: 1px dashed var(--border);
+  background: #f8fbff;
+  border-radius: 12px;
+  padding: 14px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(14, 32, 55, 0.1);
+}
+
+.card-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  display: block;
+  background: #edf4fb;
+}
+
+.card-caption {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  border-top: 1px solid #d8e3f1;
+  background: #f8fbff;
+}
+
+.hidden {
+  display: none;
+}

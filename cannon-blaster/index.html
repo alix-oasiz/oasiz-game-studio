@@ -385,7 +385,7 @@
 
         @media (pointer: coarse) {
             #upgradeScreen .content {
-                padding-top: 180px;
+                padding-top: 140px;
             }
         }
 
@@ -456,11 +456,12 @@
         .schematic-grid {
             display: flex;
             justify-content: space-between;
-            gap: 15px;
+            gap: 10px;
             flex: 1;
             position: relative;
             z-index: 10;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
+            overflow-y: auto;
             background-image: 
                 linear-gradient(rgba(144, 255, 170, 0.05) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(144, 255, 170, 0.05) 1px, transparent 1px);
@@ -473,7 +474,7 @@
         .pillar {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
             flex: 1;
             align-items: center;
         }
@@ -491,8 +492,8 @@
 
         /* Node Styling */
         .node {
-            width: 48px;
-            height: 48px;
+            width: 38px;
+            height: 38px;
             background: #05080c;
             border: 2px solid #1a2a3a;
             border-radius: 4px;
@@ -508,10 +509,10 @@
         .node::before {
             content: '';
             position: absolute;
-            top: -10px;
+            top: -8px;
             left: 50%;
             width: 2px;
-            height: 10px;
+            height: 8px;
             background: #1a2a3a;
             transform: translateX(-50%);
         }
@@ -522,7 +523,7 @@
 
         .node-icon {
             font-family: 'Orbitron', sans-serif;
-            font-size: 1.2rem;
+            font-size: 1rem;
             font-weight: 900;
             color: #1a2a3a;
         }
@@ -591,7 +592,7 @@
         /* Branch split visuals */
         .branch-group {
             display: flex;
-            gap: 10px;
+            gap: 6px;
             width: 100%;
             justify-content: center;
         }

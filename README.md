@@ -43,17 +43,7 @@ Start by forking this repository to your own GitHub account:
    cd oasiz-game-studio
    ```
 
-### Step 2: Choose a Game from the Backlog
-
-Check out the **[Game Backlog](./BACKLOG.md)** for a list of popular mobile games you can build. Pick one that interests you and **confirm with the Oasiz team before starting** to avoid overlap with other developers.
-
-### Step 3: Create Your Game
-
-You have two paths to create a game:
-
-#### Option A: Start from Scratch
-
-Use this approach when building something entirely new.
+### Step 2: Create Your Game
 
 ```bash
 # 1. Copy the template folder
@@ -66,7 +56,7 @@ cd your-game-name/
 bun install
 
 # 4. Start building!
-# - Game logic goes in src/main.ts
+# - Game logic starts in src/main.ts
 # - HTML/CSS goes in index.html
 bun run dev
 
@@ -74,34 +64,7 @@ bun run dev
 bun run build
 ```
 
-#### Option B: Fork an Existing Game
-
-Use this approach when you want to iterate on a proven design or learn from existing code.
-
-```bash
-# 1. Copy an existing game (e.g., car-balance, paddle-bounce, threes)
-cp -r car-balance/ your-game-name/
-
-# 2. Navigate to your game folder  
-cd your-game-name/
-
-# 3. Install dependencies
-bun install
-
-# 4. Iterate and customize!
-bun run dev
-
-# 5. Build when ready
-bun run build
-```
-
-**Recommended games to fork:**
-- `car-balance` - Good for physics-based games
-- `paddle-bounce` - Classic arcade mechanics
-- `threes` - Puzzle game patterns
-- `police-chase` - Endless runner style
-
-### Step 4: Submit a Pull Request
+### Step 3: Submit a Pull Request
 
 When your game is complete and tested:
 
@@ -127,7 +90,8 @@ When your game is complete and tested:
 ```
 your-game-name/
 ├── src/
-│   └── main.ts      # All game logic (TypeScript)
+│   ├── main.ts      # Entry point for the game logic
+│   └── ...          # Other TypeScript modules
 ├── index.html       # Entry point + CSS styles
 ├── package.json     # Dependencies
 ├── tsconfig.json    # TypeScript config
@@ -135,7 +99,8 @@ your-game-name/
 ```
 
 **Key rules:**
-- All logic in `src/main.ts` (TypeScript only) (could be split into different reusable modules)
+- All game code resides in the `src/` directory.
+- `src/main.ts` is the entry point, but code can be split across multiple files within `src/`.
 - All CSS in `<style>` tags in `index.html`
 - No JavaScript in `index.html`
 
@@ -305,13 +270,28 @@ Add a `publish.json` file in your game folder for metadata:
 {
   "title": "Your Game Title",
   "description": "A brief description of your game",
-  "category": "arcade"
+  "category": "arcade",
+  "verticalOnly": false
 }
 ```
 
 Categories: `arcade`, `puzzle`, `party`, `action`, `strategy`, `casual`
 
-If you skip this file, defaults will be used (folder name as title, "test" for description/category).
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `title` | string | folder name | Display name of the game |
+| `description` | string | `"test"` | Brief game description |
+| `category` | string | `"arcade"` | Game category |
+| `verticalOnly` | boolean | `true` | Lock to portrait orientation. Set to `false` for landscape-friendly games. |
+
+If you skip this file, defaults will be used (folder name as title, "test" for description/category, portrait-locked).
+
+**Update vs. new game:** The platform uses the **`title`** (from `publish.json`) combined with your **account email** (from `OASIZ_EMAIL`) to determine whether to update an existing game or create a new one:
+- **Same title + same email** = updates the existing game
+- **Different title + same email** = creates a new game
+- **Same title + different email** = creates a new game (each creator has their own namespace)
+
+To upload a new version of the same game, just keep the title the same and run `bun run upload` again. To create a separate new game, change the `title` in `publish.json`.
 
 #### 3. Upload Your Game
 
@@ -319,26 +299,36 @@ If you skip this file, defaults will be used (folder name as title, "test" for d
 # From the repo root directory
 bun run upload your-game-name
 
-# Or with options:
+# Orientation options (overrides publish.json):
+bun run upload your-game-name horizontal   # Landscape-friendly (verticalOnly=false)
+bun run upload your-game-name vertical     # Portrait-locked (verticalOnly=true, default)
+
+# Other options:
 bun run upload your-game-name --skip-build  # Use existing dist/
 bun run upload your-game-name --dry-run     # Test without uploading
 
+# Combine options:
+bun run upload your-game-name horizontal --skip-build
 # List all available games
 bun run upload --list
 ```
 
+**Orientation:** By default, games are uploaded as portrait-locked (`verticalOnly=true`). If your game works well in landscape, pass `horizontal` or set `"verticalOnly": false` in `publish.json`. The CLI argument overrides `publish.json`.
+
 The upload script will:
 1. Build your game (install deps + vite build)
 2. Read the bundled HTML from `dist/index.html`
-3. Include thumbnail if `thumbnail/` folder exists
-4. Upload to the Oasiz platform
+3. Collect and upload assets to CDN
+4. Include thumbnail if `thumbnail/` folder exists
+5. Upload to the Oasiz platform
 
 #### 4. Test on the App
 
-Once uploaded, your game will be available in the Oasiz app for testing. Check that:
+Once uploaded, open the Oasiz app and navigate to **Profile → Drafts** to find your game. Tap it to launch and verify:
+
 - The game loads correctly
 - Touch controls work on mobile
-- Score submission works
+- Score submission works on game over
 - The overall experience matches your local testing
 
 ### Testing Checklist

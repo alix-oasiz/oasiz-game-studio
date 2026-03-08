@@ -1,3 +1,5 @@
+import { oasiz } from "@oasiz/sdk";
+
 /**
  * HOOPS JUMP
  *
@@ -10,17 +12,17 @@
 const CONFIG = {
   // Ball
   BALL_RADIUS: 20,
-  GRAVITY: 0.70,
-  BOOST_FORCE: 13,
-  HORIZONTAL_BIAS: 0.80,
+  GRAVITY: 0.75,
+  BOOST_FORCE: 13.5,
+  HORIZONTAL_BIAS: 0.70,
   WALL_BOUNCE: 0.7,
-  GROUND_BOUNCE: 0.9,
+  GROUND_BOUNCE: 0.7,
   AIR_RESISTANCE: 0.998,
 
   // Hoop
   HOOP_WIDTH: 80,
   HOOP_HEIGHT: 50,
-  RIM_RADIUS: 5.5,
+  RIM_RADIUS: 5.2,
   NET_SEGMENTS: 7,
   BACKBOARD_WIDTH: 18,
   BACKBOARD_HEIGHT: 170,
@@ -35,8 +37,10 @@ const CONFIG = {
   COMBO_WINDOW: 3000,
 
   // Timer
-  GAME_DURATION: 30,
+  GAME_DURATION: 20,
+  MAX_TIME: 20,
   TIME_BONUS_PER_SCORE: 2,
+  TIME_BONUS_SLOWMO: 10, // Extra time when scoring during slow-mo
   WARNING_TIME: 10,
   
   // Shot detection timing thresholds
@@ -52,6 +56,11 @@ const CONFIG = {
   SHAKE_SCORE: 6,
   SHAKE_COMBO: 10,
   SHAKE_DECAY: 0.85,
+
+  // Slow-mo effect
+  SLOWMO_THRESHOLD: 5, // Start slow-mo at 5 seconds remaining
+  SLOWMO_MIN_SCALE: 0.3, // Slowest time scale for physics (30% speed)
+  SLOWMO_TIMER_SCALE: 0.65, // Timer slows less (65% speed)
 
   // Score popups
   POPUP_DURATION: 1200,
@@ -129,13 +138,12 @@ const startAction = document.getElementById("startAction")!;
 const gameOverScreen = document.getElementById("gameOverScreen")!;
 const pauseScreen = document.getElementById("pauseScreen")!;
 const pauseBtn = document.getElementById("pauseBtn")!;
-const settingsModal = document.getElementById("settingsModal")!;
+const settingsScreen = document.getElementById("settingsScreen")!;
 const scoreDisplay = document.getElementById("scoreDisplay")!;
 const timerDisplay = document.getElementById("timerDisplay")!;
 const scoreBadge = document.getElementById("score-badge")!;
 const timerBadge = document.getElementById("timer-badge")!;
 const finalScoreEl = document.getElementById("finalScore")!;
-const basketsMadeEl = document.getElementById("basketsMade")!;
 const rankValueEl = document.getElementById("rankValue")!;
 const comboDisplay = document.getElementById("combo-display")!;
 const hudElement = document.getElementById("hud")!;
@@ -207,6 +215,20 @@ let flashColor = "#ffffff";
 // Timing
 let gameTime = 0;
 let lastFrameTime = 0;
+let rafId = 0;
+
+function startLoop(): void {
+  if (rafId) return;
+  lastFrameTime = 0; // reset so first frame dt is 0, not a huge spike
+  rafId = requestAnimationFrame(gameLoop);
+}
+
+function stopLoop(): void {
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+}
 
 // Settings
 let settings: Settings = {
@@ -238,12 +260,72 @@ function easeInOutQuad(t: number): number {
 }
 
 // ============= AUDIO =============
+import bgm1 from "./background-1.mp3";
+import bgm2 from "./background-2.mp3";
+import bgm3 from "./background-3.mp3";
+import bgm4 from "./background-4.mp3";
+
 let audioContext: AudioContext | null = null;
+const bgmFiles = [bgm1, bgm2, bgm3, bgm4].sort(() => Math.random() - 0.5);
+const bgmAudios = bgmFiles.map(src => {
+  const a = new Audio(src);
+  a.loop = false;
+  return a;
+});
+let currentBgmIndex = 0;
+let isFading = false;
+let userStarted = false;
 
 function initAudio(): void {
   if (!audioContext) {
     audioContext = new AudioContext();
     console.log("[initAudio] Audio context initialized");
+  }
+  userStarted = true;
+}
+
+function startBgm(): void {
+  if (!settings.music) return;
+  const track = bgmAudios[currentBgmIndex];
+  track.volume = 0.5;
+  track.currentTime = 0;
+  track.play().catch(e => console.warn("[BGM] play blocked:", e));
+}
+
+function manageBgm(): void {
+  if (!userStarted) return;
+
+  const current = bgmAudios[currentBgmIndex];
+
+  // Music is toggled from the click handler directly; just bail here if off
+  if (!settings.music) return;
+
+  // Crossfade when near end (2 seconds before)
+  if (!isFading && current.duration > 0 && current.currentTime > current.duration - 2.0) {
+    isFading = true;
+    const nextIndex = (currentBgmIndex + 1) % bgmAudios.length;
+    const next = bgmAudios[nextIndex];
+    next.currentTime = 0;
+    next.volume = 0;
+
+    // Play next track — this is a direct response to an ongoing interaction so it should work
+    next.play().catch(e => console.warn("[BGM] crossfade play blocked:", e));
+
+    const FADE_STEPS = 20;
+    let step = 0;
+    const intv = setInterval(() => {
+      step++;
+      current.volume = Math.max(0, 0.5 * (1 - step / FADE_STEPS));
+      next.volume = Math.min(0.5, 0.5 * (step / FADE_STEPS));
+      if (step >= FADE_STEPS) {
+        clearInterval(intv);
+        current.pause();
+        current.currentTime = 0;
+        current.volume = 0.5; // reset for next time
+        currentBgmIndex = nextIndex;
+        isFading = false;
+      }
+    }, 100);
   }
 }
 
@@ -382,11 +464,9 @@ function playUIClick(): void {
 }
 
 // ============= HAPTICS =============
-function triggerHaptic(type: string): void {
+function triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error"): void {
   if (!settings.haptics) return;
-  if (typeof (window as any).triggerHaptic === "function") {
-    (window as any).triggerHaptic(type);
-  }
+  oasiz.triggerHaptic(type);
 }
 
 // ============= SCREEN EFFECTS =============
@@ -397,6 +477,18 @@ function addScreenShake(intensity: number): void {
 function addScreenFlash(color: string, intensity: number = 1): void {
   screenFlash = intensity;
   flashColor = color;
+}
+
+function getSlowMoScale(): number {
+  if (timeRemaining > CONFIG.SLOWMO_THRESHOLD) return 1;
+  // Constant slow-mo speed for the entire duration
+  return CONFIG.SLOWMO_MIN_SCALE;
+}
+
+function getTimerSlowMoScale(): number {
+  if (timeRemaining > CONFIG.SLOWMO_THRESHOLD) return 1;
+  // Timer slows less than physics
+  return CONFIG.SLOWMO_TIMER_SCALE;
 }
 
 function updateScreenEffects(): void {
@@ -939,13 +1031,20 @@ function drawMountainBackground(): void {
     ctx.fill();
   };
   
-  // Multiple cloud layers
-  drawSunsetCloud(w * 0.02, groundY * 0.12, 0.9, 0.6);
-  drawSunsetCloud(w * 0.25, groundY * 0.08, 1.1, 0.7);
-  drawSunsetCloud(w * 0.55, groundY * 0.15, 0.75, 0.55);
-  drawSunsetCloud(w * 0.78, groundY * 0.1, 0.95, 0.65);
-  drawSunsetCloud(w * 0.15, groundY * 0.22, 0.6, 0.45);
-  drawSunsetCloud(w * 0.85, groundY * 0.2, 0.5, 0.4);
+  // Multiple cloud layers - moving slowly
+  const sunsetCloudData = [
+    { baseX: 0, y: groundY * 0.12, scale: 0.9, depth: 0.6, speed: 0.006 },
+    { baseX: w * 0.25, y: groundY * 0.08, scale: 1.1, depth: 0.7, speed: 0.005 },
+    { baseX: w * 0.55, y: groundY * 0.15, scale: 0.75, depth: 0.55, speed: 0.007 },
+    { baseX: w * 0.78, y: groundY * 0.1, scale: 0.95, depth: 0.65, speed: 0.004 },
+    { baseX: w * 0.15, y: groundY * 0.22, scale: 0.6, depth: 0.45, speed: 0.008 },
+    { baseX: w * 0.85, y: groundY * 0.2, scale: 0.5, depth: 0.4, speed: 0.006 },
+  ];
+  
+  for (const cloud of sunsetCloudData) {
+    const cx = ((cloud.baseX + gameTime * cloud.speed) % (w + 150)) - 75;
+    drawSunsetCloud(cx, cloud.y, cloud.scale, cloud.depth);
+  }
   
   // LAYER 1: Very distant mountains (atmospheric haze)
   const dist1Gradient = ctx.createLinearGradient(0, groundY * 0.45, 0, groundY * 0.7);
@@ -1565,29 +1664,40 @@ function drawBall(): void {
   ctx.stroke();
 
   // Basketball lines
-  ctx.strokeStyle = "#4a2500";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(70, 30, 0, 0.85)";
+  ctx.lineWidth = Math.max(1.5, r * 0.12);
+  ctx.lineCap = "round";
 
-  // Horizontal line
+  // We want the lines to clip neatly to the circle border
+  // The easiest way is to use clip()
+  ctx.save();
   ctx.beginPath();
-  ctx.moveTo(-r + 2, 0);
-  ctx.lineTo(r - 2, 0);
-  ctx.stroke();
+  ctx.arc(0, 0, r - 1, 0, Math.PI * 2);
+  ctx.clip();
 
   // Vertical line
   ctx.beginPath();
-  ctx.moveTo(0, -r + 2);
-  ctx.lineTo(0, r - 2);
+  ctx.moveTo(0, -r);
+  ctx.lineTo(0, r);
   ctx.stroke();
 
-  // Curved lines
+  // Horizontal line
   ctx.beginPath();
-  ctx.arc(-r * 0.4, 0, r * 0.7, -Math.PI / 2, Math.PI / 2);
+  ctx.moveTo(-r, 0);
+  ctx.lineTo(r, 0);
   ctx.stroke();
 
+  // Left curve (standard basketball C shape)
   ctx.beginPath();
-  ctx.arc(r * 0.4, 0, r * 0.7, Math.PI / 2, -Math.PI / 2);
+  ctx.arc(-r * 0.8, 0, r * 0.8, -Math.PI / 2.3, Math.PI / 2.3);
   ctx.stroke();
+
+  // Right curve
+  ctx.beginPath();
+  ctx.arc(r * 0.8, 0, r * 0.8, Math.PI - Math.PI / 2.3, Math.PI + Math.PI / 2.3);
+  ctx.stroke();
+
+  ctx.restore();
 
   // Highlight
   ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
@@ -1832,6 +1942,57 @@ function drawFlashEffect(): void {
   }
 }
 
+function drawSlowMoEffect(): void {
+  const slowMoScale = getSlowMoScale();
+  if (slowMoScale >= 1) return;
+  
+  // Calculate intensity based on how slow we are (0 = normal, 1 = max slow)
+  const intensity = 1 - slowMoScale;
+  
+  // Heavy vignette effect - very dark edges
+  const gradient = ctx.createRadialGradient(
+    w / 2, h / 2, h * 0.15,
+    w / 2, h / 2, h * 0.7
+  );
+  gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+  gradient.addColorStop(0.4, "rgba(0, 0, 0, " + (intensity * 0.4) + ")");
+  gradient.addColorStop(0.7, "rgba(0, 0, 0, " + (intensity * 0.6) + ")");
+  gradient.addColorStop(1, "rgba(0, 0, 0, " + (intensity * 0.8) + ")");
+  
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+  
+  // Strong red/orange urgency tint
+  ctx.fillStyle = "rgba(255, 30, 0, " + (intensity * 0.12) + ")";
+  ctx.fillRect(0, 0, w, h);
+  
+  // Pulsing red border effect
+  const pulse = 0.5 + Math.sin(gameTime * 0.015) * 0.5;
+  ctx.strokeStyle = "rgba(255, 0, 0, " + (intensity * pulse * 0.5) + ")";
+  ctx.lineWidth = 6 + intensity * 10;
+  ctx.strokeRect(3, 3, w - 6, h - 6);
+  
+  // Pulsing "FINAL SECONDS" text
+  if (intensity > 0.2) {
+    const textPulse = 0.6 + Math.sin(gameTime * 0.012) * 0.4;
+    const textScale = 1 + intensity * 0.2;
+    ctx.save();
+    ctx.globalAlpha = intensity * textPulse;
+    ctx.translate(w / 2, 45);
+    ctx.scale(textScale, textScale);
+    ctx.font = "bold 14px 'Press Start 2P', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // Text shadow
+    ctx.fillStyle = "#000000";
+    ctx.fillText("FINAL SECONDS!", 2, 2);
+    // Main text
+    ctx.fillStyle = "#ff2222";
+    ctx.fillText("FINAL SECONDS!", 0, 0);
+    ctx.restore();
+  }
+}
+
 let lastHUDScore = -1;
 let lastHUDTime = -1;
 
@@ -1966,19 +2127,23 @@ function spawnComboParticles(x: number, y: number, level: number): void {
 
 // ============= GAME LOGIC =============
 function updateBall(dt: number): void {
-  // Apply gravity
-  ball.vy += CONFIG.GRAVITY;
+  // Normalize to ~60fps baseline for slow-mo effect
+  const timeScale = dt / 16.67;
+  
+  // Apply gravity (scaled by time)
+  ball.vy += CONFIG.GRAVITY * timeScale;
 
-  // Air resistance
-  ball.vx *= CONFIG.AIR_RESISTANCE;
-  ball.vy *= CONFIG.AIR_RESISTANCE;
+  // Air resistance (scaled by time - use lerp toward 1 for proper scaling)
+  const airResistPower = Math.pow(CONFIG.AIR_RESISTANCE, timeScale);
+  ball.vx *= airResistPower;
+  ball.vy *= airResistPower;
 
-  // Update position
-  ball.x += ball.vx;
-  ball.y += ball.vy;
+  // Update position (scaled by time)
+  ball.x += ball.vx * timeScale;
+  ball.y += ball.vy * timeScale;
 
-  // Rotation based on horizontal velocity
-  ball.rotation += ball.vx * 0.05;
+  // Rotation based on horizontal velocity (scaled by time)
+  ball.rotation += ball.vx * 0.05 * timeScale;
 
   // Wall collision - portal on the hoop's side wall (entire height)
   // The wall behind the hoop is always a portal, no bouncing
@@ -2032,13 +2197,7 @@ function updateBall(dt: number): void {
     }
   }
 
-  // Ceiling bounce
-  if (ball.y - CONFIG.BALL_RADIUS < 0) {
-    ball.y = CONFIG.BALL_RADIUS;
-    ball.vy = -ball.vy * CONFIG.WALL_BOUNCE;
-    playBounceSound();
-    triggerHaptic("light");
-  }
+  // No ceiling collision - ball can go above screen
 
   // Check hoop collision
   checkHoopCollision();
@@ -2542,8 +2701,11 @@ function onScore(): void {
   }
   score += points;
   
-  // Add time bonus
-  timeRemaining += CONFIG.TIME_BONUS_PER_SCORE;
+  // Add time bonus (bigger bonus during slow-mo, capped at MAX_TIME)
+  const timeBonus = timeRemaining <= CONFIG.SLOWMO_THRESHOLD 
+    ? CONFIG.TIME_BONUS_SLOWMO 
+    : CONFIG.TIME_BONUS_PER_SCORE;
+  timeRemaining = Math.min(timeRemaining + timeBonus, CONFIG.MAX_TIME);
   showTimerBonus();
 
   // Effects
@@ -2559,7 +2721,6 @@ function onScore(): void {
     // SWISH - Nothing but net! Clean and satisfying
     const swishMessages = [
       { text: "SWISH!", color: "#00ffaa" },
-      { text: "NOTHING BUT NET!", color: "#60c0ff" },
       { text: "CLEAN!", color: "#90ff90" },
       { text: "PERFECT!", color: "#ffd700" },
       { text: "PURE!", color: "#ffffff" },
@@ -2751,15 +2912,20 @@ function resetGame(): void {
   timerBadge.classList.remove("warning");
 }
 
+// ============= SCORE SUBMISSION =============
+function submitFinalScore(): void {
+  console.log("[Game] Submitting final score:", score);
+  oasiz.submitScore(score);
+}
+
 function gameOver(): void {
+  if (gameState === "GAME_OVER") return; // Prevent multiple calls
+  
   gameState = "GAME_OVER";
   console.log("[gameOver] Final score: " + score + ", Baskets: " + basketCount);
 
-  // Submit score
-  if (typeof (window as any).submitScore === "function") {
-    (window as any).submitScore(score);
-    console.log("[gameOver] Score submitted: " + score);
-  }
+  // Submit score to platform
+  submitFinalScore();
 
   // Effects
   playBuzzerSound();
@@ -2767,7 +2933,6 @@ function gameOver(): void {
 
   // Update UI
   finalScoreEl.textContent = score.toString();
-  basketsMadeEl.textContent = basketCount.toString();
 
   // Determine rank based on baskets
   let rank = "ROOKIE";
@@ -2800,7 +2965,7 @@ function gameOver(): void {
   gameOverScreen.classList.remove("hidden");
   pauseBtn.classList.add("hidden");
   document.getElementById("settingsBtn")!.classList.add("hidden");
-  settingsModal.classList.add("hidden");
+  settingsScreen.classList.add("hidden");
   hudElement.classList.add("hidden");
   controlsElement.classList.add("hidden");
 }
@@ -2810,6 +2975,7 @@ function startGame(): void {
   gameState = "PLAYING";
 
   initAudio();
+  startBgm();
   resetGame();
 
   startScreen.classList.add("hidden");
@@ -2851,7 +3017,7 @@ function showStartScreen(): void {
   pauseScreen.classList.add("hidden");
   pauseBtn.classList.add("hidden");
   document.getElementById("settingsBtn")!.classList.add("hidden");
-  settingsModal.classList.add("hidden");
+  settingsScreen.classList.add("hidden");
   hudElement.classList.add("hidden");
   controlsElement.classList.add("hidden");
 }
@@ -2927,6 +3093,14 @@ function setupInputHandlers(): void {
     settings.music = !settings.music;
     musicToggle.classList.toggle("active", settings.music);
     localStorage.setItem("hoopsJump_music", settings.music.toString());
+    if (settings.music && userStarted) {
+      // Resume directly inside the click handler (user gesture) so browser allows it
+      const current = bgmAudios[currentBgmIndex];
+      current.volume = 0.5;
+      current.play().catch(e => console.warn("[BGM] resume blocked:", e));
+    } else {
+      bgmAudios.forEach(a => a.pause()); // pause but keep currentTime intact
+    }
     playUIClick();
     triggerHaptic("light");
   });
@@ -2948,17 +3122,28 @@ function setupInputHandlers(): void {
   });
 
   document.getElementById("settingsClose")!.addEventListener("click", () => {
-    settingsModal.classList.add("hidden");
+    settingsScreen.classList.add("hidden");
+    // Resume game if it was paused for settings
+    if (gameState === "PAUSED") {
+      gameState = "PLAYING";
+    }
     playUIClick();
     triggerHaptic("light");
   });
 
-  // Settings button (opens modal)
+  // Settings button (opens modal and pauses game)
   const settingsBtn = document.getElementById("settingsBtn")!;
-  settingsBtn.addEventListener("click", () => {
-    settingsModal.classList.toggle("hidden");
-    playUIClick();
-    triggerHaptic("light");
+  settingsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    // Only open settings, don't toggle - use DONE button to close
+    if (settingsScreen.classList.contains("hidden")) {
+      settingsScreen.classList.remove("hidden");
+      if (gameState === "PLAYING") {
+        gameState = "PAUSED";
+      }
+      playUIClick();
+      triggerHaptic("light");
+    }
   });
 
   // Map selection - handle both settings modal and start screen court buttons
@@ -3033,9 +3218,15 @@ function resizeCanvas(): void {
 
 // ============= GAME LOOP =============
 function gameLoop(timestamp: number): void {
-  const dt = Math.min(timestamp - lastFrameTime, 100);
+  const rawDt = Math.min(timestamp - lastFrameTime, 100);
   lastFrameTime = timestamp;
   gameTime = timestamp;
+
+  // Calculate slow-mo time scales (timer slows less than physics)
+  const slowMoScale = gameState === "PLAYING" ? getSlowMoScale() : 1;
+  const timerSlowMoScale = gameState === "PLAYING" ? getTimerSlowMoScale() : 1;
+  const dt = rawDt * slowMoScale;
+  const timerDt = rawDt * timerSlowMoScale;
 
   // Update screen effects
   updateScreenEffects();
@@ -3047,21 +3238,42 @@ function gameLoop(timestamp: number): void {
   // Clear and draw background
   ctx.clearRect(-20, -20, w + 40, h + 40);
   drawBackground();
+  manageBgm();
 
   if (gameState === "PLAYING") {
-    updateTimer(dt);
+    // Timer runs with less slow-mo than physics
+    updateTimer(timerDt);
+    
+    // Physics and effects run in full slow-mo
     updateBall(dt);
     updateHoop(dt);
     updateParticles(dt);
     updateScorePopups(dt);
     updateFireParticles(dt);
 
+    // Apply zoom effect during slow-mo
+    const zoomIntensity = 1 - slowMoScale;
+    if (zoomIntensity > 0) {
+      const zoomScale = 1 + zoomIntensity * 0.12; // Zoom up to 12%
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.scale(zoomScale, zoomScale);
+      ctx.translate(-w / 2, -h / 2);
+    }
+
     drawFireParticles(); // Draw fire trail behind ball
     drawHoop();
     drawBall();
     drawParticles();
     drawScorePopups();
+    
+    // Restore zoom before drawing overlays
+    if (zoomIntensity > 0) {
+      ctx.restore();
+    }
+    
     drawFlashEffect();
+    drawSlowMoEffect(); // Vignette and urgency effect
     updateHUD();
 
   } else if (gameState === "START") {
@@ -3082,13 +3294,34 @@ function gameLoop(timestamp: number): void {
   }
 
   ctx.restore();
-  requestAnimationFrame(gameLoop);
+  rafId = requestAnimationFrame(gameLoop);
 }
 
 
 // ============= INIT =============
 function init(): void {
   console.log("[init] Initializing Hoops Jump");
+
+  // Stop loop when app backgrounds, restart when it returns
+  oasiz.onPause(() => {
+    if (gameState === "PLAYING") {
+      pauseGame();
+    }
+    stopLoop();
+  });
+
+  oasiz.onResume(() => {
+    startLoop();
+  });
+
+  // Also handle plain tab visibility changes (desktop browser)
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stopLoop();
+    } else {
+      startLoop();
+    }
+  });
 
   resizeCanvas();
   window.addEventListener("resize", resizeCanvas);
@@ -3104,7 +3337,7 @@ function init(): void {
   hoop.y = h * CONFIG.HOOP_Y_MIN_RATIO;
   hoop.targetY = hoop.y;
 
-  requestAnimationFrame(gameLoop);
+  startLoop();
   showStartScreen();
 
   console.log("[init] Game initialized");

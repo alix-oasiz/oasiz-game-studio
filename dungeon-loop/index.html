@@ -101,6 +101,116 @@
             from { opacity: 1; }
             to { opacity: 0; }
         }
+
+        @media (pointer: coarse) {
+            #btn-skip-tutorial {
+                top: 120px;
+            }
+        }
+
+        /* ── Start Screen Animations ── */
+
+        @keyframes btnSlideUp {
+            0%   { transform: translateY(30px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        .menu-btn-animated {
+            opacity: 0;
+            animation: btnSlideUp 0.5s ease-out forwards;
+        }
+        .menu-btn-animated.btn-delay-1 { animation-delay: 400ms; }
+        .menu-btn-animated.btn-delay-2 { animation-delay: 550ms; }
+        .menu-btn-animated.btn-delay-3 { animation-delay: 700ms; }
+
+        /* Menu title entrance */
+        @keyframes titleReveal {
+            0%   { opacity: 0; transform: translateY(-20px) scale(0.9); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .menu-title-animated {
+            animation: titleReveal 0.8s ease-out forwards, float 3s ease-in-out infinite 1s;
+        }
+
+        /* ── Fire Title Effect ── */
+        .fire-title {
+            position: relative;
+            display: inline-block;
+        }
+
+        .fire-title h1 {
+            position: relative;
+            z-index: 2;
+            color: #fff;
+            text-shadow:
+                0 0 10px #ff4500,
+                0 0 20px #ff4500,
+                0 0 40px #ff6a00,
+                0 0 80px #ff4500,
+                0 -5px 10px rgba(255,69,0,0.6),
+                0 -10px 20px rgba(255,140,0,0.4),
+                0 -15px 40px rgba(255,69,0,0.2);
+        }
+
+        /* Ember particles rising from title */
+        .fire-embers {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: visible;
+        }
+
+        .ember {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #ff6a00;
+            animation: emberRise linear infinite;
+            opacity: 0;
+        }
+
+        @keyframes emberRise {
+            0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+            10%  { opacity: 1; }
+            50%  { opacity: 0.8; }
+            100% { transform: translateY(-80px) translateX(var(--drift)) scale(0); opacity: 0; }
+        }
+
+        /* Flickering glow behind the title */
+        @keyframes fireGlow {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            25%      { opacity: 0.7; transform: scale(1.02); }
+            50%      { opacity: 0.5; transform: scale(0.98); }
+            75%      { opacity: 0.8; transform: scale(1.01); }
+        }
+
+        .fire-backdrop {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120%;
+            height: 200%;
+            background: radial-gradient(ellipse at center, rgba(255,69,0,0.3) 0%, rgba(255,140,0,0.1) 40%, transparent 70%);
+            animation: fireGlow 2s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Heat shimmer on the text */
+        @keyframes heatShimmer {
+            0%, 100% { filter: blur(0px); }
+            50%      { filter: blur(0.5px); }
+        }
+
+        .fire-title h1 {
+            animation: heatShimmer 3s ease-in-out infinite;
+        }
     </style>
 </head>
 
@@ -109,29 +219,56 @@
         <div id="game-container"></div>
     </div>
 
+    <!-- Loading screen shown during asset preload -->
+    <div id="loading-screen"
+        class="absolute inset-0 bg-black flex flex-col items-center justify-center z-[10000] transition-opacity duration-700">
+        <h1 class="font-display text-3xl md:text-5xl text-white tracking-widest mb-8"
+            style="text-shadow: 0 0 10px #ff4500, 0 0 20px #ff4500, 0 0 40px #ff6a00;">
+            DUNGEON LOOP
+        </h1>
+        <div class="w-48 h-2 bg-white/20 rounded-full overflow-hidden">
+            <div id="loading-bar" class="h-full bg-gradient-to-r from-red-600 to-orange-500 rounded-full transition-all duration-200" style="width:0%"></div>
+        </div>
+        <p class="font-display text-xs text-white/40 mt-4 tracking-wider">LOADING</p>
+    </div>
+
     <div id="ui-layer">
-        <!-- Main Menu -->
+        <!-- Main Menu (hidden until Level scene is ready) -->
         <div id="main-menu"
-            class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center space-y-12 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000">
-            <div class="text-center space-y-4 animate-float">
+            class="hidden absolute inset-0 bg-gradient-to-b from-black/90 via-black/50 to-black/90 flex flex-col items-center justify-center space-y-10 z-50 pointer-events-auto transition-opacity duration-1000 overflow-hidden">
+
+            <!-- Title with Fire Effect -->
+            <div class="text-center z-10 menu-title-animated fire-title" style="opacity:0;">
+                <div class="fire-backdrop"></div>
+                <div class="fire-embers" id="fire-embers"></div>
                 <h1
-                    class="font-display text-4xl md:text-6xl text-white tracking-widest title-glow stroke-black stroke-2">
+                    class="font-display text-5xl md:text-7xl text-white tracking-widest stroke-black stroke-2">
                     DUNGEON LOOP
                 </h1>
-
             </div>
 
-            <button id="btn-play"
-                class="pixel-button bg-industrial-accent text-white px-12 py-6 text-xl font-display hover:bg-red-600 hover:scale-105 transition-all shadow-xl animate-pulse-slow">
-                PLAY GAME
-            </button>
-            <button id="btn-tutorial"
-                class="pixel-button bg-industrial-black text-white px-12 py-5 text-lg font-display hover:bg-gray-800 hover:scale-105 transition-all shadow-xl">
-                TUTORIAL
-            </button>
-
-
+            <!-- Buttons -->
+            <div class="flex flex-col items-center space-y-5 z-10">
+                <button id="btn-continue"
+                    class="hidden pixel-button bg-industrial-black text-white px-12 py-6 text-xl font-display hover:bg-gray-800 hover:scale-105 transition-all menu-btn-animated btn-delay-1">
+                    CONTINUE
+                </button>
+                <button id="btn-play"
+                    class="pixel-button bg-industrial-accent text-white px-12 py-6 text-xl font-display hover:bg-red-600 hover:scale-105 transition-all menu-btn-animated btn-delay-2">
+                    PLAY GAME
+                </button>
+                <button id="btn-tutorial"
+                    class="hidden text-white/50 text-sm font-display hover:text-white/80 transition-all underline menu-btn-animated btn-delay-3">
+                    REPLAY TUTORIAL
+                </button>
+            </div>
         </div>
+
+        <!-- Skip Tutorial Button (shown during tutorial gameplay) -->
+        <button id="btn-skip-tutorial"
+            class="hidden absolute top-[45px] right-[20px] pixel-button bg-black/70 text-white/80 px-5 py-2 text-sm font-display hover:bg-black/90 hover:text-white transition-all z-[60] pointer-events-auto">
+            SKIP
+        </button>
 
         <!-- Pause Menu -->
         <div id="pause-menu" class="hidden menu-container max-w-sm w-full p-4">
@@ -171,16 +308,32 @@
         </div>
 
         <!-- Skills Info Menu -->
-        <div id="skills-info-menu" class="hidden menu-container w-full max-w-3xl p-4">
-            <div class="pixel-border bg-industrial-module p-8 rounded-xl flex flex-col items-center gap-5 shadow-2xl">
-                <h2 id="skills-info-title" class="font-display text-2xl text-industrial-black mb-2 tracking-widest">SKILLS</h2>
+        <div id="skills-info-menu" class="hidden menu-container w-full max-w-3xl p-1" style="max-height:97%;box-sizing:border-box;">
+            <div class="pixel-border bg-industrial-module p-2 rounded-xl flex flex-col items-center gap-1" style="max-height:calc(100vh - 20px);box-sizing:border-box;overflow:hidden;">
+                <!-- Header: fixed at top -->
+                <div class="flex items-center justify-between w-full" style="flex-shrink:0;">
+                    <h2 id="skills-info-title" class="font-display text-2xl text-industrial-black tracking-widest">SKILLS</h2>
+                    <span id="skills-gold-display" class="font-display text-sm" style="color:#c8a22a;">GOLD: 0</span>
+                </div>
 
-                <div class="w-full h-2 bg-industrial-black mb-2 opacity-20"></div>
+                <!-- Tab bar -->
+                <div class="skill-tab-bar w-full" style="flex-shrink:0;">
+                    <button id="skill-tab-btn-stats" class="skill-tab-btn active">Stats</button>
+                    <button id="skill-tab-btn-skills" class="skill-tab-btn">Skills</button>
+                </div>
 
-                <div id="skills-info-list" class="skill-info-list w-full"></div>
+                <!-- Tab content: Stats -->
+                <div id="skills-tab-stats" class="skill-info-list w-full" style="flex:1 1 auto;overflow-y:auto;min-height:0;"></div>
 
+                <!-- Tab content: Skills (hidden by default) -->
+                <div id="skills-tab-skills" class="skill-info-list w-full hidden" style="flex:1 1 auto;overflow-y:auto;min-height:0;"></div>
+
+                <!-- Hint text for tutorial (hidden by default) -->
+                <div id="skills-close-hint" style="display:none;color:#ff6644;font-family:'Press Start 2P',monospace;font-size:0.6rem;text-align:center;margin-bottom:4px;"></div>
+                <!-- Close button: fixed at bottom -->
                 <button id="btn-skillinfo-close"
-                    class="pixel-button bg-industrial-accent text-white w-full max-w-xs py-4 text-sm font-display hover:bg-red-700 transition-colors">
+                    class="pixel-button bg-industrial-accent text-white w-full max-w-xs py-3 text-sm font-display hover:bg-red-700 transition-colors"
+                    style="flex-shrink:0;">
                     CLOSE
                 </button>
             </div>

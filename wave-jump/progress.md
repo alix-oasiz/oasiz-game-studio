@@ -230,3 +230,17 @@ Dogrulama:
   - `emitTrailParticle` ve `emitEggBurstParticle` lineer `find(...)` yerine round-robin cursor pooling kullaniyor.
   - Dash tetiginde mobil icin burst/segment partikül adetleri dusuruldu (ani frame spike azaltimi).
 - Amac: dash baslangicindaki allocation + scan maliyetini dusurmek.
+
+## 2026-02-26 Settings/mobile button fix
+- Kullanici geri bildirimi: settings butonu mobilde tutarsiz acilip kapaniyor ve buton sistemi bozuk.
+- `src/main.js` icinde UI buton event akisi teklestirildi:
+  - Yeni `bindPressAction(...)` yardimcisi eklendi (`pointerup` + klavye + click suppression).
+  - `start`, `settings`, `close`, `music/fx/haptics` butonlari `onclick` yerine bu yardimciya baglandi.
+  - Mobilde ghost-click ve cift tetiklenmeyi azaltmak icin `pointerup` bazli aksiyon + `preventDefault/stopPropagation` uygulandi.
+- Settings modal icin backdrop kapama davranisi iyilestirildi:
+  - Modal acilis zaman damgasi tutuldu (`settingsOpenedAt`).
+  - Acildiktan hemen sonraki 180ms icindeki backdrop dokunusu yok sayilarak "acilip aninda kapanma" sorunu engellendi.
+- Dogrulama:
+  - `npm run build` basarili.
+  - Playwright client ile `#settings-btn` tiklanarak modalin acildigi screenshot alindi: `output/web-game-settings-open-fix/shot-0.png`.
+  - `output/web-game-settings-open-fix/errors-0.json` olusmadi (yeni console/page error yok).
