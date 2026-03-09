@@ -233,25 +233,81 @@
 
       #mobile-controls {
         position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        padding: 0 20px 120px;
+        left: 50%;
+        bottom: 28px;
+        transform: translateX(-50%);
+        z-index: 13;
+        pointer-events: none;
       }
 
-      .steer-btn {
-        width: 88px;
-        height: 88px;
-        border-radius: 20px;
+      #swipe-puck {
+        width: 112px;
+        height: 112px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.32);
+        background:
+          radial-gradient(circle at 50% 50%, rgba(122, 240, 248, 0.16), rgba(16, 27, 57, 0.88)),
+          linear-gradient(180deg, rgba(52, 88, 176, 0.54), rgba(16, 27, 57, 0.88));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+          0 14px 28px rgba(0, 0, 0, 0.34);
+        position: relative;
+      }
+
+      #swipe-puck::before,
+      #swipe-puck::after {
+        content: "";
+        position: absolute;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      #swipe-puck::before {
+        width: 1px;
+        height: 82%;
+        top: 9%;
+        left: 50%;
+        transform: translateX(-0.5px);
+      }
+
+      #swipe-puck::after {
+        height: 1px;
+        width: 82%;
+        left: 9%;
+        top: 50%;
+        transform: translateY(-0.5px);
+      }
+
+      #swipe-handle {
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
         border: 1px solid rgba(255, 255, 255, 0.28);
-        background: linear-gradient(180deg, rgba(40, 67, 136, 0.95), rgba(20, 32, 68, 0.96));
-        color: #ffffff;
-        font-size: 0.95rem;
-        font-weight: 800;
-        letter-spacing: 0.05em;
+        background: linear-gradient(180deg, rgba(142, 234, 255, 0.96), rgba(98, 184, 255, 0.94));
+        box-shadow: 0 4px 12px rgba(91, 187, 255, 0.46);
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(0px, 0px);
+        margin-left: -13px;
+        margin-top: -13px;
+        transition: transform 40ms linear;
+      }
+
+      #swipe-power-label {
+        margin-top: 8px;
+        text-align: center;
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        color: rgba(222, 236, 255, 0.84);
+        text-transform: uppercase;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      }
+
+      #mobile-controls.swipe-active #swipe-puck {
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+          0 18px 34px rgba(0, 0, 0, 0.42),
+          0 0 22px rgba(122, 240, 248, 0.34);
       }
 
       .settings-modal {
@@ -423,16 +479,15 @@
           bottom: 22px;
         }
 
+        #mobile-controls {
+          bottom: 120px;
+        }
+
         .desktop-only {
           display: none !important;
         }
       }
 
-      @media (pointer: fine) {
-        .mobile-only {
-          display: none !important;
-        }
-      }
     </style>
   </head>
   <body>
@@ -443,7 +498,7 @@
         <div class="panel">
           <h1 class="title">Marble Madness</h1>
           <p class="subtitle">
-            Roll downhill and steer left or right. Desktop uses arrow keys or A and D. Mobile uses thumb buttons.
+            Press and drag anywhere to steer. Up pushes the marble forward, and force scales with swipe strength.
           </p>
           <button id="start-btn" class="button">Start Run</button>
         </div>
@@ -590,9 +645,11 @@
         </div>
       </div>
 
-      <div id="mobile-controls" class="mobile-only hidden">
-        <button id="left-btn" class="steer-btn">LEFT</button>
-        <button id="right-btn" class="steer-btn">RIGHT</button>
+      <div id="mobile-controls" class="hidden">
+        <div id="swipe-puck" aria-hidden="true">
+          <div id="swipe-handle"></div>
+        </div>
+        <div id="swipe-power-label">Swipe Power 0%</div>
       </div>
     </div>
 

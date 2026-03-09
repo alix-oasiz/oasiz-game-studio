@@ -563,14 +563,6 @@ export function sampleTrackSlope(
       }
     }
 
-    if (nextSection && section.type !== "jump") {
-      const toEnd = clampedZ - section.zEnd;
-      if (toEnd < slopeBlendDistance) {
-        const t = clamp(toEnd / Math.max(0.001, slopeBlendDistance), 0, 1);
-        slope = lerp(nextSection.slope, slope, smooth01(t));
-      }
-    }
-
     if (isSpiralType(section.type)) {
       const spiralT = sampleSpiralProgressT(section, clampedZ);
       const extraDrop = Math.sin(spiralT * Math.PI) * downhillSlopeAngle * 0.04;
