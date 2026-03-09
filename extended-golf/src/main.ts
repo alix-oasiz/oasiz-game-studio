@@ -41,12 +41,33 @@ window.addEventListener('load', async function () {
 		physics: false as any
 	});
 
+	let rotatedInputMode = false;
+	let rotatedInputMetrics = {
+		centerX: 0,
+		centerY: 0,
+		scaleX: 1,
+		scaleY: 1
+	};
+	let rotatedInputCamera: Phaser.Cameras.Scene2D.Camera | null = null;
+
+	const syncRotatedInputCamera = () => {
+		const levelScene = game.scene.getScene("Level");
+		if (levelScene?.sys?.settings?.active && levelScene.cameras?.main) {
+			rotatedInputCamera = levelScene.cameras.main;
+			return;
+		}
+
+		const activeScene = game.scene.getScenes(true)[0];
+		rotatedInputCamera = activeScene?.cameras?.main ?? null;
+	};
+
 	// Handle window resize and orientation for better mobile experience
 	const updateScale = () => {
 		const isPortrait = window.innerHeight > window.innerWidth;
 		const container = document.getElementById('game-container');
 		const isMobile = window.matchMedia('(pointer: coarse)').matches;
 		const forceLandscape = isMobile && isPortrait;
+		rotatedInputMode = forceLandscape;
 
 		if (container) {
 			// Container pixel dimensions (what the container should display as)
@@ -60,6 +81,12 @@ window.addEventListener('load', async function () {
 			const aspect = viewW / viewH;
 			const gameW = Math.round(BASE_H * aspect);
 			const gameH = BASE_H;
+			rotatedInputMetrics = {
+				centerX: window.innerWidth / 2,
+				centerY: window.innerHeight / 2,
+				scaleX: gameW / viewW,
+				scaleY: gameH / viewH
+			};
 
 			if (forceLandscape) {
 				// Rotate the entire game container in mobile-portrait so gameplay is landscape.
@@ -77,44 +104,28 @@ window.addEventListener('load', async function () {
 				if (!inputManager._originalTransform) {
 					inputManager._originalTransform = inputManager.transformPointer;
 					inputManager.transformPointer = function (pointer: any, pageX: number, pageY: number, wasMove: boolean) {
-						const isPortraitNow = window.innerHeight > window.innerWidth;
-						const isMobileNow = window.matchMedia('(pointer: coarse)').matches;
-						if (isPortraitNow && isMobileNow) {
-							const winW = window.innerWidth;
-							const winH = window.innerHeight;
-
-							// Game uses a scaled coordinate space; calculate the CSS-to-game scale
-							const curGameW = game.scale.width;
-							const curGameH = game.scale.height;
-							const curViewW = winH; // After rotation
-							const curViewH = winW;
-							const scaleX = curGameW / curViewW;
-							const scaleY = curGameH / curViewH;
-
-							// Center points
-							const centerX = winW / 2;
-							const centerY = winH / 2;
-
+						if (rotatedInputMode) {
 							// Relative to center in screen pixels
-							const dx = (pageX - window.scrollX) - centerX;
-							const dy = (pageY - window.scrollY) - centerY;
+							const dx = (pageX - window.scrollX) - rotatedInputMetrics.centerX;
+							const dy = (pageY - window.scrollY) - rotatedInputMetrics.centerY;
 
 							// Rotate -90 degrees (CCW) to match game orientation
 							const rotatedDx = dy;
 							const rotatedDy = -dx;
 
 							// Map to game coordinates using the CSS-to-game scale
-							pointer.x = curGameW / 2 + rotatedDx * scaleX;
-							pointer.y = curGameH / 2 + rotatedDy * scaleY;
+							pointer.x = game.scale.width / 2 + rotatedDx * rotatedInputMetrics.scaleX;
+							pointer.y = game.scale.height / 2 + rotatedDy * rotatedInputMetrics.scaleY;
 
-							// Update world coordinates
-							game.scene.getScenes(true).forEach((scene: Phaser.Scene) => {
-								if (scene.cameras && scene.cameras.main) {
-									const cam = scene.cameras.main;
-									pointer.worldX = cam.scrollX + (pointer.x / cam.zoom);
-									pointer.worldY = cam.scrollY + (pointer.y / cam.zoom);
-								}
-							});
+							if (!rotatedInputCamera || !rotatedInputCamera.scene?.sys?.settings?.active) {
+								syncRotatedInputCamera();
+							}
+
+							const cam = rotatedInputCamera;
+							if (cam) {
+								pointer.worldX = cam.scrollX + (pointer.x / cam.zoom);
+								pointer.worldY = cam.scrollY + (pointer.y / cam.zoom);
+							}
 						} else {
 							this._originalTransform(pointer, pageX, pageY, wasMove);
 						}
@@ -145,6 +156,7 @@ window.addEventListener('load', async function () {
 			}
 		}
 
+		syncRotatedInputCamera();
 		game.scale.refresh();
 	};
 
@@ -155,6 +167,44 @@ window.addEventListener('load', async function () {
 
 	// Important for input sync on mobile
 	window.addEventListener('touchstart', updateScale, { once: true });
+
+	let lifecyclePausedSounds = false;
+	let lifecycleSleeping = false;
+
+	const setLifecycleSleep = (shouldSleep: boolean) => {
+		if (shouldSleep === lifecycleSleeping) return;
+		lifecycleSleeping = shouldSleep;
+
+		if (shouldSleep) {
+			if (!lifecyclePausedSounds) {
+				game.sound.pauseAll();
+				lifecyclePausedSounds = true;
+			}
+			game.loop.sleep();
+			return;
+		}
+
+		game.loop.wake();
+		updateScale();
+		if (lifecyclePausedSounds) {
+			game.sound.resumeAll();
+			lifecyclePausedSounds = false;
+		}
+	};
+
+	const syncLifecycleSleep = () => {
+		setLifecycleSleep(document.hidden);
+	};
+
+	document.addEventListener('visibilitychange', syncLifecycleSleep);
+	window.addEventListener('pagehide', () => setLifecycleSleep(true));
+	window.addEventListener('pageshow', syncLifecycleSleep);
+	window.addEventListener('blur', () => {
+		if (document.hidden) setLifecycleSleep(true);
+	});
+	window.addEventListener('focus', () => {
+		if (!document.hidden) setLifecycleSleep(false);
+	});
 
 	updateScale();
 	game.scene.start("Boot");

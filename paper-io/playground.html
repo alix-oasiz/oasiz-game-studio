@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paper.io Carve Playground</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #f0fae8;
+        font-family: "Quicksand", sans-serif;
+        color: #15316e;
+        touch-action: none;
+      }
+      #game-wrapper {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+        overflow: hidden;
+      }
+      #game-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        padding: 24px 20px 140px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        z-index: 20;
+      }
+      @media (pointer: coarse) {
+        #overlay {
+          padding-top: 120px;
+        }
+      }
+      #info-panel,
+      #control-panel {
+        pointer-events: auto;
+        width: min(320px, calc(50vw - 24px));
+        background: rgba(246, 249, 251, 0.92);
+        border: 2px solid rgba(0, 161, 228, 0.18);
+        border-radius: 1.5rem;
+        padding: 14px 16px;
+        backdrop-filter: blur(6px);
+      }
+      #info-panel h1 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #00a1e4;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      #info-panel p,
+      #info-panel li,
+      #status {
+        font-size: 0.86rem;
+        line-height: 1.4;
+        color: #274a7c;
+      }
+      #info-panel ul {
+        padding-left: 18px;
+        margin-top: 8px;
+        display: grid;
+        gap: 4px;
+      }
+      #status {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(0, 161, 228, 0.16);
+        white-space: pre-line;
+      }
+      #control-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+      }
+      .control-btn {
+        width: 100%;
+        border: 2px solid rgba(0, 161, 228, 0.22);
+        border-radius: 1.5rem;
+        background: rgba(255, 255, 255, 0.92);
+        color: #15316e;
+        font: inherit;
+        font-weight: 700;
+        font-size: 0.92rem;
+        padding: 12px 14px;
+        cursor: pointer;
+        transition:
+          background 0.16s ease,
+          transform 0.16s ease;
+      }
+      .control-btn.primary {
+        background: rgba(0, 161, 228, 0.14);
+        color: #00577e;
+      }
+      .control-btn:active {
+        transform: scale(0.98);
+      }
+      .control-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none;
+      }
+      #joystick-zone {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 42%;
+        z-index: 12;
+        display: block;
+        pointer-events: auto;
+      }
+      #joystick-base {
+        position: absolute;
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.18);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        display: none;
+        backdrop-filter: blur(4px);
+      }
+      #joystick-knob {
+        position: absolute;
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.7);
+        border: 2px solid rgba(255, 255, 255, 0.7);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        display: none;
+      }
+      @media (max-width: 820px) {
+        #overlay {
+          flex-direction: column;
+          gap: 12px;
+        }
+        #info-panel,
+        #control-panel {
+          width: min(100%, 360px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-wrapper">
+      <canvas id="game-canvas"></canvas>
+      <div id="overlay">
+        <div id="info-panel">
+          <h1>Carve Playground</h1>
+          <p>
+            Move through the static enemy territories to test live trail carving
+            and splash cleanup without normal combat or deaths.
+          </p>
+          <ul>
+            <li>Move: `WASD` / arrow keys / touch joystick</li>
+            <li>Leave your cyan island to start a trail</li>
+            <li>
+              Use “Spawn In Enemy Territory” to start with a live carve trail
+              already inside an enemy
+            </li>
+            <li>Re-enter your island to capture and reset the trail</li>
+            <li>
+              Toggle movement and kill/die effects independently while testing
+            </li>
+            <li>
+              Use “Open Official Game” to switch straight into the real game
+              entry with the current official physics and codepath
+            </li>
+          </ul>
+          <div id="status">Loading playground...</div>
+        </div>
+        <div id="control-panel">
+          <button id="open-official-btn" class="control-btn primary">
+            Open Official Game
+          </button>
+          <button id="spawn-enemy-trail-btn" class="control-btn primary">
+            Spawn In Enemy Territory
+          </button>
+          <button id="toggle-movement-btn" class="control-btn">
+            Movement: On
+          </button>
+          <button id="toggle-kill-btn" class="control-btn">
+            Kill / Die: On
+          </button>
+          <button id="splash-player-btn" class="control-btn primary">
+            Splash At Player
+          </button>
+          <button id="splash-enemy-btn" class="control-btn">
+            Splash At Enemy
+          </button>
+          <button id="reset-trail-btn" class="control-btn">Clear Trail</button>
+          <button id="reset-scene-btn" class="control-btn">Reset Scene</button>
+        </div>
+      </div>
+      <div id="joystick-zone">
+        <div id="joystick-base"></div>
+        <div id="joystick-knob"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/carve-playground.ts"></script>
+  </body>
+</html>

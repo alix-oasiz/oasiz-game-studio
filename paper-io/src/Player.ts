@@ -18,6 +18,7 @@ export interface PlayerState {
   position: Vec2;
   moveDir: Vec2; // normalized movement direction
   trail: Vec2[];
+  trailVisualLeadInPoints: Vec2[];
   trailStartTangent: Vec2 | null;
   territory: Territory;
   alive: boolean;
@@ -50,6 +51,7 @@ export function createPlayer(
     position: { x: spawnX, z: spawnZ },
     moveDir: { x: 1, z: 0 },
     trail: [],
+    trailVisualLeadInPoints: [],
     trailStartTangent: null,
     territory,
     alive: true,
@@ -110,7 +112,7 @@ export function sampleTrailPoint(player: PlayerState): void {
 
 const JOYSTICK_MAX_RADIUS = 50;
 const JOYSTICK_DEAD_ZONE = 8;
-const PLAYER_TURN_RATE = 4.5; // radians per second
+const PLAYER_TURN_RATE = 6.2; // radians per second
 
 export class InputHandler {
   private player: PlayerState;

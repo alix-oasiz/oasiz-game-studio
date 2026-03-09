@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { gameplayStop, triggerPlatformHaptic } from "../platform/oasiz";
+import { syncBackgroundMusic } from "../audio/backgroundMusic";
 
 interface SettingsState {
     music: boolean;
@@ -22,6 +23,7 @@ export default class MainMenu extends Phaser.Scene {
     create() {
         gameplayStop();
         this.settings = this.loadSettings();
+        syncBackgroundMusic(this, this.settings.music);
 
         const w = this.scale.width;
         const h = this.scale.height;
@@ -41,6 +43,7 @@ export default class MainMenu extends Phaser.Scene {
             color: "#FFFFFF",
             fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
             fontStyle: "900",
+            resolution: 2,
             stroke: "#1D8348",
             strokeThickness: 10,
             shadow: { offsetX: 0, offsetY: 8, color: "#000000", blur: 12, fill: true }
@@ -95,6 +98,7 @@ export default class MainMenu extends Phaser.Scene {
         const playTxt = this.add.text(0, -2, "PLAY", {
             fontSize: "36px", color: "#FFFFFF", fontStyle: "900",
             fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
+            resolution: 2,
             stroke: "#D35400", strokeThickness: 6,
             shadow: { offsetX: 0, offsetY: 3, color: "#8E44AD", blur: 0, fill: true }
         }).setOrigin(0.5);
@@ -280,6 +284,7 @@ export default class MainMenu extends Phaser.Scene {
         return {
             fontSize: `${size}px`, color, fontStyle: weight as any,
             fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
+            resolution: 2,
             stroke: stroke || undefined,
             strokeThickness: stroke ? 4 : 0
         };
@@ -333,7 +338,7 @@ export default class MainMenu extends Phaser.Scene {
         dark.setInteractive();
 
         const pW = Math.min(650, w - 40);
-        const pH = 580;
+        const pH = Math.min(580, h - 40);
 
         // Glow effect
         const glow = this.add.graphics();
@@ -350,7 +355,13 @@ export default class MainMenu extends Phaser.Scene {
             ...this.uiText(36, "#FFFFFF", "900", "#2980B9")
         }).setOrigin(0.5);
 
-        const grid = this.add.container(w * 0.5, h * 0.5 + 20);
+        const viewportPaddingX = 24;
+        const viewportTop = h * 0.5 - pH / 2 + 105;
+        const viewportBottom = h * 0.5 + pH / 2 - 96;
+        const viewportW = pW - viewportPaddingX * 2;
+        const viewportH = Math.max(160, viewportBottom - viewportTop);
+        const viewportX = w * 0.5 - viewportW / 2;
+        const grid = this.add.container(viewportX, viewportTop);
         const refreshThumbs: Array<() => void> = [];
 
         const backgrounds = [
@@ -359,27 +370,49 @@ export default class MainMenu extends Phaser.Scene {
             "game_bg_modern_04", "game_bg_modern_05", "game_bg_modern_06"
         ];
 
-        const thumbW = 180, thumbH = 135;
-        const spacingX = 200, spacingY = 155;
-        const cols = 3;
+        const gap = 16;
+        const minThumbW = 110;
+        const cols = Math.min(3, Math.max(1, Math.floor((viewportW + gap) / (minThumbW + gap))));
+        const thumbW = Math.min(180, Math.floor((viewportW - gap * (cols - 1)) / cols));
+        const thumbH = Math.floor(thumbW * 0.75);
+        const rowGap = 20;
+        const contentHeight = Math.ceil(backgrounds.length / cols) * thumbH + Math.max(0, Math.ceil(backgrounds.length / cols) - 1) * rowGap;
+        const minScrollY = Math.min(0, viewportH - contentHeight);
+        let scrollY = 0;
+        let dragStartY = 0;
+        let dragScrollY = 0;
+        let dragging = false;
+
+        const viewportMaskGraphics = this.make.graphics({});
+        viewportMaskGraphics.fillStyle(0xffffff);
+        viewportMaskGraphics.fillRoundedRect(viewportX, viewportTop, viewportW, viewportH, 18);
+        grid.setMask(viewportMaskGraphics.createGeometryMask());
+
+        const pointerInViewport = (pointer: Phaser.Input.Pointer) =>
+            pointer.x >= viewportX
+            && pointer.x <= viewportX + viewportW
+            && pointer.y >= viewportTop
+            && pointer.y <= viewportTop + viewportH;
+
+        const clampScroll = (nextScrollY: number) => {
+            scrollY = Phaser.Math.Clamp(nextScrollY, minScrollY, 0);
+            grid.y = viewportTop + scrollY;
+        };
 
         backgrounds.forEach((bgKey, i) => {
             const ix = i % cols;
             const iy = Math.floor(i / cols);
-            const x = (ix - (cols - 1) / 2) * spacingX;
-            const y = (iy - 0.8) * spacingY;
+            const x = ix * (thumbW + gap) + thumbW / 2;
+            const y = iy * (thumbH + rowGap) + thumbH / 2;
 
             const item = this.add.container(x, y);
-
-            // Mask for rounded corners
-            const maskGraphics = this.make.graphics({});
-            maskGraphics.fillStyle(0xffffff);
-            maskGraphics.fillRoundedRect(x - thumbW / 2 + w * 0.5, y - thumbH / 2 + h * 0.5 + 20, thumbW, thumbH, 12);
-            const mask = maskGraphics.createGeometryMask();
+            const clip = this.add.graphics();
+            clip.fillStyle(0xffffff);
+            clip.fillRoundedRect(-thumbW / 2, -thumbH / 2, thumbW, thumbH, 12);
 
             const img = this.add.image(0, 0, bgKey.startsWith("game") ? bgKey.replace("game_bg", "s_bg") : bgKey);
             img.setDisplaySize(thumbW, thumbH);
-            img.setMask(mask);
+            img.setMask(clip.createGeometryMask());
 
             const frame = this.add.graphics();
 
@@ -425,8 +458,29 @@ export default class MainMenu extends Phaser.Scene {
                 });
             });
 
-            item.add([img, frame, hit]);
+            item.add([clip, img, frame, hit]);
             grid.add(item);
+        });
+
+        this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            if (!this.bgOverlay?.visible || minScrollY === 0 || !pointerInViewport(pointer)) return;
+            dragging = true;
+            dragStartY = pointer.y;
+            dragScrollY = scrollY;
+        });
+
+        this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+            if (!dragging || !pointer.isDown) return;
+            clampScroll(dragScrollY + (pointer.y - dragStartY));
+        });
+
+        this.input.on("pointerup", () => {
+            dragging = false;
+        });
+
+        this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
+            if (!this.bgOverlay?.visible || minScrollY === 0 || !pointerInViewport(_pointer)) return;
+            clampScroll(scrollY - dy * 0.6);
         });
 
         // Close button
@@ -496,6 +550,9 @@ export default class MainMenu extends Phaser.Scene {
                 val.setText(this.settings[key] ? "ON" : "OFF");
                 val.setStroke(this.settings[key] ? "#196F3D" : "#943126", 4);
                 this.saveSettings();
+                if (key === "music") {
+                    syncBackgroundMusic(this, this.settings.music);
+                }
                 this.triggerHaptic("light");
             });
             return row;

@@ -17,35 +17,82 @@ export default class Preload extends Phaser.Scene {
 	}
 
 	editorCreate(): void {
+		const w = this.scale.width;
+		const h = this.scale.height;
+		const accentColor = Phaser.Display.Color.HexStringToColor("#00A1E4").color;
 
-		// guapen
-		const guapen = this.add.image(505.0120544433594, 360, "guapen");
-		guapen.scaleX = 0.32715486817515643;
-		guapen.scaleY = 0.32715486817515643;
+		const bg = this.add.image(w * 0.5, h * 0.5, "table_bg");
+		bg.setDisplaySize(w, h);
 
-		// progressBar
-		const progressBar = this.add.rectangle(553.0120849609375, 361, 256, 20);
-		progressBar.setOrigin(0, 0);
-		progressBar.isFilled = true;
-		progressBar.fillColor = 14737632;
+		this.add.rectangle(0, 0, w, h, 0x03110b, 0.56).setOrigin(0, 0);
 
-		// progressBarBg
-		const progressBarBg = this.add.rectangle(553.0120849609375, 361, 256, 20);
-		progressBarBg.setOrigin(0, 0);
-		progressBarBg.fillColor = 14737632;
-		progressBarBg.isStroked = true;
+		const panelW = Math.min(w - 36, 420);
+		const panelH = 220;
+		const panelY = h * 0.58;
 
-		// loadingText
-		const loadingText = this.add.text(552.0120849609375, 329, "", {});
-		loadingText.text = "Loading...";
-		loadingText.setStyle({ "color": "#e0e0e0", "fontFamily": "arial", "fontSize": "20px" });
+		const panel = this.add.graphics();
+		panel.fillStyle(0x07110d, 0.9);
+		panel.fillRoundedRect(w * 0.5 - panelW / 2, panelY - panelH / 2, panelW, panelH, 28);
+		panel.lineStyle(2, accentColor, 0.95);
+		panel.strokeRoundedRect(w * 0.5 - panelW / 2, panelY - panelH / 2, panelW, panelH, 28);
 
-		this.progressBar = progressBar;
+		const title = this.add.text(w * 0.5, panelY - 62, "SOLITAIRE", {
+			fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
+			fontSize: "42px",
+			fontStyle: "900",
+			color: "#FFFFFF",
+			resolution: 2
+		}).setOrigin(0.5);
+
+		const subtitle = this.add.text(w * 0.5, panelY - 18, "Shuffling the deck", {
+			fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
+			fontSize: "18px",
+			fontStyle: "700",
+			color: "#BFE9FA",
+			resolution: 2
+		}).setOrigin(0.5);
+
+		const percentText = this.add.text(w * 0.5, panelY + 26, "0%", {
+			fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
+			fontSize: "32px",
+			fontStyle: "900",
+			color: "#FFFFFF",
+			resolution: 2
+		}).setOrigin(0.5);
+
+		const dots = [w * 0.5 - 24, w * 0.5, w * 0.5 + 24].map((x) => {
+			return this.add.circle(x, panelY + 78, 5, accentColor, 0.35);
+		});
+
+		dots.forEach((dot, index) => {
+			this.tweens.add({
+				targets: dot,
+				alpha: 1,
+				scale: 1.3,
+				duration: 520,
+				yoyo: true,
+				repeat: -1,
+				ease: "Sine.inOut",
+				delay: index * 140
+			});
+		});
+
+		this.tweens.add({
+			targets: title,
+			scaleX: 1.02,
+			scaleY: 1.02,
+			duration: 1500,
+			yoyo: true,
+			repeat: -1,
+			ease: "Sine.inOut"
+		});
+
+		this.percentText = percentText;
 
 		this.events.emit("scene-awake");
 	}
 
-	private progressBar!: Phaser.GameObjects.Rectangle;
+	private percentText!: Phaser.GameObjects.Text;
 
 	/* START-USER-CODE */
 
@@ -112,11 +159,8 @@ export default class Preload extends Phaser.Scene {
 		this.load.pack("asset-pack", "assets/asset-pack.json");
 		this.preloadCardAssets();
 
-		const width = this.progressBar.width;
-
 		this.load.on("progress", (value: number) => {
-
-			this.progressBar.width = width * value;
+			this.percentText.setText(`${Math.round(value * 100)}%`);
 		});
 	}
 

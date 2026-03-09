@@ -142,6 +142,20 @@ function nearestBoundarySegment(
   return best;
 }
 
+function topologySignature(polygons: TerritoryMultiPolygon): string {
+  let holes = 0;
+  let outerPoints = 0;
+  let holePoints = 0;
+  for (const polygon of polygons) {
+    holes += polygon.holes.length;
+    outerPoints += polygon.outer.length;
+    for (const hole of polygon.holes) {
+      holePoints += hole.length;
+    }
+  }
+  return polygons.length + ":" + holes + ":" + outerPoints + ":" + holePoints;
+}
+
 function insertBoundaryPoint(
   loop: Vec2[],
   point: Vec2,
@@ -246,7 +260,7 @@ export class Territory {
   }
 
   initAtSpawn(cx: number, cz: number): void {
-    this.setPolygons(createCircleTerritory(cx, cz, START_RADIUS));
+    this.setPolygons(createCircleTerritory(cx, cz, START_RADIUS), "spawn");
   }
 
   containsPoint(point: Vec2): boolean {
@@ -262,16 +276,27 @@ export class Territory {
     const nextArea = territoryArea(nextPolygons);
     if (nextArea <= previousArea + AREA_EPSILON) return new Set();
 
-    this.setPolygons(nextPolygons);
-    return this.cropRegionFromOthers(capturedRegion);
+    const captureCentroid = territoryCentroid(capturedRegion);
+    const unionContainsCentroid = pointInTerritory(
+      captureCentroid,
+      nextPolygons,
+    );
+    this.setPolygons(nextPolygons, "capture");
+    const affected = await this.cropRegionFromOthers(capturedRegion);
+    return affected;
   }
 
   async claimTrailLine(trailPoints: Vec2[]): Promise<Set<number>> {
     if (trailPoints.length < 2) return new Set();
     const claimedRegion = createPolylineStroke(trailPoints, TRAIL_CLAIM_WIDTH);
     if (claimedRegion.length === 0) return new Set();
-    this.setPolygons(unionTerritories(this.polygons, claimedRegion));
-    return this.cropRegionFromOthers(claimedRegion);
+    const beforeArea = this.computeArea();
+    this.setPolygons(
+      unionTerritories(this.polygons, claimedRegion),
+      "claimTrailLine",
+    );
+    const affected = await this.cropRegionFromOthers(claimedRegion);
+    return affected;
   }
 
   computeArea(): number {
@@ -318,7 +343,8 @@ export class Territory {
       else b = mid;
     }
 
-    return { x: (a.x + b.x) * 0.5, z: (a.z + b.z) * 0.5 };
+    const approxBoundary = { x: (a.x + b.x) * 0.5, z: (a.z + b.z) * 0.5 };
+    return this.getNearestBoundaryPoint(approxBoundary);
   }
 
   getBoundaryTangent(point: Vec2, moveDir: Vec2): Vec2 {
@@ -381,6 +407,8 @@ export class Territory {
     if (this.polygons.length === 0) return null;
     const target = this.grid.getTerritory(playerId);
     if (!target) return null;
+    const victimBeforeArea = this.computeArea();
+    const killerBeforeArea = target.computeArea();
     target.unionRegion(this.polygons);
     this.clear();
     return { changed: true };
@@ -390,14 +418,17 @@ export class Territory {
     this.cachedArea = -1;
   }
 
-  private setPolygons(polygons: TerritoryMultiPolygon): void {
+  private setPolygons(
+    polygons: TerritoryMultiPolygon,
+    _reason = "unknown",
+  ): void {
     this.polygons = sanitizeTerritory(polygons);
     this.dirty = true;
     this.cachedArea = -1;
   }
 
   private unionRegion(region: TerritoryMultiPolygon): void {
-    this.setPolygons(unionTerritories(this.polygons, region));
+    this.setPolygons(unionTerritories(this.polygons, region), "unionRegion");
   }
 
   private async cropRegionFromOthers(
@@ -417,10 +448,18 @@ export class Territory {
     region: TerritoryMultiPolygon,
   ): Promise<boolean> {
     const before = this.computeArea();
+    const beforeSignature = topologySignature(this.polygons);
     const nextPolygons = await this.grid.difference(this.polygons, region);
     const nextArea = territoryArea(nextPolygons);
-    if (Math.abs(nextArea - before) <= AREA_EPSILON) return false;
-    this.setPolygons(nextPolygons);
+    const nextSignature = topologySignature(nextPolygons);
+    if (Math.abs(nextArea - before) <= AREA_EPSILON) {
+      if (beforeSignature !== nextSignature) {
+        this.setPolygons(nextPolygons, "subtractRegion-topology");
+        return true;
+      }
+      return false;
+    }
+    this.setPolygons(nextPolygons, "subtractRegion");
     return true;
   }
 

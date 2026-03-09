@@ -51,6 +51,10 @@ export default class Level extends Phaser.Scene {
 	private graphics: Phaser.GameObjects.Graphics | undefined;
 	private isDragging: boolean = false;
 	private dragStartPoint: Phaser.Math.Vector2 | undefined;
+	private dragPointerPoint: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
+	private dragBallScreenPoint: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
+	private dragGuideDirty: boolean = false;
+	private dragGuideVisible: boolean = false;
 	private scoreText: Phaser.GameObjects.Text | undefined;
 	private holeText: Phaser.GameObjects.Text | undefined;
 	private currentHole: number = 1;
@@ -80,6 +84,7 @@ export default class Level extends Phaser.Scene {
 	private readonly GHOST_POOL_SIZE = 24;
 	private readonly GHOST_LIFESPAN = 800;
 	private pendingRestart: boolean = false;
+	private transitionToken: number = 0;
 	private isPaused: boolean = false;
 	private prevBallSpeed: number = 0;
 	private slowTimer: number = 0;
@@ -90,6 +95,36 @@ export default class Level extends Phaser.Scene {
 	private gameOverFallbackTimer: number = 0;
 	private bounceCount: number = 0;
 	private aceStreak: number = 0;
+	private stuckGuardAnchor: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
+	private stuckGuardTimer: number = 0;
+	private readonly STUCK_GUARD_MOVE_THRESHOLD = 16;
+	private readonly STUCK_GUARD_SPEED_THRESHOLD = 1.35;
+	private readonly STUCK_GUARD_TRIGGER_MS = 4000;
+	private readonly DRAG_REDRAW_DISTANCE_SQ = 4;
+	private readonly MIN_SHOT_DRAG_DISTANCE = 12;
+	private readonly MAX_DRAG_DISTANCE = 150;
+	private readonly POWER_BAR_WIDTH = 56;
+	private readonly POWER_BAR_HEIGHT = 8;
+	private readonly POWER_BAR_OFFSET_Y = 42;
+	private readonly FIXED_TRAJECTORY_LENGTH = 96;
+	private readonly trajectoryDots = Array.from({ length: 8 }, (_, i) => {
+		const progress = (i + 1) / 8;
+		return {
+			progress,
+			radius: 3,
+			alpha: 1 - (i / 8) * 0.6
+		};
+	});
+	private readonly scorePraisePhrases = [
+		'Fantastic!',
+		'Amazing!',
+		'Congrats!',
+		'Brilliant!',
+		'Superb!',
+		'Nice Shot!',
+		'Well Done!'
+	];
+	private aimReadyVisible: boolean = false;
 
 	// Helper: get ball position in pixel coordinates
 	private getBallPos(): { x: number, y: number } {
@@ -109,6 +144,154 @@ export default class Level extends Phaser.Scene {
 	private getBallSpeed(): number {
 		const vel = this.getBallVel();
 		return Math.sqrt(vel.x * vel.x + vel.y * vel.y);
+	}
+
+	private getTerrainDifficulty(score: number, hole: number): number {
+		const clampedScore = Math.min(score, 36);
+		const scoreProgress = clampedScore / 36;
+		const holeProgress = Math.min(Math.max(hole - 1, 0), 12) / 12;
+		return 1 + scoreProgress * 0.9 + scoreProgress * scoreProgress * 0.65 + holeProgress * 0.35;
+	}
+
+	private resetStuckGuard(anchor?: { x: number, y: number }): void {
+		const nextAnchor = anchor ?? this.getBallPos();
+		this.stuckGuardAnchor.set(nextAnchor.x, nextAnchor.y);
+		this.stuckGuardTimer = 0;
+	}
+
+	private handleStuckBall(): void {
+		if (!this.ballBodyId || this.isGameOver || this.data.get('isWon') || this.isTransitioning) return;
+
+		this.resetStuckGuard();
+		this.crawlTimer = 0;
+		this.stoppedTimer = 0;
+		this.gameOverFallbackTimer = 0;
+		this.prevBallSpeed = 0;
+
+		if (this.shotsRemaining <= 0) {
+			this.handleGameOver();
+			return;
+		}
+
+		b2Body_SetLinearVelocity(this.ballBodyId, new b2Vec2(0, 0));
+		b2Body_SetAngularVelocity(this.ballBodyId, 0);
+		this.ballMoving = false;
+	}
+
+	private updateStuckGuard(ballPos: { x: number, y: number }, speed: number, delta: number): void {
+		if (!this.hasFiredShot || !this.ballBodyId || this.isPaused || this.physicsPaused || this.isMenuOpen) return;
+
+		const displacement = Phaser.Math.Distance.Between(
+			ballPos.x,
+			ballPos.y,
+			this.stuckGuardAnchor.x,
+			this.stuckGuardAnchor.y
+		);
+
+		if (displacement > this.STUCK_GUARD_MOVE_THRESHOLD || speed > this.STUCK_GUARD_SPEED_THRESHOLD) {
+			this.resetStuckGuard(ballPos);
+			return;
+		}
+
+		this.stuckGuardTimer += delta;
+		if (this.stuckGuardTimer >= this.STUCK_GUARD_TRIGGER_MS) {
+			this.handleStuckBall();
+		}
+	}
+
+	private canLaunchBall(): boolean {
+		return !!this.ballBodyId
+			&& !this.ballMoving
+			&& !this.isDragging
+			&& !this.isGameOver
+			&& !this.data.get('isWon')
+			&& !this.isTransitioning
+			&& !this.isMenuOpen
+			&& !this.isPaused
+			&& !this.physicsPaused
+			&& this.shotsRemaining > 0
+			&& !this.settingsModal?.getIsOpen();
+	}
+
+	private setBackgroundMusicActive(active: boolean): void {
+		if (!this.bgMusic || localStorage.getItem('golf_settings_music') !== 'true') return;
+
+		const bgMusic = this.bgMusic as Phaser.Sound.BaseSound & { isPaused?: boolean; resume?: () => void };
+		if (active) {
+			if (bgMusic.isPaused && typeof bgMusic.resume === 'function') {
+				bgMusic.resume();
+			} else if (!bgMusic.isPlaying) {
+				bgMusic.play();
+			}
+			return;
+		}
+
+		if (bgMusic.isPlaying) {
+			bgMusic.pause();
+		}
+	}
+
+	private clearDragGuide(): void {
+		if (!this.graphics || !this.dragGuideVisible) {
+			this.dragGuideDirty = false;
+			return;
+		}
+
+		this.graphics.clear();
+		this.dragGuideVisible = false;
+		this.dragGuideDirty = false;
+	}
+
+	private renderDragGuide(): void {
+		if (!this.isDragging || !this.ballBodyId || !this.graphics) return;
+		if (!this.dragGuideDirty && this.dragGuideVisible) return;
+
+		this.graphics.clear();
+
+		let pullX = this.dragBallScreenPoint.x - this.dragPointerPoint.x;
+		let pullY = this.dragBallScreenPoint.y - this.dragPointerPoint.y;
+		const dragDist = Math.sqrt(pullX * pullX + pullY * pullY);
+		const clampedDragDist = Math.min(dragDist, this.MAX_DRAG_DISTANCE);
+		const normalizedPower = Phaser.Math.Clamp(clampedDragDist / this.MAX_DRAG_DISTANCE, 0, 1);
+
+		if (dragDist > this.MAX_DRAG_DISTANCE) {
+			const scale = this.MAX_DRAG_DISTANCE / dragDist;
+			pullX *= scale;
+			pullY *= scale;
+		}
+
+		if (dragDist >= this.MIN_SHOT_DRAG_DISTANCE) {
+			const guideScale = this.FIXED_TRAJECTORY_LENGTH / clampedDragDist;
+			const guideX = pullX * guideScale;
+			const guideY = pullY * guideScale;
+			for (const dot of this.trajectoryDots) {
+				const px = this.dragBallScreenPoint.x + guideX * dot.progress;
+				const py = this.dragBallScreenPoint.y + guideY * dot.progress;
+				this.graphics.fillStyle(0xffffff, dot.alpha);
+				this.graphics.fillCircle(px, py, dot.radius);
+			}
+		}
+
+		if (dragDist >= this.MIN_SHOT_DRAG_DISTANCE) {
+			const barX = this.dragBallScreenPoint.x - this.POWER_BAR_WIDTH / 2;
+			const barY = this.dragBallScreenPoint.y - this.POWER_BAR_OFFSET_Y;
+			const innerInset = 1;
+			const innerWidth = this.POWER_BAR_WIDTH - innerInset * 2;
+			const fillWidth = innerWidth * normalizedPower;
+			const powerColor = normalizedPower >= 0.98
+				? 0xFF3B30
+				: normalizedPower >= 0.45
+					? 0xFFFFFF
+					: 0x00A1E4;
+
+			this.graphics.fillStyle(0x000000, 1);
+			this.graphics.fillRoundedRect(barX, barY, this.POWER_BAR_WIDTH, this.POWER_BAR_HEIGHT, 4);
+			this.graphics.fillStyle(powerColor, 1);
+			this.graphics.fillRoundedRect(barX + innerInset, barY + innerInset, Math.max(fillWidth, 0), this.POWER_BAR_HEIGHT - innerInset * 2, 3);
+		}
+
+		this.dragGuideDirty = false;
+		this.dragGuideVisible = true;
 	}
 
 	create() {
@@ -136,6 +319,7 @@ export default class Level extends Phaser.Scene {
 		this.aceStreak = 0;
 		this.ballBodyId = null;
 		this.ballShapeId = null;
+		this.resetStuckGuard(this.spawnPoint);
 
 		// --- Box2D World Creation ---
 		b2CreateWorldArray();
@@ -184,8 +368,7 @@ export default class Level extends Phaser.Scene {
 		// Terrain - pass Box2D world to generator
 		this.terrainGen = new TerrainGenerator(this, this.worldId, this.SCALE);
 		const currentScore = this.registry.get('score') || 0;
-		const cappedScore = Math.min(currentScore, 100);
-		const initialDifficulty = 1 + (cappedScore * (0.05 / 12));
+		const initialDifficulty = this.getTerrainDifficulty(currentScore, this.currentHole);
 
 		this.currentTerrain = this.terrainGen.generateTerrain(undefined, 0, initialDifficulty, theme, false, currentScore);
 
@@ -204,11 +387,31 @@ export default class Level extends Phaser.Scene {
 			try {
 				this.hideGameOverMenu();
 				this.hidePauseMenu();
+				this.setBackgroundMusicActive(false);
+				this.input.removeAllListeners();
+				this.time.removeAllEvents();
+				this.tweens.killAll();
 				this.settingsModal?.destroy();
 				this.cleanupRockBodies();
 				this.recycleAllGhosts();
 				for (const g of this.ghostPool) g.destroy();
 				this.ghostPool = [];
+				this.graphics?.destroy();
+				this.graphics = undefined;
+				this.ballVisual?.destroy();
+				this.ballVisual = undefined;
+				this.sky?.destroy();
+				this.sky = undefined;
+				this.indicatorGraphics?.destroy();
+				this.indicatorGraphics = undefined;
+				this.aimReadyGraphics?.destroy();
+				this.aimReadyGraphics = undefined;
+				this.flagGraphics?.destroy();
+				this.flagGraphics = undefined;
+				this.flagContainer?.destroy();
+				this.flagContainer = undefined;
+				this.tutorialContainer?.destroy();
+				this.tutorialContainer = undefined;
 				this.scale.off('resize', this.onResize, this);
 				if (this.currentTerrain?.waterGraphics) this.currentTerrain.waterGraphics.destroy();
 				if (this.currentTerrain?.waterTimer) this.currentTerrain.waterTimer.destroy();
@@ -240,9 +443,7 @@ export default class Level extends Phaser.Scene {
 			this.physicsPaused = false;
 			this.settingsModal?.setVisible(true);
 			document.getElementById('pauseBtn')?.classList.remove('hidden');
-			if (localStorage.getItem('golf_settings_music') === 'true' && this.bgMusic && !this.bgMusic.isPlaying) {
-				this.bgMusic.play();
-			}
+			this.setBackgroundMusicActive(true);
 			this.startGameplay();
 		} else {
 			this.isMenuOpen = true;
@@ -266,9 +467,7 @@ export default class Level extends Phaser.Scene {
 		document.getElementById('pauseBtn')?.classList.remove('hidden');
 
 		// Start background music
-		if (localStorage.getItem('golf_settings_music') === 'true' && this.bgMusic && !this.bgMusic.isPlaying) {
-			this.bgMusic.play();
-		}
+		this.setBackgroundMusicActive(true);
 
 		// Start gameplay
 		this.startGameplay();
@@ -371,6 +570,7 @@ export default class Level extends Phaser.Scene {
 
 		this.graphics = this.add.graphics();
 		this.graphics.setDepth(100);
+		this.graphics.setScrollFactor(0);
 		this.dragStartPoint = new Phaser.Math.Vector2(0, 0);
 
 		this.initGhostPool();
@@ -628,58 +828,49 @@ export default class Level extends Phaser.Scene {
 	}
 
 	private onPointerDown(pointer: Phaser.Input.Pointer) {
-		if (!this.ballBodyId || this.ballMoving || this.shotsRemaining <= 0 || this.isGameOver || this.data.get('isWon') || this.isTransitioning || this.isMenuOpen) return;
-		if (this.settingsModal?.getIsOpen()) return;
+		if (!this.canLaunchBall()) return;
 		const ballPos = this.getBallPos();
 		const dist = Phaser.Math.Distance.Between(pointer.x + this.cameras.main.scrollX, pointer.y, ballPos.x, ballPos.y);
 		if (dist < 80) {
 			this.isDragging = true;
 			this.dragStartPoint?.set(pointer.x, pointer.y);
+			this.dragPointerPoint.set(pointer.x, pointer.y);
+			this.dragBallScreenPoint.set(ballPos.x - this.cameras.main.scrollX, ballPos.y - this.cameras.main.scrollY);
+			this.dragGuideDirty = true;
+			this.dragGuideVisible = false;
 			this.hideTutorial();
 		}
 	}
 
 	private onPointerMove(pointer: Phaser.Input.Pointer) {
-		if (this.isDragging && this.ballBodyId && this.graphics) {
-			this.graphics.clear().fillStyle(0xffffff, 1);
-			const ballPos = this.getBallPos();
-			let pullX = (ballPos.x - this.cameras.main.scrollX) - pointer.x;
-			let pullY = ballPos.y - pointer.y;
+		if (!this.isDragging || !this.ballBodyId || !this.graphics) return;
 
-			const maxDrag = 150;
-			const dragDist = Math.sqrt(pullX * pullX + pullY * pullY);
-			if (dragDist > maxDrag) {
-				pullX = (pullX / dragDist) * maxDrag;
-				pullY = (pullY / dragDist) * maxDrag;
-			}
+		const dx = pointer.x - this.dragPointerPoint.x;
+		const dy = pointer.y - this.dragPointerPoint.y;
+		if ((dx * dx) + (dy * dy) < this.DRAG_REDRAW_DISTANCE_SQ) return;
 
-			// Trajectory dots (visual prediction in pixel space)
-			const vx = pullX * 0.2;
-			const vy = pullY * 0.2;
-			for (let i = 0; i < 10; i++) {
-				const t = (i + 1) * 1.2;
-				const px = ballPos.x + vx * t;
-				const py = ballPos.y + vy * t + 0.5 * 2 * t * t * 0.05;
-				const alpha = 1 - (i / 10) * 0.6;
-				this.graphics.fillStyle(0xffffff, alpha);
-				this.graphics.beginPath().arc(px, py, 3.5 - i * 0.25, 0, Math.PI * 2).fillPath();
-			}
+		this.dragPointerPoint.set(pointer.x, pointer.y);
+		this.dragGuideDirty = true;
+		if (!this.dragGuideVisible) {
+			this.renderDragGuide();
 		}
 	}
 
 	private onPointerUp(pointer: Phaser.Input.Pointer) {
 		if (this.isDragging && this.ballBodyId && this.graphics) {
 			this.isDragging = false;
-			this.graphics.clear();
 			const ballPos = this.getBallPos();
-			let pullX = ballPos.x - (pointer.x + this.cameras.main.scrollX);
-			let pullY = ballPos.y - pointer.y;
-
-			const maxDrag = 150;
+			this.clearDragGuide();
+			let pullX = this.dragBallScreenPoint.x - pointer.x;
+			let pullY = this.dragBallScreenPoint.y - pointer.y;
 			const dragDist = Math.sqrt(pullX * pullX + pullY * pullY);
-			if (dragDist > maxDrag) {
-				pullX = (pullX / dragDist) * maxDrag;
-				pullY = (pullY / dragDist) * maxDrag;
+			if (dragDist < this.MIN_SHOT_DRAG_DISTANCE) {
+				return;
+			}
+			if (dragDist > this.MAX_DRAG_DISTANCE) {
+				const scale = this.MAX_DRAG_DISTANCE / dragDist;
+				pullX *= scale;
+				pullY *= scale;
 			}
 
 			// Convert pixel-space drag to Box2D velocity (m/s)
@@ -702,6 +893,7 @@ export default class Level extends Phaser.Scene {
 
 			this.shotsRemaining--;
 			this.hasFiredShot = true;
+			this.resetStuckGuard(ballPos);
 			this.hideTutorial();
 			this.updateShotVisuals();
 			this.playSFX('HitBall', 2.5);
@@ -711,6 +903,7 @@ export default class Level extends Phaser.Scene {
 
 	private handleWin() {
 		this.data.set('isWon', true);
+		this.resetStuckGuard();
 
 		this.recycleAllGhosts();
 
@@ -734,9 +927,7 @@ export default class Level extends Phaser.Scene {
 		if (this.holeText) this.holeText.setText(`Hole ${this.currentHole}`);
 
 		if (isAce) {
-			this.playSFX('Score', 1.5);
-			this.time.delayedCall(150, () => this.playSFX('Score', 2.0));
-			this.time.delayedCall(300, () => this.playSFX('Score', 2.5));
+			this.playSFX('AceAchievement', 1.15);
 		} else {
 			this.playSFX('Score');
 		}
@@ -759,6 +950,7 @@ export default class Level extends Phaser.Scene {
 	}
 
 	private showScoreAnimation(centerX: number, centerY: number, score: number) {
+		const praise = Phaser.Utils.Array.GetRandom(this.scorePraisePhrases);
 		const scoreNum = this.add.text(centerX, centerY, `${score}`, {
 			fontSize: '160px', color: '#ffffff', fontFamily: '"Press Start 2P"',
 			fontStyle: 'bold', stroke: '#000000', strokeThickness: 14
@@ -769,14 +961,20 @@ export default class Level extends Phaser.Scene {
 			fontStyle: 'bold', stroke: '#000000', strokeThickness: 8
 		}).setOrigin(0.5).setDepth(100).setScale(0).setAlpha(0);
 
+		const praiseLabel = this.add.text(centerX, centerY + 158, praise, {
+			fontSize: '38px', color: '#00A1E4', fontFamily: 'VT323',
+			fontStyle: 'bold', stroke: '#000000', strokeThickness: 5
+		}).setOrigin(0.5).setDepth(100).setScale(0).setAlpha(0);
+
 		this.tweens.add({ targets: scoreNum, scale: 1, alpha: 1, y: centerY, duration: 400, ease: 'Back.out' });
 		this.tweens.add({ targets: scoreLabel, scale: 1, alpha: 1, duration: 300, delay: 200, ease: 'Back.out' });
+		this.tweens.add({ targets: praiseLabel, scale: 1, alpha: 1, duration: 280, delay: 260, ease: 'Back.out' });
 
 		this.time.delayedCall(1000, () => {
 			this.tweens.add({
-				targets: [scoreNum, scoreLabel],
+				targets: [scoreNum, scoreLabel, praiseLabel],
 				y: '-=80', alpha: 0, duration: 600, ease: 'Power2',
-				onComplete: () => { scoreNum.destroy(); scoreLabel.destroy(); }
+				onComplete: () => { scoreNum.destroy(); scoreLabel.destroy(); praiseLabel.destroy(); }
 			});
 		});
 	}
@@ -884,14 +1082,31 @@ export default class Level extends Phaser.Scene {
 		});
 	}
 
+	private destroyTerrainInstance(instance: any): void {
+		if (!instance) return;
+		const rocks = instance.rockBodies as RockBody[] | undefined;
+		if (rocks) {
+			for (const rock of rocks) {
+				if (rock.bodyId) b2DestroyBody(rock.bodyId);
+				if (rock.visual) rock.visual.destroy();
+			}
+			instance.rockBodies = [];
+		}
+		if (instance.graphics) instance.graphics.destroy();
+		if (instance.waterGraphics) instance.waterGraphics.destroy();
+		if (instance.waterTimer) instance.waterTimer.destroy();
+		if (instance.groundBodyId) b2DestroyBody(instance.groundBodyId);
+	}
+
 	private startTransition() {
 		this.isTransitioning = true;
+		this.resetStuckGuard();
 		this.recycleAllGhosts();
+		const transitionToken = ++this.transitionToken;
 
 		const lastY = this.currentTerrain.points[this.currentTerrain.points.length - 1].y;
 		const currentScore = this.registry.get('score') || 0;
-		const cappedScore = Math.min(currentScore, 100);
-		const nextDifficulty = 1 + (cappedScore * (0.05 / 12));
+		const nextDifficulty = this.getTerrainDifficulty(currentScore, this.currentHole);
 		const season = this.registry.get('season') as SeasonType || 'spring';
 		const time = this.registry.get('time') as TimeType || 'day';
 		const theme = ThemeManager.getColors(season, time);
@@ -900,16 +1115,13 @@ export default class Level extends Phaser.Scene {
 		this.cameras.main.pan(this.cameras.main.scrollX + this.scale.width + this.scale.width / 2, this.scale.height / 2, 2000, 'Power2');
 
 		this.cameras.main.once('camerapancomplete', () => {
-			// Cleanup old terrain
-			this.cleanupRockBodies();
-			this.currentTerrain.graphics.destroy();
-			if (this.currentTerrain.waterGraphics) this.currentTerrain.waterGraphics.destroy();
-			if (this.currentTerrain.waterTimer) this.currentTerrain.waterTimer.destroy();
-
-			// Destroy old terrain body (one call destroys body + all chains/shapes)
-			if (this.currentTerrain.groundBodyId) {
-				b2DestroyBody(this.currentTerrain.groundBodyId);
+			if (transitionToken !== this.transitionToken || this.pendingRestart || this.isMenuOpen) {
+				this.destroyTerrainInstance(nextTerrain);
+				return;
 			}
+
+			// Cleanup old terrain
+			this.destroyTerrainInstance(this.currentTerrain);
 
 			this.currentTerrain = nextTerrain;
 
@@ -942,11 +1154,15 @@ export default class Level extends Phaser.Scene {
 		if (this.isPaused) return;
 
 		// Step Box2D world (fixed timestep with sub-stepping handled internally)
-		if (!this.physicsPaused && this.worldId) {
+		if (!this.physicsPaused && this.worldId && !this.isDragging) {
 			WorldStep({ worldId: this.worldId, deltaTime: delta / 1000, fixedTimeStep: 1 / 60, subStepCount: 8 });
 		}
 
 		if (!this.ballBodyId || this.isGameOver) return;
+
+		if (this.isDragging) {
+			this.renderDragGuide();
+		}
 
 		// Sync ball visual to physics body
 		const ballPos = this.getBallPos();
@@ -957,6 +1173,9 @@ export default class Level extends Phaser.Scene {
 			this.ballVisual.y = ballPos.y;
 			this.ballVisual.rotation = ballAngle;
 		}
+
+		// Hold rocks at their authored start transform until the first shot to prevent startup drifting.
+		this.pinRocksBeforeLaunch();
 
 		// Sync rock visuals to their physics bodies
 		this.syncRockVisuals();
@@ -1098,13 +1317,19 @@ export default class Level extends Phaser.Scene {
 		const inHoleX = Math.abs(ballPos.x - holeX) < (holeWidth / 2) + 5;
 		const insideHole = ballPos.y > holeY + 10;
 		const settled = speed < 1.0;
+		const ballDeepInHole = inHoleX && insideHole;
 
 		if (inHoleX && insideHole && settled && !this.data.get('isWon') && !this.isTransitioning) {
 			this.handleWin();
 		}
 
+		if (!ballDeepInHole && !this.isGameOver && !this.data.get('isWon') && !this.isTransitioning) {
+			this.updateStuckGuard(ballPos, speed, delta);
+		} else {
+			this.resetStuckGuard(ballPos);
+		}
+
 		// Game Over: ball must be truly stationary (speed < 0.2) for 800ms
-		const ballDeepInHole = inHoleX && insideHole;
 		const ballStopped = speed < 0.2;
 		if (ballStopped && this.shotsRemaining <= 0 && this.hasFiredShot && !this.data.get('isWon') && !this.isTransitioning && !this.isGameOver && !ballDeepInHole) {
 			this.stoppedTimer += delta;
@@ -1336,19 +1561,14 @@ export default class Level extends Phaser.Scene {
 
 	private drawAimReadyIndicator(delta: number) {
 		if (!this.aimReadyGraphics) return;
-		this.aimReadyGraphics.clear();
 
-		// Only show when ball is ready to launch: not moving, not dragging, not won, not transitioning, not game over
-		const canLaunch = this.ballBodyId
-			&& !this.ballMoving
-			&& !this.isDragging
-			&& !this.isGameOver
-			&& !this.data.get('isWon')
-			&& !this.isTransitioning
-			&& !this.isMenuOpen
-			&& this.shotsRemaining > 0;
+		const canLaunch = this.canLaunchBall();
 
 		if (!canLaunch) {
+			if (this.aimReadyVisible) {
+				this.aimReadyGraphics.clear();
+				this.aimReadyVisible = false;
+			}
 			this.aimReadyTime = 0;
 			return;
 		}
@@ -1356,6 +1576,7 @@ export default class Level extends Phaser.Scene {
 		this.aimReadyTime += delta;
 		const ballPos = this.getBallPos();
 		const t = this.aimReadyTime / 1000;
+		this.aimReadyGraphics.clear();
 
 		// Pulsing animation parameters
 		const baseLen = 45;
@@ -1402,6 +1623,7 @@ export default class Level extends Phaser.Scene {
 			endX - Math.cos(angle) * tipSize - perpX * tipSize * 0.5,
 			endY - Math.sin(angle) * tipSize - perpY * tipSize * 0.5
 		);
+		this.aimReadyVisible = true;
 	}
 
 	private updateIndicator() {
@@ -1479,6 +1701,23 @@ export default class Level extends Phaser.Scene {
 		}
 	}
 
+	private pinRocksBeforeLaunch() {
+		if (this.hasFiredShot) return;
+		const rocks = this.currentTerrain?.rockBodies as RockBody[] | undefined;
+		if (!rocks || rocks.length === 0) return;
+		const S = this.SCALE;
+		for (const rock of rocks) {
+			if (!rock.bodyId) continue;
+			b2Body_SetLinearVelocity(rock.bodyId, new b2Vec2(0, 0));
+			b2Body_SetAngularVelocity(rock.bodyId, 0);
+			b2Body_SetTransform(
+				rock.bodyId,
+				new b2Vec2(rock.initialX / S, rock.initialY / S),
+				new b2Rot(Math.cos(rock.initialRotation), Math.sin(rock.initialRotation))
+			);
+		}
+	}
+
 	private syncRockVisuals() {
 		const rocks = this.currentTerrain?.rockBodies as RockBody[] | undefined;
 		if (!rocks || rocks.length === 0) return;
@@ -1545,6 +1784,8 @@ export default class Level extends Phaser.Scene {
 		this.lastVelXSign = 0;
 		this.directionChanges = 0;
 		this.oscillationDetected = false;
+		this.prevBallSpeed = 0;
+		this.resetStuckGuard(this.spawnPoint);
 		b2Body_SetLinearDamping(this.ballBodyId, 0.03);
 	}
 
@@ -1652,8 +1893,11 @@ export default class Level extends Phaser.Scene {
 
 	private goToMainMenu(): void {
 		if (this.pendingRestart) return;
+		this.transitionToken++;
 		this.pendingRestart = true;
+		this.isTransitioning = false;
 
+		this.setBackgroundMusicActive(false);
 		this.hidePauseMenu();
 		document.getElementById('pauseBtn')?.classList.add('hidden');
 		this.registry.set('score', 0);
@@ -1663,8 +1907,10 @@ export default class Level extends Phaser.Scene {
 	private handleGameOver() {
 		if (this.isGameOver) return;
 		this.isGameOver = true;
+		this.resetStuckGuard();
 		this.recycleAllGhosts();
 
+		this.setBackgroundMusicActive(false);
 		this.playSFX('GameOver');
 		this.settingsModal?.close();
 		this.settingsModal?.setVisible(false);
@@ -1696,7 +1942,7 @@ export default class Level extends Phaser.Scene {
 			fresh.classList.add('hidden');
 			pauseBtn.replaceWith(fresh);
 			const doPause = () => {
-				if (this.isMenuOpen || this.isGameOver) return;
+				if (this.isMenuOpen || this.isGameOver || this.isTransitioning) return;
 				this.haptic('light');
 				this.playSFX('ButtonClick');
 				this.showPauseMenu();
@@ -1737,6 +1983,7 @@ export default class Level extends Phaser.Scene {
 	private showPauseMenu(): void {
 		this.isPaused = true;
 		this.physicsPaused = true;
+		this.setBackgroundMusicActive(false);
 		const el = document.getElementById('pause-menu');
 		if (el) {
 			el.classList.remove('hidden');
@@ -1751,6 +1998,9 @@ export default class Level extends Phaser.Scene {
 			el.classList.add('hidden');
 			(el as HTMLElement).style.display = 'none';
 			(el as HTMLElement).style.pointerEvents = 'none';
+		}
+		if (!this.isGameOver && !this.isMenuOpen) {
+			this.setBackgroundMusicActive(true);
 		}
 	}
 

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { gameplayStart, gameplayStop, submitPlatformScore, triggerPlatformHaptic } from "../platform/oasiz";
+import { syncBackgroundMusic } from "../audio/backgroundMusic";
 
 type Suit = "♠" | "♥" | "♦" | "♣";
 type PileType = "stock" | "waste" | "tableau" | "foundation";
@@ -18,7 +19,6 @@ interface CardGO {
     shadow: Phaser.GameObjects.Rectangle;
     front: Phaser.GameObjects.Image;
     back: Phaser.GameObjects.Image;
-    glare: Phaser.GameObjects.Rectangle;
     hitZone: Phaser.GameObjects.Zone;
     source: { type: PileType; index?: number };
 }
@@ -53,7 +53,7 @@ export default class Level extends Phaser.Scene {
     private dragGroup: CardGO[] = [];
     private dragStart: { x: number; y: number }[] = [];
 
-    private infoText!: Phaser.GameObjects.Text;
+    private infoText?: Phaser.GameObjects.Text;
     private settingsOverlay!: Phaser.GameObjects.Container;
     private endOverlay!: Phaser.GameObjects.Container;
     private hoveredCard?: CardGO;
@@ -63,10 +63,10 @@ export default class Level extends Phaser.Scene {
     private drawAnimating = false;
 
     private settings: SettingsState = { music: true, fx: true, haptics: true, drawCount: 1, background: "table_bg" };
-    private musicTimer?: Phaser.Time.TimerEvent;
-    private backgroundMusic?: Phaser.Sound.BaseSound;
-    private musicTrackIndex = 0;
+    private hudTimer?: Phaser.Time.TimerEvent;
     private gameStarted = false;
+    private moveCount = 0;
+    private elapsedSeconds = 0;
 
     constructor() {
         super("Level");
@@ -86,9 +86,10 @@ export default class Level extends Phaser.Scene {
         this.newGame();
         this.gameStarted = true;
         gameplayStart();
-        this.startMusicLoop();
+        syncBackgroundMusic(this, this.settings.music);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-            this.stopMusicLoop();
+            this.hudTimer?.remove(false);
+            this.hudTimer = undefined;
         });
     }
 
@@ -142,42 +143,48 @@ export default class Level extends Phaser.Scene {
         bg.setDisplaySize(w, h).setDepth(-1000);
 
         const topSafe = this.isMobile() ? 120 : 45;
-
-        this.cardW = mobilePortrait ? Math.floor((w - 24 - 6 * 8) / 7) : 92;
-        this.cardW = Phaser.Math.Clamp(this.cardW, 62, 102);
+        const left = mobilePortrait ? 6 : Math.max(18, Math.floor(w * 0.025));
+        const top = topSafe + (mobilePortrait ? 34 : 46);
+        const tableauGap = mobilePortrait ? 2 : 8;
+        const foundationGap = mobilePortrait ? 4 : 8;
+        const centerGap = mobilePortrait ? 4 : 12;
+        const availableWidth = w - left * 2;
+        const cardWFromTableau = Math.floor((availableWidth - tableauGap * 6) / 7);
+        const cardWFromTopRow = Math.floor((availableWidth - tableauGap - foundationGap * 3 - centerGap) / 6);
+        const maxCardW = mobilePortrait ? 118 : 128;
+        this.cardW = Phaser.Math.Clamp(Math.min(cardWFromTableau, cardWFromTopRow), 40, maxCardW);
         this.cardH = Math.floor(this.cardW * 1.42);
 
-        this.tableauGapX = this.cardW + (mobilePortrait ? 8 : 20);
-        this.faceUpOffset = mobilePortrait ? Math.floor(this.cardH * 0.24) : 30;
-        this.faceDownOffset = mobilePortrait ? Math.floor(this.cardH * 0.1) : 12;
-
-        const left = mobilePortrait ? 12 : 70;
-        const top = topSafe + 60; // Increased from +20 to +60
+        this.tableauGapX = this.cardW + tableauGap;
+        this.faceUpOffset = mobilePortrait ? Math.floor(this.cardH * 0.18) : 24;
+        this.faceDownOffset = mobilePortrait ? Math.floor(this.cardH * 0.07) : 9;
 
 
         this.stockPos.set(left, top);
         this.wastePos.set(left + this.tableauGapX, top);
 
         this.foundationPos = [];
-        const foundationStart = w - (this.cardW * 4 + (mobilePortrait ? 8 : 14) * 3) - left;
-        for (let i = 0; i < 4; i++) this.foundationPos.push(new Phaser.Math.Vector2(foundationStart + i * (this.cardW + (mobilePortrait ? 8 : 14)), top));
+        const foundationStart = w - (this.cardW * 4 + foundationGap * 3) - left;
+        for (let i = 0; i < 4; i++) this.foundationPos.push(new Phaser.Math.Vector2(foundationStart + i * (this.cardW + foundationGap), top));
 
         this.tableauPos = [];
-        const tableauY = top + this.cardH + (mobilePortrait ? 20 : 44);
+        const tableauY = top + this.cardH + (mobilePortrait ? 10 : 20);
         for (let i = 0; i < 7; i++) this.tableauPos.push(new Phaser.Math.Vector2(left + i * this.tableauGapX, tableauY));
 
         const slot = (x: number, y: number, type: "none" | "stock" | "waste" | "suit", suitIndex = 0) => {
             const r = this.add.rectangle(x, y, this.cardW, this.cardH, 0x07110d, 0.35).setOrigin(0, 0);
             r.setStrokeStyle(2, 0xffffff, 0.23);
+            const suitFontSize = Math.max(24, Math.floor(this.cardW * 0.5));
+            const slotLabelSize = Math.max(10, Math.floor(this.cardW * 0.15));
 
             if (type === "suit") {
                 const s = ["♠", "♥", "♦", "♣"][suitIndex];
                 const color = (suitIndex === 1 || suitIndex === 2) ? "#E74C3C" : "#BDC3C7";
-                this.add.text(x + this.cardW / 2, y + this.cardH / 2, s, this.uiText(46, color, "800")).setOrigin(0.5).setAlpha(0.25);
+                this.add.text(x + this.cardW / 2, y + this.cardH / 2, s, this.uiText(suitFontSize, color, "800")).setOrigin(0.5).setAlpha(0.25);
             } else if (type === "stock") {
-                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "STOCK", this.uiText(14, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
+                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "STOCK", this.uiText(slotLabelSize, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
             } else if (type === "waste") {
-                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "WASTE", this.uiText(14, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
+                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "WASTE", this.uiText(slotLabelSize, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
             }
             return r;
         };
@@ -207,6 +214,7 @@ export default class Level extends Phaser.Scene {
             color,
             fontStyle: weight as any,
             fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
+            resolution: 2,
             stroke: stroke || undefined,
             strokeThickness: stroke ? 4 : 0
         };
@@ -215,24 +223,25 @@ export default class Level extends Phaser.Scene {
     private createHUD(topSafe: number) {
         const y = Math.max(24, topSafe - 15);
 
-        const h = this.scale.height;
-        this.infoText = this.add.text(this.scale.width / 2, h - 45, "", {
-            fontSize: "20px", color: "#ECF0F1", fontStyle: "800",
-            fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-            shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 4, fill: true }
-        }).setOrigin(0.5).setDepth(2000);
+        const w = this.scale.width;
+        const mobile = this.isMobile();
+        const statsY = Math.max(20, y - (mobile ? 32 : 28));
+        this.infoText = this.add.text(w * 0.5, statsY, "", {
+            ...this.uiText(mobile ? 16 : 18, "#FFFFFF", "900"),
+            align: "center"
+        }).setOrigin(0.5).setDepth(2001);
 
-        const newBtn = this.makeTopButton(this.scale.width - 390, y, 110, 44, "NEW GAME", () => {
+        const newBtn = this.makeTopButton(this.scale.width - 334, y, 92, 38, "NEW GAME", () => {
             this.triggerHaptic("light");
             this.newGame();
         });
 
-        const hintBtn = this.makeTopButton(this.scale.width - 270, y, 110, 44, "HINT", () => {
+        const hintBtn = this.makeTopButton(this.scale.width - 234, y, 92, 38, "HINT", () => {
             this.triggerHaptic("light");
             this.provideHint();
         });
 
-        const settingsBtn = this.makeTopButton(this.scale.width - 150, y, 130, 44, "SETTINGS", () => {
+        const settingsBtn = this.makeTopButton(this.scale.width - 126, y, 100, 38, "SETTINGS", () => {
             this.triggerHaptic("light");
             this.openSettings();
         });
@@ -244,7 +253,7 @@ export default class Level extends Phaser.Scene {
 
     private makeTopButton(x: number, y: number, w: number, h: number, label: string, onClick: () => void) {
         const c = this.add.container(x, y);
-        const radius = 12;
+        const radius = 10;
 
         const btnGraphics = this.add.graphics();
         const drawBtn = (isPressed: boolean, isHover: boolean) => {
@@ -273,7 +282,7 @@ export default class Level extends Phaser.Scene {
         };
         drawBtn(false, false);
 
-        const t = this.add.text(w / 2, h / 2 - 2, label, this.uiText(17, "#FFFFFF", "800")).setOrigin(0.5);
+        const t = this.add.text(w / 2, h / 2 - 1, label, this.uiText(14, "#FFFFFF", "800")).setOrigin(0.5);
         const btnHitZone = this.add.zone(w / 2, h / 2, w, h + 8).setInteractive({ useHandCursor: true });
         c.add([btnGraphics, t, btnHitZone]);
 
@@ -339,6 +348,17 @@ export default class Level extends Phaser.Scene {
         this.tableau = [[], [], [], [], [], [], []];
         this.dragGroup = [];
         this.dragStart = [];
+        this.moveCount = 0;
+        this.elapsedSeconds = 0;
+        this.hudTimer?.remove(false);
+        this.hudTimer = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => {
+                this.elapsedSeconds += 1;
+                this.updateHUD();
+            }
+        });
 
         const deck = this.buildDeck();
         for (let col = 0; col < 7; col++) {
@@ -357,6 +377,7 @@ export default class Level extends Phaser.Scene {
         }
         this.layoutAll();
         this.endOverlay?.setVisible(false);
+        this.updateHUD();
     }
 
     private buildDeck(): CardGO[] {
@@ -377,14 +398,21 @@ export default class Level extends Phaser.Scene {
         const shadow = this.add.rectangle(this.cardW / 2, this.cardH / 2 + 6, this.cardW * 0.88, this.cardH * 0.9, 0x03110b, 0.22);
         const front = this.add.image(0, 0, this.getCardTextureKey(data.suit, data.rank)).setOrigin(0, 0).setDisplaySize(this.cardW, this.cardH);
         const back = this.add.image(0, 0, "card_back").setOrigin(0, 0).setDisplaySize(this.cardW, this.cardH).setVisible(false);
-        const glare = this.add.rectangle(this.cardW * 0.35, this.cardH * 0.28, this.cardW * 0.42, this.cardH * 0.68, 0xffffff, 0.08);
-        glare.setAngle(-18).setVisible(false);
         const cardHitZone = this.add.zone(this.cardW / 2, this.cardH / 2, this.cardW, this.cardH).setInteractive({ useHandCursor: true });
-        container.add([shadow, front, back, glare, cardHitZone]);
+        container.add([shadow, front, back, cardHitZone]);
 
         this.input.setDraggable(cardHitZone);
 
-        const cardGO: CardGO = { data, container, shadow, front, back, glare, hitZone: cardHitZone, source: { type: "stock" } };
+        const cardGO: CardGO = {
+            data,
+            container,
+            shadow,
+            front,
+            back,
+            hitZone: cardHitZone,
+            source: { type: "stock" }
+        };
+        this.refreshCardFace(cardGO);
 
         cardHitZone.on("pointerdown", () => {
             if (cardGO.source.type === "stock") {
@@ -420,7 +448,6 @@ export default class Level extends Phaser.Scene {
     private refreshCardFace(card: CardGO) {
         card.front.setVisible(card.data.faceUp);
         card.back.setVisible(!card.data.faceUp);
-        card.glare.setVisible(card.data.faceUp);
         if (!card.data.faceUp) this.resetCardTilt(card, true);
     }
 
@@ -490,6 +517,7 @@ export default class Level extends Phaser.Scene {
         const count = Math.min(this.drawCount, this.stock.length);
         const startWasteCount = this.waste.length;
         const drawnCards: CardGO[] = [];
+        this.moveCount += 1;
 
         for (let i = 0; i < count; i++) {
             const card = this.stock.pop()!;
@@ -660,6 +688,7 @@ export default class Level extends Phaser.Scene {
         this.tableau.forEach((col) => {
             if (col.length && !col[col.length - 1].data.faceUp) col[col.length - 1].data.faceUp = true;
         });
+        this.moveCount += 1;
         this.dragGroup = [];
         this.dragStart = [];
         this.layoutAll();
@@ -724,9 +753,6 @@ export default class Level extends Phaser.Scene {
         const faceY = ny * 3;
         const shadowX = this.cardW / 2 - nx * 6;
         const shadowY = this.cardH / 2 + 6 - ny * 4;
-        const glareX = this.cardW * 0.35 + nx * 8;
-        const glareY = this.cardH * 0.28 + ny * 6;
-        const alpha = 0.08 + Math.abs(nx) * 0.07 + Math.abs(ny) * 0.04;
 
         if (immediate) {
             card.container.setAngle(angle);
@@ -736,12 +762,10 @@ export default class Level extends Phaser.Scene {
             card.back.setDisplaySize(this.cardW, this.cardH);
             card.shadow.setPosition(shadowX, shadowY);
             card.shadow.setScale(1 + Math.abs(nx) * 0.03, 1 + Math.abs(ny) * 0.02);
-            card.glare.setPosition(glareX, glareY);
-            card.glare.setAlpha(alpha);
             return;
         }
 
-        this.tweens.killTweensOf([card.container, card.front, card.back, card.shadow, card.glare]);
+        this.tweens.killTweensOf([card.container, card.front, card.back, card.shadow]);
         this.tweens.add({
             targets: card.container,
             angle,
@@ -764,14 +788,6 @@ export default class Level extends Phaser.Scene {
             duration: 110,
             ease: "Sine.out"
         });
-        this.tweens.add({
-            targets: card.glare,
-            x: glareX,
-            y: glareY,
-            alpha,
-            duration: 110,
-            ease: "Sine.out"
-        });
     }
 
     private resetCardTilt(card: CardGO, immediate: boolean) {
@@ -784,8 +800,6 @@ export default class Level extends Phaser.Scene {
             card.back.setDisplaySize(this.cardW, this.cardH);
             card.shadow.setPosition(this.cardW / 2, this.cardH / 2 + 6);
             card.shadow.setScale(1, 1);
-            card.glare.setPosition(this.cardW * 0.35, this.cardH * 0.28);
-            card.glare.setAlpha(card.data.faceUp ? 0.08 : 0);
             return;
         }
 
@@ -851,14 +865,18 @@ export default class Level extends Phaser.Scene {
 
     private updateHUD() {
         let score = 0;
-        let foundationCount = 0;
         this.foundations.forEach(pile => {
-            foundationCount += pile.length;
             pile.forEach(card => {
                 score += (card.data.rank * 10);
             });
         });
-        this.infoText?.setText(`DRAW:${this.drawCount}  STOCK:${this.stock.length}  WASTE:${this.waste.length}  FOUNDATION:${foundationCount}/52  SCORE:${score}`);
+        this.infoText?.setText(`Score: ${score}    Moves: ${this.moveCount}    Time: ${this.formatElapsedTime(this.elapsedSeconds)}`);
+    }
+
+    private formatElapsedTime(totalSeconds: number): string {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, "0")}`;
     }
 
     private pointInCard(px: number, py: number, x: number, y: number): boolean {
@@ -1085,51 +1103,6 @@ export default class Level extends Phaser.Scene {
         this.playTone(520, "sine", 0.05, 0.04);
     }
 
-    private startMusicLoop() {
-        this.musicTimer?.remove(false);
-        this.musicTimer = undefined;
-        if (!this.settings.music || !this.gameStarted) return;
-        this.playNextMusicTrack();
-    }
-
-    private stopMusicLoop() {
-        this.musicTimer?.remove(false);
-        this.musicTimer = undefined;
-        if (this.backgroundMusic) {
-            this.backgroundMusic.off(Phaser.Sound.Events.COMPLETE);
-            this.backgroundMusic.stop();
-            this.backgroundMusic.destroy();
-            this.backgroundMusic = undefined;
-        }
-    }
-
-    private playNextMusicTrack() {
-        if (!this.settings.music || !this.gameStarted) return;
-
-        const keys = ["bg_track_1", "bg_track_2"];
-        const key = keys[this.musicTrackIndex % keys.length];
-        this.musicTrackIndex = (this.musicTrackIndex + 1) % keys.length;
-
-        if (!this.cache.audio.exists(key)) return;
-
-        if (this.backgroundMusic) {
-            this.backgroundMusic.off(Phaser.Sound.Events.COMPLETE);
-            this.backgroundMusic.destroy();
-        }
-
-        this.backgroundMusic = this.sound.add(key, {
-            volume: 0.3
-        });
-        this.backgroundMusic.once(Phaser.Sound.Events.COMPLETE, () => {
-            this.backgroundMusic?.destroy();
-            this.backgroundMusic = undefined;
-            this.playNextMusicTrack();
-        });
-        this.backgroundMusic.play();
-    }
-
-
-
     private openSettings() {
         if (!this.settingsOverlay) this.createSettingsOverlay();
         gameplayStop();
@@ -1195,8 +1168,7 @@ export default class Level extends Phaser.Scene {
                 val.setStroke(this.settings[key] ? "#196F3D" : "#943126", 4);
                 this.saveSettings();
                 if (key === "music") {
-                    if (this.settings.music) this.startMusicLoop();
-                    else this.stopMusicLoop();
+                    syncBackgroundMusic(this, this.settings.music);
                 }
                 this.triggerHaptic("light");
             });
@@ -1255,6 +1227,8 @@ export default class Level extends Phaser.Scene {
     private openEnd(title: string, subtitle: string) {
         if (!this.endOverlay) this.createEndOverlay();
         gameplayStop();
+        this.hudTimer?.remove(false);
+        this.hudTimer = undefined;
         const [titleObj, subObj] = this.endOverlay.list.filter(o => o.name === "title" || o.name === "subtitle") as Phaser.GameObjects.Text[];
         titleObj.setText(title);
         subObj.setText(subtitle);

@@ -4,6 +4,7 @@ export const MAP_HALF = MAP_SIZE / 2;
 export const MAP_RADIUS = MAP_HALF; // circular arena radius
 export const PLAYER_SPEED = 8; // units per second
 export const TRAIL_SAMPLE_DIST = 0.12;
+export const TRAIL_HIT_RADIUS = 0.3;
 export const START_RADIUS = 3;
 export const START_TERRITORY_SEGMENTS = 64;
 
@@ -50,9 +51,9 @@ export const BOT_DIFFICULTY: Record<
     turnRate: number;
   }
 > = {
-  easy: { maxTrailLen: 15, aggression: 0.1, loopSize: 8, turnRate: 2.5 },
-  medium: { maxTrailLen: 25, aggression: 0.4, loopSize: 12, turnRate: 3.5 },
-  hard: { maxTrailLen: 40, aggression: 0.8, loopSize: 16, turnRate: 4.5 },
+  easy: { maxTrailLen: 15, aggression: 0.1, loopSize: 8, turnRate: 3.4 },
+  medium: { maxTrailLen: 25, aggression: 0.4, loopSize: 12, turnRate: 4.6 },
+  hard: { maxTrailLen: 40, aggression: 0.8, loopSize: 16, turnRate: 5.8 },
 };
 
 // ─── Colors ───

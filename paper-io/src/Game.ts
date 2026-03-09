@@ -4,6 +4,7 @@ import {
   BOT_NAMES,
   MAP_SIZE,
   START_RADIUS,
+  TRAIL_HIT_RADIUS,
   type Vec2,
   dist2,
 } from "./constants.ts";
@@ -15,7 +16,7 @@ import {
   sampleTrailPoint,
   InputHandler,
 } from "./Player.ts";
-import { segmentsIntersect } from "./Collision.ts";
+import { segmentDistanceSq, segmentsHitWithRadius } from "./Collision.ts";
 import { BotController, type BotFrameContext } from "./Bot.ts";
 import { Renderer } from "./Renderer.ts";
 import { ParticleSystem } from "./ParticleSystem.ts";
@@ -23,9 +24,16 @@ import { Audio } from "./Audio.ts";
 import { HUD } from "./HUD.ts";
 import { Menu, type MenuConfig } from "./Menu.ts";
 import { SpatialHash } from "./SpatialHash.ts";
-import { TerritoryGrid } from "./Territory.ts";
+import { TerritoryGrid, type Territory } from "./Territory.ts";
 import { SkinSystem } from "./SkinSystem.ts";
-import { debugLog } from "./debug-log.ts";
+import { getTrailInsideTerritorySegment } from "./trail-geometry.ts";
+
+function withLiveTrailHead(trail: Vec2[], head: Vec2): Vec2[] {
+  if (trail.length === 0) return [{ x: head.x, z: head.z }];
+  const last = trail[trail.length - 1];
+  if (last.x === head.x && last.z === head.z) return trail;
+  return [...trail, { x: head.x, z: head.z }];
+}
 
 export class Game {
   private renderer: Renderer;
@@ -57,8 +65,17 @@ export class Game {
   private rafId = 0;
   private idleFrameSkip = 0;
   private territoryBusy = new Set<number>();
-  private debugTrailGrowthLogged = false;
-  private debugHumanTrailStateLogged = false;
+  private territoryOpSeq = 0;
+  private loggedDeadVisualAnomalies = new Set<number>();
+  private deathTimes = new Map<number, number>();
+  private loggedHumanTrailEnemyOverlay = false;
+  private startCount = 0;
+  private firstStartActive = false;
+  private introCountdownRemaining = 0;
+  private introCountdownActive = false;
+  private readonly introCountdownEl: HTMLElement | null;
+  private readonly introCountdownValueEl: HTMLElement | null;
+  private readonly introCountdownInnerEl: HTMLElement | null;
 
   constructor() {
     const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
@@ -68,6 +85,13 @@ export class Game {
     this.hud = new HUD();
     this.skinSystem = new SkinSystem();
     this.menu = new Menu(this.skinSystem);
+    this.introCountdownEl = document.getElementById("start-countdown");
+    this.introCountdownInnerEl = document.querySelector(
+      ".start-countdown-inner",
+    );
+    this.introCountdownValueEl = document.getElementById(
+      "start-countdown-value",
+    );
 
     this.menu.setCallbacks(
       (config) => this.startGame(config),
@@ -130,10 +154,16 @@ export class Game {
     }
     this.settingsOpen = false;
     document.getElementById("settings-modal")?.classList.remove("visible");
+    this.hideIntroCountdown();
   }
 
   private startGame(config: MenuConfig): void {
+    const setupStartMs = performance.now();
     this.stopGame();
+    this.startCount++;
+    this.firstStartActive = this.startCount === 1;
+    this.introCountdownActive = false;
+    this.introCountdownRemaining = 0;
     this.menu.hideMenu();
     this.menu.hideGameOver();
 
@@ -149,10 +179,11 @@ export class Game {
     this.indexedTrailLengths.clear();
     this.trailHash.clear();
     this.territoryBusy.clear();
-    this.debugTrailGrowthLogged = false;
-    this.debugHumanTrailStateLogged = false;
+    this.deathTimes.clear();
+    this.loggedHumanTrailEnemyOverlay = false;
 
     // Create players with skins
+    const playerCreateStartMs = performance.now();
     const total = 1 + config.botCount;
     const playerSkin =
       this.skinSystem.getSkin(config.playerSkinId) ??
@@ -177,6 +208,9 @@ export class Game {
         this.territoryGrid,
         skin.id,
       );
+      if (i === 0) {
+        player.speed = 7.3;
+      }
       this.players.push(player);
 
       const texture = this.skinSystem.getTexture(skin.id);
@@ -199,6 +233,7 @@ export class Game {
         }
       }
     }
+    const playerCreateMs = performance.now() - playerCreateStartMs;
 
     // Bot AI
     this.botController = new BotController(config.difficulty);
@@ -218,6 +253,7 @@ export class Game {
     }
 
     // Initial territory + avatar positioning
+    const initialVisualStartMs = performance.now();
     for (const p of this.players) {
       this.renderer.updateTerritory(
         p.id,
@@ -227,17 +263,35 @@ export class Game {
       );
       this.renderer.updateAvatar(p.id, p.position, 0);
     }
+    const initialVisualMs = performance.now() - initialVisualStartMs;
 
     this.human = this.players[0];
+    this.human.hasInput = true;
+    this.started = true;
     this.renderer.setCameraTarget(this.human.position);
+    this.renderer.prewarmRender();
+    if (this.firstStartActive) {
+      this.introCountdownRemaining = 3.15;
+      this.introCountdownActive = true;
+      this.updateIntroCountdownLabel(3);
+      this.introCountdownEl?.classList.add("visible");
+    } else {
+      this.hideIntroCountdown();
+    }
 
     this.running = true;
+    void setupStartMs;
+    void playerCreateMs;
+    void initialVisualMs;
   }
 
   private stopGame(): void {
     this.inputHandler?.dispose();
     this.running = false;
     this.human = null;
+    this.introCountdownActive = false;
+    this.introCountdownRemaining = 0;
+    this.hideIntroCountdown();
     this.trailHash.clear();
     this.indexedTrailLengths.clear();
     for (const p of this.players) {
@@ -255,10 +309,38 @@ export class Game {
 
   private readonly _oldPos: Vec2 = { x: 0, z: 0 };
 
+  private updateIntroCountdownLabel(value: number): void {
+    if (this.introCountdownValueEl) {
+      this.introCountdownValueEl.textContent = String(value);
+    }
+    if (this.introCountdownInnerEl) {
+      this.introCountdownInnerEl.classList.remove("countdown-pop");
+      void this.introCountdownInnerEl.offsetWidth;
+      this.introCountdownInnerEl.classList.add("countdown-pop");
+    }
+  }
+
+  private hideIntroCountdown(): void {
+    this.introCountdownEl?.classList.remove("visible");
+  }
+
   private updateGame(dt: number): void {
     if (this.paused || this.gameOver) return;
 
     this.inputHandler.update(dt);
+    if (this.introCountdownActive) {
+      this.introCountdownRemaining = Math.max(
+        0,
+        this.introCountdownRemaining - dt,
+      );
+      if (this.introCountdownRemaining > 0) {
+        this.updateIntroCountdownLabel(Math.ceil(this.introCountdownRemaining));
+      } else {
+        this.introCountdownActive = false;
+        this.hideIntroCountdown();
+      }
+      return;
+    }
 
     const players = this.players;
     const playerCount = players.length;
@@ -275,11 +357,6 @@ export class Game {
       const p = players[pi];
       if (!p.alive) continue;
       if (this.territoryBusy.has(p.id)) continue;
-
-      if (p.isHuman && !this.started) {
-        if (p.hasInput) this.started = true;
-        else continue;
-      }
 
       const rawPos = computeMovement(p, dt);
       const newPos = clampToArena(rawPos);
@@ -298,7 +375,19 @@ export class Game {
         const trail = other.trail;
         const si = cand.segIdx;
         if (other.id === p.id && si >= trail.length - 3) continue;
-        if (segmentsIntersect(oldPos, newPos, trail[si], trail[si + 1])) {
+        const appliedHitRadius = other.id === p.id ? 0 : TRAIL_HIT_RADIUS;
+        if (
+          segmentsHitWithRadius(
+            oldPos,
+            newPos,
+            trail[si],
+            trail[si + 1],
+            appliedHitRadius,
+          )
+        ) {
+          const hitDistance = Math.sqrt(
+            segmentDistanceSq(oldPos, newPos, trail[si], trail[si + 1]),
+          );
           if (other.id === p.id) {
             this.killPlayer(p);
             hitTrail = true;
@@ -337,6 +426,7 @@ export class Game {
         if (!wasInTerritory) {
           p.isTrailing = true;
           p.trail = [{ x: p.position.x, z: p.position.z }];
+          p.trailVisualLeadInPoints = [];
           p.trailStartTangent = null;
         }
       }
@@ -355,12 +445,15 @@ export class Game {
           }
 
           p.trail = [];
+          p.trailVisualLeadInPoints = [];
           p.trailStartTangent = null;
           p.isTrailing = false;
           this.clearIndexedTrail(p.id);
-
+          const captureOpId = ++this.territoryOpSeq;
+          const captureStartedAt = performance.now();
           this.beginTerritoryOperation([p.id], async () => {
             const affected = await p.territory.captureFromTrail(captureTrail);
+            const captureElapsedMs = performance.now() - captureStartedAt;
             if (!this.running) return;
 
             for (const otherId of affected) {
@@ -390,61 +483,85 @@ export class Game {
           if (p.trail.length > prevTrailLen) {
             this.trailHash.insertLatestSegment(p.id, p.trail);
             this.indexedTrailLengths.set(p.id, p.trail.length);
-            if (
-              p.isHuman &&
-              !this.debugTrailGrowthLogged &&
-              p.trail.length >= 520
-            ) {
-              this.debugTrailGrowthLogged = true;
-              // #region agent log
-              debugLog(
-                "H1",
-                "Game.ts:387",
-                "human trail length exceeded render cap",
-                {
-                  trailLength: p.trail.length,
-                  indexedLength: this.indexedTrailLengths.get(p.id) ?? -1,
-                  isTrailing: p.isTrailing,
-                  x: Number(p.position.x.toFixed(3)),
-                  z: Number(p.position.z.toFixed(3)),
-                },
-              );
-              // #endregion
-            }
           }
         }
-      }
-
-      if (
-        p.isHuman &&
-        !nowInTerritory &&
-        p.isTrailing &&
-        !this.debugHumanTrailStateLogged &&
-        p.trail.length >= 520
-      ) {
-        this.debugHumanTrailStateLogged = true;
-        // #region agent log
-        debugLog(
-          "H3",
-          "Game.ts:399",
-          "human still trailing outside territory",
-          {
-            trailLength: p.trail.length,
-            hasInput: p.hasInput,
-            isTrailing: p.isTrailing,
-            x: Number(p.position.x.toFixed(3)),
-            z: Number(p.position.z.toFixed(3)),
-          },
-        );
-        // #endregion
       }
     }
 
     for (let pi = 0; pi < playerCount; pi++) {
       const p = players[pi];
       if (p.alive) {
+        const renderTrail = p.trail;
+        let enemyTerritoryOwner = -1;
+        let carveTrail: Vec2[] | null = null;
+        let carveStartTangent: Vec2 | null = null;
+        if (p.isTrailing) {
+          for (let oi = 0; oi < playerCount; oi++) {
+            const other = players[oi];
+            if (!other.alive || other.id === p.id) continue;
+            if (other.territory.containsPoint(p.position)) {
+              enemyTerritoryOwner = other.id;
+              const carveTrailSource = withLiveTrailHead(
+                renderTrail,
+                p.position,
+              );
+              const carveSegment = getTrailInsideTerritorySegment(
+                carveTrailSource,
+                other.territory,
+              );
+              carveTrail = carveSegment.path;
+              carveStartTangent = carveSegment.startTangent;
+              break;
+            }
+          }
+        }
+
         this.renderer.updateAvatar(p.id, p.position, this.gameTime, p.moveDir);
-        this.renderer.updateTrail(p.id, p.trail, p.color, p.trailStartTangent);
+        this.renderer.updateTrail(
+          p.id,
+          renderTrail,
+          p.color,
+          p.trailStartTangent,
+          carveTrail,
+          enemyTerritoryOwner >= 0
+            ? players[enemyTerritoryOwner]?.color
+            : undefined,
+          carveStartTangent,
+          enemyTerritoryOwner >= 0 ? enemyTerritoryOwner : undefined,
+        );
+        this.loggedDeadVisualAnomalies.delete(p.id);
+        this.loggedDeadVisualAnomalies.delete(1000 + p.id);
+        if (p.isHuman) {
+          if (
+            p.isTrailing &&
+            p.trail.length >= 2 &&
+            enemyTerritoryOwner >= 0 &&
+            !this.loggedHumanTrailEnemyOverlay
+          ) {
+            this.loggedHumanTrailEnemyOverlay = true;
+          } else if (!p.isTrailing || enemyTerritoryOwner < 0) {
+            this.loggedHumanTrailEnemyOverlay = false;
+          }
+        }
+      } else {
+        const visualState = this.renderer.getDebugVisualState(p.id);
+        const burstState = this.particleSystem.getDebugBurstState(p.id);
+        const deathAt = this.deathTimes.get(p.id) ?? 0;
+        const msSinceDeath = deathAt > 0 ? performance.now() - deathAt : 0;
+        if (
+          visualState.takeoverCount === 0 &&
+          (visualState.territoryTaggedCount > 0 || visualState.trailVisible) &&
+          !this.loggedDeadVisualAnomalies.has(p.id)
+        ) {
+          this.loggedDeadVisualAnomalies.add(p.id);
+        }
+        if (
+          msSinceDeath > 700 &&
+          burstState.sceneCount > 0 &&
+          !this.loggedDeadVisualAnomalies.has(1000 + p.id)
+        ) {
+          this.loggedDeadVisualAnomalies.add(1000 + p.id);
+        }
       }
     }
 
@@ -530,6 +647,7 @@ export class Game {
 
     player.alive = false;
     player.trail = [];
+    player.trailVisualLeadInPoints = [];
     player.trailStartTangent = null;
     player.isTrailing = false;
     this.clearIndexedTrail(player.id);
@@ -538,8 +656,9 @@ export class Game {
       deathPosition.x,
       deathPosition.z,
       player.color,
+      player.id,
     );
-
+    this.deathTimes.set(player.id, performance.now());
     if (takeoverKiller) {
       this.beginTerritoryOperation([takeoverKiller.id], async () => {
         const takeover = await player.territory.transferTo(takeoverKiller.id);
@@ -587,8 +706,7 @@ export class Game {
     }
 
     this.renderer.hideAvatar(player.id);
-    this.renderer.updateTrail(player.id, [], player.color, null);
-
+    this.renderer.updateTrail(player.id, [], player.color, null, null);
     if (player.isHuman) this.audio.playerDeath();
     else {
       this.audio.enemyDeath();
@@ -611,6 +729,40 @@ export class Game {
     this.usedBotNames.delete(name);
   }
 
+  private getSpawnOverlapDetail(
+    spawn: Vec2,
+    excludedPlayerId: number,
+  ): { overlappingIds: number[]; sampleCount: number } {
+    const sampleRadius = START_RADIUS + 0.9;
+    const samples: Vec2[] = [{ x: 0, z: 0 }];
+    const ringCount = 16;
+    for (let i = 0; i < ringCount; i++) {
+      const angle = (Math.PI * 2 * i) / ringCount;
+      samples.push({
+        x: Math.cos(angle) * sampleRadius,
+        z: Math.sin(angle) * sampleRadius,
+      });
+    }
+
+    const overlappingIds = new Set<number>();
+    for (const player of this.players) {
+      if (!player.alive || player.id === excludedPlayerId) continue;
+      for (const sample of samples) {
+        if (
+          player.territory.containsPoint({
+            x: spawn.x + sample.x,
+            z: spawn.z + sample.z,
+          })
+        ) {
+          overlappingIds.add(player.id);
+          break;
+        }
+      }
+    }
+
+    return { overlappingIds: [...overlappingIds], sampleCount: samples.length };
+  }
+
   private beginTrailFromBoundary(
     player: PlayerState,
     insidePos: Vec2,
@@ -624,6 +776,16 @@ export class Game {
 
     player.isTrailing = true;
     player.trail = [exitPoint];
+    player.trailVisualLeadInPoints = [];
+    for (const distance of [1.8, 1.25, 0.8, 0.4]) {
+      const candidate = {
+        x: exitPoint.x - moveDir.x * distance,
+        z: exitPoint.z - moveDir.z * distance,
+      };
+      if (player.territory.containsPoint(candidate)) {
+        player.trailVisualLeadInPoints.push(candidate);
+      }
+    }
     player.trailStartTangent = player.territory.getBoundaryTangent(
       exitPoint,
       moveDir,
@@ -668,6 +830,7 @@ export class Game {
     let bestSafeMinDist = -1;
     let fallbackSpawn = SPAWN_POINTS[playerId % SPAWN_POINTS.length];
     let fallbackMinDist = -1;
+    let safeCandidateCount = 0;
 
     for (const sp of SPAWN_POINTS) {
       let minDist = Infinity;
@@ -683,23 +846,27 @@ export class Game {
       }
 
       if (!this.isSpawnSafe(sp, playerId)) continue;
+      safeCandidateCount++;
 
       if (minDist > bestSafeMinDist) {
         bestSafeMinDist = minDist;
         bestSafeSpawn = sp;
       }
     }
-
-    return bestSafeSpawn ?? fallbackSpawn;
+    const chosenSpawn = bestSafeSpawn ?? fallbackSpawn;
+    return chosenSpawn;
   }
 
   private respawnBot(player: PlayerState): void {
     // Release old name, pick new one
     this.releaseBotName(player.name);
     const newName = this.pickBotName();
+    const oldSkinId = player.skinId;
 
     // Pick a safe spawn point
     const sp = this.pickSpawnPoint(player.id);
+    const overlap = this.getSpawnOverlapDetail(sp, player.id);
+    const burstState = this.particleSystem.getDebugBurstState(player.id);
 
     // Reset player state
     player.alive = true;
@@ -707,11 +874,13 @@ export class Game {
     player.position = { x: sp.x, z: sp.z };
     player.moveDir = { x: 1, z: 0 };
     player.trail = [];
+    player.trailVisualLeadInPoints = [];
     player.trailStartTangent = null;
     player.isTrailing = false;
     player.hasInput = false;
     this.clearIndexedTrail(player.id);
     this.territoryBusy.delete(player.id);
+    this.deathTimes.delete(player.id);
 
     // Reinit territory
     player.territory.clear();
@@ -727,7 +896,6 @@ export class Game {
       player.skinId,
     );
     this.renderer.updateAvatar(player.id, player.position, 0);
-
     // Reinit bot AI
     this.botController.initBot(player);
   }
@@ -775,6 +943,7 @@ export class Game {
         return;
       }
       this.rafId = requestAnimationFrame(loop);
+      const frameStartMs = performance.now();
       const now = performance.now() / 1000;
       const dt = Math.min(now - this.lastFrameTime, 0.05); // cap at 50ms
       this.lastFrameTime = now;
@@ -791,12 +960,24 @@ export class Game {
         this.idleFrameSkip = 0;
       }
 
+      let updateMs = 0;
       if (this.running) {
+        const updateStartMs = performance.now();
         this.updateGame(dt);
+        updateMs = performance.now() - updateStartMs;
       }
 
+      const particleStartMs = performance.now();
       this.particleSystem.update(dt);
+      const particleMs = performance.now() - particleStartMs;
+      const renderStartMs = performance.now();
       this.renderer.render();
+      const renderMs = performance.now() - renderStartMs;
+      const frameMs = performance.now() - frameStartMs;
+      void frameMs;
+      void updateMs;
+      void particleMs;
+      void renderMs;
     };
 
     this.rafId = requestAnimationFrame(loop);

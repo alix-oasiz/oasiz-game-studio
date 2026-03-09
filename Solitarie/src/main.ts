@@ -11,6 +11,8 @@ class Boot extends Phaser.Scene {
 
     preload() {
         this.load.pack("pack", "assets/preload-asset-pack.json");
+        const tableBgUrl = new URL("../public/assets/bg/table-bg.png", import.meta.url).href;
+        this.load.image("table_bg", tableBgUrl);
     }
 
     create() {
@@ -19,11 +21,18 @@ class Boot extends Phaser.Scene {
 }
 
 window.addEventListener("load", function () {
-    const game = new Phaser.Game({
-        type: Phaser.AUTO,
+    const resolution = 2;
+    const config = {
+        type: Phaser.WEBGL,
         width: 720,
         height: 1280, // portrait-first for mobile
         backgroundColor: "#163d22",
+        antialias: true,
+        antialiasGL: true,
+        pixelArt: false,
+        roundPixels: false,
+        resolution,
+        powerPreference: "high-performance",
         parent: "game-container",
         scale: {
             mode: Phaser.Scale.RESIZE,
@@ -37,9 +46,12 @@ window.addEventListener("load", function () {
         },
         render: {
             antialias: true,
-            pixelArt: false
+            antialiasGL: true,
+            mipmapFilter: "LINEAR_MIPMAP_LINEAR",
+            powerPreference: "high-performance"
         }
-    });
+    } as Phaser.Types.Core.GameConfig;
+    const game = new Phaser.Game(config);
 
     initOasiz(game);
     game.scene.start("Boot");

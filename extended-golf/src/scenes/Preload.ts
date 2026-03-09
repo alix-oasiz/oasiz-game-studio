@@ -32,6 +32,7 @@ export default class Preload extends Phaser.Scene {
 
 		// Audio assets
 		this.load.audio('Score', 'Audio/score.mp3');
+		this.load.audio('AceAchievement', 'Audio/ace-piano-5note.mp3');
 		this.load.audio('GameOver', 'Audio/GameOver.wav');
 		this.load.audio('HitBall', 'Audio/hit.mp3');
 		this.load.audio('ButtonClick', 'Audio/click.mp3');
