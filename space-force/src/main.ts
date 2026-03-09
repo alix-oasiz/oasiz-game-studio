@@ -1173,6 +1173,7 @@ async function init(): Promise<void> {
     },
 
     onCountdownUpdate: (count: number) => {
+      if (demoController?.isDemoActive()) return;
       if (currentPhase !== "COUNTDOWN") {
         return;
       }

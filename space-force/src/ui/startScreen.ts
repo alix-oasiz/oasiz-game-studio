@@ -42,6 +42,49 @@ export function createStartScreenUI(
   let forceTitleTriggerRafId = 0;
   let introVisualTimer: ReturnType<typeof setTimeout> | null = null;
   let titleIntroRunToken = 0;
+  let beforeAction: (() => Promise<void>) | null = null;
+  let onActionCommit: (() => void) | null = null;
+  let onHowToPlay: (() => Promise<void> | void) | null = null;
+  let onOpenSettings: (() => void) | null = null;
+  let startActionInFlight = false;
+  let secondaryActionInFlight = false;
+  let lastSecondaryActionAtMs = 0;
+  const isPlatform = isPlatformRuntime();
+  const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const SECONDARY_ACTION_TAP_GUARD_MS = 320;
+
+  const setStartActionLock = (locked: boolean): void => {
+    startActionInFlight = locked;
+    elements.createRoomBtn.disabled = locked;
+    elements.joinRoomBtn.disabled = locked;
+    elements.localMatchBtn.disabled = locked;
+    elements.startHowToPlayBtn.disabled = locked || secondaryActionInFlight;
+    elements.startSettingsBtn.disabled = locked || secondaryActionInFlight;
+    elements.submitJoinBtn.disabled = locked;
+    elements.backToStartBtn.disabled = locked;
+  };
+
+  const setSecondaryActionLock = (locked: boolean): void => {
+    secondaryActionInFlight = locked;
+    elements.startHowToPlayBtn.disabled = locked || startActionInFlight;
+    elements.startSettingsBtn.disabled = locked || startActionInFlight;
+  };
+
+  const isSecondaryTapGuardBlocked = (event: Event): boolean => {
+    if (!isCoarsePointer) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const now = performance.now();
+    if (now - lastSecondaryActionAtMs < SECONDARY_ACTION_TAP_GUARD_MS) {
+      return true;
+    }
+    lastSecondaryActionAtMs = now;
+    return false;
+  };
+
+  const getInjectedPlayerName = (): string | null => {
+    return getPlatformPlayerName();
+  };
 
   elements.joinRoomBtn.style.display = isPlatform ? "none" : "inline-flex";
 
