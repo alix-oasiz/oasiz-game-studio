@@ -21,15 +21,15 @@ const PPM = 30; // pixels per meter
 // ─── Tweakable config ────────────────────────────────────────────────────────
 const cfg = {
   maxRange:          120,    // max hammer offset (px) — Unity 2.0 WU @ ~60px/WU
-  forceMult:         0.0045, // N per pixel — Unity K=80 N/WU * mass / PPM_unity
-  maxSpeed:          6,      // velocity cap (m/s) — Unity ClampMagnitude(vel, 6)
-  hammerLerp:        0.2,    // hammer lerp factor
-  hammerR:           14,     // hammer overlap radius (px)
-  gravity:           9.0,    // m/s²  — real-weight feel (real = 9.8)
-  playerFriction:    0.6,
+  forceMult:         0.012,  // N per pixel — higher = snappier lever feel (GOIB is punchy)
+  maxSpeed:          8,      // velocity cap (m/s) — slightly above Unity 6 to compensate for Box2D scale
+  hammerLerp:        0.18,   // hammer lerp — slightly below 0.2 so it feels weighty, not instant
+  hammerR:           18,     // hammer overlap radius (px) — wider for T-bar bottle opener
+  gravity:           12.0,   // m/s²  — heavier than real; GOIB cauldron drops FAST
+  playerFriction:    0.85,   // high friction — tomato grips surfaces, doesn't slide off
   playerRestitution: 0.0,    // no bounce — hooks feel solid
-  playerDensity:     0.003,  // slightly heavier body
-  playerLinearDamp:  0.08,   // low: momentum carries naturally, gravity pulls firmly
+  playerDensity:     0.008,  // heavier body — feels like a full cauldron, not a balloon
+  playerLinearDamp:  0.35,   // substantial damping — kills drift; player sticks where they land
   rockFriction:      0.95,
   rockRestitution:   0.0,
 };
@@ -242,14 +242,14 @@ interface SliderDef { key: keyof typeof cfg; label: string; min: number; max: nu
 
 const SLIDER_DEFS: SliderDef[] = [
   { key: 'maxRange',          label: 'Max Range',        min: 50,     max: 400,  step: 5 },
-  { key: 'forceMult',         label: 'Force Mult',       min: 0.0001, max: 0.02, step: 0.0001 },
+  { key: 'forceMult',         label: 'Force Mult',       min: 0.001,  max: 0.05, step: 0.001 },
   { key: 'maxSpeed',          label: 'Max Speed (m/s)',  min: 1,      max: 30,   step: 0.5 },
   { key: 'hammerLerp',        label: 'Hammer Lerp',      min: 0.01,   max: 1,    step: 0.01 },
   { key: 'hammerR',           label: 'Hammer Radius',    min: 2,      max: 40,   step: 1 },
-  { key: 'gravity',           label: 'Gravity (m/s²)',   min: 1,      max: 20,   step: 0.5 },
+  { key: 'gravity',           label: 'Gravity (m/s²)',   min: 1,      max: 25,   step: 0.5 },
   { key: 'playerFriction',    label: 'Player Friction',  min: 0,      max: 1,    step: 0.01 },
   { key: 'playerRestitution', label: 'Restitution',      min: 0,      max: 0.5,  step: 0.01 },
-  { key: 'playerDensity',     label: 'Density',          min: 0.001,  max: 0.02, step: 0.001 },
+  { key: 'playerDensity',     label: 'Density',          min: 0.001,  max: 0.03, step: 0.001 },
   { key: 'playerLinearDamp',  label: 'Linear Damp',      min: 0,      max: 1,    step: 0.01 },
   { key: 'rockFriction',      label: 'Rock Friction',    min: 0,      max: 1,    step: 0.01 },
   { key: 'rockRestitution',   label: 'Rock Restitution', min: 0,      max: 0.5,  step: 0.01 },
@@ -724,7 +724,9 @@ class Box2DClimbScene extends Phaser.Scene {
 
     // Player (dynamic circle)
     const bodyDef: any = b2DefaultBodyDef();
-    bodyDef.linearDamping = cfg.playerLinearDamp;
+    bodyDef.linearDamping  = cfg.playerLinearDamp;
+    bodyDef.angularDamping = 3.0;  // resist spinning — cauldron feels planted, not a pinball
+    bodyDef.fixedRotation  = false; // allow some rotation for natural tumble, damping controls it
     const { bodyId } = CreateCircle({
       worldId,
       type: DYNAMIC,
@@ -800,7 +802,7 @@ class Box2DClimbScene extends Phaser.Scene {
     }
 
     // ── 4. Step physics ──────────────────────────────────────────────────────
-    WorldStep({ worldId: this.worldId, deltaTime: delta / 1000, subStepCount: 1 });
+    WorldStep({ worldId: this.worldId, deltaTime: delta / 1000, subStepCount: 4 });
 
     // ── 5. Read post-step position ───────────────────────────────────────────
     const b2pos2 = b2Body_GetPosition(this.playerBodyId);
@@ -832,8 +834,8 @@ class Box2DClimbScene extends Phaser.Scene {
     this.hammerPos.y = newHy;
 
     // ── 7. Camera ────────────────────────────────────────────────────────────
-    cam.scrollX += (rx - cam.width  / 2 - cam.scrollX) * 0.08;
-    cam.scrollY += (ry - cam.height * 0.6 - cam.scrollY) * 0.08;
+    cam.scrollX += (rx - cam.width  / 2 - cam.scrollX) * 0.12;
+    cam.scrollY += (ry - cam.height * 0.6 - cam.scrollY) * 0.12;
 
     // ── 8. Altitude ──────────────────────────────────────────────────────────
     const alt = Math.max(0, Math.round((SPAWN_Y - ry) / 9));
