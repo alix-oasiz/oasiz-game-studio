@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Bottle Flip</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #FFB347 0%, #FFCC70 100%);
+      touch-action: none;
+    }
+
+    #gameCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: pointer;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      background: #ff0000;
+    }
+
+    .ui-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .score {
+      position: absolute;
+      top: 140px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 48px;
+      font-weight: bold;
+      color: white;
+      text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .version {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+      font-family: monospace;
+      z-index: 100;
+    }
+
+    .settings-btn {
+      position: absolute;
+      top: 50px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      pointer-events: auto;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+
+    .start-screen, .game-over-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.9);
+      pointer-events: auto;
+      z-index: 999;
+    }
+
+    .start-screen h1, .game-over-screen h1 {
+      font-size: 64px;
+      color: white;
+      margin-bottom: 20px;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    .start-screen p, .game-over-screen p {
+      font-size: 24px;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 40px;
+      text-align: center;
+      padding: 0 20px;
+    }
+
+    .btn {
+      padding: 20px 60px;
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      background: linear-gradient(135deg, #FFB347 0%, #FFCC70 100%);
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+    }
+
+    .btn:hover {
+      transform: scale(1.05);
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .settings-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      pointer-events: auto;
+      min-width: 300px;
+      z-index: 30;
+    }
+
+    .settings-modal h2 {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      font-size: 18px;
+    }
+
+    .toggle {
+      width: 60px;
+      height: 30px;
+      background: #ccc;
+      border-radius: 15px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .toggle.active {
+      background: #667eea;
+    }
+
+    .toggle-circle {
+      width: 26px;
+      height: 26px;
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: left 0.3s;
+    }
+
+    .toggle.active .toggle-circle {
+      left: 32px;
+    }
+
+    .close-btn {
+      margin-top: 20px;
+      width: 100%;
+      padding: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      color: white;
+      background: #667eea;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div class="ui-overlay">
+    <div class="score" id="score">0</div>
+    <div class="version">v6.3</div>
+    <div class="settings-btn" id="settingsBtn">⚙️</div>
+
+    <div class="start-screen" id="startScreen">
+      <h1>🍾 Bottle Flip</h1>
+      <p>Hold to spin, release to flip!<br>Land upright to score points!</p>
+      <button class="btn" id="startBtn">Start Game</button>
+    </div>
+
+    <div class="game-over-screen hidden" id="gameOverScreen">
+      <h1>Game Over!</h1>
+      <p id="finalScore">Score: 0</p>
+      <button class="btn" id="restartBtn">Play Again</button>
+    </div>
+
+    <div class="settings-modal hidden" id="settingsModal">
+      <h2>Settings</h2>
+      <div class="setting-row">
+        <span>🎵 Music</span>
+        <div class="toggle active" id="musicToggle">
+          <div class="toggle-circle"></div>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span>🔊 FX</span>
+        <div class="toggle active" id="fxToggle">
+          <div class="toggle-circle"></div>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span>📳 Haptics</span>
+        <div class="toggle active" id="hapticsToggle">
+          <div class="toggle-circle"></div>
+        </div>
+      </div>
+      <button class="close-btn" id="closeSettings">Close</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main-phaser.ts"></script>
+</body>
+</html>
