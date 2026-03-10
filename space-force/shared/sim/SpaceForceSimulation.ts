@@ -489,7 +489,7 @@ export class SpaceForceSimulation implements SimState {
     this.beginMatchSequence(true);
   }
 
-  private beginMatchSequence(preserveScoreAndKills: boolean): void {
+  private beginMatchSequence(preserveScore: boolean): void {
     this.winnerId = null;
     this.winnerName = null;
     this.mapPowerUpsSpawned = false;
@@ -499,7 +499,7 @@ export class SpaceForceSimulation implements SimState {
     this.currentRound = 1;
     this.matchIntroMs = 0;
     this.roundEndMs = 0;
-    this.resetPlayersForNewSequence(preserveScoreAndKills);
+    this.resetPlayersForNewSequence(preserveScore, false);
 
     if (!this.shouldUseCountdownPhase()) {
       this.reseed((Date.now() >>> 0) ^ this.currentRound);
@@ -557,7 +557,7 @@ export class SpaceForceSimulation implements SimState {
     }
     this.mapPowerUpsSpawned = false;
     this.devModeEnabled = false;
-    this.resetPlayersForNewSequence(false);
+    this.resetPlayersForNewSequence(false, false);
     this.hooks.onPhase("LOBBY");
     syncRoomMeta(this);
     this.syncPlayers();
@@ -594,8 +594,19 @@ export class SpaceForceSimulation implements SimState {
   }
 
   setExperienceContext(context: ExperienceContext): void {
+    const prev = this.experienceContext;
     this.experienceContext = context;
     this.isDemo = context !== "LIVE_MATCH";
+    // If we're promoting a running sim directly into LIVE_MATCH (e.g. tutorial →
+    // "Start Playing"), reset the playing timer so endless win conditions start
+    // from now rather than from when attract began.
+    if (
+      context === "LIVE_MATCH" &&
+      prev !== "LIVE_MATCH" &&
+      this.phase === "PLAYING"
+    ) {
+      this.playingStartAtMs = this.nowMs;
+    }
     if (!isMapAllowedForContext(this.mapId, this.ruleset, this.experienceContext)) {
       this.mapId = 0;
       this.useClassicMapRotation = true;
@@ -1722,15 +1733,20 @@ export class SpaceForceSimulation implements SimState {
     syncRoomMeta(this);
   }
 
-  private resetPlayersForNewSequence(preserveScoreAndKills: boolean): void {
+  private resetPlayersForNewSequence(
+    preserveScore: boolean,
+    preserveKills: boolean,
+  ): void {
     clearRoundEntities(this);
     const globals = this.getGlobalConfig();
     for (const playerId of this.playerOrder) {
       const player = this.players.get(playerId);
       if (!player) continue;
-      if (!preserveScoreAndKills) {
-        player.kills = 0;
+      if (!preserveScore) {
         player.score = 0;
+      }
+      if (!preserveKills) {
+        player.kills = 0;
       }
       player.comboStreak = 0;
       player.comboMultiplier = 1;

@@ -64,6 +64,10 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
   - `cd server && npm run typecheck`: clean.
 - Outcome:
   - Endless mode advanced settings show "Time Limit" (default 5 min) and "Kill Limit" (default Off) instead of "Rounds To Win". Both are independent — either or both can be null. Whichever fires first ends the match via `endMatchByScore()`.
+- Post-ship fixes:
+  - `checkEndlessWinConditions()` guards `experienceContext !== "LIVE_MATCH"` — attract and tutorial contexts never trigger win conditions.
+  - `setExperienceContext()` re-stamps `playingStartAtMs = nowMs` when transitioning into `LIVE_MATCH` mid-`PLAYING` (tutorial "Start Playing" / skip path), so the timer starts from promotion not from attract start.
+  - `resetPlayersForNewSequence` split into separate `preserveScore` / `preserveKills` booleans. "Continue" preserves score (stacks across sessions) but resets kills (kill limit starts fresh each session). "Play Again" resets both.
 
 ## 2026-03-11 - Map picker: all maps available in all modes + rename to "Random"
 
