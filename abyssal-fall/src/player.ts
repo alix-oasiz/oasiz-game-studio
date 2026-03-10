@@ -45,8 +45,21 @@ export class PlayerController {
   private player: Player;
   private bullets: Bullet[] = [];
   private shootCooldown: number = 0;
+  private shootCooldownFrames: number = CONFIG.SHOOT_COOLDOWN;
   private isShooting: boolean = false; // Track if currently shooting (for hover effect)
   private recoilHoverFrames: number = 0; // Frames of hover damping remaining after last shot
+  private wasActionPressed: boolean = false;
+  private autoFireActive: boolean = false;
+  private baseWidth: number = 30;
+  private baseHeight: number = 40;
+  private horizontalWidth: number = 38;
+  private horizontalHeight: number = 28;
+
+  // Wall slide & wall/rolling jump state
+  private touchingWallLeft: boolean = false;
+  private touchingWallRight: boolean = false;
+  private wallSlidingNow: boolean = false;
+  private rollingJumpFrames: number = 0;
   
   // Callback for haptic feedback
   private onHaptic: ((type: "light" | "medium" | "heavy" | "success" | "error") => void) | null = null;
@@ -56,6 +69,9 @@ export class PlayerController {
   
   // Callback when player shoots (for powerup integration)
   private onShoot: (() => void) | null = null;
+
+  // Callback when player jumps (any jump — grounded, rolling, or wall)
+  private onJump: (() => void) | null = null;
   
   constructor() {
     this.player = this.createPlayer();
@@ -67,8 +83,8 @@ export class PlayerController {
       y: 100,
       vx: 0,
       vy: 0,
-      width: CONFIG.PLAYER_WIDTH,
-      height: CONFIG.PLAYER_HEIGHT,
+      width: this.baseWidth,
+      height: this.baseHeight,
       hp: CONFIG.PLAYER_MAX_HP,
       maxHp: CONFIG.PLAYER_MAX_HP,
       ammo: CONFIG.PLAYER_MAX_AMMO,
@@ -86,6 +102,12 @@ export class PlayerController {
     this.bullets = [];
     this.shootCooldown = 0;
     this.recoilHoverFrames = 0;
+    this.wasActionPressed = false;
+    this.autoFireActive = false;
+    this.touchingWallLeft = false;
+    this.touchingWallRight = false;
+    this.wallSlidingNow = false;
+    this.rollingJumpFrames = 0;
     console.log("[PlayerController] Reset player state");
   }
   
@@ -99,6 +121,10 @@ export class PlayerController {
   
   setShootCallback(callback: () => void): void {
     this.onShoot = callback;
+  }
+
+  setJumpCallback(callback: () => void): void {
+    this.onJump = callback;
   }
   
   private triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error"): void {
@@ -124,42 +150,129 @@ export class PlayerController {
   getShootCooldown(): number {
     return this.shootCooldown;
   }
+
+  setShootCooldownFrames(frames: number): void {
+    this.shootCooldownFrames = Math.max(2, Math.round(frames));
+  }
+
+  addMaxHp(amount: number): void {
+    this.player.maxHp += amount;
+    this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
+  }
+
+  addMaxAmmo(amount: number): void {
+    this.player.maxAmmo += amount;
+    this.player.ammo = Math.min(this.player.maxAmmo, this.player.ammo + amount);
+  }
+
+  addAmmo(amount: number): void {
+    this.player.ammo = Math.min(this.player.maxAmmo, this.player.ammo + amount);
+  }
+
+  setHitboxSizes(baseWidth: number, baseHeight: number, horizontalWidth: number, horizontalHeight: number): void {
+    this.baseWidth = Math.max(8, Math.round(baseWidth));
+    this.baseHeight = Math.max(8, Math.round(baseHeight));
+    this.horizontalWidth = Math.max(8, Math.round(horizontalWidth));
+    this.horizontalHeight = Math.max(8, Math.round(horizontalHeight));
+    this.updateHitboxForPose();
+  }
   
   // ============= INPUT HANDLING =============
   handleInput(input: InputState): void {
     // Unified tap action: jump when grounded, shoot when airborne
-    const tapping = input.jump || input.shoot;
-    
-    if (tapping) {
-      if (this.player.grounded) {
-        // Jump when grounded
-        this.player.vy = CONFIG.PLAYER_JUMP_FORCE;
+    const actionPressed = input.jump || input.shoot;
+    const justPressed = actionPressed && !this.wasActionPressed;
+    let firedShotThisFrame = false;
+
+    if (justPressed) {
+      if (this.wallSlidingNow) {
+        // Wall jump (rolling jump off wall)
+        // Default direction is away from the wall; honour directional input if provided
+        const wallDir = this.touchingWallLeft ? 1 : -1; // 1 = right, -1 = left
+        if (input.right) {
+          this.player.vx = CONFIG.PLAYER_SPEED;
+        } else if (input.left) {
+          this.player.vx = -CONFIG.PLAYER_SPEED;
+        } else {
+          this.player.vx = wallDir * CONFIG.WALL_JUMP_VX;
+        }
+        this.player.vy = CONFIG.WALL_JUMP_VY;
+        this.player.facingRight = wallDir > 0;
+        this.player.grounded = false;
+        // Clear wall contact so updateMovement doesn't re-apply slide this frame
+        this.touchingWallLeft = false;
+        this.touchingWallRight = false;
+        this.wallSlidingNow = false;
+        this.rollingJumpFrames = CONFIG.ROLLING_JUMP_ANIM_FRAMES;
+        this.triggerHaptic("medium");
+        if (this.onJump) this.onJump();
+      } else if (this.player.grounded) {
+        const isRunning = input.left || input.right;
+        if (isRunning) {
+          // Rolling jump: higher arc + forward momentum bonus
+          this.player.vy = CONFIG.ROLLING_JUMP_VY;
+          this.rollingJumpFrames = CONFIG.ROLLING_JUMP_ANIM_FRAMES;
+        } else {
+          // Normal jump
+          this.player.vy = CONFIG.PLAYER_JUMP_FORCE;
+        }
         this.player.grounded = false;
         this.triggerHaptic("light");
+        if (this.onJump) this.onJump();
       } else {
         // Shoot when airborne
-        this.shoot();
+        firedShotThisFrame = this.shoot();
+        if (firedShotThisFrame) {
+          this.autoFireActive = true;
+        }
       }
+    } else if (actionPressed && !this.player.grounded && this.autoFireActive) {
+      // Hold-to-fire after the player has started shooting in-air.
+      firedShotThisFrame = this.shoot();
     }
-    
+
+    if (!actionPressed || this.player.grounded) {
+      this.autoFireActive = false;
+    }
+
     // Track shooting state for hover effect
     // Keep hover active during recoil frames even if ammo is 0
-    this.isShooting = (tapping && !this.player.grounded && this.player.ammo > 0) || this.recoilHoverFrames > 0;
-    
+    this.isShooting = firedShotThisFrame || this.recoilHoverFrames > 0;
+
     // Tick down recoil hover
     if (this.recoilHoverFrames > 0) {
       this.recoilHoverFrames--;
     }
-    
+
     // Update shoot cooldown
     if (this.shootCooldown > 0) {
       this.shootCooldown--;
     }
+
+    this.wasActionPressed = actionPressed;
   }
   
   // Check if player is currently shooting (for hover effect)
   isCurrentlyShooting(): boolean {
     return this.isShooting;
+  }
+
+  // Wall slide / wall jump accessors
+  isWallSliding(): boolean {
+    return this.wallSlidingNow;
+  }
+
+  isRollingJumping(): boolean {
+    return this.rollingJumpFrames > 0;
+  }
+
+  getWallContact(): { left: boolean; right: boolean } {
+    return { left: this.touchingWallLeft, right: this.touchingWallRight };
+  }
+
+  setWallContact(left: boolean, right: boolean): void {
+    if (left) this.touchingWallLeft = true;
+    if (right) this.touchingWallRight = true;
   }
   
   // ============= MOVEMENT =============
@@ -174,7 +287,25 @@ export class PlayerController {
       this.player.vx = CONFIG.PLAYER_SPEED;
       this.player.facingRight = true;
     }
-    
+
+    // Rolling jump: apply speed bonus for the duration of the jump arc
+    if (this.rollingJumpFrames > 0) {
+      this.rollingJumpFrames--;
+      if (!this.player.grounded) {
+        if (input.left) this.player.vx -= CONFIG.ROLLING_JUMP_VX_BONUS;
+        else if (input.right) this.player.vx += CONFIG.ROLLING_JUMP_VX_BONUS;
+      }
+    }
+
+    this.updateHitboxForPose();
+
+    // Save wall contact state from the previous collision pass, then reset for this frame.
+    // The collision system (resolveCollisions) runs AFTER this method and will re-set them.
+    const wasOnWallLeft = this.touchingWallLeft;
+    const wasOnWallRight = this.touchingWallRight;
+    this.touchingWallLeft = false;
+    this.touchingWallRight = false;
+
     // Hover effect when shooting - player stays in place
     // Also hover during recoilHoverFrames so the last bullet doesn't catapult the player
     if (this.isShooting && (this.player.ammo > 0 || this.recoilHoverFrames > 0)) {
@@ -184,21 +315,46 @@ export class PlayerController {
       if (this.player.vy > 1) {
         this.player.vy = 1;
       }
+      this.wallSlidingNow = false;
     } else {
       // Normal gravity
       this.player.vy += CONFIG.PLAYER_GRAVITY;
-      if (this.player.vy > CONFIG.PLAYER_MAX_FALL_SPEED) {
-        this.player.vy = CONFIG.PLAYER_MAX_FALL_SPEED;
+
+      // Wall slide: if touching a wall while airborne and falling, clamp downward speed
+      const onWall = wasOnWallLeft || wasOnWallRight;
+      if (onWall && !this.player.grounded && this.player.vy > CONFIG.WALL_SLIDE_MAX_SPEED) {
+        this.player.vy = CONFIG.WALL_SLIDE_MAX_SPEED;
+        this.wallSlidingNow = true;
+      } else {
+        if (this.player.vy > CONFIG.PLAYER_MAX_FALL_SPEED) {
+          this.player.vy = CONFIG.PLAYER_MAX_FALL_SPEED;
+        }
+        this.wallSlidingNow = false;
       }
     }
-    
+
     // Apply velocity
     this.player.x += this.player.vx;
     this.player.y += this.player.vy;
-    
+
     // Invulnerability countdown
     if (this.player.invulnerable > 0) {
       this.player.invulnerable--;
+    }
+  }
+
+  private updateHitboxForPose(): void {
+    // Keep a stable hitbox across all animation frames/poses.
+    const targetWidth = this.baseWidth;
+    const targetHeight = this.baseHeight;
+    if (this.player.width === targetWidth && this.player.height === targetHeight) return;
+
+    const footY = this.player.y + this.player.height / 2;
+    this.player.width = targetWidth;
+    this.player.height = targetHeight;
+    if (this.player.grounded) {
+      // Keep feet planted when shape changes on/near platforms.
+      this.player.y = footY - this.player.height / 2;
     }
   }
   
@@ -212,18 +368,18 @@ export class PlayerController {
   }
   
   // ============= SHOOTING =============
-  private shoot(): void {
-    if (this.shootCooldown > 0 || this.player.ammo <= 0) return;
-    if (this.player.grounded) return; // Can only shoot while airborne
+  private shoot(): boolean {
+    if (this.shootCooldown > 0 || this.player.ammo <= 0) return false;
+    if (this.player.grounded) return false; // Can only shoot while airborne
     
-    this.shootCooldown = CONFIG.SHOOT_COOLDOWN;
+    this.shootCooldown = this.shootCooldownFrames;
     this.player.ammo--;
     
     // Apply upward recoil when shooting
     this.player.vy = CONFIG.PLAYER_RECOIL;
     
     // Keep hover damping active for a few frames after last shot so recoil doesn't catapult player
-    this.recoilHoverFrames = CONFIG.SHOOT_COOLDOWN;
+    this.recoilHoverFrames = this.shootCooldownFrames;
     
     // Create single bullet shooting straight down
     this.bullets.push({
@@ -242,6 +398,8 @@ export class PlayerController {
     if (this.onShoot) {
       this.onShoot();
     }
+    
+    return true;
   }
   
   // ============= BULLET MANAGEMENT =============
@@ -276,9 +434,11 @@ export class PlayerController {
   }
   
   // ============= COMBAT =============
-  bounce(): void {
+  bounce(restoreAmmo: boolean = true): void {
     this.player.vy = CONFIG.PLAYER_BOUNCE_FORCE;
-    this.restoreAmmo();
+    if (restoreAmmo) {
+      this.restoreAmmo();
+    }
   }
   
   restoreAmmo(): void {
@@ -311,7 +471,7 @@ export class PlayerController {
   
   takeDamage(): void {
     this.player.hp--;
-    this.player.invulnerable = 60; // 1 second of invulnerability
+    this.player.invulnerable = CONFIG.PLAYER_INVULNERABLE_FRAMES;
     this.player.combo = 0;
     this.player.comboTimer = 0;
     
@@ -366,10 +526,12 @@ export class PlayerController {
     this.player.y = platformY - this.player.height / 2;
     this.player.vy = 0;
     this.player.grounded = true;
-    
+    this.wallSlidingNow = false;
+    this.rollingJumpFrames = 0;
+
     // Restore ammo on landing
     this.restoreAmmo();
-    
+
     // Reset combo on landing
     if (this.player.combo > 0) {
       this.resetCombo();

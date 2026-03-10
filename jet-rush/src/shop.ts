@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { C, type HapticType } from "./config";
 import { $ } from "./utils";
+import { oasiz } from "@oasiz/sdk";
 
 export interface ShipDef {
   id: string;
@@ -12,14 +13,12 @@ export interface ShipDef {
 
 export const SHIPS: ShipDef[] = [
   { id: "fighter_01", name: "Viper",    model: "assets/models/SM_Ship_Fighter_01.fbx", price: 0 },
-  { id: "fighter_02", name: "Phantom",  model: "assets/models/SM_Ship_Fighter_02.fbx", price: 50 },
-  { id: "fighter_03", name: "Wraith",   model: "assets/models/SM_Ship_Fighter_03.fbx", price: 150 },
-  { id: "fighter_04", name: "Spectre",  model: "assets/models/SM_Ship_Fighter_04.fbx", price: 300 },
-  { id: "fighter_05", name: "Nemesis",  model: "assets/models/SM_Ship_Fighter_05.fbx", price: 500 },
+  { id: "fighter_02", name: "Phantom",  model: "assets/models/SM_Ship_Fighter_02.fbx", price: 500 },
+  { id: "fighter_03", name: "Wraith",   model: "assets/models/SM_Ship_Fighter_03.fbx", price: 1500 },
+  { id: "fighter_04", name: "Spectre",  model: "assets/models/SM_Ship_Fighter_04.fbx", price: 3000 },
+  { id: "fighter_05", name: "Nemesis",  model: "assets/models/SM_Ship_Fighter_05.fbx", price: 5000 },
 ];
 
-const LS_OWNED = "jetRush_ownedShips";
-const LS_SELECTED = "jetRush_selectedShip";
 
 export class Shop {
   private renderer: THREE.WebGLRenderer | null = null;
@@ -39,6 +38,7 @@ export class Shop {
   private open = false;
   private lastPreviewW = 0;
   private lastPreviewH = 0;
+  private navLock = false;
 
   private getOrbs: () => number;
   private setOrbs: (n: number) => void;
@@ -177,6 +177,10 @@ export class Shop {
   }
 
   private navigate(dir: number): void {
+    if (this.navLock) return;
+    this.navLock = true;
+    setTimeout(() => { this.navLock = false; }, 250);
+
     this.haptic("light");
     this.playFX();
     this.index = (this.index + dir + SHIPS.length) % SHIPS.length;
@@ -190,6 +194,7 @@ export class Shop {
     if (this.owned.has(ship.id)) {
       this.selected = ship.id;
       this.saveSelected();
+      oasiz.flushGameState();
       this.haptic("success");
       this.playFX();
       this.onShipChanged(ship.model);
@@ -211,6 +216,7 @@ export class Shop {
     this.saveOwned();
     this.selected = ship.id;
     this.saveSelected();
+    oasiz.flushGameState();
     this.haptic("success");
     this.playFX();
     this.onShipChanged(ship.model);
@@ -366,30 +372,27 @@ export class Shop {
   }
 
   private loadOwned(): Set<string> {
-    try {
-      const raw = localStorage.getItem(LS_OWNED);
-      if (raw) return new Set(JSON.parse(raw));
-    } catch { /* ignore */ }
-    return new Set([SHIPS[0].id]);
+    const state = oasiz.loadGameState();
+    const arr = state.ownedShips;
+    if (Array.isArray(arr)) return new Set(arr as string[]);
+    const defaults = new Set([SHIPS[0].id]);
+    oasiz.saveGameState({ ...state, ownedShips: [...defaults], selectedShip: SHIPS[0].id });
+    oasiz.flushGameState();
+    return defaults;
   }
 
   private saveOwned(): void {
-    try {
-      localStorage.setItem(LS_OWNED, JSON.stringify([...this.owned]));
-    } catch { /* ignore */ }
+    const state = oasiz.loadGameState();
+    oasiz.saveGameState({ ...state, ownedShips: [...this.owned] });
   }
 
   private loadSelected(): string {
-    try {
-      return localStorage.getItem(LS_SELECTED) || SHIPS[0].id;
-    } catch {
-      return SHIPS[0].id;
-    }
+    const state = oasiz.loadGameState();
+    return typeof state.selectedShip === "string" ? (state.selectedShip as string) : SHIPS[0].id;
   }
 
   private saveSelected(): void {
-    try {
-      localStorage.setItem(LS_SELECTED, this.selected);
-    } catch { /* ignore */ }
+    const state = oasiz.loadGameState();
+    oasiz.saveGameState({ ...state, selectedShip: this.selected });
   }
 }

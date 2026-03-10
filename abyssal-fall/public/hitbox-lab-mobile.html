@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Hitbox Lab Mobile</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #0a1929 0%, #1a2332 100%);
+      color: #e3f2fd;
+      overflow: hidden;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 8px;
+      gap: 8px;
+    }
+
+    .header {
+      background: rgba(30, 41, 59, 0.95);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 56px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #64b5f6;
+    }
+
+    .btn {
+      background: rgba(100, 181, 246, 0.15);
+      border: 2px solid #64b5f6;
+      color: #64b5f6;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    .btn:active {
+      background: rgba(100, 181, 246, 0.3);
+      transform: scale(0.95);
+    }
+
+    .btn.small {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+
+    .btn.primary {
+      background: rgba(76, 175, 80, 0.2);
+      border-color: #66bb6a;
+      color: #66bb6a;
+    }
+
+    .btn.warn {
+      background: rgba(255, 167, 38, 0.2);
+      border-color: #ffa726;
+      color: #ffa726;
+    }
+
+    .canvas-section {
+      flex: 1;
+      background: rgba(30, 41, 59, 0.95);
+      border-radius: 12px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .canvas-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      touch-action: pinch-zoom;
+      cursor: zoom-in;
+      transition: all 0.3s ease;
+    }
+
+    .canvas-wrapper.fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.95);
+      border-radius: 0;
+      padding: 20px;
+      cursor: zoom-out;
+    }
+
+    canvas {
+      border: 2px solid #455a64;
+      border-radius: 8px;
+      background: repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%) 50% / 20px 20px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      max-width: 100%;
+      max-height: 100%;
+      transition: all 0.3s ease;
+    }
+
+    .canvas-wrapper.fullscreen canvas {
+      max-width: 95vw;
+      max-height: 95vh;
+      width: auto !important;
+      height: auto !important;
+    }
+
+    .zoom-hint {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(100, 181, 246, 0.9);
+      color: #0a1929;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .canvas-wrapper.fullscreen .zoom-hint {
+      display: none;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      border-radius: 8px;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .nav-buttons .btn {
+      flex: 1;
+      font-size: 16px;
+    }
+
+    .frame-info {
+      background: rgba(30, 41, 59, 0.95);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 6px;
+    }
+
+    .info-label {
+      font-size: 13px;
+      color: #90caf9;
+      font-weight: 500;
+    }
+
+    .info-value {
+      font-size: 13px;
+      color: #e3f2fd;
+      font-family: monospace;
+    }
+
+    .editor-section {
+      background: rgba(30, 41, 59, 0.95);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .editor-row {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .editor-label {
+      font-size: 13px;
+      color: #90caf9;
+      font-weight: 500;
+    }
+
+    input[type="number"],
+    select {
+      background: rgba(15, 23, 42, 0.8);
+      border: 2px solid #455a64;
+      color: #e3f2fd;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 14px;
+      min-height: 44px;
+      width: 100%;
+    }
+
+    input[type="number"]:focus,
+    select:focus {
+      outline: none;
+      border-color: #64b5f6;
+    }
+
+    .status {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 12px;
+      color: #90caf9;
+      text-align: center;
+      font-family: monospace;
+    }
+
+    .frame-selector {
+      background: rgba(30, 41, 59, 0.95);
+      border-radius: 12px;
+      padding: 12px;
+      max-height: 40vh;
+      overflow-y: auto;
+      display: grid;
+      gap: 12px;
+    }
+
+    .anim-group {
+      display: grid;
+      gap: 6px;
+    }
+
+    .anim-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64b5f6;
+      padding: 6px 0;
+    }
+
+    .frame-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .frame-btn {
+      background: rgba(100, 181, 246, 0.1);
+      border: 2px solid #455a64;
+      color: #e3f2fd;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      min-height: 44px;
+      min-width: 44px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    .frame-btn.active {
+      background: rgba(100, 181, 246, 0.3);
+      border-color: #64b5f6;
+      color: #64b5f6;
+    }
+
+    .frame-btn:active {
+      transform: scale(0.95);
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .modal.show {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 500px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #64b5f6;
+      margin-bottom: 16px;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 2px solid #455a64;
+      color: #e3f2fd;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 12px;
+      font-family: monospace;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #64b5f6;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #64b5f6;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">Hitbox Lab Mobile</div>
+      <button class="btn small" id="framesBtn">Frames</button>
+    </div>
+
+    <div class="canvas-section">
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <div class="zoom-hint">Tap to zoom</div>
+        <canvas id="canvas" width="400" height="400"></canvas>
+      </div>
+      <div class="controls">
+        <div class="nav-buttons">
+          <button class="btn" id="prevBtn">&larr; Prev</button>
+          <button class="btn" id="nextBtn">Next &rarr;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-info">
+      <div class="section-title">Current Frame</div>
+      <div class="info-row">
+        <span class="info-label">Animation</span>
+        <span class="info-value" id="infoAnim">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Frame</span>
+        <span class="info-value" id="infoFrame">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Size</span>
+        <span class="info-value" id="infoSize">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Collider</span>
+        <span class="info-value" id="infoCollider">-</span>
+      </div>
+    </div>
+
+    <div class="editor-section">
+      <div class="section-title">Edit Collider</div>
+      <div class="editor-row">
+        <label class="editor-label">Type</label>
+        <select id="shapeType">
+          <option value="rect">Rectangle</option>
+          <option value="circle">Circle</option>
+        </select>
+      </div>
+      <div id="rectInputs">
+        <div class="editor-row">
+          <label class="editor-label">X</label>
+          <input type="number" id="rectX" step="1" />
+        </div>
+        <div class="editor-row">
+          <label class="editor-label">Y</label>
+          <input type="number" id="rectY" step="1" />
+        </div>
+        <div class="editor-row">
+          <label class="editor-label">Width</label>
+          <input type="number" id="rectW" step="1" min="1" />
+        </div>
+        <div class="editor-row">
+          <label class="editor-label">Height</label>
+          <input type="number" id="rectH" step="1" min="1" />
+        </div>
+      </div>
+      <div id="circleInputs" class="hidden">
+        <div class="editor-row">
+          <label class="editor-label">Center X</label>
+          <input type="number" id="circleCx" step="1" />
+        </div>
+        <div class="editor-row">
+          <label class="editor-label">Center Y</label>
+          <input type="number" id="circleCy" step="1" />
+        </div>
+        <div class="editor-row">
+          <label class="editor-label">Radius</label>
+          <input type="number" id="circleR" step="1" min="1" />
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn primary" id="exportBtn">Export JSON</button>
+      <button class="btn warn" id="resetBtn">Reset Frame</button>
+    </div>
+
+    <div class="status" id="status">Ready - Tap canvas to edit collider</div>
+  </div>
+
+  <!-- Frame Selector Modal -->
+  <div class="modal" id="frameModal">
+    <div class="modal-content">
+      <div class="modal-title">Select Frame</div>
+      <div class="frame-selector" id="frameSelector"></div>
+      <div class="modal-buttons">
+        <button class="btn" id="closeModalBtn" style="flex: 1;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div class="modal" id="exportModal">
+    <div class="modal-content">
+      <div class="modal-title">Export JSON</div>
+      <textarea id="exportText" readonly></textarea>
+      <div class="modal-buttons">
+        <button class="btn primary" id="copyJsonBtn" style="flex: 1;">Copy to Clipboard</button>
+        <button class="btn" id="closeExportBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Animation sources configuration
+    const SOURCES = [
+      { key: "player_idle", label: "Player Idle", src: "./assets/characters/pixel_adventure_virtual_guy/idle.png", frameW: 32, frameH: 32, count: 11, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_run", label: "Player Run", src: "./assets/characters/pixel_adventure_virtual_guy/run.png", frameW: 32, frameH: 32, count: 12, defaults: { type: "rect", x: 8, y: 10, width: 16, height: 21 } },
+      { key: "player_jump", label: "Player Jump", src: "./assets/characters/pixel_adventure_virtual_guy/jump.png", frameW: 32, frameH: 32, count: 1, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_fall", label: "Player Fall", src: "./assets/characters/pixel_adventure_virtual_guy/fall.png", frameW: 32, frameH: 32, count: 1, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_shoot", label: "Player Shoot", src: "./assets/characters/pixel_adventure_virtual_guy/hit.png", frameW: 32, frameH: 32, count: 7, defaults: { type: "rect", x: 8, y: 8, width: 16, height: 23 } },
+      { key: "player_double_jump", label: "Player Double Jump", src: "./assets/characters/pixel_adventure_virtual_guy/double_jump.png", frameW: 32, frameH: 32, count: 6, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+      { key: "player_wall_jump", label: "Player Wall Jump", src: "./assets/characters/pixel_adventure_virtual_guy/wall_jump.png", frameW: 32, frameH: 32, count: 5, defaults: { type: "rect", x: 9, y: 8, width: 14, height: 23 } },
+    ];
+
+    // State
+    const state = {
+      frames: [],
+      colliders: {},
+      currentIndex: 0,
+      images: new Map(),
+      scale: 1,
+      offset: { x: 0, y: 0 },
+      touch: {
+        active: false,
+        startX: 0,
+        startY: 0,
+        startCollider: null,
+        mode: 'none', // 'move', 'resize'
+      },
+      pinch: {
+        active: false,
+        startDist: 0,
+        startScale: 1,
+      }
+    };
+
+    // Elements
+    const els = {
+      canvas: document.getElementById('canvas'),
+      canvasWrapper: document.getElementById('canvasWrapper'),
+      status: document.getElementById('status'),
+      prevBtn: document.getElementById('prevBtn'),
+      nextBtn: document.getElementById('nextBtn'),
+      framesBtn: document.getElementById('framesBtn'),
+      exportBtn: document.getElementById('exportBtn'),
+      resetBtn: document.getElementById('resetBtn'),
+      frameModal: document.getElementById('frameModal'),
+      frameSelector: document.getElementById('frameSelector'),
+      closeModalBtn: document.getElementById('closeModalBtn'),
+      exportModal: document.getElementById('exportModal'),
+      exportText: document.getElementById('exportText'),
+      copyJsonBtn: document.getElementById('copyJsonBtn'),
+      closeExportBtn: document.getElementById('closeExportBtn'),
+      shapeType: document.getElementById('shapeType'),
+      rectInputs: document.getElementById('rectInputs'),
+      circleInputs: document.getElementById('circleInputs'),
+      rectX: document.getElementById('rectX'),
+      rectY: document.getElementById('rectY'),
+      rectW: document.getElementById('rectW'),
+      rectH: document.getElementById('rectH'),
+      circleCx: document.getElementById('circleCx'),
+      circleCy: document.getElementById('circleCy'),
+      circleR: document.getElementById('circleR'),
+      infoAnim: document.getElementById('infoAnim'),
+      infoFrame: document.getElementById('infoFrame'),
+      infoSize: document.getElementById('infoSize'),
+      infoCollider: document.getElementById('infoCollider'),
+    };
+
+    const ctx = els.canvas.getContext('2d', { alpha: false });
+    ctx.imageSmoothingEnabled = false;
+
+    // Utility functions
+    function deepClone(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    function makeFrameId(sourceKey, index) {
+      return `${sourceKey}#${index}`;
+    }
+
+    function setStatus(msg) {
+      els.status.textContent = msg;
+    }
+
+    async function loadImage(src) {
+      if (state.images.has(src)) return state.images.get(src);
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      state.images.set(src, img);
+      return img;
+    }
+
+    // Build frames from sources
+    async function buildFrames() {
+      const frames = [];
+      for (const source of SOURCES) {
+        try {
+          const img = await loadImage(source.src);
+          for (let i = 0; i < source.count; i++) {
+            frames.push({
+              id: makeFrameId(source.key, i),
+              sourceKey: source.key,
+              sourceLabel: source.label,
+              sourcePath: source.src,
+              frameIndex: i,
+              frameW: source.frameW,
+              frameH: source.frameH,
+              sx: i * source.frameW,
+              sy: 0,
+              sw: source.frameW,
+              sh: source.frameH,
+              defaults: deepClone(source.defaults),
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to load:', source.src, err);
+        }
+      }
+      state.frames = frames;
+      setStatus(`Loaded ${frames.length} frames`);
+    }
+
+    // Load existing colliders
+    async function loadColliders() {
+      try {
+        const res = await fetch('./hitbox-colliders.json');
+        if (res.ok) {
+          const data = await res.json();
+          state.colliders = data || {};
+          setStatus('Loaded existing colliders');
+        }
+      } catch (err) {
+        console.warn('No existing colliders found');
+      }
+    }
+
+    // Get or create collider for frame
+    function getCollider(frame) {
+      if (!state.colliders[frame.id]) {
+        state.colliders[frame.id] = deepClone(frame.defaults);
+      }
+      return state.colliders[frame.id];
+    }
+
+    // Clamp rect to frame bounds
+    function clampRect(collider, frame) {
+      collider.x = Math.max(0, Math.min(Math.round(collider.x), frame.frameW - 1));
+      collider.y = Math.max(0, Math.min(Math.round(collider.y), frame.frameH - 1));
+      collider.width = Math.max(1, Math.min(Math.round(collider.width), frame.frameW - collider.x));
+      collider.height = Math.max(1, Math.min(Math.round(collider.height), frame.frameH - collider.y));
+    }
+
+    // Clamp circle to frame bounds
+    function clampCircle(collider, frame) {
+      const maxR = Math.floor(Math.min(frame.frameW, frame.frameH) / 2);
+      collider.radius = Math.max(1, Math.min(Math.round(collider.radius), maxR));
+      collider.cx = Math.max(collider.radius, Math.min(Math.round(collider.cx), frame.frameW - collider.radius));
+      collider.cy = Math.max(collider.radius, Math.min(Math.round(collider.cy), frame.frameH - collider.cy));
+    }
+
+    // Update UI from current frame
+    function syncUI() {
+      const frame = state.frames[state.currentIndex];
+      const collider = getCollider(frame);
+
+      els.infoAnim.textContent = frame.sourceLabel;
+      els.infoFrame.textContent = `#${frame.frameIndex}`;
+      els.infoSize.textContent = `${frame.frameW}x${frame.frameH}`;
+
+      if (collider.type === 'rect') {
+        els.infoCollider.textContent = `rect(${collider.x}, ${collider.y}, ${collider.width}, ${collider.height})`;
+        els.shapeType.value = 'rect';
+        els.rectInputs.classList.remove('hidden');
+        els.circleInputs.classList.add('hidden');
+        els.rectX.value = collider.x;
+        els.rectY.value = collider.y;
+        els.rectW.value = collider.width;
+        els.rectH.value = collider.height;
+      } else {
+        els.infoCollider.textContent = `circle(${collider.cx}, ${collider.cy}, r=${collider.radius})`;
+        els.shapeType.value = 'circle';
+        els.rectInputs.classList.add('hidden');
+        els.circleInputs.classList.remove('hidden');
+        els.circleCx.value = collider.cx;
+        els.circleCy.value = collider.cy;
+        els.circleR.value = collider.radius;
+      }
+    }
+
+    // Draw current frame
+    function draw() {
+      const frame = state.frames[state.currentIndex];
+      const collider = getCollider(frame);
+      const img = state.images.get(frame.sourcePath);
+
+      const canvasW = els.canvas.width;
+      const canvasH = els.canvas.height;
+
+      // Clear
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      // Calculate scale to fit canvas
+      const padding = 40;
+      const scale = Math.min(
+        (canvasW - padding * 2) / frame.frameW,
+        (canvasH - padding * 2) / frame.frameH
+      );
+      state.scale = Math.max(1, Math.floor(scale));
+
+      const drawW = frame.frameW * state.scale;
+      const drawH = frame.frameH * state.scale;
+      const dx = Math.floor((canvasW - drawW) / 2);
+      const dy = Math.floor((canvasH - drawH) / 2);
+      state.offset = { x: dx, y: dy };
+
+      // Draw sprite
+      ctx.drawImage(img, frame.sx, frame.sy, frame.sw, frame.sh, dx, dy, drawW, drawH);
+
+      // Draw frame border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(dx, dy, drawW, drawH);
+
+      // Draw collider
+      if (collider.type === 'rect') {
+        const x = dx + collider.x * state.scale;
+        const y = dy + collider.y * state.scale;
+        const w = collider.width * state.scale;
+        const h = collider.height * state.scale;
+
+        ctx.fillStyle = 'rgba(100, 181, 246, 0.2)';
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = '#64b5f6';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+
+        // Draw handles
+        const handleSize = 12;
+        ctx.fillStyle = '#64b5f6';
+        // Corners
+        ctx.fillRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
+        ctx.fillRect(x + w - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
+        ctx.fillRect(x - handleSize / 2, y + h - handleSize / 2, handleSize, handleSize);
+        ctx.fillRect(x + w - handleSize / 2, y + h - handleSize / 2, handleSize, handleSize);
+      } else {
+        const cx = dx + collider.cx * state.scale;
+        const cy = dy + collider.cy * state.scale;
+        const r = collider.radius * state.scale;
+
+        ctx.fillStyle = 'rgba(100, 181, 246, 0.2)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#64b5f6';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw handle
+        ctx.fillStyle = '#64b5f6';
+        ctx.fillRect(cx + r - 6, cy - 6, 12, 12);
+      }
+    }
+
+    // Convert canvas coords to frame coords
+    function canvasToFrame(canvasX, canvasY) {
+      const rect = els.canvas.getBoundingClientRect();
+      const x = ((canvasX - rect.left) / rect.width) * els.canvas.width;
+      const y = ((canvasY - rect.top) / rect.height) * els.canvas.height;
+      const fx = (x - state.offset.x) / state.scale;
+      const fy = (y - state.offset.y) / state.scale;
+      return { fx, fy };
+    }
+
+    // Touch handling
+    function getTouchMode(fx, fy, collider) {
+      if (collider.type === 'rect') {
+        const tolerance = 15 / state.scale;
+        const right = collider.x + collider.width;
+        const bottom = collider.y + collider.height;
+
+        // Check corners for resize
+        if (Math.abs(fx - right) < tolerance && Math.abs(fy - bottom) < tolerance) return 'resize';
+        if (Math.abs(fx - collider.x) < tolerance && Math.abs(fy - collider.y) < tolerance) return 'resize';
+        if (Math.abs(fx - right) < tolerance && Math.abs(fy - collider.y) < tolerance) return 'resize';
+        if (Math.abs(fx - collider.x) < tolerance && Math.abs(fy - bottom) < tolerance) return 'resize';
+
+        // Check if inside for move
+        if (fx >= collider.x && fx <= right && fy >= collider.y && fy <= bottom) return 'move';
+      } else {
+        const dx = fx - collider.cx;
+        const dy = fy - collider.cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const tolerance = 10 / state.scale;
+
+        // Check edge for resize
+        if (Math.abs(dist - collider.radius) < tolerance) return 'resize';
+
+        // Check if inside for move
+        if (dist < collider.radius) return 'move';
+      }
+      return 'none';
+    }
+
+    function handleTouchStart(e) {
+      e.preventDefault();
+      if (e.touches.length === 2) {
+        // Pinch zoom (future feature)
+        return;
+      }
+
+      const touch = e.touches[0];
+      const { fx, fy } = canvasToFrame(touch.clientX, touch.clientY);
+      const frame = state.frames[state.currentIndex];
+      const collider = getCollider(frame);
+
+      const mode = getTouchMode(fx, fy, collider);
+      if (mode !== 'none') {
+        state.touch.active = true;
+        state.touch.mode = mode;
+        state.touch.startX = fx;
+        state.touch.startY = fy;
+        state.touch.startCollider = deepClone(collider);
+        setStatus(mode === 'move' ? 'Moving collider' : 'Resizing collider');
+      }
+    }
+
+    function handleTouchMove(e) {
+      e.preventDefault();
+      if (!state.touch.active) return;
+
+      const touch = e.touches[0];
+      const { fx, fy } = canvasToFrame(touch.clientX, touch.clientY);
+      const frame = state.frames[state.currentIndex];
+      const collider = getCollider(frame);
+      const start = state.touch.startCollider;
+
+      if (state.touch.mode === 'move') {
+        const dx = fx - state.touch.startX;
+        const dy = fy - state.touch.startY;
+
+        if (collider.type === 'rect') {
+          collider.x = start.x + dx;
+          collider.y = start.y + dy;
+          clampRect(collider, frame);
+        } else {
+          collider.cx = start.cx + dx;
+          collider.cy = start.cy + dy;
+          clampCircle(collider, frame);
+        }
+      } else if (state.touch.mode === 'resize') {
+        if (collider.type === 'rect') {
+          const newW = Math.max(1, fx - start.x);
+          const newH = Math.max(1, fy - start.y);
+          collider.width = newW;
+          collider.height = newH;
+          clampRect(collider, frame);
+        } else {
+          const dx = fx - start.cx;
+          const dy = fy - start.cy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          collider.radius = Math.max(1, dist);
+          clampCircle(collider, frame);
+        }
+      }
+
+      syncUI();
+      draw();
+    }
+
+    function handleTouchEnd(e) {
+      e.preventDefault();
+      if (state.touch.active) {
+        state.touch.active = false;
+        state.touch.mode = 'none';
+        setStatus('Collider updated - Export to save');
+      }
+    }
+
+    // Navigation
+    function prevFrame() {
+      state.currentIndex = (state.currentIndex - 1 + state.frames.length) % state.frames.length;
+      syncUI();
+      draw();
+    }
+
+    function nextFrame() {
+      state.currentIndex = (state.currentIndex + 1) % state.frames.length;
+      syncUI();
+      draw();
+    }
+
+    // Frame selector
+    function showFrameSelector() {
+      const groups = new Map();
+      state.frames.forEach((frame, idx) => {
+        if (!groups.has(frame.sourceKey)) {
+          groups.set(frame.sourceKey, { label: frame.sourceLabel, items: [] });
+        }
+        groups.get(frame.sourceKey).items.push({ frame, idx });
+      });
+
+      els.frameSelector.innerHTML = '';
+      for (const [, group] of groups) {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'anim-group';
+
+        const title = document.createElement('div');
+        title.className = 'anim-title';
+        title.textContent = `${group.label} (${group.items.length})`;
+        groupDiv.appendChild(title);
+
+        const buttons = document.createElement('div');
+        buttons.className = 'frame-buttons';
+        group.items.forEach(({ frame, idx }) => {
+          const btn = document.createElement('button');
+          btn.className = 'frame-btn' + (idx === state.currentIndex ? ' active' : '');
+          btn.textContent = `#${frame.frameIndex}`;
+          btn.onclick = () => {
+            state.currentIndex = idx;
+            els.frameModal.classList.remove('show');
+            syncUI();
+            draw();
+          };
+          buttons.appendChild(btn);
+        });
+
+        groupDiv.appendChild(buttons);
+        els.frameSelector.appendChild(groupDiv);
+      }
+
+      els.frameModal.classList.add('show');
+    }
+
+    // Export
+    function showExport() {
+      els.exportText.value = JSON.stringify(state.colliders, null, 2);
+      els.exportModal.classList.add('show');
+    }
+
+    async function copyToClipboard() {
+      try {
+        await navigator.clipboard.writeText(els.exportText.value);
+        setStatus('Copied to clipboard!');
+        els.exportModal.classList.remove('show');
+      } catch (err) {
+        setStatus('Copy failed - select and copy manually');
+      }
+    }
+
+    // Reset frame
+    function resetFrame() {
+      const frame = state.frames[state.currentIndex];
+      state.colliders[frame.id] = deepClone(frame.defaults);
+      syncUI();
+      draw();
+      setStatus('Frame reset to defaults');
+    }
+
+    // Input handlers
+    function handleShapeTypeChange() {
+      const frame = state.frames[state.currentIndex];
+      const collider = getCollider(frame);
+      const newType = els.shapeType.value;
+
+      if (newType !== collider.type) {
+        if (newType === 'rect') {
+          collider.type = 'rect';
+          collider.x = 0;
+          collider.y = 0;
+          collider.width = Math.floor(frame.frameW / 2);
+          collider.height = Math.floor(frame.frameH / 2);
+          delete collider.cx;
+          delete collider.cy;
+          delete collider.radius;
+        } else {
+          collider.type = 'circle';
+          collider.cx = Math.floor(frame.frameW / 2);
+          collider.cy = Math.floor(frame.frameH / 2);
+          collider.radius = Math.floor(Math.min(frame.frameW, frame.frameH) * 0.3);
+          delete collider.x;
+          delete collider.y;
+          delete collider.width;
+          delete collider.height;
+        }
+        syncUI();
+        draw();
+      }
+    }
+
+    function handleInputChange(e) {
+      const frame = state.frames[state.currentIndex];
+      const collider = getCollider(frame);
+      const id = e.target.id;
+      const value = parseInt(e.target.value, 10);
+
+      if (!isFinite(value)) return;
+
+      if (id === 'rectX') collider.x = value;
+      else if (id === 'rectY') collider.y = value;
+      else if (id === 'rectW') collider.width = Math.max(1, value);
+      else if (id === 'rectH') collider.height = Math.max(1, value);
+      else if (id === 'circleCx') collider.cx = value;
+      else if (id === 'circleCy') collider.cy = value;
+      else if (id === 'circleR') collider.radius = Math.max(1, value);
+
+      if (collider.type === 'rect') clampRect(collider, frame);
+      else clampCircle(collider, frame);
+
+      syncUI();
+      draw();
+    }
+
+    // Fullscreen toggle
+    let isFullscreen = false;
+    function toggleFullscreen(e) {
+      // Only toggle if not interacting with collider
+      if (state.touch.mode !== 'none') return;
+
+      isFullscreen = !isFullscreen;
+      els.canvasWrapper.classList.toggle('fullscreen', isFullscreen);
+
+      // Redraw after transition
+      setTimeout(() => {
+        draw();
+      }, 300);
+
+      e.stopPropagation();
+    }
+
+    // Event listeners
+    els.canvasWrapper.addEventListener('click', toggleFullscreen);
+    els.canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    els.canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    els.canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    els.prevBtn.addEventListener('click', prevFrame);
+    els.nextBtn.addEventListener('click', nextFrame);
+    els.framesBtn.addEventListener('click', showFrameSelector);
+    els.exportBtn.addEventListener('click', showExport);
+    els.resetBtn.addEventListener('click', resetFrame);
+    els.closeModalBtn.addEventListener('click', () => els.frameModal.classList.remove('show'));
+    els.closeExportBtn.addEventListener('click', () => els.exportModal.classList.remove('show'));
+    els.copyJsonBtn.addEventListener('click', copyToClipboard);
+    els.shapeType.addEventListener('change', handleShapeTypeChange);
+    [els.rectX, els.rectY, els.rectW, els.rectH, els.circleCx, els.circleCy, els.circleR].forEach(el => {
+      el.addEventListener('input', handleInputChange);
+    });
+
+    // Initialize
+    async function init() {
+      setStatus('Loading...');
+      await buildFrames();
+      await loadColliders();
+      syncUI();
+      draw();
+      setStatus('Ready - Tap canvas to edit collider');
+    }
+
+    init().catch(err => {
+      console.error(err);
+      setStatus('Failed to initialize: ' + err.message);
+    });
+  </script>
+</body>
+</html>

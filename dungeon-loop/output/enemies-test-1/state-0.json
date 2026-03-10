@@ -1,1 +1,0 @@
-{"scene":"Level","coordinate_system":"origin top-left, x right, y down","player":{"x":-128,"y":584,"vx":0,"vy":0,"flipX":false},"enemies":[{"type":"rat","x":-114,"y":584,"state":"chase"},{"type":"golem","x":-114,"y":639,"state":"attack"},{"type":"beholder","x":-81,"y":712,"state":"chase"},{"type":"skeleton","x":-127,"y":757,"state":"chase"}],"collectedKeys":[]}

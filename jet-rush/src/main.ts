@@ -6,15 +6,16 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { C, type GameState, type HapticType, type BlockRow, type Particle, type Collectible } from "./config";
+import { oasiz } from "@oasiz/sdk";
 import { AudioManager } from "./audio";
 import { createJet, updateJetFX, loadShipFBX, type JetModel } from "./jet";
 import { Shop } from "./shop";
-import { buildGround, recycleGround, spawnRow, destroyRow, updateBlockAnimations } from "./world";
-import { spawnExplosion, tickExplosion, spawnCollectBurst, releaseAllParticles } from "./particles";
+import { buildGround, recycleGround, spawnRow, destroyRow, updateBlockAnimations, OUTLINE_BASE_COLORS } from "./world";
+import { spawnExplosion, tickExplosion, releaseAllParticles, setTrailColor, spawnSpeedLines } from "./particles";
 import { spawnCollectible, tickCollectibles, destroyCollectible } from "./collectibles";
 import { getCorridorCenter } from "./world";
 import { initInput, resetInput, type InputState } from "./input";
-import { cacheUI, loadSettings, applySettingsUI, bindSettingsUI, showPlaying, showGameOver, updateStartOrbTotal, type UIElements } from "./ui";
+import { cacheUI, loadSettings, applySettingsUI, bindSettingsUI, showPlaying, showGameOver, showStartScreen, updateStartOrbTotal, type UIElements } from "./ui";
 
 class JetRush {
   /* Three.js core */
@@ -37,6 +38,8 @@ class JetRush {
   private trailCount = 0;
   private trailGeo: THREE.BufferGeometry | null = null;
   private trailMat: THREE.MeshBasicMaterial | null = null;
+  private trailIdxFilled = 0;
+  private trailColor = new THREE.Color(0x00aaff);
   private collectibles: Collectible[] = [];
   private nextCollectZ = 0;
   private readonly _rng = (): number => Math.random();
@@ -58,11 +61,22 @@ class JetRush {
   private mobile: boolean;
   private orbsCollected = 0;
   private totalOrbs = 0;
+  private lastMilestone = 0;
+  private lastDisplayedScore = -1;
 
   /* Invincibility */
   private invincible = false;
   private invincibleTimer = 0;
   private shieldMesh: THREE.Mesh | null = null;
+  private stealthEnergy = 0;
+
+  /* Collect Sparkles */
+  private sparkles: THREE.Mesh[] = [];
+  private sparkleActive: boolean[] = [];
+  private sparkleTimers: number[] = [];
+
+  /* Debounce */
+  private lastGameStateChange = 0;
 
   /* Systems */
   private input: InputState;
@@ -119,7 +133,9 @@ class JetRush {
       1 / (window.innerWidth * this.ren.getPixelRatio()),
       1 / (window.innerHeight * this.ren.getPixelRatio()),
     );
-    this.composer.addPass(this.fxaaPass);
+    if (!this.mobile) {
+      this.composer.addPass(this.fxaaPass);
+    }
     this.composer.addPass(new OutputPass());
 
     this.initLights();
@@ -135,6 +151,7 @@ class JetRush {
 
     /* Build world */
     this.jet = createJet(this.scene, this.shop.getSelectedModelPath());
+    this.initSparkles();
     this.groundTiles = buildGround(this.scene);
     this.spawnIdleBlocks();
 
@@ -147,7 +164,7 @@ class JetRush {
       () => this.state,
       () => this.startGame(),
       (t) => this.hap(t),
-      () => this.forcedLandscape,
+      () => false,
     );
     applySettingsUI(this.settings);
     bindSettingsUI(
@@ -168,7 +185,64 @@ class JetRush {
       },
     );
 
-    this.initRotateButton();
+    /* Pause button */
+    this.ui.pauseBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (this.state !== "PLAYING") return;
+      this.hap("light");
+      this.playFX("ui");
+      this.state = "PAUSED";
+      document.getElementById("pauseModal")?.classList.remove("hidden");
+    });
+
+    /* Pause modal: Resume */
+    document.getElementById("resumeBtn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.hap("light");
+      this.playFX("ui");
+      document.getElementById("pauseModal")?.classList.add("hidden");
+      if (this.state === "PAUSED") this.state = "PLAYING";
+    });
+
+    /* Pause modal: Quit to Menu */
+    this.ui.quitBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.hap("light");
+      this.playFX("ui");
+      document.getElementById("pauseModal")?.classList.add("hidden");
+      this.returnToStart();
+    });
+
+    /* Hyper Boost button */
+    this.ui.stealthBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (this.state !== "PLAYING" || this.stealthEnergy <= 0) return;
+      this.hap("success");
+      this.playFX("stealth_on");
+      this.playFX("stealth_loop_start");
+      this.activateShield(this.stealthEnergy * 0.2);
+      this.setStealthEnergy(0);
+    });
+
+    /* SDK lifecycle hooks */
+    oasiz.onPause(() => {
+      console.log("[JetRush]", "oasiz:pause — stopping loop");
+      this.suspendLoop();
+    });
+    oasiz.onResume(() => {
+      console.log("[JetRush]", "oasiz:resume — resuming loop");
+      this.resumeLoop();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        console.log("[JetRush]", "Tab hidden — stopping loop");
+        this.suspendLoop();
+      } else {
+        console.log("[JetRush]", "Tab visible — resuming loop");
+        this.resumeLoop();
+      }
+    });
 
     /* Pre-allocate trail ring buffers */
     for (let i = 0; i < this.PLAY_TRAIL_MAX; i++) this.trailRing.push(new THREE.Vector3());
@@ -178,8 +252,32 @@ class JetRush {
     this.ren.setAnimationLoop((t) => this.loop(t));
   }
 
+  private loopRunning = true;
+
+  private suspendLoop(): void {
+    if (!this.loopRunning) return;
+    this.loopRunning = false;
+    this.ren.setAnimationLoop(null);
+    if (this.state === "PLAYING") this.state = "PAUSED";
+    this.sfx.musicOff();
+    this.sfx.stealthLoopStop();
+  }
+
+  private resumeLoop(): void {
+    if (this.loopRunning) return;
+    this.loopRunning = true;
+    this.lastT = 0;
+    this.ren.setAnimationLoop((t) => this.loop(t));
+    if (this.state === "PAUSED") {
+      this.state = "PLAYING";
+    }
+    if (this.settings.music && (this.state === "PLAYING" || this.state === "START")) {
+      this.sfx.musicOn();
+    }
+  }
+
   private get rowAhead(): number {
-    return this.mobile ? 150 : C.ROW_AHEAD;
+    return this.mobile ? 120 : C.ROW_AHEAD;
   }
 
   /* ═══ Lights ═══ */
@@ -198,12 +296,87 @@ class JetRush {
     this.scene.add(new THREE.HemisphereLight(0x223344, 0x0a0a14, 0.6));
   }
 
+  /* ═══ Sparkles ═══ */
+
+  private initSparkles(): void {
+    const geo = new THREE.BoxGeometry(0.04, 1.2, 0.04);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x00ffcc,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    for (let i = 0; i < 6; i++) {
+      const effectGroup = new THREE.Group();
+      for (let j = 0; j < 6; j++) {
+        const beam = new THREE.Mesh(geo, mat);
+        effectGroup.add(beam);
+      }
+      effectGroup.visible = false;
+      this.jet.group.add(effectGroup);
+      this.sparkles.push(effectGroup as unknown as THREE.Mesh);
+      this.sparkleActive.push(false);
+      this.sparkleTimers.push(0);
+    }
+  }
+
+  private triggerSparkle(): void {
+    let idx = -1;
+    for (let i = 0; i < this.sparkles.length; i++) {
+      if (!this.sparkleActive[i]) { idx = i; break; }
+    }
+    if (idx === -1) idx = 0;
+
+    this.sparkleActive[idx] = true;
+    this.sparkleTimers[idx] = 0.5;
+
+    const s = this.sparkles[idx];
+    s.visible = true;
+    s.position.set(0, -1.0, 0);
+    s.rotation.set(0, 0, 0);
+    s.scale.set(1, 0.1, 1);
+
+    s.children.forEach(child => {
+      const beam = child as THREE.Mesh;
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 0.6 + Math.random() * 0.8;
+      const yOffset = (Math.random() - 0.5) * 0.8;
+      beam.position.set(Math.cos(angle) * radius, yOffset, Math.sin(angle) * radius);
+      beam.scale.set(1, 0.5 + Math.random() * 1.0, 1);
+    });
+  }
+
+  private tickSparkles(dt: number): void {
+    for (let i = 0; i < this.sparkles.length; i++) {
+      if (!this.sparkleActive[i]) continue;
+
+      this.sparkleTimers[i] -= dt;
+      const s = this.sparkles[i];
+
+      if (this.sparkleTimers[i] <= 0) {
+        this.sparkleActive[i] = false;
+        s.visible = false;
+        continue;
+      }
+
+      const life = this.sparkleTimers[i] / 0.5;
+      const progress = 1.0 - life;
+
+      s.position.y = -1.0 + progress * 2.5;
+      const scaleY = Math.sin(progress * Math.PI) * 1.5;
+      s.scale.set(1, Math.max(0.01, scaleY), 1);
+
+      s.children.forEach(child => {
+        (child as THREE.Mesh).material.opacity = Math.sin(progress * Math.PI) * 0.7;
+      });
+    }
+  }
+
   /* ═══ Resize ═══ */
 
   private getViewportSize(): { w: number; h: number } {
-    if (this.forcedLandscape) {
-      return { w: window.innerHeight, h: window.innerWidth };
-    }
     return { w: window.innerWidth, h: window.innerHeight };
   }
 
@@ -230,7 +403,7 @@ class JetRush {
   private spawnIdleBlocks(): void {
     this.idleNextRowZ = 30;
     for (let z = 30; z > -200; z -= C.ROW_SPACING) {
-      this.rows.push(spawnRow(this.scene, z, 42, false, 0, true));
+      this.rows.push(spawnRow(this.scene, z, 42, false, 0, true, this.mobile));
     }
     this.idleNextRowZ = -200;
   }
@@ -239,9 +412,12 @@ class JetRush {
 
   private startGame(): void {
     if (this.shop.isOpen()) return;
+    if (Date.now() - this.lastGameStateChange < 500) return;
+    this.lastGameStateChange = Date.now();
     console.log("[startGame]", "New run");
     this.state = "PLAYING";
     this.score = 0;
+    this.lastMilestone = 0;
     this.planeZ = 0;
     this.planeX = 0;
     this.targetX = 0;
@@ -258,6 +434,7 @@ class JetRush {
     resetInput(this.input);
     this.cleanupIdleTrail();
     this.clearAll();
+    this.setStealthEnergy(0);
 
     this.jet.group.visible = true;
     this.jet.group.position.set(0, C.PLANE_Y, 0);
@@ -266,12 +443,12 @@ class JetRush {
     this.orbsCollected = 0;
     this.nextCollectZ = -30;
 
-    /* Pre-spawn rows: safe zone near player, normal blocks ahead */
+    /* Pre-spawn only the immediate safe zone; the rest fills in via tick() */
     this.nextRowZ = 15;
-    while (this.nextRowZ > -this.rowAhead) {
-      const safe = this.nextRowZ > -40;
+    const safeLimit = -60;
+    while (this.nextRowZ > safeLimit) {
       this.rows.push(
-        spawnRow(this.scene, this.nextRowZ, this.runSeed, safe, this.score),
+        spawnRow(this.scene, this.nextRowZ, this.runSeed, true, this.score, false, this.mobile, this.planeX),
       );
       this.nextRowZ -= C.ROW_SPACING;
     }
@@ -303,6 +480,7 @@ class JetRush {
 
     this.totalOrbs += this.orbsCollected;
     this.saveTotalOrbs();
+    oasiz.flushGameState();
 
     showGameOver(this.ui, this.score, this.orbsCollected);
     spawnExplosion(
@@ -331,7 +509,7 @@ class JetRush {
     this.lastT = t;
     this.elapsed += dt;
 
-    updateBlockAnimations(this.rows, this.elapsed);
+    updateBlockAnimations(this.rows, this.elapsed, this.cam.position.z);
 
     if (this.state === "PLAYING") this.tick(dt);
     else if (this.state === "START") this.idle(dt);
@@ -421,9 +599,11 @@ class JetRush {
 
     recycleGround(this.groundTiles, this.idleZ);
 
-    while (this.idleNextRowZ > this.idleZ - this.rowAhead) {
-      this.rows.push(spawnRow(this.scene, this.idleNextRowZ, 42, false, 0, true));
+    let idleSpawned = 0;
+    while (this.idleNextRowZ > this.idleZ - this.rowAhead && idleSpawned < 4) {
+      this.rows.push(spawnRow(this.scene, this.idleNextRowZ, 42, false, 0, true, this.mobile));
       this.idleNextRowZ -= C.ROW_SPACING;
+      idleSpawned++;
     }
 
     const behind = this.idleZ + C.ROW_BEHIND;
@@ -560,34 +740,41 @@ class JetRush {
     const idxArr = this.trailGeo.index!.array as Uint16Array;
     const trailYOffset = -0.5;
 
+    const needIdxUpdate = count > this.trailIdxFilled;
     const start = (this.trailHead - count + this.PLAY_TRAIL_MAX) % this.PLAY_TRAIL_MAX;
+    const tr = this.trailColor.r, tg = this.trailColor.g, tb = this.trailColor.b;
     for (let i = 0; i < count; i++) {
       const t = i / (count - 1);
       const width = t * 0.2;
       const p = this.trailRing[(start + i) % this.PLAY_TRAIL_MAX];
       const y = p.y + trailYOffset;
-      const vi = i * 2 * 3;
+      const vi = i * 6;
       posArr[vi] = p.x - width;     posArr[vi + 1] = y; posArr[vi + 2] = p.z;
       posArr[vi + 3] = p.x + width; posArr[vi + 4] = y; posArr[vi + 5] = p.z;
 
       const alpha = t * t;
-      const g = 0.55 + t * 0.25;
-      const ci = i * 2 * 4;
-      colArr[ci] = 0;     colArr[ci + 1] = g; colArr[ci + 2] = 1; colArr[ci + 3] = alpha * 0.55;
-      colArr[ci + 4] = 0; colArr[ci + 5] = g; colArr[ci + 6] = 1; colArr[ci + 7] = alpha * 0.55;
+      const bright = 0.55 + t * 0.25;
+      const r = tr * bright;
+      const g = tg * bright;
+      const b = tb * bright;
+      const a = alpha * 0.55;
+      const ci = i * 8;
+      colArr[ci] = r;     colArr[ci + 1] = g; colArr[ci + 2] = b; colArr[ci + 3] = a;
+      colArr[ci + 4] = r; colArr[ci + 5] = g; colArr[ci + 6] = b; colArr[ci + 7] = a;
 
-      if (i < count - 1) {
+      if (needIdxUpdate && i < count - 1) {
         const bi = i * 2;
         const ii = i * 6;
         idxArr[ii] = bi;     idxArr[ii + 1] = bi + 1; idxArr[ii + 2] = bi + 2;
         idxArr[ii + 3] = bi + 1; idxArr[ii + 4] = bi + 3; idxArr[ii + 5] = bi + 2;
       }
     }
+    if (needIdxUpdate) this.trailIdxFilled = count;
 
     this.trailGeo.setDrawRange(0, idxCount);
     (this.trailGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     (this.trailGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
-    this.trailGeo.index!.needsUpdate = true;
+    if (needIdxUpdate) this.trailGeo.index!.needsUpdate = true;
 
     if (!this.trailMesh) {
       this.trailMesh = new THREE.Mesh(this.trailGeo, this.trailMat);
@@ -606,20 +793,35 @@ class JetRush {
     }
     this.trailHead = 0;
     this.trailCount = 0;
+    this.trailIdxFilled = 0;
   }
 
   /* ═══ Game Tick ═══ */
 
   private tick(dt: number): void {
+    this.tickSparkles(dt);
+
     /* Speed ramp */
     this.speed = Math.min(
       C.SPEED_MAX,
       C.SPEED_INIT + (Math.abs(this.planeZ) * C.SPEED_RAMP) / 100,
     );
+    if (this.invincible) {
+      this.speed += 20;
+    }
 
     const dz = this.speed * dt;
     this.planeZ -= dz;
     this.score = Math.floor(Math.abs(this.planeZ) / 3);
+
+    /* Milestone check */
+    const currentMilestone = Math.floor(this.score / 500) * 500;
+    if (currentMilestone > 0 && currentMilestone > this.lastMilestone) {
+      this.lastMilestone = currentMilestone;
+      this.showMilestone(currentMilestone);
+      this.playFX("milestone");
+      this.hap("success");
+    }
 
     /* Lateral movement from input */
     let mx = 0;
@@ -627,11 +829,11 @@ class JetRush {
     if (this.input.right) mx += 1;
 
     this.targetX += mx * C.LATERAL_SPEED * dt;
-    this.targetX = THREE.MathUtils.clamp(
-      this.targetX,
-      -C.BOUNDARY_X,
-      C.BOUNDARY_X,
-    );
+
+    /* Hide tutorial on first input */
+    if (mx !== 0) {
+      this.ui.tutorial.classList.add("hidden");
+    }
 
     const lf = 1 - Math.pow(0.0005, dt);
     this.planeX += (this.targetX - this.planeX) * lf;
@@ -639,12 +841,21 @@ class JetRush {
     this.jet.group.position.set(this.planeX, C.PLANE_Y, this.planeZ);
 
     /* Bank tilt */
-    const tt = -mx * 0.45;
-    this.tilt += (tt - this.tilt) * 5 * dt;
+    const tt = -mx * 0.65;
+    this.tilt += (tt - this.tilt) * 6 * dt;
     this.jet.body.rotation.z = this.tilt;
 
     /* Engine FX */
     updateJetFX(this.jet.body, this.elapsed);
+
+    /* Dynamic trail color based on score milestones (every 500 score = new biome) */
+    const biomeTier = Math.min(
+      OUTLINE_BASE_COLORS.length - 1,
+      Math.floor(this.score / 500),
+    );
+    const outlineCol = OUTLINE_BASE_COLORS[biomeTier];
+    setTrailColor(outlineCol);
+    this.trailColor.copy(outlineCol);
 
     /* Trail */
     this.trailTimer += dt;
@@ -658,14 +869,17 @@ class JetRush {
     this.updatePlayTrail();
 
     /* Recycle ground */
-    recycleGround(this.groundTiles, this.planeZ);
+    recycleGround(this.groundTiles, this.planeZ, this.planeX);
 
-    /* Spawn rows ahead */
-    while (this.nextRowZ > this.planeZ - this.rowAhead) {
+    /* Spawn rows ahead (capped per frame to avoid stutter) */
+    const MAX_ROWS_PER_FRAME = 6;
+    let spawned = 0;
+    while (this.nextRowZ > this.planeZ - this.rowAhead && spawned < MAX_ROWS_PER_FRAME) {
       this.rows.push(
-        spawnRow(this.scene, this.nextRowZ, this.runSeed, false, this.score),
+        spawnRow(this.scene, this.nextRowZ, this.runSeed, false, this.score, false, this.mobile, this.planeX),
       );
       this.nextRowZ -= C.ROW_SPACING;
+      spawned++;
     }
 
     /* Cleanup rows behind */
@@ -701,11 +915,16 @@ class JetRush {
       this.elapsed,
     );
     if (picked > 0) {
+      for (let i = 0; i < picked; i++) this.triggerSparkle();
       this.orbsCollected += picked;
       this.score += picked * C.COLLECT_SCORE_BONUS;
       this.ui.orbDisplay.textContent = String(this.orbsCollected);
       this.hap("medium");
       this.playFX("collect");
+      if (!this.invincible) {
+        this.setStealthEnergy(this.stealthEnergy + picked);
+        this.spawnPlusOneFX(picked);
+      }
     }
 
     /* Remove collected & far-behind (only if not attracting) */
@@ -714,13 +933,6 @@ class JetRush {
     for (let i = 0; i < this.collectibles.length; i++) {
       const c = this.collectibles[i];
       if (c.collected) {
-        spawnCollectBurst(
-          this.scene,
-          c.mesh.position.x,
-          c.mesh.position.y,
-          c.mesh.position.z,
-          this.explParts,
-        );
         destroyCollectible(this.scene, c);
       } else if (!c.attracting && c.worldZ > collectBehind) {
         destroyCollectible(this.scene, c);
@@ -749,10 +961,18 @@ class JetRush {
       }
     }
 
+    /* Speed lines during hyper boost */
+    if (this.invincible && this.state === "PLAYING") {
+      spawnSpeedLines(this.scene, this.planeX, C.PLANE_Y, this.planeZ, this.explParts);
+    }
+
     /* Collision detection */
     if (this.checkCollisions()) return;
 
-    this.ui.scoreTxt.textContent = String(this.score);
+    if (this.score !== this.lastDisplayedScore) {
+      this.lastDisplayedScore = this.score;
+      this.ui.scoreTxt.textContent = String(this.score);
+    }
   }
 
   /* ═══ Collision ═══ */
@@ -800,9 +1020,9 @@ class JetRush {
     return mesh;
   }
 
-  private activateShield(): void {
+  private activateShield(duration: number = 5): void {
     this.invincible = true;
-    this.invincibleTimer = 5;
+    this.invincibleTimer = duration;
 
     if (!this.shieldMesh) {
       this.shieldMesh = this.createShieldMesh();
@@ -817,6 +1037,9 @@ class JetRush {
   }
 
   private deactivateShield(): void {
+    if (this.invincible) {
+      this.playFX("stealth_loop_stop");
+    }
     this.invincible = false;
     this.invincibleTimer = 0;
     if (this.shieldMesh) {
@@ -824,82 +1047,132 @@ class JetRush {
     }
   }
 
+  /* ═══ Stealth Energy ═══ */
+
+  private setStealthEnergy(val: number): void {
+    this.stealthEnergy = Math.max(0, Math.min(20, val));
+    const pct = (this.stealthEnergy / 20) * 100;
+    this.ui.stealthFill.style.width = `${pct}%`;
+    this.ui.stealthBtn.classList.toggle("disabled", this.stealthEnergy <= 0);
+    this.ui.stealthBtn.classList.toggle("stealth-full", this.stealthEnergy === 20);
+  }
+
+  private _cachedBtnRect: DOMRect | null = null;
+  private _cachedBtnRectTime = 0;
+
+  private spawnPlusOneFX(amount: number): void {
+    const fx = document.createElement("div");
+    fx.className = "plus-one-fx";
+    fx.textContent = `+${amount}`;
+
+    const now = this.elapsed;
+    if (!this._cachedBtnRect || now - this._cachedBtnRectTime > 1) {
+      this._cachedBtnRect = this.ui.stealthBtn.getBoundingClientRect();
+      this._cachedBtnRectTime = now;
+    }
+    const rect = this._cachedBtnRect;
+    const offset = (Math.random() - 0.5) * 40;
+    fx.style.left = `${rect.left + rect.width / 2 + offset}px`;
+    fx.style.top = `${rect.top - 20}px`;
+
+    document.body.appendChild(fx);
+    setTimeout(() => {
+      if (document.body.contains(fx)) document.body.removeChild(fx);
+    }, 1000);
+  }
+
+  /* ═══ Return to Start ═══ */
+
+  private returnToStart(): void {
+    if (Date.now() - this.lastGameStateChange < 500) return;
+    this.lastGameStateChange = Date.now();
+    console.log("[JetRush]", "Return to start");
+    this.state = "START";
+    this.totalOrbs += this.orbsCollected;
+    this.orbsCollected = 0;
+    this.saveTotalOrbs();
+    oasiz.flushGameState();
+
+    this.clearAll();
+    this.sfx.musicOff();
+
+    this.idleZ = 0;
+    this.idleX = 0;
+
+    this.spawnIdleBlocks();
+    this.setStealthEnergy(0);
+
+    showStartScreen(this.ui, this.totalOrbs);
+
+    this.playFX("ui");
+    this.hap("light");
+  }
+
   /* ═══ Helpers ═══ */
 
   private hap(type: HapticType): void {
-    if (this.settings.haptics && typeof window.triggerHaptic === "function") {
-      window.triggerHaptic(type);
+    if (this.settings.haptics) {
+      oasiz.triggerHaptic(type);
     }
   }
 
-  private playFX(kind: "ui" | "crash" | "collect"): void {
+  private playFX(kind: "ui" | "crash" | "collect" | "stealth_on" | "stealth_loop_start" | "stealth_loop_stop" | "milestone"): void {
+    if (kind === "stealth_loop_stop") {
+      this.sfx.stealthLoopStop();
+      return;
+    }
     if (!this.settings.fx) return;
+
     if (kind === "ui") this.sfx.ui();
     else if (kind === "crash") this.sfx.crash();
     else if (kind === "collect") this.sfx.collect();
+    else if (kind === "stealth_on") this.sfx.stealthOn();
+    else if (kind === "stealth_loop_start") this.sfx.stealthLoopStart();
+    else if (kind === "milestone") this.sfx.milestone();
   }
 
   private submitScore(): void {
     const s = Math.max(0, this.score);
     console.log("[submitScore]", s);
-    if (typeof window.submitScore === "function") window.submitScore(s);
+    oasiz.submitScore(s);
   }
 
   private loadTotalOrbs(): number {
-    try {
-      return parseInt(localStorage.getItem("jetRush_orbs") || "0", 10) || 0;
-    } catch {
-      return 0;
-    }
+    const state = oasiz.loadGameState();
+    return typeof state.orbs === "number" ? (state.orbs as number) : 0;
   }
 
   private saveTotalOrbs(): void {
-    try {
-      localStorage.setItem("jetRush_orbs", String(this.totalOrbs));
-    } catch {
-      console.log("[saveTotalOrbs]", "localStorage unavailable");
-    }
+    const state = oasiz.loadGameState();
+    oasiz.saveGameState({ ...state, orbs: this.totalOrbs });
   }
 
-  /* ═══ Rotate Button (orientation toggle) ═══ */
+  private showMilestone(distance: number): void {
+    const biomeTier = Math.floor(distance / 500) % OUTLINE_BASE_COLORS.length;
+    const col = OUTLINE_BASE_COLORS[biomeTier];
+    const hex = "#" + col.getHexString();
 
-  private forcedLandscape = false;
+    const banner = document.createElement("div");
+    banner.className = "milestone-banner";
 
-  private initRotateButton(): void {
-    const btn = document.getElementById("rotateBtn");
-    const label = document.getElementById("rotateBtnLabel");
-    if (!btn || !label) return;
+    const num = document.createElement("div");
+    num.className = "milestone-distance";
+    num.style.color = hex;
+    num.style.textShadow = `0 0 30px ${hex}, 0 0 60px ${hex}40`;
+    num.textContent = String(distance);
 
-    const updateLabel = (): void => {
-      const isLandscape = this.forcedLandscape || window.innerWidth > window.innerHeight;
-      label.textContent = isLandscape ? "Portrait" : "Landscape";
-    };
-    updateLabel();
-    window.addEventListener("resize", updateLabel);
+    const label = document.createElement("div");
+    label.className = "milestone-label";
+    label.style.color = hex;
+    label.textContent = "meters";
 
-    btn.addEventListener("touchstart", (e: Event) => {
-      e.stopPropagation();
-    }, { passive: true });
+    banner.appendChild(num);
+    banner.appendChild(label);
+    document.body.appendChild(banner);
 
-    btn.addEventListener("click", (e: Event) => {
-      e.stopPropagation();
-      this.hap("light");
-      this.playFX("ui");
-
-      this.forcedLandscape = !this.forcedLandscape;
-      console.log("[initRotateButton]", "Force landscape:", this.forcedLandscape);
-
-      if (this.forcedLandscape) {
-        document.body.classList.add("force-landscape");
-      } else {
-        document.body.classList.remove("force-landscape");
-      }
-
-      updateLabel();
-
-      setTimeout(() => this.resize(), 50);
-    });
+    setTimeout(() => banner.remove(), 2000);
   }
+
 }
 
 document.addEventListener("DOMContentLoaded", () => {

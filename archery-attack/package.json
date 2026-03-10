@@ -10,7 +10,7 @@
     "dev:switcher": "npx vite --port 5173",
     "build:horse": "cd horse-archery && npx vite build",
     "build:ragdoll": "cd ragdoll-archers && npx vite build",
-    "build": "npm run build:horse && npm run build:ragdoll"
+    "build": "npm run build:horse && npm run build:ragdoll && mkdir -p dist && cp horse-archery/dist/index.html dist/index.html"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

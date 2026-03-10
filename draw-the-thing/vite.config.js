@@ -3,6 +3,9 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 
 export default defineConfig({
   plugins: [viteSingleFile()],
+  server: {
+    port: 5179,
+  },
   build: {
     target: "esnext",
     minify: true,

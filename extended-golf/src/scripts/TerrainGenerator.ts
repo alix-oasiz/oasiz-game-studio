@@ -9,6 +9,9 @@ import {
 export interface RockBody {
 	bodyId: any;
 	visual: Phaser.GameObjects.Container;
+	initialX: number;
+	initialY: number;
+	initialRotation: number;
 }
 
 export interface TerrainInstance {
@@ -93,6 +96,9 @@ export default class TerrainGenerator {
 
 		const spawnX = offsetX + 250;
 		const spawnFlatZone = 120;
+		const minTerrainY = height * 0.22;
+		const dragClearance = 180;
+		const maxTerrainY = height - dragClearance;
 
 		const targetBaseHeight = height * 0.65;
 		let baseHeight = targetBaseHeight;
@@ -101,12 +107,12 @@ export default class TerrainGenerator {
 		const isHilly = this.terrainStyle % 2 === 1;
 		this.terrainStyle++;
 
-		const amp1 = isHilly ? 110 * difficulty : 90 * difficulty;
-		const amp2 = isHilly ? 55 * difficulty : 40 * difficulty;
-		const amp3 = isHilly ? 20 * difficulty : 0;
-		const freq1 = isHilly ? 0.09 : 0.06;
-		const freq2 = isHilly ? 0.24 : 0.18;
-		const freq3 = isHilly ? 0.45 : 0;
+		const amp1 = isHilly ? 118 * difficulty : 95 * difficulty;
+		const amp2 = isHilly ? 60 * difficulty : 44 * difficulty;
+		const amp3 = isHilly ? 24 * difficulty : 0;
+		const freq1 = isHilly ? 0.096 : 0.062;
+		const freq2 = isHilly ? 0.245 : 0.19;
+		const freq3 = isHilly ? 0.44 : 0;
 
 		if (startY !== undefined) {
 			const distToSpawn0 = Math.abs(offsetX - spawnX);
@@ -129,7 +135,7 @@ export default class TerrainGenerator {
 				: targetBaseHeight;
 
 			const distanceToSpawn = Math.abs(x - spawnX);
-			const spawnFlatMultiplier = Math.min(1, (distanceToSpawn / (spawnFlatZone / Math.sqrt(difficulty))) ** 2);
+			const spawnFlatMultiplier = Math.min(1, (distanceToSpawn / (spawnFlatZone / Math.pow(difficulty, 0.72))) ** 2);
 
 			const wave1 = Math.sin(globalI * freq1) * amp1 * spawnFlatMultiplier;
 			const wave2 = Math.sin(globalI * freq2) * amp2 * spawnFlatMultiplier;
@@ -140,12 +146,16 @@ export default class TerrainGenerator {
 			let endWaveDampen = 1;
 			if (i > endZoneStart) {
 				const hillProgress = (i - endZoneStart) / 12;
-				endHillAdjustment = -(hillProgress * hillProgress * 200);
-				endWaveDampen = 1 - hillProgress * 0.8;
+				endHillAdjustment = -(hillProgress * hillProgress * (145 + difficulty * 58));
+				endWaveDampen = 1 - hillProgress * 0.62;
 			}
 
 			let y = currentBaseHeight + (wave1 + wave2 + wave3) * endWaveDampen + endHillAdjustment;
-			if (i === 0 && startY !== undefined) y = startY;
+			y = Math.max(y, minTerrainY);
+			y = Math.min(y, maxTerrainY);
+			if (i === 0 && startY !== undefined) {
+				y = Phaser.Math.Clamp(startY, minTerrainY, maxTerrainY);
+			}
 			points.push({ x, y });
 		}
 
@@ -316,9 +326,9 @@ export default class TerrainGenerator {
 				b2MakeOffsetBox((holeWidth / 2) / S, fullHoleHalfH, new b2Vec2(holeX / S, fullHoleCenterY), 0));
 		}
 
-		// Place rock obstacles starting at hole 5
+		// Place rock obstacles once the player has some momentum
 		let rockBodies: RockBody[] = [];
-		if (!isPreview && groundBodyId && score >= 5) {
+		if (!isPreview && groundBodyId && score >= 3) {
 			rockBodies = this.placeRocks(points, difficulty, theme, spawnX, holeX, holeWidth);
 		}
 
@@ -624,25 +634,42 @@ export default class TerrainGenerator {
 		holeWidth: number
 	): RockBody[] {
 		const S = this.SCALE;
-		const rockCount = Math.floor(Math.random() * Math.min(Math.floor(difficulty * 2), 3)) + 1;
-		const safeZoneLeft = spawnX + 150;
-		const safeZoneHoleLeft = holeX - holeWidth - 60;
-		const safeZoneHoleRight = holeX + holeWidth + 60;
+		const minRockCount = difficulty >= 2 ? 2 : 1;
+		const maxRockCount = Math.min(5, 2 + Math.floor((difficulty - 1) * 2.5));
+		const rockCount = Phaser.Math.Between(minRockCount, Math.max(minRockCount, maxRockCount));
+		const safeZoneLeft = spawnX + Math.max(95, 150 - (difficulty - 1) * 45);
+		const holeClearance = holeWidth + Math.max(30, 60 - (difficulty - 1) * 20);
+		const safeZoneHoleLeft = holeX - holeClearance;
+		const safeZoneHoleRight = holeX + holeClearance;
 
 		const smoothPts = this.smoothPoints(points, 8);
 		const minX = points[0].x + 50;
 		const maxX = points[points.length - 1].x - 50;
+		const minRockSpacing = Math.max(80, 120 - (difficulty - 1) * 22);
+		const laneMinX = Math.max(minX, safeZoneLeft);
+		const laneMaxX = Math.min(maxX, safeZoneHoleLeft);
+		const behindLaneMinX = Math.max(minX, safeZoneHoleRight);
+		const behindLaneMaxX = maxX;
+		const canUsePrimaryLane = laneMaxX - laneMinX > minRockSpacing;
+		const canUseBehindHoleLane = behindLaneMaxX - behindLaneMinX > minRockSpacing;
 
 		const results: RockBody[] = [];
 		const placedXPositions: number[] = [];
-		const minRockSpacing = 120;
 
 		for (let r = 0; r < rockCount; r++) {
 			let rockX = 0;
 			let attempts = 0;
 			let valid = false;
 			while (!valid && attempts < 30) {
-				rockX = Phaser.Math.Between(minX, maxX);
+				const preferShotLane = canUsePrimaryLane && (r < Math.ceil(rockCount * 0.7) || Phaser.Math.Between(0, 100) < 80);
+				const preferBehindHole = !preferShotLane && canUseBehindHoleLane && Phaser.Math.Between(0, 100) < 35;
+				if (preferShotLane) {
+					rockX = Phaser.Math.Between(laneMinX, laneMaxX);
+				} else if (preferBehindHole) {
+					rockX = Phaser.Math.Between(behindLaneMinX, behindLaneMaxX);
+				} else {
+					rockX = Phaser.Math.Between(minX, maxX);
+				}
 				valid = rockX > safeZoneLeft &&
 					(rockX < safeZoneHoleLeft || rockX > safeZoneHoleRight);
 				// Ensure no overlap with already-placed rocks
@@ -672,7 +699,7 @@ export default class TerrainGenerator {
 			const paletteIdx = Math.floor(Math.abs(Math.cos(seed * 2.3)) * TerrainGenerator.GRAY_PALETTES.length);
 			const palette = TerrainGenerator.GRAY_PALETTES[paletteIdx];
 
-			const sizeScale = 1 + (difficulty - 1) * 0.6;
+			const sizeScale = 1 + (difficulty - 1) * 0.95;
 			const dims = this.getRockDimensions(rockType, sizeScale);
 
 			// Create dynamic Box2D body aligned to terrain slope
@@ -703,7 +730,13 @@ export default class TerrainGenerator {
 			visual.y = groundY - dims.halfH;
 			visual.rotation = slopeAngle;
 
-			results.push({ bodyId, visual });
+			results.push({
+				bodyId,
+				visual,
+				initialX: rockX,
+				initialY: groundY - dims.halfH,
+				initialRotation: slopeAngle
+			});
 		}
 
 		return results;

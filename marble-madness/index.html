@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Marble Madness</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        touch-action: none;
+        background: radial-gradient(circle at 20% 10%, #243a77 0%, #0c1635 45%, #070d1f 100%);
+        color: #edf2ff;
+        font-family: "Trebuchet MS", "Segoe UI", Tahoma, sans-serif;
+      }
+
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .center-overlay {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(5, 9, 22, 0.55);
+        backdrop-filter: blur(6px);
+      }
+
+      .panel {
+        width: min(92vw, 560px);
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        background: linear-gradient(180deg, rgba(28, 47, 102, 0.95), rgba(11, 21, 48, 0.96));
+        box-shadow:
+          0 24px 50px rgba(0, 0, 0, 0.42),
+          inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        padding: 26px;
+      }
+
+      .title {
+        margin: 0 0 10px;
+        color: #ffffff;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: clamp(2rem, 8.5vw, 3.5rem);
+      }
+
+      .subtitle {
+        margin: 0 0 18px;
+        line-height: 1.45;
+        color: #dbe6ff;
+        font-size: clamp(1rem, 3.7vw, 1.2rem);
+      }
+
+      .button {
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 20px;
+        background: linear-gradient(180deg, #74bcff, #3a79df);
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 1rem;
+        letter-spacing: 0.04em;
+        box-shadow:
+          0 10px 22px rgba(23, 76, 178, 0.46),
+          inset 0 1px 0 rgba(255, 255, 255, 0.32);
+        cursor: pointer;
+      }
+
+      .button:active {
+        transform: translateY(2px);
+      }
+
+      #hud {
+        pointer-events: none;
+      }
+
+      .hud-chip {
+        position: fixed;
+        top: 46px;
+        left: 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(9, 18, 40, 0.62);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+        padding: 9px 14px;
+        font-size: 0.93rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      #speed-label {
+        top: 92px;
+      }
+
+      #level-progress {
+        position: fixed;
+        top: 46px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(38vw, 360px);
+        pointer-events: none;
+      }
+
+      .level-progress-track {
+        position: relative;
+        height: 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        background: linear-gradient(180deg, rgba(16, 32, 76, 0.94), rgba(7, 15, 36, 0.95));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.18),
+          0 8px 18px rgba(0, 0, 0, 0.36);
+        overflow: visible;
+      }
+
+      .level-progress-markers {
+        position: absolute;
+        inset: 2px 6px;
+        pointer-events: none;
+      }
+
+      .level-progress-marker {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        border-radius: 999px;
+        background: rgba(176, 207, 255, 0.48);
+      }
+
+      .level-progress-marble {
+        position: absolute;
+        top: 50%;
+        left: 0%;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        border: 1px solid rgba(188, 225, 255, 0.95);
+        background:
+          radial-gradient(circle at 35% 30%, #d6f3ff 0%, #7accff 30%, #2f8fe9 62%, #165cbf 100%);
+        box-shadow:
+          0 0 16px rgba(83, 168, 255, 0.68),
+          inset 0 1px 0 rgba(255, 255, 255, 0.62);
+      }
+
+      #version-label {
+        position: fixed;
+        right: 14px;
+        bottom: 42px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: rgba(9, 18, 40, 0.55);
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+        color: #eaf2ff;
+        padding: 6px 10px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        pointer-events: none;
+        z-index: 12;
+      }
+
+      #fps-label {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: rgba(9, 18, 40, 0.55);
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+        color: #eaf2ff;
+        padding: 6px 10px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        pointer-events: none;
+        z-index: 12;
+      }
+
+      .control-btn {
+        position: fixed;
+        z-index: 6;
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: linear-gradient(180deg, rgba(34, 58, 123, 0.95), rgba(15, 27, 62, 0.96));
+        color: #f3f7ff;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+      }
+
+      .control-btn svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      #restart-btn {
+        top: 45px;
+        left: calc(100% - 126px);
+      }
+
+      #settings-btn {
+        top: 45px;
+        right: 18px;
+      }
+
+      #mobile-controls {
+        position: fixed;
+        left: 50%;
+        bottom: 28px;
+        transform: translateX(-50%);
+        z-index: 13;
+        pointer-events: none;
+      }
+
+      #swipe-puck {
+        width: 112px;
+        height: 112px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.32);
+        background:
+          radial-gradient(circle at 50% 50%, rgba(122, 240, 248, 0.16), rgba(16, 27, 57, 0.88)),
+          linear-gradient(180deg, rgba(52, 88, 176, 0.54), rgba(16, 27, 57, 0.88));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+          0 14px 28px rgba(0, 0, 0, 0.34);
+        position: relative;
+      }
+
+      #swipe-puck::before,
+      #swipe-puck::after {
+        content: "";
+        position: absolute;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      #swipe-puck::before {
+        width: 1px;
+        height: 82%;
+        top: 9%;
+        left: 50%;
+        transform: translateX(-0.5px);
+      }
+
+      #swipe-puck::after {
+        height: 1px;
+        width: 82%;
+        left: 9%;
+        top: 50%;
+        transform: translateY(-0.5px);
+      }
+
+      #swipe-handle {
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: linear-gradient(180deg, rgba(142, 234, 255, 0.96), rgba(98, 184, 255, 0.94));
+        box-shadow: 0 4px 12px rgba(91, 187, 255, 0.46);
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(0px, 0px);
+        margin-left: -13px;
+        margin-top: -13px;
+        transition: transform 40ms linear;
+      }
+
+      #swipe-power-label {
+        margin-top: 8px;
+        text-align: center;
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        color: rgba(222, 236, 255, 0.84);
+        text-transform: uppercase;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      }
+
+      #mobile-controls.swipe-active #swipe-puck {
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+          0 18px 34px rgba(0, 0, 0, 0.42),
+          0 0 22px rgba(122, 240, 248, 0.34);
+      }
+
+      .settings-modal {
+        display: grid;
+        place-items: center;
+        z-index: 20;
+        background: rgba(4, 8, 19, 0.72);
+      }
+
+      .settings-card {
+        width: min(88vw, 430px);
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        background: linear-gradient(180deg, rgba(22, 38, 82, 0.96), rgba(10, 18, 40, 0.96));
+        box-shadow: 0 24px 44px rgba(0, 0, 0, 0.45);
+        padding: 18px;
+      }
+
+      .settings-title {
+        margin: 0 0 12px;
+        font-size: 1.05rem;
+        letter-spacing: 0.06em;
+      }
+
+      .settings-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .settings-tab-btn {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        background: rgba(10, 20, 44, 0.74);
+        color: #dce8ff;
+        padding: 7px 12px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+      }
+
+      .settings-tab-btn[data-active="true"] {
+        background: linear-gradient(180deg, #74bcff, #3a79df);
+        color: #ffffff;
+      }
+
+      .settings-pane {
+        display: block;
+      }
+
+      .designer-intro {
+        margin: 0 0 10px;
+        color: #d3e3ff;
+        font-size: 0.84rem;
+        line-height: 1.4;
+      }
+
+      .designer-list {
+        display: grid;
+        gap: 8px;
+        max-height: 280px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+
+      .designer-row {
+        display: grid;
+        grid-template-columns: 58px 1fr;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .designer-row-label {
+        color: #d5e4ff;
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      .designer-select {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        background: rgba(12, 24, 53, 0.92);
+        color: #ecf3ff;
+        padding: 8px 10px;
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+
+      .designer-actions {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .designer-meta {
+        color: #bfd4fb;
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+      }
+
+      .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      }
+
+      .setting-row:last-of-type {
+        border-bottom: 0;
+      }
+
+      .setting-label {
+        font-weight: 700;
+      }
+
+      .toggle-btn {
+        min-width: 84px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(13, 25, 54, 0.78);
+        color: #edf4ff;
+        padding: 8px 12px;
+        font-weight: 700;
+      }
+
+      .toggle-btn[data-enabled="true"] {
+        background: linear-gradient(180deg, #74bcff, #3a79df);
+      }
+
+      .modal-actions {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      @media (pointer: coarse) {
+        #restart-btn,
+        #settings-btn {
+          top: 120px;
+        }
+
+        .hud-chip {
+          top: 122px;
+          left: 16px;
+        }
+
+        #speed-label {
+          top: 168px;
+        }
+
+        #level-progress {
+          top: 120px;
+          width: min(34vw, 220px);
+          left: 50%;
+          transform: translateX(-50%);
+        }
+
+        #version-label {
+          right: 12px;
+          bottom: 52px;
+        }
+
+        #fps-label {
+          right: 12px;
+          bottom: 22px;
+        }
+
+        #mobile-controls {
+          bottom: 120px;
+        }
+
+        .desktop-only {
+          display: none !important;
+        }
+      }
+
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas" aria-label="Marble Madness"></canvas>
+
+      <div id="start-screen" class="overlay center-overlay">
+        <div class="panel">
+          <h1 class="title">Marble Madness</h1>
+          <p class="subtitle">
+            Press and drag anywhere to steer. Up pushes the marble forward, and force scales with swipe strength.
+          </p>
+          <button id="start-btn" class="button">Start Run</button>
+        </div>
+      </div>
+
+      <div id="hud" class="overlay hidden">
+        <div id="time-label" class="hud-chip">Time: 0.00s</div>
+        <div id="speed-label" class="hud-chip">Speed: 0.0</div>
+        <div id="level-progress">
+          <div class="level-progress-track">
+            <div id="level-progress-markers" class="level-progress-markers"></div>
+            <div id="level-progress-marble" class="level-progress-marble"></div>
+          </div>
+        </div>
+      </div>
+      <div id="version-label">Build 0.0.0</div>
+      <div id="fps-label">FPS 0</div>
+
+      <button id="restart-btn" class="control-btn hidden" aria-label="Restart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-3-6.7" />
+          <path d="M21 3v6h-6" />
+        </svg>
+      </button>
+
+      <button id="settings-btn" class="control-btn hidden" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 0 1 0 2.8 2 2 0 0 1-2.8 0l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 0 1-2.8 0 2 2 0 0 1 0-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 0 1 0-2.8 2 2 0 0 1 2.8 0l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 .9-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5h.1a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5.9H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
+        </svg>
+      </button>
+
+      <div id="settings-modal" class="overlay settings-modal hidden">
+        <div class="settings-card">
+          <h2 class="settings-title">Settings</h2>
+          <div class="settings-tabs desktop-only">
+            <button id="settings-tab-audio" class="settings-tab-btn" data-active="true">Audio</button>
+            <button id="settings-tab-designer" class="settings-tab-btn" data-active="false">Level Designer</button>
+            <button id="settings-tab-repeat" class="settings-tab-btn" data-active="false">Repeat Type</button>
+            <button id="settings-tab-obstacles" class="settings-tab-btn" data-active="false">Obstacles</button>
+            <button id="settings-tab-debug" class="settings-tab-btn" data-active="false">Debug</button>
+          </div>
+
+          <div id="settings-pane-audio" class="settings-pane">
+            <div class="setting-row">
+              <div class="setting-label">Music</div>
+              <button id="toggle-music" class="toggle-btn" data-enabled="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">FX</div>
+              <button id="toggle-fx" class="toggle-btn" data-enabled="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Haptics</div>
+              <button id="toggle-haptics" class="toggle-btn" data-enabled="true">ON</button>
+            </div>
+          </div>
+
+          <div id="settings-pane-designer" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Choose the middle platforms for the next run, then spawn directly into that layout.
+            </p>
+            <div id="designer-list" class="designer-list"></div>
+            <div class="designer-actions">
+              <div id="designer-meta" class="designer-meta">Middle platforms: 0</div>
+              <button id="designer-spawn" class="button">Spawn Designed Level</button>
+            </div>
+          </div>
+
+          <div id="settings-pane-repeat" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Pick one platform type and spawn a debug run with 3 repeated middle platforms.
+            </p>
+            <div class="designer-row">
+              <div class="designer-row-label">Type</div>
+              <select id="designer-repeat-select" class="designer-select"></select>
+            </div>
+            <div class="designer-actions">
+              <div id="designer-repeat-meta" class="designer-meta">Middle platforms: 3</div>
+              <button id="designer-repeat-spawn" class="button">Spawn Repeated Level</button>
+            </div>
+          </div>
+
+          <div id="settings-pane-obstacles" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Choose one obstacle type and spawn a flat-only obstacle test run.
+            </p>
+            <div class="designer-row">
+              <div class="designer-row-label">Type</div>
+              <select id="obstacle-focus-select" class="designer-select">
+                <option value="horizontal_blocker">Horizontal Blocker</option>
+                <option value="rotator_x">Rotator X</option>
+                <option value="pinball_bouncer">Pinball Bouncer</option>
+                <option value="bouncy_pad">Bouncy Pad</option>
+              </select>
+            </div>
+            <div class="designer-actions">
+              <div class="designer-meta">Map: Flat-only middle platforms</div>
+              <button id="obstacle-focus-spawn" class="button">Spawn Obstacle Test</button>
+            </div>
+          </div>
+
+          <div id="settings-pane-debug" class="settings-pane hidden desktop-only">
+            <p class="designer-intro">
+              Visualize platform geometry and spawn a minimal straight test level.
+            </p>
+            <div class="setting-row">
+              <div class="setting-label">Track Mesh Wireframe</div>
+              <button id="debug-track-wire-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Physics Mesh Wireframe</div>
+              <button id="debug-physics-wire-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Cloud Count Overlay</div>
+              <button id="debug-cloud-count-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Physics Panel</div>
+              <button id="debug-physics-panel-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">Thud Trace</div>
+              <button id="debug-thud-trace-toggle" class="toggle-btn" data-enabled="false">OFF</button>
+            </div>
+            <div class="designer-actions">
+              <div class="designer-meta">Preset: Flat -> Ramp -> Long Flat (No Obstacles)</div>
+              <button id="debug-cube-level-spawn" class="button">Spawn Cube Test Level</button>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button id="settings-close" class="button">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="game-over-screen" class="overlay center-overlay hidden">
+        <div class="panel">
+          <h2 class="title" style="font-size: clamp(1.9rem, 7vw, 2.8rem)">Finish</h2>
+          <p id="result-label" class="subtitle">Time: 0.00s</p>
+          <button id="play-again-btn" class="button">Run Again</button>
+        </div>
+      </div>
+
+      <div id="mobile-controls" class="hidden">
+        <div id="swipe-puck" aria-hidden="true">
+          <div id="swipe-handle"></div>
+        </div>
+        <div id="swipe-power-label">Swipe Power 0%</div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

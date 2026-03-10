@@ -1,0 +1,38 @@
+<svg width="320" height="88" viewBox="0 0 320 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="plateBase" x1="20" y1="12" x2="300" y2="76" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E5F7FF"/>
+      <stop offset="0.45" stop-color="#99DCF8"/>
+      <stop offset="1" stop-color="#56BAE8"/>
+    </linearGradient>
+    <linearGradient id="plateLip" x1="28" y1="18" x2="292" y2="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7FDFF"/>
+      <stop offset="1" stop-color="#7ECAE9"/>
+    </linearGradient>
+    <linearGradient id="plateCore" x1="32" y1="24" x2="288" y2="66" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B2E6F9"/>
+      <stop offset="0.48" stop-color="#7FD4F1"/>
+      <stop offset="1" stop-color="#43AFDF"/>
+    </linearGradient>
+    <linearGradient id="socketRing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F8FEFF"/>
+      <stop offset="1" stop-color="#6ABFDF"/>
+    </linearGradient>
+    <radialGradient id="socketGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(70 44) rotate(90) scale(22 22)">
+      <stop offset="0" stop-color="#F8FFFF"/>
+      <stop offset="1" stop-color="#9CDEF5"/>
+    </radialGradient>
+    <radialGradient id="rankGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(264 44) rotate(90) scale(19 19)">
+      <stop offset="0" stop-color="#EAFBFF"/>
+      <stop offset="1" stop-color="#7CCAE6"/>
+    </radialGradient>
+  </defs>
+  <path d="M32 10H288C303.464 10 316 22.536 316 38V50C316 65.464 303.464 78 288 78H32C16.536 78 4 65.464 4 50V38C4 22.536 16.536 10 32 10Z" fill="url(#plateBase)" stroke="#F6F9FB" stroke-width="6"/>
+  <path d="M35 18H285C296.598 18 306 27.402 306 39V49C306 60.598 296.598 70 285 70H35C23.402 70 14 60.598 14 49V39C14 27.402 23.402 18 35 18Z" fill="url(#plateLip)"/>
+  <path d="M39 24H281C290.941 24 299 32.059 299 42V46C299 55.941 290.941 64 281 64H39C29.059 64 21 55.941 21 46V42C21 32.059 29.059 24 39 24Z" fill="url(#plateCore)"/>
+  <path d="M39 24H281C290.941 24 299 32.059 299 42V45C299 36.716 290.941 30 281 30H39C29.059 30 21 36.716 21 45V42C21 32.059 29.059 24 39 24Z" fill="#F4FCFF" fill-opacity="0.56"/>
+  <circle cx="58" cy="44" r="24" fill="url(#socketRing)" stroke="#F6F9FB" stroke-width="4"/>
+  <circle cx="58" cy="44" r="19" fill="url(#socketGlow)"/>
+  <circle cx="263" cy="44" r="21" fill="url(#socketRing)" stroke="#F6F9FB" stroke-width="4"/>
+  <circle cx="263" cy="44" r="16" fill="url(#rankGlow)"/>
+</svg>

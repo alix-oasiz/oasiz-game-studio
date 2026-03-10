@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Cinzel+Decorative:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <title>Rune Break</title>
+</head>
+
+<body>
+    <div id="app">
+        <div id="game-container"></div>
+
+        <div id="ui-layer">
+            <div id="game-title" class="hidden">RUNE BREAK</div>
+            <button id="settings-btn" class="icon-btn" style="display:none">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3L21 12L12 21L3 12L12 3Z"></path>
+                    <circle cx="12" cy="12" r="2"></circle>
+                    <path d="M12 6V8"></path>
+                    <path d="M18 12H16"></path>
+                    <path d="M12 18V16"></path>
+                    <path d="M6 12H8"></path>
+                </svg>
+            </button>
+
+            <div id="settings-modal" class="modal hidden">
+                <div class="modal-content">
+                    <h2>SETTINGS</h2>
+                    <div class="toggle-group">
+                        <span>MUSIC</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="toggle-music" class="toggle-checkbox" checked>
+                            <label for="toggle-music" class="toggle-label"></label>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <span>FX</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="toggle-fx" class="toggle-checkbox" checked>
+                            <label for="toggle-fx" class="toggle-label"></label>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <span>HAPTICS</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" id="toggle-haptics" class="toggle-checkbox" checked>
+                            <label for="toggle-haptics" class="toggle-label"></label>
+                        </div>
+                    </div>
+                    <button id="close-settings" class="sharp-btn">CLOSE</button>
+                </div>
+            </div>
+
+            <div id="game-over-modal" class="modal hidden">
+                <div class="modal-content">
+                    <h1>RUNE BREAK</h1>
+                    <div class="score-display">SCORE<br><span id="final-score">0</span></div>
+                    <button id="restart-btn" class="sharp-btn">RESTART</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

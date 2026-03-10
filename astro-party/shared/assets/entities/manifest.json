@@ -1,0 +1,70 @@
+{
+  "ship": {
+    "file": "ship.svg",
+    "colliderPathId": "collider",
+    "renderScale": 1.5,
+    "physicsScale": 1.5,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#ffffff",
+      "slot-tertiary": "#ff4400",
+      "slot-stroke": "#ffffff"
+    }
+  },
+  "pilot": {
+    "file": "pilot.svg",
+    "colliderPathId": "collider",
+    "renderScale": 1.6,
+    "physicsScale": 1.6,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#f5f5f5",
+      "slot-tertiary": "#d6d6d6",
+      "slot-outline": "#dcdcdc"
+    }
+  },
+  "pilot_death_debris_visor": {
+    "file": "pilot_death_debris_visor.svg",
+    "colliderPathId": "collider",
+    "renderScale": 1.0,
+    "physicsScale": 1.0,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#0b1120",
+      "slot-stroke": "#e8f5ff"
+    }
+  },
+  "pilot_death_debris_shell_left": {
+    "file": "pilot_death_debris_shell_left.svg",
+    "colliderPathId": "collider",
+    "renderScale": 1.0,
+    "physicsScale": 1.0,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#141d2a",
+      "slot-stroke": "#cfe8ff"
+    }
+  },
+  "pilot_death_debris_shell_right": {
+    "file": "pilot_death_debris_shell_right.svg",
+    "colliderPathId": "collider",
+    "renderScale": 1.0,
+    "physicsScale": 1.0,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#162233",
+      "slot-stroke": "#cfe8ff"
+    }
+  },
+  "pilot_death_debris_core": {
+    "file": "pilot_death_debris_core.svg",
+    "colliderPathId": "collider",
+    "renderScale": 1.0,
+    "physicsScale": 1.0,
+    "slotDefaults": {
+      "slot-primary": "#00f0ff",
+      "slot-secondary": "#05131d",
+      "slot-stroke": "#e9fcff"
+    }
+  }
+}

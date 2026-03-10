@@ -6,11 +6,18 @@
  * Supports sprite sheet rendering with per-enemy configurations.
  */
 
+/// <reference types="vite/client" />
 import { CONFIG } from "./config";
 import { SeededRNG } from "./world";
 
+import crabIdleUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Idle.png?inline";
+import crabAttackUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Attack3.png?inline";
+import sharkWalkUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/1/Walk.png?inline";
+import squidWalkUrl from "../public/assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/2/Walk.png?inline";
+import weedsUrl from "../public/assets/weeds.png?inline";
+
 // ============= TYPES =============
-export type EnemyType = "STATIC" | "HORIZONTAL" | "EXPLODER";
+export type EnemyType = "STATIC" | "HORIZONTAL" | "EXPLODER" | "PUFFER";
 
 export interface EnemyData {
   x: number;
@@ -180,6 +187,22 @@ export abstract class BaseEnemy implements EnemyData {
     return this.sprite !== null && this.spriteLoaded && this.spriteConfig !== null;
   }
 
+  getSpriteDrawRect(): { x: number; y: number; width: number; height: number } | null {
+    if (!this.spriteConfig) return null;
+    const scale = this.spriteConfig.scale ?? 1;
+    return {
+      x: this.x + this.spriteConfig.offsetX,
+      y: this.y + this.spriteConfig.offsetY,
+      width: this.spriteConfig.frameWidth * scale,
+      height: this.spriteConfig.frameHeight * scale,
+    };
+  }
+
+  getSpriteFrameSize(): { width: number; height: number } | null {
+    if (!this.spriteConfig) return null;
+    return { width: this.spriteConfig.frameWidth, height: this.spriteConfig.frameHeight };
+  }
+
   /**
    * Update enemy behavior each frame
    * @param playerX Player's x position
@@ -240,6 +263,10 @@ export abstract class BaseEnemy implements EnemyData {
   isDead(): boolean {
     return this.hp <= 0;
   }
+
+  getAnimationFrameIndex(): number {
+    return this.currentFrame;
+  }
 }
 
 // ============= STATIC ENEMY =============
@@ -251,7 +278,7 @@ export class StaticEnemy extends BaseEnemy {
   private readonly SHOOT_INTERVAL: number = 120; // 2 seconds at 60fps
   private readonly BULLET_SPEED: number = 3;
   private pendingBullet: EnemyBullet | null = null;
-  private canShoot: boolean = false; // Only 30% of static enemies can shoot
+  private canShoot: boolean = true;
   
   // Attack animation properties
   private attackSprite: HTMLImageElement | null = null;
@@ -262,30 +289,41 @@ export class StaticEnemy extends BaseEnemy {
   private readonly ATTACK_FRAME_COUNT: number = 6;
   private readonly ATTACK_ANIM_SPEED: number = 0.25;
   private readonly spriteScale: number = 0.7;
+  private readonly FOOT_ANCHOR_OFFSET: number = 2;
+  private moveMinX: number = Number.NEGATIVE_INFINITY;
+  private moveMaxX: number = Number.POSITIVE_INFINITY;
+  private moveTargetX: number | null = null;
+  private readonly MOVE_SPEED: number = 0.9;
+  private readonly MOVE_EDGE_PADDING: number = 1;
+  private readonly MOVE_MIN_DISTANCE: number = 8;
+  private readonly MOVE_MAX_DISTANCE: number = 42;
+  private readonly moveRng: SeededRNG;
 
   constructor(x: number, y: number, rng: SeededRNG) {
     super(x, y, rng);
+    this.moveRng = rng;
     this.speed = CONFIG.ENEMY_SPEED_STATIC;
     
-    // Crab-like creature - slightly wider than tall
-    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.6;
-    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.2;
+    // Crab-like creature - slightly wider than tall.
+    // Bump hitbox to better match visible sprite body.
+    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.8;
+    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.35;
     
-    // 30% chance this crab can shoot
-    this.canShoot = rng.chance(0.3);
+    this.canShoot = true;
     
     // Randomize initial shoot timer so all crabs don't fire at once
     this.shootTimer = Math.floor(rng.range(0, this.SHOOT_INTERVAL));
     
     // Red crab sprite sheet: 4 frames, 96×96 per frame (384x96 total)
     this.setupSprite({
-      src: "assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Idle.png",
+      src: crabIdleUrl,
       frameWidth: 96,
       frameHeight: 96,
       frameCount: 4,
       animationSpeed: 0.1,
       offsetX: (this.width - 96 * this.spriteScale) / 2,
-      offsetY: (this.height - 96 * this.spriteScale) / 2 - 8,
+      // Anchor sprite near its feet so visuals match platform collisions.
+      offsetY: this.height - 96 * this.spriteScale + this.FOOT_ANCHOR_OFFSET,
       row: 0,
       scale: this.spriteScale,
     });
@@ -295,7 +333,7 @@ export class StaticEnemy extends BaseEnemy {
     this.attackSprite.onload = () => {
       this.attackSpriteLoaded = true;
     };
-    this.attackSprite.src = "assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/3/Attack3.png";
+    this.attackSprite.src = crabAttackUrl;
   }
 
   update(playerX: number, playerY: number): void {
@@ -324,6 +362,52 @@ export class StaticEnemy extends BaseEnemy {
         this.shootAtPlayer(playerX, playerY);
       }
     }
+
+    this.updatePostShotMovement();
+  }
+
+  setMovementBounds(minX: number, maxX: number): void {
+    this.moveMinX = minX;
+    this.moveMaxX = maxX;
+    this.x = Math.max(this.moveMinX, Math.min(this.moveMaxX, this.x));
+  }
+
+  private updatePostShotMovement(): void {
+    if (this.moveTargetX === null) return;
+    const dx = this.moveTargetX - this.x;
+    if (Math.abs(dx) <= this.MOVE_SPEED) {
+      this.x = this.moveTargetX;
+      this.moveTargetX = null;
+      return;
+    }
+    this.direction = dx >= 0 ? 1 : -1;
+    this.x += Math.sign(dx) * this.MOVE_SPEED;
+    if (this.x < this.moveMinX) this.x = this.moveMinX;
+    if (this.x > this.moveMaxX) this.x = this.moveMaxX;
+  }
+
+  private queueRandomLedgeMove(): void {
+    const leftRoom = this.x - this.moveMinX;
+    const rightRoom = this.moveMaxX - this.x;
+    const canMoveLeft = leftRoom >= this.MOVE_MIN_DISTANCE;
+    const canMoveRight = rightRoom >= this.MOVE_MIN_DISTANCE;
+    if (!canMoveLeft && !canMoveRight) {
+      this.moveTargetX = null;
+      return;
+    }
+
+    let moveDir = 1;
+    if (canMoveLeft && canMoveRight) {
+      moveDir = this.moveRng.chance(0.5) ? -1 : 1;
+    } else if (canMoveLeft) {
+      moveDir = -1;
+    }
+
+    const room = moveDir < 0 ? leftRoom : rightRoom;
+    const distMax = Math.min(this.MOVE_MAX_DISTANCE, room);
+    const dist = this.moveRng.range(this.MOVE_MIN_DISTANCE, distMax);
+    const target = this.x + moveDir * dist;
+    this.moveTargetX = Math.max(this.moveMinX, Math.min(this.moveMaxX, target));
   }
   
   private shootAtPlayer(playerX: number, playerY: number): void {
@@ -334,9 +418,11 @@ export class StaticEnemy extends BaseEnemy {
     const dx = playerX - cx;
     const dy = playerY - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 0.001) return;
     
     // Only shoot if player is within reasonable range (not too far)
-    if (dist > 400) return;
+    if (dist > 720) return;
     
     // Start attack animation
     this.isAttacking = true;
@@ -349,14 +435,20 @@ export class StaticEnemy extends BaseEnemy {
     // Normalize and apply speed
     const vx = (dx / dist) * this.BULLET_SPEED;
     const vy = (dy / dist) * this.BULLET_SPEED;
+    const muzzleOffset = Math.max(this.width, this.height) * 0.45 + 6;
+    const spawnX = cx + (dx / dist) * muzzleOffset;
+    const spawnY = cy + (dy / dist) * muzzleOffset;
     
     this.pendingBullet = {
-      x: cx,
-      y: cy,
+      x: spawnX,
+      y: spawnY,
       vx,
       vy,
       size: 5,
     };
+
+    // After each shot, sidestep along the current ledge without stepping off.
+    this.queueRandomLedgeMove();
   }
   
   /**
@@ -395,9 +487,9 @@ export class StaticEnemy extends BaseEnemy {
     const drawWidth = frameWidth * scale;
     const drawHeight = frameHeight * scale;
     
-    // Apply offset (same as idle sprite)
+    // Apply same grounding anchor as idle sprite.
     const drawX = this.x + (this.width - drawWidth) / 2;
-    const drawY = this.y + (this.height - drawHeight) / 2 - 8;
+    const drawY = this.y + this.height - drawHeight + this.FOOT_ANCHOR_OFFSET;
     
     // Handle horizontal flipping based on direction
     if (this.direction < 0) {
@@ -434,21 +526,21 @@ export class HorizontalEnemy extends BaseEnemy {
     super(x, y, rng);
     this.speed = CONFIG.ENEMY_SPEED_HORIZONTAL;
     
-    // Make enemy slightly bigger for the shark sprite
-    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.8;
-    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.5;
+    // Shark has a wide visible body; enlarge hitbox so collisions match visuals.
+    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 2.2;
+    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.75;
     
     // Shark walk sprite sheet: 6 frames, 96×96 per frame
     // Scale to fit hitbox nicely
     const scale = 0.8;
     this.setupSprite({
-      src: "assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/1/Walk.png",
+      src: sharkWalkUrl,
       frameWidth: 96,
       frameHeight: 96,
       frameCount: 6,
       animationSpeed: 0.18,
       offsetX: (this.width - 96 * scale) / 2,  // Center sprite on hitbox
-      offsetY: (this.height - 96 * scale) / 2 - 10, // Slight upward offset
+      offsetY: (this.height - 96 * scale) / 2 - 4,
       row: 0,
       scale: scale,
     });
@@ -487,40 +579,81 @@ export class HorizontalEnemy extends BaseEnemy {
 // ============= EXPLODER ENEMY =============
 export class ExploderEnemy extends BaseEnemy {
   readonly type: EnemyType = "EXPLODER";
+  private vx: number = 0;
+  private vy: number = 0;
+  private pulseFrame: number = 0;
+  private readonly PULSE_CYCLE_FRAMES: number = 24;
+  private readonly CHARGE_FRAMES: number = 9;
+  private readonly THRUST_FRAMES: number = 6;
+  private readonly CHARGE_PULL: number = 0.09;
+  private readonly THRUST_FORCE: number = 0.62;
+  private readonly SEEK_FORCE: number = 0.11;
+  private readonly DRAG: number = 0.92;
+  private readonly MAX_SPEED: number = 4.2;
 
   constructor(x: number, y: number, rng: SeededRNG) {
     super(x, y, rng);
     this.speed = CONFIG.ENEMY_SPEED_EXPLODER;
     
-    // Squid enemy - slightly larger
-    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.6;
-    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 1.6;
+    // Squid enemy - use a larger box so collisions better match the wide body sprite.
+    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 2.4;
+    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 2.2;
     
     // Squid walk sprite sheet: 6 frames, 96×96 per frame (576x96 total)
     const scale = 0.75;
     this.setupSprite({
-      src: "assets/Water-Monsters-Pixel-Art-Sprite-Sheet-Pack/2/Walk.png",
+      src: squidWalkUrl,
       frameWidth: 96,
       frameHeight: 96,
       frameCount: 6,
       animationSpeed: 0.15,
       offsetX: (this.width - 96 * scale) / 2,  // Center sprite on hitbox
-      offsetY: (this.height - 96 * scale) / 2 - 5, // Slight upward offset
+      offsetY: (this.height - 96 * scale) / 2 - 2,
       row: 0,
       scale: scale,
     });
   }
 
-  update(playerX: number, _playerY: number): void {
-    // Slowly track player's horizontal position
-    if (Math.abs(this.x - playerX) > 5) {
-      // Update direction for sprite flipping
-      this.direction = playerX > this.x ? 1 : -1;
-      this.x += Math.sign(playerX - this.x) * this.speed;
+  update(playerX: number, playerY: number): void {
+    const cx = this.x + this.width * 0.5;
+    const cy = this.y + this.height * 0.5;
+    const dx = playerX - cx;
+    const dy = playerY - cy;
+    const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+    const dirX = dx / dist;
+    const dirY = dy / dist;
+
+    // Squid-like motion: pull back, then burst toward the player.
+    this.pulseFrame = (this.pulseFrame + 1) % this.PULSE_CYCLE_FRAMES;
+    const inCharge = this.pulseFrame < this.CHARGE_FRAMES;
+    const inThrust = this.pulseFrame >= this.CHARGE_FRAMES && this.pulseFrame < this.CHARGE_FRAMES + this.THRUST_FRAMES;
+
+    if (inCharge) {
+      this.vx += -dirX * this.CHARGE_PULL;
+      this.vy += -dirY * this.CHARGE_PULL * 0.8;
+    } else if (inThrust) {
+      this.vx += dirX * this.THRUST_FORCE;
+      this.vy += dirY * this.THRUST_FORCE;
+    } else {
+      this.vx += dirX * this.SEEK_FORCE;
+      this.vy += dirY * this.SEEK_FORCE;
     }
-    // Slowly fall
-    this.y += this.speed * 0.3;
-    
+
+    this.vx *= this.DRAG;
+    this.vy *= this.DRAG;
+
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (speed > this.MAX_SPEED) {
+      const s = this.MAX_SPEED / speed;
+      this.vx *= s;
+      this.vy *= s;
+    }
+
+    this.x += this.vx;
+    this.y += this.vy;
+    // Squid sprite faces opposite of travel in this sheet (tentacles trail behind).
+    this.direction = this.vx >= 0 ? -1 : 1;
+
     this.updateAnimation();
   }
 
@@ -554,6 +687,210 @@ export class ExploderEnemy extends BaseEnemy {
   }
 }
 
+// ============= PUFFER ENEMY =============
+export class PufferEnemy extends BaseEnemy {
+  readonly type: EnemyType = "PUFFER";
+  private static spriteSheet: HTMLImageElement | null = null;
+  private static spriteLoaded: boolean = false;
+  private static spriteLoadAttempted: boolean = false;
+
+  private vx: number = 0;
+  private vy: number = 0;
+  private wanderTimer: number = 0;
+  private stretchPhase: number = 0;
+  private puffTimer: number = 0;
+  private puffCooldown: number = 0;
+  private puffStartedThisFrame: boolean = false;
+  private puffVisualScale: number = 1;
+  private readonly rng: SeededRNG;
+  private readonly WANDER_DRAG: number = 0.95;
+  private readonly WANDER_MIN_SPEED: number = 0.35;
+  private readonly WANDER_MAX_SPEED: number = 0.9;
+  private readonly SEEK_RADIUS: number = 72;
+  private readonly PUFF_DURATION_FRAMES: number = 60; // 1 second at 60fps
+  private readonly PUFF_COOLDOWN_FRAMES: number = 70;
+  private readonly PUFF_TARGET_SCALE: number = 1.7;
+  private readonly PUFF_LERP_FRAMES: number = 18; // 0.3 seconds at 60fps
+  private readonly KNOCKBACK_SPEED: number = 7.5;
+
+  constructor(x: number, y: number, rng: SeededRNG) {
+    super(x, y, rng);
+    this.rng = rng;
+    this.speed = 0.8;
+    // 30% smaller than previous enlarged size.
+    this.width = BaseEnemy.BASE_SIZE * this.sizeVariance * 2.625;
+    this.height = BaseEnemy.BASE_SIZE * this.sizeVariance * 2.625;
+    this.pickNewWanderDirection();
+    this.ensureSpriteLoaded();
+  }
+
+  private ensureSpriteLoaded(): void {
+    if (PufferEnemy.spriteLoadAttempted) return;
+    PufferEnemy.spriteLoadAttempted = true;
+    PufferEnemy.spriteSheet = new Image();
+    PufferEnemy.spriteSheet.onload = () => {
+      PufferEnemy.spriteLoaded = true;
+      console.log("[PufferEnemy]", "Puffer sprite sheet loaded");
+    };
+    PufferEnemy.spriteSheet.onerror = () => {
+      console.warn("[PufferEnemy]", "Failed to load puffer sprite sheet");
+    };
+    PufferEnemy.spriteSheet.src = weedsUrl;
+  }
+
+  update(playerX: number, playerY: number): void {
+    this.puffStartedThisFrame = false;
+    const cx = this.x + this.width * 0.5;
+    const cy = this.y + this.height * 0.5;
+    const dx = playerX - cx;
+    const dy = playerY - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (this.puffTimer > 0) {
+      this.puffTimer--;
+      this.vx *= 0.88;
+      this.vy *= 0.88;
+      if (this.puffTimer <= 0) {
+        this.puffCooldown = this.PUFF_COOLDOWN_FRAMES;
+      }
+    } else {
+      if (this.puffCooldown > 0) {
+        this.puffCooldown--;
+      } else if (dist <= this.SEEK_RADIUS) {
+        this.puffTimer = this.PUFF_DURATION_FRAMES;
+        this.puffStartedThisFrame = true;
+      }
+
+      this.wanderTimer--;
+      if (this.wanderTimer <= 0) {
+        this.pickNewWanderDirection();
+      }
+    }
+
+    // Smoothly transition to/from puffed scale over ~0.3s.
+    const targetScale = this.isPuffed() ? this.PUFF_TARGET_SCALE : 1;
+    const maxStep = (this.PUFF_TARGET_SCALE - 1) / this.PUFF_LERP_FRAMES;
+    const scaleDelta = targetScale - this.puffVisualScale;
+    if (Math.abs(scaleDelta) <= maxStep) {
+      this.puffVisualScale = targetScale;
+    } else {
+      this.puffVisualScale += Math.sign(scaleDelta) * maxStep;
+    }
+
+    this.vx *= this.WANDER_DRAG;
+    this.vy *= this.WANDER_DRAG;
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (Math.abs(this.vx) > 0.02) {
+      this.direction = this.vx > 0 ? 1 : -1;
+    }
+
+    const moveSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    this.stretchPhase += 0.2 + moveSpeed * 0.16;
+  }
+
+  private pickNewWanderDirection(): void {
+    this.wanderTimer = this.rng.int(28, 88);
+    const angle = this.rng.range(0, Math.PI * 2);
+    const speed = this.rng.range(this.WANDER_MIN_SPEED, this.WANDER_MAX_SPEED);
+    this.vx += Math.cos(angle) * speed;
+    this.vy += Math.sin(angle) * speed;
+  }
+
+  isPuffed(): boolean {
+    return this.puffTimer > 0;
+  }
+
+  consumePuffStart(): boolean {
+    if (!this.puffStartedThisFrame) return false;
+    this.puffStartedThisFrame = false;
+    return true;
+  }
+
+  getVisualScale(): number {
+    return this.puffVisualScale;
+  }
+
+  getVisualRadius(): number {
+    return this.width * this.puffVisualScale * 0.5;
+  }
+
+  getCollisionKnockback(playerX: number, playerY: number): { vx: number; vy: number } {
+    const cx = this.x + this.width * 0.5;
+    const cy = this.y + this.height * 0.5;
+    let dx = playerX - cx;
+    let dy = playerY - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.001) {
+      dx = this.direction >= 0 ? 1 : -1;
+      dy = -0.2;
+    } else {
+      dx /= dist;
+      dy /= dist;
+    }
+    return {
+      vx: dx * this.KNOCKBACK_SPEED,
+      vy: dy * this.KNOCKBACK_SPEED,
+    };
+  }
+
+  getBaseColor(): string {
+    return `rgb(${Math.floor(210 * this.colorVariance)}, ${Math.floor(170 * this.colorVariance)}, ${Math.floor(90 * this.colorVariance)})`;
+  }
+
+  draw(ctx: CanvasRenderingContext2D): void {
+    const sheet = PufferEnemy.spriteSheet;
+    if (!sheet || !PufferEnemy.spriteLoaded) {
+      this.drawFallback(ctx);
+      return;
+    }
+
+    // weeds.png layout: 4 columns x 2 rows, puffer is at row 1, col 1
+    const cols = 4;
+    const rows = 2;
+    const srcW = Math.floor(sheet.naturalWidth / cols);
+    const srcH = Math.floor(sheet.naturalHeight / rows);
+    const sx = srcW * 1;
+    const sy = srcH * 1;
+
+    const stretch = Math.sin(this.stretchPhase) * 0.1;
+    const puffScale = this.puffVisualScale;
+    const drawW = this.width * puffScale * (1 + stretch * 0.6);
+    const drawH = this.height * puffScale * (1 - stretch * 0.45);
+    const drawX = this.x + this.width * 0.5 - drawW * 0.5;
+    const drawY = this.y + this.height * 0.5 - drawH * 0.5;
+
+    ctx.save();
+    const flashing = this.isPuffed() && Math.floor(this.puffTimer / 4) % 2 === 0;
+    if (flashing) {
+      // Tint only the sprite pixels; avoid rectangular overlays.
+      ctx.filter = "brightness(0.72) sepia(1) saturate(8) hue-rotate(-35deg)";
+    }
+    if (this.direction < 0) {
+      ctx.translate(drawX + drawW, drawY);
+      ctx.scale(-1, 1);
+      ctx.drawImage(sheet, sx, sy, srcW, srcH, 0, 0, drawW, drawH);
+    } else {
+      ctx.drawImage(sheet, sx, sy, srcW, srcH, drawX, drawY, drawW, drawH);
+    }
+    ctx.restore();
+  }
+
+  protected drawFallback(ctx: CanvasRenderingContext2D): void {
+    const cx = this.x + this.width * 0.5;
+    const cy = this.y + this.height * 0.5;
+    const radius = this.isPuffed() ? this.width * 1.4 : this.width * 0.5;
+    ctx.fillStyle = this.isPuffed() && Math.floor(this.puffTimer / 4) % 2 === 0
+      ? "rgb(255, 110, 110)"
+      : this.getBaseColor();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    this.drawEyes(ctx);
+  }
+}
+
 // ============= ENEMY FACTORY =============
 export class EnemyFactory {
   /**
@@ -567,6 +904,8 @@ export class EnemyFactory {
         return new HorizontalEnemy(x, y, rng);
       case "EXPLODER":
         return new ExploderEnemy(x, y, rng);
+      case "PUFFER":
+        return new PufferEnemy(x, y, rng);
       default:
         console.warn("[EnemyFactory] Unknown enemy type:", type);
         return new StaticEnemy(x, y, rng);
@@ -577,10 +916,13 @@ export class EnemyFactory {
    * Get available enemy types based on depth/chunk index
    */
   static getAvailableTypes(chunkIndex: number): EnemyType[] {
-    const types: EnemyType[] = ["STATIC", "HORIZONTAL"];
-    
-    if (chunkIndex >= 5) types.push("EXPLODER");
-    
+    const depthMeters = Math.floor((chunkIndex * CONFIG.CHUNK_HEIGHT) / 10);
+    const types: EnemyType[] = ["HORIZONTAL"];
+
+    if (depthMeters >= 300)  types.push("PUFFER");
+    if (depthMeters >= 500)  types.push("STATIC");
+    if (depthMeters >= 1000) types.push("EXPLODER");
+
     return types;
   }
 }

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 24 24" role="img" aria-label="Laser powerup">
+  <defs>
+    <style>
+      .slot-box { fill: var(--slot-box, #ff0066); }
+      .slot-icon { fill: var(--slot-icon, #ffffff); }
+      .slot-accent { fill: var(--slot-accent, #ffffff); }
+      .slot-stroke { stroke: var(--slot-stroke, #ffffff); }
+    </style>
+  </defs>
+  <rect class="slot-box slot-stroke" x="-10" y="-10" width="20" height="20" rx="2.4" ry="2.4" stroke-width="1.8" />
+  <path class="slot-icon" d="M2 -8L-4 0h4l-2 8L4 0H0z"/>
+</svg>

@@ -84,6 +84,9 @@ export function spawnCollectible(
 
 /* ── Tick ── */
 
+const _pickupSq = C.COLLECT_PICKUP_RANGE * C.COLLECT_PICKUP_RANGE;
+const _attractSq = C.COLLECT_ATTRACT_RANGE * C.COLLECT_ATTRACT_RANGE;
+
 export function tickCollectibles(
   collectibles: Collectible[],
   planeX: number,
@@ -94,7 +97,8 @@ export function tickCollectibles(
 ): number {
   let collected = 0;
 
-  for (const c of collectibles) {
+  for (let ci = 0; ci < collectibles.length; ci++) {
+    const c = collectibles[ci];
     if (c.collected) continue;
 
     const core = c.mesh.children[0] as THREE.Mesh;
@@ -113,19 +117,20 @@ export function tickCollectibles(
     const dx = planeX - c.mesh.position.x;
     const dy = planeY - c.mesh.position.y;
     const dz = planeZ - c.mesh.position.z;
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const distSq = dx * dx + dy * dy + dz * dz;
 
-    if (dist < C.COLLECT_PICKUP_RANGE) {
+    if (distSq < _pickupSq) {
       c.collected = true;
       collected++;
       continue;
     }
 
-    if (!c.attracting && dist < C.COLLECT_ATTRACT_RANGE) {
+    if (!c.attracting && distSq < _attractSq) {
       c.attracting = true;
     }
 
     if (c.attracting) {
+      const dist = Math.sqrt(distSq);
       const speed = dist > C.COLLECT_ATTRACT_RANGE
         ? C.COLLECT_CHASE_SPEED
         : C.COLLECT_ATTRACT_SPEED + (C.COLLECT_CHASE_SPEED - C.COLLECT_ATTRACT_SPEED) * (1 - dist / C.COLLECT_ATTRACT_RANGE);

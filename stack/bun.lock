@@ -5,6 +5,7 @@
     "": {
       "name": "stack",
       "dependencies": {
+        "@oasiz/sdk": "^1.0.0",
         "cannon-es": "^0.20.0",
         "three": "^0.182.0",
       },
@@ -71,6 +72,8 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.27.3", "", { "os": "win32", "cpu": "ia32" }, "sha512-QLKSFeXNS8+tHW7tZpMtjlNb7HKau0QDpwm49u0vUp9y1WOF+PEzkU84y9GqYaAVW8aH8f3GcBck26jh54cX4Q=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.3", "", { "os": "win32", "cpu": "x64" }, "sha512-4uJGhsxuptu3OcpVAzli+/gWusVGwZZHTlS63hh++ehExkVT8SgiEf7/uC/PclrPPkLhZqGgCTjd0VWLo6xMqA=="],
+
+    "@oasiz/sdk": ["@oasiz/sdk@1.0.0", "", {}, "sha512-dtOqihkMgg6VR/hjfI0W1VWZuE7XQORWr6AEj626J4LCCnw6dfgIJt6G5JS3FVA4ZCq7+hUAvrBVISFkhHaEOQ=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.57.1", "", { "os": "android", "cpu": "arm" }, "sha512-A6ehUVSiSaaliTxai040ZpZ2zTevHYbvu/lDoeAteHI8QnaosIzm4qwtezfRg1jOYaUmnzLX1AOD6Z+UJjtifg=="],
 

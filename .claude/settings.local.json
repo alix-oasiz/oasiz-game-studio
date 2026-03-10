@@ -1,14 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun install:*)",
-      "Bash(npm install:*)",
-      "Bash(npx tsc:*)",
-      "Bash(npx vite:*)",
-      "Bash(node:*)",
-      "Bash(pkill:*)",
-      "WebSearch",
-      "WebFetch(domain:github.com)"
+      "Bash(ls:*)",
+      "Bash(bun install)",
+      "Bash(bun run typecheck:*)",
+      "Bash(bun run build)",
+      "Bash(bun run format)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(node ./node_modules/vite/bin/vite.js build)"
     ]
   }
 }

@@ -9,8 +9,8 @@
 
 // ============= TYPES =============
 type GameState = "START" | "PLAYING" | "PAUSED" | "WAVE_UPGRADE" | "GAME_OVER";
-type UpgradeId = "doubleShot" | "pullSpeed" | "wobbleControl" | "magnetArrows" | "windReader" | "perfectReload" | "extraQuiver";
-type TargetKind = "normal" | "armored" | "decoy" | "runner" | "tiny";
+type UpgradeId = "doubleShot" | "pullSpeed" | "wobbleControl" | "magnetArrows" | "perfectReload" | "extraQuiver";
+type TargetKind = "normal" | "runner" | "tiny" | "stoneColumn";
 
 interface Settings {
   music: boolean;
@@ -30,6 +30,7 @@ interface Arrow {
   magnetFxStrength: number;
   magnetTargetWorldX: number;
   magnetTargetHeight: number;
+  magnetTargetRadius: number;
 }
 
 interface WorldTarget {
@@ -115,13 +116,10 @@ interface SpriteBounds {
 }
 
 interface RiderPlacement {
-  saddleTargetX: number;
-  saddleTargetY: number;
-  riderW: number;
-  riderH: number;
-  src: SpriteBounds;
   tipScreenX: number;
   tipScreenY: number;
+  headScreenX: number;
+  headScreenY: number;
 }
 
 // ============= CONFIG =============
@@ -141,6 +139,7 @@ const CONFIG = {
   MIN_DRAW_TO_FIRE: 0.15,
 
   ARROW_SPEED: 0.5,
+  ARROW_MAX_STRENGTH_BONUS: 0.45,
   ARROW_GRAVITY: 0.0004,
   ARROW_COLLISION_FORWARD: 24,
 
@@ -151,7 +150,7 @@ const CONFIG = {
   DEPTH_NEAR: 400,         // perspective factor: higher = less foreshortening
   HORIZON_RATIO: 0.28,
 
-  ROUND_TIME_MS: 30000,
+  ROUND_TIME_MS: 40000,
   PERFECT_MULTIPLIER: 2,
   WAVE_HIT_GOAL: 10,
   WAVE_SPEED_MULT: 1.12,
@@ -166,19 +165,26 @@ const CONFIG = {
   RING_COLORS: ["#FFD700", "#FF4444", "#4488FF", "#333333", "#EEEEEE"],
 };
 
-const HORSE_TEMPLATE_ANCHOR = {
-  seatBoxX: 0.4759233225551644,
-  seatBoxY: 0.31104651402259254,
+const TARGET_KIND_PROGRESS_ORDER: TargetKind[] = ["tiny", "runner", "stoneColumn"];
+const TARGET_KIND_WEIGHTS: Record<TargetKind, number> = {
+  normal: 1,
+  tiny: 0.28,
+  runner: 0.24,
+  stoneColumn: 0.18,
 };
 
-const RIDER_SPRITE_ANCHOR = {
-  // Rider-local anchor in archer sprite space (seat contact point).
-  seatX: 0.5,
-  seatY: 0.62,
+const MOUNTED_SPRITE_ANCHOR = {
+  x: 0.5,
+  y: 0.78,
 };
 
-const RIDER_BOW_ROTATION_RAD = -Math.PI * 0.25;
-const RIDER_SCREEN_NUDGE_X = 15;
+const MOUNTED_SPRITE_HEAD = {
+  x: 0.44,
+  y: 0.33,
+};
+
+const MOUNTED_CHARACTER_SCALE = 1.32;
+const HORSE_RUN_CYCLE_RATE = 0.0105;
 
 // ============= GLOBALS =============
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
@@ -198,6 +204,7 @@ const pauseBtn = document.getElementById("pauseBtn")!;
 const finalScoreEl = document.getElementById("finalScore")!;
 const fireBtn = document.getElementById("fireBtn")!;
 const fireLabelEl = document.querySelector("#fireBtn .fire-label") as HTMLSpanElement;
+const startTipEl = document.getElementById("startTip");
 const upgradeButtons = [
   document.getElementById("upgradeOption1") as HTMLButtonElement,
   document.getElementById("upgradeOption2") as HTMLButtonElement,
@@ -213,6 +220,7 @@ let score = 0;
 let timeRemaining = CONFIG.ROUND_TIME_MS;
 let waveNumber = 1;
 let waveHits = 0;
+let waveHitMarkProgress: number[] = [];
 let settings: Settings = loadSettings();
 let animationFrameId: number;
 let lastTime = 0;
@@ -227,6 +235,7 @@ let environmentTime = 0;
 let ammoCount = CONFIG.QUIVER_SIZE;
 let isReloading = false;
 let reloadRemaining = 0;
+let lastCountdownCueSecond = 0;
 
 // Bow draw state
 let isDrawing = false;
@@ -262,7 +271,7 @@ let characterFrameReady = false;
 let archerImage: HTMLImageElement | null = null;
 let archerImageLoaded = false;
 let archerBounds: SpriteBounds | null = null;
-let archerArrowTipNorm = { x: 0.975, y: 0.29 };
+let archerArrowTipNorm = { x: 0.66, y: 0.14 };
 let riderAnchorBaseTopY: number | null = null;
 let riderAnchorOffsetPx = 0;
 let riderAnchorLastSampleTime = 0;
@@ -270,6 +279,7 @@ let musicTrack: HTMLAudioElement | null = null;
 let bowPullTrack: HTMLAudioElement | null = null;
 let draftAutoAdvanceTimer: number | null = null;
 let draftChoices: UpgradeId[] = [];
+const HIT_MARK_ANIM_MS = 320;
 
 const sfxTracks: Record<string, HTMLAudioElement | null> = {
   uiTap: null,
@@ -277,6 +287,8 @@ const sfxTracks: Record<string, HTMLAudioElement | null> = {
   targetHit: null,
   perfectHit: null,
   reloadReady: null,
+  countdownTick: null,
+  gameOverFail: null,
 };
 
 const upgradeDefs: UpgradeDef[] = [
@@ -305,12 +317,6 @@ const upgradeDefs: UpgradeDef[] = [
     maxLevel: 1,
   },
   {
-    id: "windReader",
-    name: "Wind Reader",
-    description: "Show a ghost arc preview while pulling the bow.",
-    maxLevel: 1,
-  },
-  {
     id: "perfectReload",
     name: "Bullseye Refill",
     description: "Perfect shots instantly refill your quiver.",
@@ -329,7 +335,6 @@ const upgradeLevels: Record<UpgradeId, number> = {
   pullSpeed: 0,
   wobbleControl: 0,
   magnetArrows: 0,
-  windReader: 0,
   perfectReload: 0,
   extraQuiver: 0,
 };
@@ -350,7 +355,7 @@ function resizeCanvas(): void {
   groundY = h * (1 - CONFIG.GROUND_RATIO);
   horizonY = h * CONFIG.HORIZON_RATIO;
   horse.screenX = w * 0.22;
-  horse.baseY = groundY - 30 * gameScale;
+  horse.baseY = groundY + (h - groundY) * 0.5;
   horse.screenY = horse.baseY;
   pxPerUnit = (w - horse.screenX) / 900;
   updateOrientationState();
@@ -422,6 +427,16 @@ function triggerHaptic(
   if (typeof (window as any).triggerHaptic === "function") {
     (window as any).triggerHaptic(type);
   }
+  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    const pattern = type === "success"
+      ? [20, 30, 20]
+      : type === "heavy"
+        ? [30]
+        : type === "medium"
+          ? [18]
+          : [12];
+    navigator.vibrate(pattern);
+  }
 }
 
 // ============= SETTINGS =============
@@ -450,17 +465,22 @@ function createAudio(path: string, volume: number, loop = false): HTMLAudioEleme
 }
 
 function loadAudio(): void {
-  musicTrack = createAudio("/Steppe_Gallop.mp3", 0.18, true);
-  bowPullTrack = createAudio("/bow_pull_loop.mp3", 0.48, true);
+  musicTrack = createAudio("./Steppe_Gallop.mp3", 0.1, true);
+  bowPullTrack = createAudio("./bow_pull_loop.mp3", 0.48, true);
 
-  sfxTracks.uiTap = createAudio("/ui_tap.mp3", 0.65);
-  sfxTracks.bowRelease = createAudio("/bow_release.mp3", 0.8);
-  sfxTracks.targetHit = createAudio("/target_hit.mp3", 0.88);
-  sfxTracks.perfectHit = createAudio("/perfect_hit.mp3", 0.7);
-  sfxTracks.reloadReady = createAudio("/reload_ready.mp3", 0.62);
+  sfxTracks.uiTap = createAudio("./ui_tap.mp3", 0.65);
+  sfxTracks.bowRelease = createAudio("./bow_release.mp3", 0.8);
+  sfxTracks.targetHit = createAudio("./target_hit.mp3", 0.88);
+  sfxTracks.perfectHit = createAudio("./perfect_hit.mp3", 0.7);
+  sfxTracks.reloadReady = createAudio("./reload_ready.mp3", 0.92);
+  sfxTracks.countdownTick = createAudio("./countdown_tick.mp3", 0.3);
+  sfxTracks.gameOverFail = createAudio("./game_over_fail.mp3", 0.3);
 }
 
-function playSfx(trackKey: keyof typeof sfxTracks): void {
+function playSfx(
+  trackKey: keyof typeof sfxTracks,
+  fallbackKey: keyof typeof sfxTracks | null = null,
+): void {
   if (!settings.fx) return;
   const base = sfxTracks[trackKey];
   if (!base) return;
@@ -468,10 +488,63 @@ function playSfx(trackKey: keyof typeof sfxTracks): void {
   try {
     const oneShot = base.cloneNode(true) as HTMLAudioElement;
     oneShot.volume = base.volume;
-    void oneShot.play();
+    const playPromise = oneShot.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        console.log("[playSfx]", "SFX playback failed.");
+        if (fallbackKey) {
+          playSfx(fallbackKey, null);
+        }
+      });
+    }
   } catch {
     console.log("[playSfx]", "SFX playback failed.");
+    if (fallbackKey) {
+      playSfx(fallbackKey, null);
+    }
   }
+}
+
+function playSfxAtVolume(
+  trackKey: keyof typeof sfxTracks,
+  volumeScale: number,
+  fallbackKey: keyof typeof sfxTracks | null = null,
+): void {
+  if (!settings.fx) return;
+  const defaultFallbackKey: keyof typeof sfxTracks = trackKey === "countdownTick" ? "uiTap" : "perfectHit";
+  const resolvedFallback = fallbackKey || defaultFallbackKey;
+  const base = sfxTracks[trackKey] || sfxTracks[resolvedFallback];
+  if (!base) return;
+  const clampedScale = Math.max(0, Math.min(2, volumeScale));
+  try {
+    const oneShot = base.cloneNode(true) as HTMLAudioElement;
+    oneShot.volume = Math.max(0, Math.min(1, base.volume * clampedScale));
+    const playPromise = oneShot.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        console.log("[playSfxAtVolume]", "SFX playback failed.");
+        if (resolvedFallback) {
+          playSfx(resolvedFallback, null);
+        }
+      });
+    }
+  } catch {
+    console.log("[playSfxAtVolume]", "SFX playback failed.");
+    if (resolvedFallback) {
+      playSfx(resolvedFallback, null);
+    }
+  }
+}
+
+function playCountdownBeep(secondRemaining: number): void {
+  if (secondRemaining < 1 || secondRemaining > 5) return;
+  const urgency = (6 - secondRemaining) / 5;
+  const volumeScale = 0.9 + urgency * 0.3;
+  playSfxAtVolume("countdownTick", volumeScale, "uiTap");
+}
+
+function playGameOverSfx(): void {
+  playSfx("gameOverFail", "perfectHit");
 }
 
 function playMusicIfAllowed(): void {
@@ -566,18 +639,19 @@ function maintainCharacterVideoLoop(): void {
 
 function loadArcherImage(): void {
   const img = new Image();
-  img.src = "/mongolarcher2.png";
+  img.src = "/hose-removebg-preview.png";
   img.onload = () => {
     archerImage = img;
     archerImageLoaded = true;
     archerBounds = getOpaqueSpriteBounds(img);
-    archerArrowTipNorm = getArrowTipNormInBounds(img, archerBounds);
-    console.log("[loadArcherImage]", "Loaded /mongolarcher2.png");
+    // Manual arrow-tip anchor for the mounted composite sprite.
+    archerArrowTipNorm = { x: 0.66, y: 0.14 };
+    console.log("[loadArcherImage]", "Loaded /hose-removebg-preview.png");
   };
   img.onerror = () => {
     archerImageLoaded = false;
     archerBounds = null;
-    console.log("[loadArcherImage]", "Could not load /mongolarcher2.png.");
+    console.log("[loadArcherImage]", "Could not load /hose-removebg-preview.png.");
   };
 }
 
@@ -655,36 +729,33 @@ function getArrowTipNormInBounds(img: HTMLImageElement, bounds: SpriteBounds): {
 }
 
 function getRiderPlacement(): RiderPlacement | null {
-  if (!characterFrameCanvas || !archerImageLoaded || !archerImage) return null;
-  if (!characterFrameReady) return null;
-
-  const drawW = 375 * gameScale;
-  const drawH = drawW * (characterFrameCanvas.height / characterFrameCanvas.width);
-  const drawX = horse.screenX - drawW * 0.42;
-  const drawY = horse.screenY - drawH * 0.66;
-  const src = archerBounds || { x: 0, y: 0, w: archerImage.width, h: archerImage.height };
-  const riderW = drawW * 0.48;
-  const riderH = riderW * (src.h / src.w);
-  const riderYOffsetRaw = riderAnchorOffsetPx * (drawH / characterFrameCanvas.height) * 2.6;
-  const riderYOffset = Math.max(-drawH * 0.10, Math.min(drawH * 0.12, riderYOffsetRaw));
-  const saddleTargetX = drawX + drawW * HORSE_TEMPLATE_ANCHOR.seatBoxX + RIDER_SCREEN_NUDGE_X;
-  const saddleTargetY = drawY + drawH * HORSE_TEMPLATE_ANCHOR.seatBoxY + riderYOffset;
-
-  const tipLocalX = riderW * (archerArrowTipNorm.x - RIDER_SPRITE_ANCHOR.seatX);
-  const tipLocalY = riderH * (archerArrowTipNorm.y - RIDER_SPRITE_ANCHOR.seatY);
-  const cosA = Math.cos(RIDER_BOW_ROTATION_RAD);
-  const sinA = Math.sin(RIDER_BOW_ROTATION_RAD);
-  const tipScreenX = saddleTargetX + tipLocalX * cosA - tipLocalY * sinA;
-  const tipScreenY = saddleTargetY + tipLocalX * sinA + tipLocalY * cosA;
+  const horseScale = MOUNTED_CHARACTER_SCALE * gameScale;
+  const riderBaseX = horse.screenX - 8 * horseScale;
+  const riderBaseY = horse.screenY - 66 * horseScale;
+  const bowCenterX = riderBaseX + 18 * horseScale;
+  const bowCenterY = riderBaseY - 18 * horseScale;
+  const bowAngle = -Math.PI * 0.25;
+  const maxPull = 20 * horseScale;
+  const pullBack = isDrawing ? drawProgress * maxPull : 0;
+  const pullDirX = -Math.cos(bowAngle);
+  const pullDirY = -Math.sin(bowAngle);
+  const stringPullX = bowCenterX + pullDirX * pullBack;
+  const stringPullY = bowCenterY + pullDirY * pullBack;
+  const nockX = isDrawing && drawProgress > 0.05 ? stringPullX : bowCenterX;
+  const nockY = isDrawing && drawProgress > 0.05 ? stringPullY : bowCenterY;
+  const arrowLen = 32 * horseScale;
+  const aDirX = Math.cos(bowAngle);
+  const aDirY = Math.sin(bowAngle);
+  const tipScreenX = nockX + aDirX * arrowLen;
+  const tipScreenY = nockY + aDirY * arrowLen;
+  const headScreenX = riderBaseX + 1 * horseScale;
+  const headScreenY = riderBaseY - 55 * horseScale;
 
   return {
-    saddleTargetX,
-    saddleTargetY,
-    riderW,
-    riderH,
-    src,
     tipScreenX,
     tipScreenY,
+    headScreenX,
+    headScreenY,
   };
 }
 
@@ -703,6 +774,22 @@ function getArrowSpawnPointWorld(): { worldX: number; height: number } {
   return {
     worldX: world.cameraX + bowTipOffsetX / pxPerUnit,
     height: (groundY - horse.screenY + bowTipOffsetY) / pxPerUnit,
+  };
+}
+
+function getPlayerHeadScreenPosition(): { x: number; y: number } {
+  const placement = getRiderPlacement();
+  if (placement) {
+    return {
+      x: placement.headScreenX,
+      y: placement.headScreenY,
+    };
+  }
+
+  const horseScale = MOUNTED_CHARACTER_SCALE * gameScale;
+  return {
+    x: horse.screenX + 7 * horseScale,
+    y: horse.screenY - 92 * horseScale,
   };
 }
 
@@ -789,7 +876,6 @@ function resetUpgrades(): void {
   upgradeLevels.pullSpeed = 0;
   upgradeLevels.wobbleControl = 0;
   upgradeLevels.magnetArrows = 0;
-  upgradeLevels.windReader = 0;
   upgradeLevels.perfectReload = 0;
   upgradeLevels.extraQuiver = 0;
 }
@@ -806,13 +892,34 @@ function getWobbleMultiplier(): number {
   return upgradeLevels.wobbleControl > 0 ? 0.5 : 1;
 }
 
+function updateStartTip(): void {
+  if (!startTipEl) return;
+  const roundSeconds = Math.round(CONFIG.ROUND_TIME_MS / 1000);
+  const lineOne =
+    "You have " +
+    roundSeconds.toString() +
+    " seconds to hit " +
+    CONFIG.WAVE_HIT_GOAL.toString() +
+    " targets!";
+  const lineTwo = isMobile
+    ? "Hold the button to pull your arrow back!"
+    : "Hold the Space bar to pull your arrow back!";
+  startTipEl.innerHTML = lineOne + "<br>" + lineTwo;
+}
+
+function getArrowLaunchSpeed(drawAmount: number): number {
+  const drawFactor = Math.max(0, Math.min(1, drawAmount));
+  // Scale top-end pull force more than low draw amounts to extend max-range shots.
+  return CONFIG.ARROW_SPEED * drawFactor * (1 + CONFIG.ARROW_MAX_STRENGTH_BONUS * drawFactor);
+}
+
 function getTargetSpacingFactor(): number {
   return Math.min(1 + (waveNumber - 1) * 0.2, 3);
 }
 
 function getMaxReachableArrowApexHeight(): number {
   const spawnPoint = getArrowSpawnPointWorld();
-  const maxLaunchSpeed = CONFIG.ARROW_SPEED;
+  const maxLaunchSpeed = getArrowLaunchSpeed(1);
   const maxAimAngle = Math.PI / 4;
   const maxVy = maxLaunchSpeed * Math.sin(maxAimAngle);
   const apexDelta = (maxVy * maxVy) / (2 * CONFIG.ARROW_GRAVITY);
@@ -823,12 +930,17 @@ function getMaxTargetSpawnHeight(): number {
   // Keep target center slightly below theoretical arrow apex to avoid edge-case misses.
   const apex = getMaxReachableArrowApexHeight();
   const safetyMargin = Math.max(10, CONFIG.TARGET_RADIUS * 0.35);
-  return Math.max(130, apex - safetyMargin);
+  const apexLimitedHeight = apex - safetyMargin;
+  const topSafeY = h * 0.1;
+  const topSafeHeight = (groundY - topSafeY) / Math.max(0.001, pxPerUnit);
+  const topSafeRadiusPad = CONFIG.TARGET_RADIUS * 1.1;
+  const viewportLimitedHeight = topSafeHeight - topSafeRadiusPad;
+  return Math.max(130, Math.min(apexLimitedHeight, viewportLimitedHeight));
 }
 
 function getRandomTargetPostHeight(): number {
   const minHeight = 150;
-  const capHeight = Math.min(400, getMaxTargetSpawnHeight());
+  const capHeight = getMaxTargetSpawnHeight();
   if (capHeight <= minHeight + 1) return minHeight;
   return minHeight + Math.random() * (capHeight - minHeight);
 }
@@ -862,29 +974,31 @@ function getSpawnGapDx(spacingFactor: number): number {
 }
 
 function pickTargetKind(): TargetKind {
-  if (waveNumber <= 2) return "normal";
-  const roll = Math.random();
-  if (waveNumber >= 4 && roll < 0.2) return "tiny";
-  if (waveNumber >= 4 && roll < 0.38) return "runner";
-  if (waveNumber >= 5 && roll < 0.52) return "decoy";
-  if (waveNumber >= 6 && roll < 0.68) return "armored";
-  return "normal";
+  const unlockedCount = Math.max(0, waveNumber - 1);
+  const unlockedKinds = TARGET_KIND_PROGRESS_ORDER.slice(0, unlockedCount);
+  const candidates: TargetKind[] = ["normal", ...unlockedKinds];
+
+  let totalWeight = 0;
+  for (const kind of candidates) {
+    totalWeight += TARGET_KIND_WEIGHTS[kind] || 0;
+  }
+  if (totalWeight <= 0) return "normal";
+
+  let roll = Math.random() * totalWeight;
+  for (const kind of candidates) {
+    roll -= TARGET_KIND_WEIGHTS[kind] || 0;
+    if (roll <= 0) return kind;
+  }
+  return candidates[candidates.length - 1] || "normal";
 }
 
 function applyTargetKindStats(t: WorldTarget, kind: TargetKind): void {
   t.kind = kind;
-  if (kind === "armored") {
-    t.radius = 42;
-    t.maxHp = 2;
-    t.hp = 2;
-    t.speedMult = 1;
-    return;
-  }
-  if (kind === "decoy") {
-    t.radius = 36;
+  if (kind === "stoneColumn") {
+    t.radius = 34;
     t.maxHp = 1;
     t.hp = 1;
-    t.speedMult = 1.05;
+    t.speedMult = 1;
     return;
   }
   if (kind === "runner") {
@@ -935,7 +1049,9 @@ function beginWave(nextWave: number): void {
   draftChoices = [];
   waveNumber = nextWave;
   waveHits = 0;
+  waveHitMarkProgress = new Array(CONFIG.WAVE_HIT_GOAL).fill(0);
   timeRemaining = CONFIG.ROUND_TIME_MS;
+  lastCountdownCueSecond = Math.ceil(timeRemaining / 1000);
   setWorldSpeedForWave();
 
   isDrawing = false;
@@ -1106,6 +1222,52 @@ function getArrowCollisionPoint(arrow: Arrow): { x: number; y: number; angle: nu
   return { x: tipX, y: tipY, angle };
 }
 
+function getPointToSegmentDistance(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const abLenSq = abx * abx + aby * aby;
+  if (abLenSq <= 0.0000001) {
+    const dx = px - ax;
+    const dy = py - ay;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / abLenSq));
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  const dx = px - cx;
+  const dy = py - cy;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getClosestPointOnSegment(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): { x: number; y: number } {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const abLenSq = abx * abx + aby * aby;
+  if (abLenSq <= 0.0000001) {
+    return { x: ax, y: ay };
+  }
+  const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / abLenSq));
+  return { x: ax + abx * t, y: ay + aby * t };
+}
+
 // ============= BOW DRAW & FIRE =============
 function startDraw(): void {
   if (isDrawing) return;
@@ -1116,7 +1278,7 @@ function startDraw(): void {
   wobbleAmount = 0;
   drawElapsed = 0;
   playBowPullLoopIfAllowed();
-  triggerHaptic("light");
+  triggerHaptic("medium");
 }
 
 function updateDraw(dt: number): void {
@@ -1153,7 +1315,7 @@ function fireArrow(): void {
   const steadiness = getSteadiness();
   const isPerfect = steadiness >= CONFIG.PERFECT_THRESHOLD && wobbleAmount < 0.1;
 
-  const speed = CONFIG.ARROW_SPEED * drawProgress;
+  const speed = getArrowLaunchSpeed(drawProgress);
   const baseAngle = Math.PI / 4; // 45 degrees
 
   // Stability spread: poor timing on horse bob = arrow deviates from 45°
@@ -1183,23 +1345,27 @@ function fireArrow(): void {
       magnetFxStrength: 0,
       magnetTargetWorldX: 0,
       magnetTargetHeight: 0,
+      magnetTargetRadius: 0,
     });
   };
 
-  if (upgradeLevels.doubleShot > 0) {
+  const arrowsToShoot = upgradeLevels.doubleShot > 0 ? Math.min(2, ammoCount) : 1;
+  if (arrowsToShoot === 2) {
     spawnArrow(finalAngle - 0.045);
     spawnArrow(finalAngle + 0.045);
   } else {
     spawnArrow(finalAngle);
   }
-  ammoCount = Math.max(0, ammoCount - 1);
+
+  ammoCount = Math.max(0, ammoCount - arrowsToShoot);
   if (ammoCount === 0) {
     isReloading = true;
     reloadRemaining = CONFIG.RELOAD_MS;
+    playSfx("reloadReady");
   }
 
   playSfx("bowRelease");
-  triggerHaptic("medium");
+  triggerHaptic("heavy");
 }
 
 // ============= SCORE POPUPS =============
@@ -1264,6 +1430,7 @@ function gameOver(): void {
   }
 
   triggerHaptic("error");
+  playGameOverSfx();
 
   finalScoreEl.textContent = score.toString();
   pauseBtn.classList.add("hidden");
@@ -1284,9 +1451,11 @@ function startGame(): void {
   waveHits = 0;
   resetUpgrades();
   timeRemaining = CONFIG.ROUND_TIME_MS;
+  lastCountdownCueSecond = Math.ceil(timeRemaining / 1000);
   ammoCount = getMaxQuiverArrows();
   isReloading = false;
   reloadRemaining = 0;
+  environmentTime = 0;
 
   world.cameraX = 0;
   horse.screenY = horse.baseY;
@@ -1370,7 +1539,8 @@ function updateClouds(dt: number): void {
 }
 
 function drawCloud(c: Cloud): void {
-  ctx.globalAlpha = c.opacity;
+  const cloudVisibility = 1 - getDayNightDarkness() * 0.95;
+  ctx.globalAlpha = c.opacity * cloudVisibility;
   ctx.fillStyle = "#FFEEDD";
   const s = c.scale;
   ctx.beginPath();
@@ -1390,6 +1560,14 @@ function drawCloud(c: Cloud): void {
 
 function getParallaxShift(speedFactor: number): number {
   return world.cameraX * speedFactor * pxPerUnit;
+}
+
+function getDayNightDarkness(): number {
+  // Smooth full loop day->night->day where darkness is driven by moon altitude.
+  const phase = (environmentTime * 0.000045) % (Math.PI * 2);
+  const moonAltitude = Math.sin(phase + Math.PI);
+  const moonLight = Math.max(0, Math.min(1, (moonAltitude + 0.1) / 1.1));
+  return moonLight * moonLight;
 }
 
 function drawLayerRidge(
@@ -1422,7 +1600,7 @@ function drawLayerRidge(
 // ============= WORLD UPDATE =============
 function updateWorld(dt: number): void {
   world.cameraX += world.speed * dt;
-  horse.legPhase += dt * 0.015;
+  horse.legPhase += dt * HORSE_RUN_CYCLE_RATE;
 
   // Keep the horse at a fixed vertical position (no sine-wave bobbing).
   horse.screenY = horse.baseY;
@@ -1437,23 +1615,45 @@ function updateWorld(dt: number): void {
 
 // ============= DRAWING =============
 function drawSky(): void {
+  const darkness = getDayNightDarkness();
+  const phase = (environmentTime * 0.000045) % (Math.PI * 2);
+  const sunAltitude = Math.sin(phase);
+  const moonPhase = phase + Math.PI;
+  const moonAltitude = Math.sin(moonPhase);
+  // Keep both celestial bodies visible around the horizon to avoid abrupt switches.
+  const sunVisibility = Math.max(0, Math.min(1, (sunAltitude + 0.14) / 0.34));
+  const moonVisibility = Math.max(0, Math.min(1, (moonAltitude + 0.14) / 0.34));
+  const sunX = w * (0.5 + Math.cos(phase) * 0.42);
+  const sunY = horizonY * (0.92 - sunAltitude * 0.66);
+  const moonX = w * (0.5 + Math.cos(moonPhase) * 0.42);
+  const moonY = horizonY * (0.92 - moonAltitude * 0.66);
   const grad = ctx.createLinearGradient(0, 0, 0, horizonY);
-  grad.addColorStop(0, "#10254F");
-  grad.addColorStop(0.28, "#4B2F7A");
-  grad.addColorStop(0.56, "#BA4E9C");
-  grad.addColorStop(0.82, "#F18F6B");
-  grad.addColorStop(1, "#FFD47E");
+  const daySkyTop = [102, 185, 242];
+  const daySkyMid = [142, 210, 255];
+  const daySkyLow = [192, 224, 255];
+  const nightSkyTop = [2, 6, 17];
+  const nightSkyMid = [11, 23, 48];
+  const nightSkyLow = [20, 36, 62];
+  const blend = darkness;
+  const topR = Math.round(daySkyTop[0] * (1 - blend) + nightSkyTop[0] * blend);
+  const topG = Math.round(daySkyTop[1] * (1 - blend) + nightSkyTop[1] * blend);
+  const topB = Math.round(daySkyTop[2] * (1 - blend) + nightSkyTop[2] * blend);
+  const midR = Math.round(daySkyMid[0] * (1 - blend) + nightSkyMid[0] * blend);
+  const midG = Math.round(daySkyMid[1] * (1 - blend) + nightSkyMid[1] * blend);
+  const midB = Math.round(daySkyMid[2] * (1 - blend) + nightSkyMid[2] * blend);
+  const lowR = Math.round(daySkyLow[0] * (1 - blend) + nightSkyLow[0] * blend);
+  const lowG = Math.round(daySkyLow[1] * (1 - blend) + nightSkyLow[1] * blend);
+  const lowB = Math.round(daySkyLow[2] * (1 - blend) + nightSkyLow[2] * blend);
+  grad.addColorStop(0, "rgb(" + topR + ", " + topG + ", " + topB + ")");
+  grad.addColorStop(0.45, "rgb(" + midR + ", " + midG + ", " + midB + ")");
+  grad.addColorStop(1, "rgb(" + lowR + ", " + lowG + ", " + lowB + ")");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, horizonY + 5);
 
-  // Sun at horizon center
-  const sunX = w * 0.5;
-  const sunY = horizonY * 0.85;
-  const sunR = 40;
-
+  const sunR = 38;
   const glow = ctx.createRadialGradient(sunX, sunY, sunR * 0.3, sunX, sunY, sunR * 3);
-  glow.addColorStop(0, "rgba(255, 245, 195, 0.62)");
-  glow.addColorStop(0.45, "rgba(255, 159, 110, 0.26)");
+  glow.addColorStop(0, "rgba(255, 245, 195, " + (0.62 * sunVisibility).toFixed(3) + ")");
+  glow.addColorStop(0.45, "rgba(255, 159, 110, " + (0.26 * sunVisibility).toFixed(3) + ")");
   glow.addColorStop(1, "rgba(255, 120, 80, 0)");
   ctx.fillStyle = glow;
   ctx.beginPath();
@@ -1487,6 +1687,43 @@ function drawSky(): void {
     ctx.ellipse(cx, cy, 120, 30, -0.02, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  const nightAlpha = moonVisibility * 0.82;
+  if (nightAlpha > 0.001) {
+    const moonR = 24;
+
+    // Dark sky veil first, then moon and stars above it.
+    ctx.fillStyle = "rgba(8, 14, 28, " + (darkness * 0.38).toFixed(3) + ")";
+    ctx.fillRect(0, 0, w, horizonY + 5);
+
+    const moonGlow = ctx.createRadialGradient(moonX, moonY, moonR * 0.2, moonX, moonY, moonR * 2.2);
+    moonGlow.addColorStop(0, "rgba(214, 234, 255, " + (0.35 * nightAlpha).toFixed(3) + ")");
+    moonGlow.addColorStop(1, "rgba(214, 234, 255, 0)");
+    ctx.fillStyle = moonGlow;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(228, 240, 255, " + (0.72 * nightAlpha).toFixed(3) + ")";
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Deterministic starfield with subtle twinkle.
+    for (let i = 0; i < 70; i++) {
+      const fx = (Math.sin(i * 97.13) * 43758.5453) % 1;
+      const fy = (Math.sin(i * 53.71 + 8.2) * 24634.6345) % 1;
+      const x = (fx < 0 ? fx + 1 : fx) * w;
+      const y = (fy < 0 ? fy + 1 : fy) * (horizonY * 0.9);
+      const twinkle = 0.5 + 0.5 * Math.sin(environmentTime * 0.003 + i * 1.7);
+      const a = nightAlpha * (0.14 + twinkle * 0.42);
+      const r = 0.8 + (i % 3) * 0.5;
+      ctx.fillStyle = "rgba(228, 240, 255, " + a.toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 function drawMountains(): void {
@@ -1496,6 +1733,7 @@ function drawMountains(): void {
 }
 
 function drawGround(): void {
+  const darkness = getDayNightDarkness();
   // Base ground gradient stays green for the distant flatlands.
   const grad = ctx.createLinearGradient(0, horizonY, 0, h);
   grad.addColorStop(0, "#2F8B8A");
@@ -1543,6 +1781,13 @@ function drawGround(): void {
     }
     ctx.stroke();
   }
+
+  // Keep terrain readable at night with a simple cool tint.
+  const terrainNightAlpha = darkness * 0.56;
+  if (terrainNightAlpha > 0.001) {
+    ctx.fillStyle = "rgba(10, 16, 24, " + terrainNightAlpha.toFixed(3) + ")";
+    ctx.fillRect(0, horizonY, w, h - horizonY);
+  }
 }
 
 function drawWorldTargets(): void {
@@ -1563,6 +1808,64 @@ function drawWorldTargets(): void {
 
     ctx.save();
     ctx.translate(screenX, groundY);
+
+    if (t.kind === "stoneColumn") {
+      const colW = Math.max(10, visualR * 1.08);
+      const colH = Math.max(26, postHeightPx + visualR * 0.9);
+      const colTopY = -colH;
+      const stoneGrad = ctx.createLinearGradient(0, colTopY, 0, 0);
+      stoneGrad.addColorStop(0, "#D5C9AF");
+      stoneGrad.addColorStop(0.5, "#B4A07D");
+      stoneGrad.addColorStop(1, "#8E7754");
+      ctx.fillStyle = stoneGrad;
+      ctx.beginPath();
+      ctx.roundRect(-colW * 0.5, colTopY, colW, colH, Math.max(4, 5 * gameScale));
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(74, 57, 35, 0.6)";
+      ctx.lineWidth = Math.max(1.1, 1.7 * gameScale);
+      ctx.beginPath();
+      ctx.moveTo(-colW * 0.3, colTopY + colH * 0.18);
+      ctx.lineTo(-colW * 0.22, colTopY + colH * 0.84);
+      ctx.moveTo(colW * 0.12, colTopY + colH * 0.1);
+      ctx.lineTo(colW * 0.2, colTopY + colH * 0.72);
+      ctx.stroke();
+
+      if (t.embeddedArrow) {
+        const arrowRenderScale = 3;
+        const arrowLen = 22 * gameScale * arrowRenderScale;
+        const impactX = t.embeddedArrow.offsetX * pxPerUnit;
+        const impactY = -t.postHeight * scale - t.embeddedArrow.offsetY * pxPerUnit;
+        const angle = t.embeddedArrow.angle;
+        const embedDepth = Math.max(8, arrowLen * 0.28);
+        const tipX = impactX;
+        const tipY = impactY;
+        const visibleTipX = tipX - Math.cos(angle) * embedDepth;
+        const visibleTipY = tipY - Math.sin(angle) * embedDepth;
+        const tailX = tipX - Math.cos(angle) * arrowLen;
+        const tailY = tipY - Math.sin(angle) * arrowLen;
+        const hs = 6 * gameScale * arrowRenderScale;
+        const shaftInset = hs * 0.78;
+        const shaftTipX = visibleTipX - Math.cos(angle) * shaftInset;
+        const shaftTipY = visibleTipY - Math.sin(angle) * shaftInset;
+
+        ctx.strokeStyle = "#5C3A1E";
+        ctx.lineWidth = Math.max(1.5, 2.5 * gameScale * arrowRenderScale * 0.7);
+        ctx.lineCap = "butt";
+        ctx.beginPath();
+        ctx.moveTo(tailX, tailY);
+        ctx.lineTo(shaftTipX, shaftTipY);
+        ctx.stroke();
+        ctx.lineCap = "round";
+
+        const fSize = 5 * gameScale * arrowRenderScale;
+        const backAngle = angle + Math.PI;
+        drawArrowFletching(tailX, tailY, backAngle, fSize);
+      }
+
+      ctx.restore();
+      continue;
+    }
 
     // Post
     ctx.strokeStyle = "#5A3A1E";
@@ -1661,61 +1964,7 @@ function drawWorldTargets(): void {
 
       const fSize = 5 * gameScale * arrowRenderScale;
       const backAngle = angle + Math.PI;
-      ctx.fillStyle = "#CC3333";
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(
-        tailX + Math.cos(backAngle - 0.5) * fSize,
-        tailY + Math.sin(backAngle - 0.5) * fSize,
-      );
-      ctx.lineTo(
-        tailX + Math.cos(backAngle) * fSize * 0.7,
-        tailY + Math.sin(backAngle) * fSize * 0.7,
-      );
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(
-        tailX + Math.cos(backAngle + 0.5) * fSize,
-        tailY + Math.sin(backAngle + 0.5) * fSize,
-      );
-      ctx.lineTo(
-        tailX + Math.cos(backAngle) * fSize * 0.7,
-        tailY + Math.sin(backAngle) * fSize * 0.7,
-      );
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Archetype cues for active targets.
-    if (!t.hit) {
-      if (t.kind === "armored") {
-        ctx.strokeStyle = "rgba(180, 192, 205, 0.9)";
-        ctx.lineWidth = Math.max(1.5, 2.2 * gameScale);
-        ctx.beginPath();
-        ctx.arc(0, faceY, Math.max(2, visualR * 1.08), 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (t.kind === "decoy") {
-        ctx.strokeStyle = "rgba(236, 90, 214, 0.9)";
-        ctx.lineWidth = Math.max(1.2, 2 * gameScale);
-        ctx.beginPath();
-        ctx.moveTo(-visualR * 0.6, faceY - visualR * 0.6);
-        ctx.lineTo(visualR * 0.6, faceY + visualR * 0.6);
-        ctx.moveTo(visualR * 0.6, faceY - visualR * 0.6);
-        ctx.lineTo(-visualR * 0.6, faceY + visualR * 0.6);
-        ctx.stroke();
-      }
-      if (t.maxHp > 1) {
-        const pipY = faceY - visualR - Math.max(6, 8 * gameScale);
-        for (let i = 0; i < t.maxHp; i++) {
-          const pipX = (i - (t.maxHp - 1) * 0.5) * Math.max(8, 10 * gameScale);
-          ctx.fillStyle = i < t.hp ? "#D8E3F1" : "rgba(216, 227, 241, 0.25)";
-          ctx.beginPath();
-          ctx.arc(pipX, pipY, Math.max(2.5, 3.5 * gameScale), 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+      drawArrowFletching(tailX, tailY, backAngle, fSize);
     }
 
     ctx.restore();
@@ -1810,321 +2059,545 @@ function drawPerfectBursts(): void {
 }
 
 function drawHorseAndArcher(): void {
-  if (characterVideoLoaded && characterVideo && characterFrameCtx && characterFrameCanvas) {
-    if (characterVideo.readyState >= 2) {
-      characterFrameCtx.clearRect(0, 0, characterFrameCanvas.width, characterFrameCanvas.height);
-      characterFrameCtx.drawImage(characterVideo, 0, 0, characterFrameCanvas.width, characterFrameCanvas.height);
-      normalizeHorseFrameAlpha();
-      characterFrameReady = true;
-      sampleRiderAnchorFromHorseFrame();
-    }
-  }
-
-  if (characterFrameReady && characterFrameCanvas) {
-    const drawW = 375 * gameScale;
-    const drawH = drawW * (characterFrameCanvas.height / characterFrameCanvas.width);
-    const drawX = horse.screenX - drawW * 0.42;
-    const drawY = horse.screenY - drawH * 0.66;
-    ctx.drawImage(characterFrameCanvas, drawX, drawY, drawW, drawH);
-
-    const placement = getRiderPlacement();
-    if (placement && archerImageLoaded && archerImage) {
-      ctx.save();
-      ctx.translate(placement.saddleTargetX, placement.saddleTargetY);
-      ctx.rotate(RIDER_BOW_ROTATION_RAD);
-      ctx.drawImage(
-        archerImage,
-        placement.src.x,
-        placement.src.y,
-        placement.src.w,
-        placement.src.h,
-        -placement.riderW * RIDER_SPRITE_ANCHOR.seatX,
-        -placement.riderH * RIDER_SPRITE_ANCHOR.seatY,
-        placement.riderW,
-        placement.riderH,
-      );
-      ctx.restore();
-    }
-    return;
-  }
-
   const hx = horse.screenX;
   const hy = horse.screenY;
   const phase = horse.legPhase;
+  const horseScale = MOUNTED_CHARACTER_SCALE * gameScale;
+  const strideSwing = Math.sin(phase);
+  const stomp = Math.max(0, Math.sin(phase * 2.0));
+  const bob = strideSwing * 0.85 - stomp * 1.7;
 
-  // Scale relative to screen — draw everything in local coords centered on (0,0)
-  const horseScale = 3 * gameScale;
   ctx.save();
-  ctx.translate(hx, hy);
+  ctx.translate(hx, hy + bob);
   ctx.scale(horseScale, horseScale);
 
-  const horseColor = "#3D2810";
-  const horseLightColor = "#5A3A1E";
+  // Horse Colors - Steppe Dun / Grey
+  const horseColor = "#D8D8DF";
+  const horseDarkColor = "#A0A0AA";
+  const horseLightColor = "#F0F0F5";
+  const metalColor = "#9DA5AF";
 
-  // Body (local coords, horse centered at 0,0)
-  ctx.fillStyle = horseColor;
+  // Ground shadow - more dynamic
+  ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
   ctx.beginPath();
-  ctx.ellipse(0, -40, 50, 22, 0, 0, Math.PI * 2);
+  ctx.ellipse(2, 4 + stomp * 1.5, 62 + stomp * 8, 12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Underbelly highlight
-  ctx.fillStyle = horseLightColor;
-  ctx.beginPath();
-  ctx.ellipse(0, -35, 42, 14, 0, 0.2, Math.PI - 0.2);
-  ctx.fill();
-
-  // Legs
-  ctx.strokeStyle = horseColor;
-  ctx.lineWidth = 6;
+  // HORSE LEGS - asymmetrical gallop cycle
+  ctx.strokeStyle = horseDarkColor;
+  ctx.lineWidth = 6.6;
   ctx.lineCap = "round";
-
+  const gallopCycle = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
+  const suspensionStart = 0.72;
+  const suspensionEnd = 0.88;
+  const inSuspension = gallopCycle >= suspensionStart && gallopCycle <= suspensionEnd;
   const legPositions = [
-    { base: -30, offset: 0 },
-    { base: -12, offset: Math.PI * 0.5 },
-    { base: 12, offset: Math.PI },
-    { base: 30, offset: Math.PI * 1.5 },
+    // Order for a right-lead gallop: LH -> RH -> LF -> RF -> suspension
+    { base: -28, strike: 0.0 },   // left hind
+    { base: -10, strike: 0.16 },  // right hind
+    { base: 10, strike: 0.34 },   // left fore
+    { base: 28, strike: 0.52 },   // right fore (lead)
   ];
 
-  for (const leg of legPositions) {
-    const swing = Math.sin(phase + leg.offset) * 18;
-    const lift = Math.max(0, -Math.sin(phase + leg.offset)) * 12;
+  const getLegPose = (leg: typeof legPositions[0]) => {
+    const local = ((gallopCycle - leg.strike) % 1 + 1) % 1;
+    const stanceDur = 0.22;
+    const travel = 18;
+    let hoofX = leg.base;
+    let hoofY = 8;
+    let kneeX = leg.base;
+    let kneeY = -14;
+    let liftAmount = 0;
 
-    const kneeX = leg.base + swing * 0.3;
-    const kneeY = -12;
-    const hoofX = leg.base + swing;
-    const hoofY = 8 - lift;
+    if (local < stanceDur) {
+      // Stance: hoof on/near ground while body passes over it.
+      const t = local / stanceDur;
+      hoofX = leg.base + (0.5 - t) * travel;
+      hoofY = 8 + Math.sin(t * Math.PI) * 0.8;
+      kneeX = leg.base + (0.35 - t * 0.7) * travel * 0.44;
+      kneeY = -14 + Math.sin(t * Math.PI) * 2.6;
+    } else {
+      // Swing: hoof travels forward with clear lift.
+      const t = (local - stanceDur) / (1 - stanceDur);
+      liftAmount = Math.sin(t * Math.PI) * 15;
+      hoofX = leg.base + (-0.5 + t) * travel;
+      hoofY = 8 - liftAmount;
+      kneeX = leg.base + (-0.25 + t * 0.55) * travel * 0.58;
+      kneeY = -14 - liftAmount * 0.33;
+    }
 
+    // Gallop suspension: brief airborne window for all four hooves.
+    if (inSuspension) {
+      const suspT = (gallopCycle - suspensionStart) / (suspensionEnd - suspensionStart);
+      const suspLift = 7 + Math.sin(suspT * Math.PI) * 3;
+      hoofY -= suspLift;
+      kneeY -= suspLift * 0.45;
+    }
+
+    return {
+      hoofX,
+      hoofY,
+      kneeX,
+      kneeY,
+      liftFrac: Math.max(0, Math.min(1, liftAmount / 15)),
+    };
+  };
+
+  const drawLeg = (leg: typeof legPositions[0]) => {
+    const pose = getLegPose(leg);
+
+    ctx.strokeStyle = horseDarkColor;
+    ctx.lineWidth = 6.6;
     ctx.beginPath();
-    ctx.moveTo(leg.base, -22);
-    ctx.lineTo(kneeX, kneeY);
-    ctx.lineTo(hoofX, hoofY);
+    ctx.moveTo(leg.base, -24);
+    ctx.lineTo(pose.kneeX, pose.kneeY);
+    ctx.lineTo(pose.hoofX, pose.hoofY);
     ctx.stroke();
 
-    ctx.fillStyle = "#1A0E05";
+    // Hoof
+    ctx.fillStyle = "#333336";
     ctx.beginPath();
-    ctx.ellipse(hoofX, hoofY + 2, 4, 3, 0, 0, Math.PI * 2);
+    ctx.ellipse(pose.hoofX, pose.hoofY + 2, 4.5, 3.5, 0, 0, Math.PI * 2);
     ctx.fill();
-  }
+  };
 
-  // Neck
+  const hindFlex = (getLegPose(legPositions[0]).liftFrac + getLegPose(legPositions[1]).liftFrac) * 0.5;
+  const foreFlex = (getLegPose(legPositions[2]).liftFrac + getLegPose(legPositions[3]).liftFrac) * 0.5;
+  const hindMuscleShiftY = -hindFlex * 1.8;
+  const foreMuscleShiftY = -foreFlex * 1.6;
+  const hindMuscleScale = 1 + hindFlex * 0.14;
+  const foreMuscleScale = 1 + foreFlex * 0.12;
+
+  // Draw rear pair first
+  drawLeg(legPositions[0]);
+  drawLeg(legPositions[2]);
+
+  // HORSE BODY - layered muscle volumes (hindquarter, barrel, shoulder, chest)
+  const hindGrad = ctx.createRadialGradient(-22, -41, 6, -18, -39, 30);
+  hindGrad.addColorStop(0, horseLightColor);
+  hindGrad.addColorStop(1, horseDarkColor);
+  ctx.fillStyle = hindGrad;
+  ctx.beginPath();
+  ctx.ellipse(-20, -40 + hindMuscleShiftY, 30 * hindMuscleScale, 21, -0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  const barrelGrad = ctx.createRadialGradient(-2, -39, 10, 0, -38, 45);
+  barrelGrad.addColorStop(0, horseLightColor);
+  barrelGrad.addColorStop(0.62, horseColor);
+  barrelGrad.addColorStop(1, horseDarkColor);
+  ctx.fillStyle = barrelGrad;
+  ctx.beginPath();
+  ctx.ellipse(-1, -39, 33, 23, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const shoulderGrad = ctx.createRadialGradient(19, -41, 5, 20, -40, 24);
+  shoulderGrad.addColorStop(0, horseLightColor);
+  shoulderGrad.addColorStop(1, horseDarkColor);
+  ctx.fillStyle = shoulderGrad;
+  ctx.beginPath();
+  ctx.ellipse(20, -40 + foreMuscleShiftY, 23 * foreMuscleScale, 18, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = horseColor;
   ctx.beginPath();
-  ctx.moveTo(40, -52);
-  ctx.quadraticCurveTo(55, -70, 50, -82);
-  ctx.quadraticCurveTo(42, -72, 38, -52);
+  ctx.ellipse(31, -43 + foreMuscleShiftY * 0.85, 12 * (1 + foreFlex * 0.08), 10, 0.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Surface muscle cues
+  ctx.strokeStyle = "rgba(0,0,0,0.1)";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(-24, -41 + hindMuscleShiftY * 0.8, 12 * (1 + hindFlex * 0.08), Math.PI * 0.7, Math.PI * 1.55);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(15, -41 + foreMuscleShiftY * 0.75, 11 * (1 + foreFlex * 0.08), Math.PI * 1.42, Math.PI * 2.14);
+  ctx.stroke();
+
+  // Draw front pair after body
+  drawLeg(legPositions[1]);
+  drawLeg(legPositions[3]);
+
+  // NECK - rebuilt from scratch with a broad shoulder root.
+  const neckGrad = ctx.createLinearGradient(22, -56, 64, -98);
+  neckGrad.addColorStop(0, horseColor);
+  neckGrad.addColorStop(1, horseLightColor);
+  ctx.fillStyle = neckGrad;
+  ctx.beginPath();
+  ctx.moveTo(19, -47);
+  ctx.quadraticCurveTo(34, -56, 49, -62);
+  ctx.quadraticCurveTo(59, -66, 64, -69);
+  ctx.quadraticCurveTo(56, -72, 45, -69);
+  ctx.quadraticCurveTo(31, -64, 18, -56);
+  ctx.quadraticCurveTo(12, -52, 9, -49);
   ctx.closePath();
   ctx.fill();
 
-  // Head
-  ctx.fillStyle = horseColor;
+  // Shoulder blend for a clear neck-to-body connection.
+  ctx.fillStyle = horseDarkColor;
   ctx.beginPath();
-  ctx.ellipse(56, -84, 18, 10, 0.4, 0, Math.PI * 2);
+  ctx.moveTo(9, -49);
+  ctx.quadraticCurveTo(4, -44, 1, -40);
+  ctx.quadraticCurveTo(11, -38, 22, -41);
+  ctx.quadraticCurveTo(27, -44, 23, -48);
+  ctx.closePath();
   ctx.fill();
 
-  // Muzzle
-  ctx.fillStyle = horseLightColor;
+  // HEAD - rebuilt from scratch with a horse profile silhouette.
+  ctx.save();
+  ctx.translate(64, -71);
+  ctx.rotate(0.12 + Math.sin(phase) * 0.03);
+
+  const headGrad = ctx.createLinearGradient(-24, -15, 22, 12);
+  headGrad.addColorStop(0, horseLightColor);
+  headGrad.addColorStop(1, horseColor);
+  ctx.fillStyle = headGrad;
   ctx.beginPath();
-  ctx.ellipse(70, -80, 8, 6, 0.3, 0, Math.PI * 2);
+  ctx.moveTo(-18, -4);
+  ctx.quadraticCurveTo(-10, -13, 1, -13);
+  ctx.quadraticCurveTo(13, -13, 22, -4);
+  ctx.quadraticCurveTo(27, 2, 22, 8);
+  ctx.quadraticCurveTo(11, 12, -2, 11);
+  ctx.quadraticCurveTo(-14, 10, -22, 3);
+  ctx.closePath();
+  ctx.fill();
+
+  // Poll/jowl bridge to tuck head into neck.
+  ctx.fillStyle = horseColor;
+  ctx.beginPath();
+  ctx.moveTo(-21, -4);
+  ctx.quadraticCurveTo(-29, 2, -28, 10);
+  ctx.quadraticCurveTo(-20, 13, -11, 7);
+  ctx.quadraticCurveTo(-15, 1, -19, -3);
+  ctx.closePath();
+  ctx.fill();
+
+  // Pointed ears attached to skull line.
+  ctx.fillStyle = horseDarkColor;
+  ctx.beginPath();
+  ctx.moveTo(-11, -13);
+  ctx.lineTo(-17, -27);
+  ctx.lineTo(-8, -18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = horseColor;
+  ctx.beginPath();
+  ctx.moveTo(-5, -13);
+  ctx.lineTo(-9, -28);
+  ctx.lineTo(1, -17);
+  ctx.closePath();
   ctx.fill();
 
   // Eye
   ctx.fillStyle = "#111";
   ctx.beginPath();
-  ctx.arc(58, -88, 2.5, 0, Math.PI * 2);
+  ctx.arc(6, -1.8, 2.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#FFF";
+  ctx.beginPath();
+  ctx.arc(6.7, -2.5, 0.65, 0, Math.PI * 2);
   ctx.fill();
 
-  // Ear
-  ctx.fillStyle = horseColor;
+  // Muzzle / nostril
+  ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
   ctx.beginPath();
-  ctx.moveTo(50, -92);
-  ctx.lineTo(46, -104);
-  ctx.lineTo(54, -94);
+  ctx.arc(18, 3.2, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // TAIL - fuller horse tail with layered hair strands
+  const tailSwing = Math.sin(phase * 0.5) * 10;
+  ctx.fillStyle = "#55555F";
+  ctx.beginPath();
+  ctx.moveTo(-44, -50);
+  ctx.quadraticCurveTo(-62 + tailSwing * 0.6, -42, -74 + tailSwing, -27);
+  ctx.quadraticCurveTo(-88 + tailSwing, -10, -75 + tailSwing * 0.7, -4);
+  ctx.quadraticCurveTo(-60 + tailSwing * 0.35, -14, -50, -30);
   ctx.closePath();
   ctx.fill();
 
-  // Mane
-  ctx.strokeStyle = "#1A0E05";
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 5; i++) {
-    const mx = 42 + i * 2;
-    const my = -55 - i * 6;
-    const windOffset = Math.sin(phase * 0.7 + i * 0.8) * 5;
+  ctx.strokeStyle = "#44444E";
+  ctx.lineWidth = 2.2;
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    const rootX = -46 + t * 7;
+    const rootY = -48 + t * 2;
+    const strandEndX = -72 + tailSwing * (0.8 + t * 0.5) - t * 6;
+    const strandEndY = -10 + t * 5;
     ctx.beginPath();
-    ctx.moveTo(mx, my);
-    ctx.quadraticCurveTo(mx - 10 + windOffset, my - 5, mx - 15 + windOffset, my + 3);
+    ctx.moveTo(rootX, rootY);
+    ctx.quadraticCurveTo(rootX - 12 + tailSwing * 0.35, rootY + 8, strandEndX, strandEndY);
     ctx.stroke();
   }
 
-  // Tail
-  ctx.strokeStyle = "#1A0E05";
-  ctx.lineWidth = 4;
-  const tailSwing = Math.sin(phase * 0.5) * 12;
-  ctx.beginPath();
-  ctx.moveTo(-48, -42);
-  ctx.quadraticCurveTo(-70 + tailSwing, -35, -80 + tailSwing * 1.5, -20);
-  ctx.stroke();
-
-  // ---- RIDER ----
-  const riderBaseX = 5;
-  const riderBaseY = -58;
-
-  // Legs on horse
-  ctx.fillStyle = "#8B2500";
-  ctx.beginPath();
-  ctx.moveTo(riderBaseX - 12, riderBaseY + 10);
-  ctx.lineTo(riderBaseX - 18, riderBaseY + 25);
-  ctx.lineTo(riderBaseX - 8, riderBaseY + 25);
-  ctx.lineTo(riderBaseX - 5, riderBaseY + 10);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(riderBaseX + 5, riderBaseY + 10);
-  ctx.lineTo(riderBaseX + 12, riderBaseY + 25);
-  ctx.lineTo(riderBaseX + 20, riderBaseY + 25);
-  ctx.lineTo(riderBaseX + 10, riderBaseY + 10);
-  ctx.closePath();
-  ctx.fill();
-
-  // Torso
-  ctx.fillStyle = "#B22222";
-  ctx.beginPath();
-  ctx.moveTo(riderBaseX - 12, riderBaseY + 12);
-  ctx.lineTo(riderBaseX - 10, riderBaseY - 20);
-  ctx.lineTo(riderBaseX + 10, riderBaseY - 20);
-  ctx.lineTo(riderBaseX + 12, riderBaseY + 12);
-  ctx.closePath();
-  ctx.fill();
-
-  // Sash
-  ctx.strokeStyle = "#FFD700";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(riderBaseX - 11, riderBaseY + 2);
-  ctx.lineTo(riderBaseX + 11, riderBaseY + 2);
-  ctx.stroke();
-
-  // Head
-  ctx.fillStyle = "#D2A679";
-  ctx.beginPath();
-  ctx.arc(riderBaseX, riderBaseY - 28, 8, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Hat
-  ctx.fillStyle = "#8B4513";
-  ctx.beginPath();
-  ctx.moveTo(riderBaseX - 10, riderBaseY - 30);
-  ctx.lineTo(riderBaseX, riderBaseY - 48);
-  ctx.lineTo(riderBaseX + 10, riderBaseY - 30);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#A0522D";
-  ctx.beginPath();
-  ctx.ellipse(riderBaseX, riderBaseY - 30, 12, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // ---- BOW (45-degree angle, always aiming top-right) ----
-  const bowCenterX = riderBaseX + 16;
-  const bowCenterY = riderBaseY - 18;
-
-  // Wobble shake
-  let shakeX = 0;
-  let shakeY = 0;
-  if (isDrawing && wobbleAmount > 0) {
-    const wobbleTime = performance.now() * 0.03;
-    const wobbleMagnitude = wobbleAmount * 6;
-    shakeX = Math.sin(wobbleTime * 1.3) * wobbleMagnitude;
-    shakeY = Math.cos(wobbleTime * 1.7) * wobbleMagnitude;
+  // MANE - more fluid
+  ctx.strokeStyle = "#555";
+  ctx.lineWidth = 2.8;
+  for (let i = 0; i < 5; i++) {
+    const mx = 45 + i * 2.7;
+    const my = -66 - i * 2.5;
+    const windOffset = Math.sin(phase * 0.7 + i * 0.8) * 5;
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.quadraticCurveTo(mx - 10 + windOffset, my - 5, mx - 15 + windOffset, my + 4);
+    ctx.stroke();
   }
 
-  const drawBowX = bowCenterX + shakeX;
-  const drawBowY = bowCenterY + shakeY;
-
-  // Bow arm (reaches up-right to hold bow)
-  ctx.strokeStyle = "#D2A679";
-  ctx.lineWidth = 3;
-  ctx.lineCap = "round";
+  // SADDLE CLOTH - simple draped blanket
+  const clothX = -20;
+  const clothY = -61;
+  const clothW = 44;
+  const clothH = 16;
+  const clothGrad = ctx.createLinearGradient(clothX, clothY, clothX, clothY + clothH);
+  clothGrad.addColorStop(0, "#A13A24");
+  clothGrad.addColorStop(1, "#6E2518");
+  ctx.fillStyle = clothGrad;
   ctx.beginPath();
-  ctx.moveTo(riderBaseX + 8, riderBaseY - 14);
-  ctx.lineTo(drawBowX, drawBowY);
+  ctx.moveTo(clothX, clothY + 2);
+  ctx.quadraticCurveTo(clothX + clothW * 0.5, clothY - 4, clothX + clothW, clothY + 1);
+  ctx.lineTo(clothX + clothW - 1, clothY + clothH - 2);
+  ctx.quadraticCurveTo(clothX + clothW * 0.5, clothY + clothH + 4, clothX + 1, clothY + clothH - 1);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(240, 198, 132, 0.35)";
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(clothX + 3, clothY + clothH - 2);
+  ctx.quadraticCurveTo(clothX + clothW * 0.5, clothY + clothH + 3, clothX + clothW - 3, clothY + clothH - 2);
   ctx.stroke();
 
-  // Bow arc — 45 degrees top-right
-  const bowR = 22;
-  const bowAngle = -Math.PI * 0.25; // 45 deg top-right
-  ctx.strokeStyle = "#8B4513";
-  ctx.lineWidth = 3;
+  // RIDER / ARCHER
+  const riderBaseX = -8;
+  const riderBaseY = -66;
+
+  // Riding legs: near leg visible, far leg mostly hidden by horse body.
+  ctx.fillStyle = "rgba(50, 33, 19, 0.55)";
   ctx.beginPath();
-  ctx.arc(drawBowX, drawBowY, bowR, bowAngle - 0.9, bowAngle + 0.9, false);
+  ctx.moveTo(riderBaseX - 10, riderBaseY + 10);
+  ctx.lineTo(riderBaseX - 4, riderBaseY + 16);
+  ctx.lineTo(riderBaseX + 3, riderBaseY + 8);
+  ctx.lineTo(riderBaseX - 6, riderBaseY + 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#332211";
+  ctx.beginPath();
+  ctx.moveTo(riderBaseX + 8, riderBaseY + 8);
+  ctx.lineTo(riderBaseX + 20, riderBaseY + 26);
+  ctx.lineTo(riderBaseX + 30, riderBaseY + 25);
+  ctx.lineTo(riderBaseX + 16, riderBaseY + 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#2A1B10";
+  ctx.beginPath();
+  ctx.ellipse(riderBaseX + 29, riderBaseY + 27, 5, 2.8, 0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Capsule torso (mounted posture)
+  const deelColor = "#2F4F7A";
+  const deelLight = "#4F76A3";
+  const deelGrad = ctx.createLinearGradient(riderBaseX, riderBaseY - 24, riderBaseX, riderBaseY + 16);
+  deelGrad.addColorStop(0, deelLight);
+  deelGrad.addColorStop(1, deelColor);
+  ctx.fillStyle = deelGrad;
+  ctx.beginPath();
+  ctx.roundRect(riderBaseX - 13, riderBaseY - 24, 28, 42, 14);
+  ctx.fill();
+
+  // Belt/Sash (Buse)
+  ctx.fillStyle = "#D4AF37"; // Golden sash
+  ctx.beginPath();
+  ctx.roundRect(riderBaseX - 13, riderBaseY - 2, 28, 6, 3);
+  ctx.fill();
+
+  // FACE / HEAD
+  ctx.fillStyle = "#E5C298"; // Skin tone
+  ctx.beginPath();
+  ctx.arc(riderBaseX + 1, riderBaseY - 32, 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Features
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(riderBaseX + 4, riderBaseY - 34, 3, 1.5); // Eye
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(riderBaseX + 3, riderBaseY - 28);
+  ctx.quadraticCurveTo(riderBaseX + 7, riderBaseY - 28, riderBaseX + 9, riderBaseY - 26); // Mustache
   ctx.stroke();
 
-  // Bow tip positions (the two ends of the arc)
-  const topTipX = drawBowX + Math.cos(bowAngle - 0.9) * bowR;
-  const topTipY = drawBowY + Math.sin(bowAngle - 0.9) * bowR;
-  const botTipX = drawBowX + Math.cos(bowAngle + 0.9) * bowR;
-  const botTipY = drawBowY + Math.sin(bowAngle + 0.9) * bowR;
-
-  // String pullback — pulls opposite to aim (bottom-left)
-  const maxPull = 18;
-  const pullBack = isDrawing ? drawProgress * maxPull : 0;
-  const pullDirX = -Math.cos(bowAngle); // opposite of aim direction
-  const pullDirY = -Math.sin(bowAngle);
-  const stringPullX = drawBowX + pullDirX * pullBack;
-  const stringPullY = drawBowY + pullDirY * pullBack;
-
-  // Bowstring
-  ctx.strokeStyle = "#C4A058";
+  // HAT (Malgais)
+  ctx.fillStyle = "#333";
+  ctx.beginPath();
+  ctx.moveTo(riderBaseX - 11, riderBaseY - 35);
+  ctx.lineTo(riderBaseX + 1, riderBaseY - 55);
+  ctx.lineTo(riderBaseX + 13, riderBaseY - 35);
+  ctx.closePath();
+  ctx.fill();
+  // Hat trim (fur)
+  ctx.fillStyle = "#CDBA8F";
+  ctx.beginPath();
+  ctx.roundRect(riderBaseX - 13, riderBaseY - 40, 27, 8, 4);
+  ctx.fill();
+  // Tassel
+  ctx.strokeStyle = "#FF0000";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
+  ctx.moveTo(riderBaseX + 1, riderBaseY - 55);
+  ctx.lineTo(riderBaseX - 4, riderBaseY - 52);
+  ctx.stroke();
+
+  // BOW
+  const bowCenterX = riderBaseX + 18;
+  const bowCenterY = riderBaseY - 18;
+  const bowAngle = -Math.PI * 0.25;
+  const bowR = 24;
+  const maxPull = 20;
+  const pullBack = isDrawing ? drawProgress * maxPull : 0;
+  const pullDirX = -Math.cos(bowAngle);
+  const pullDirY = -Math.sin(bowAngle);
+  const stringPullX = bowCenterX + pullDirX * pullBack;
+  const stringPullY = bowCenterY + pullDirY * pullBack;
+
+  // Bow Arm
+  ctx.strokeStyle = "#E5C298";
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(riderBaseX + 8, riderBaseY - 16);
+  ctx.lineTo(bowCenterX - 2, bowCenterY + 2);
+  ctx.stroke();
+
+  // Recurve Bow Body
+  ctx.strokeStyle = "#4D2E1D";
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  // Drawing a simplified recurve shape with two arcs
+  ctx.arc(bowCenterX, bowCenterY, bowR, bowAngle - 1.1, bowAngle + 1.1, false);
+  ctx.stroke();
+  
+  // Horn/Sinew tips (recurve ends)
+  ctx.strokeStyle = "#221100";
+  ctx.lineWidth = 4;
+  const topTipX = bowCenterX + Math.cos(bowAngle - 1.1) * bowR;
+  const topTipY = bowCenterY + Math.sin(bowAngle - 1.1) * bowR;
+  const botTipX = bowCenterX + Math.cos(bowAngle + 1.1) * bowR;
+  const botTipY = bowCenterY + Math.sin(bowAngle + 1.1) * bowR;
+  
+  // Small recurve flicks at ends
+  ctx.beginPath();
   ctx.moveTo(topTipX, topTipY);
-  if (isDrawing && drawProgress > 0.05) {
+  ctx.lineTo(topTipX + Math.cos(bowAngle - 1.5) * 6, topTipY + Math.sin(bowAngle - 1.5) * 6);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(botTipX, botTipY);
+  ctx.lineTo(botTipX + Math.cos(bowAngle + 1.5) * 6, botTipY + Math.sin(bowAngle + 1.5) * 6);
+  ctx.stroke();
+
+  // String
+  ctx.strokeStyle = "#EEE";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  const stringTopX = topTipX + Math.cos(bowAngle - 1.5) * 5;
+  const stringTopY = topTipY + Math.sin(bowAngle - 1.5) * 5;
+  const stringBotX = botTipX + Math.cos(bowAngle + 1.5) * 5;
+  const stringBotY = botTipY + Math.sin(bowAngle + 1.5) * 5;
+  
+  ctx.moveTo(stringTopX, stringTopY);
+  if (isDrawing && drawProgress > 0.01) {
     ctx.lineTo(stringPullX, stringPullY);
   }
-  ctx.lineTo(botTipX, botTipY);
+  ctx.lineTo(stringBotX, stringBotY);
   ctx.stroke();
 
-  // Draw arm (reaches to string nock point)
-  const drawArmEndX = isDrawing ? stringPullX : riderBaseX;
-  const drawArmEndY = isDrawing ? stringPullY : riderBaseY - 8;
+  // Draw Arm - smooth two-joint motion (no elbow snap/pop)
+  const shoulderX = riderBaseX + 2;
+  const shoulderY = riderBaseY - 18;
+  const pullT = isDrawing ? Math.max(0, Math.min(1, drawProgress)) : 0;
+  const easedPullT = pullT * pullT * (3 - 2 * pullT);
+  const restHandX = riderBaseX - 5;
+  const restHandY = riderBaseY - 10;
+  const handX = restHandX + (stringPullX - restHandX) * easedPullT;
+  const handY = restHandY + (stringPullY - restHandY) * easedPullT;
+  const restElbowX = riderBaseX - 2;
+  const restElbowY = riderBaseY - 20;
+  const pullElbowX = riderBaseX - 9;
+  const pullElbowY = riderBaseY - 23;
+  let elbowX = restElbowX + (pullElbowX - restElbowX) * easedPullT;
+  let elbowY = restElbowY + (pullElbowY - restElbowY) * easedPullT;
+  const upperToHandX = handX - shoulderX;
+  const upperToHandY = handY - shoulderY;
+  const dist = Math.sqrt(upperToHandX * upperToHandX + upperToHandY * upperToHandY);
+  if (dist > 0.001) {
+    const nx = -upperToHandY / dist;
+    const ny = upperToHandX / dist;
+    const bend = 3.2 + easedPullT * 4.8;
+    elbowX += nx * bend;
+    elbowY += ny * bend;
+  }
 
-  ctx.strokeStyle = "#D2A679";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#E5C298";
+  ctx.lineWidth = 3.5;
   ctx.beginPath();
-  ctx.moveTo(riderBaseX + 5, riderBaseY - 14);
-  ctx.lineTo(drawArmEndX, drawArmEndY);
+  ctx.moveTo(shoulderX, shoulderY);
+  ctx.lineTo(elbowX, elbowY);
+  ctx.lineTo(handX, handY);
   ctx.stroke();
 
-  // Nocked arrow while drawing — points top-right at 45 degrees
+  // Arrow while drawing
   if (isDrawing && drawProgress > 0.05) {
     const nockX = stringPullX;
     const nockY = stringPullY;
-    const arrowLen = 30;
-
-    // Arrow points in aim direction (top-right, 45 deg)
-    const aDirX = Math.cos(bowAngle);  // 0.707
-    const aDirY = Math.sin(bowAngle);  // -0.707
-
+    const arrowLen = 32;
+    const aDirX = Math.cos(bowAngle);
+    const aDirY = Math.sin(bowAngle);
     const tipX = nockX + aDirX * arrowLen;
     const tipY = nockY + aDirY * arrowLen;
 
-    ctx.strokeStyle = "#5C3A1E";
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "#3D2616";
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.moveTo(nockX, nockY);
     ctx.lineTo(tipX, tipY);
     ctx.stroke();
 
     // Arrowhead
-    ctx.fillStyle = "#888";
+    ctx.fillStyle = metalColor;
     ctx.beginPath();
-    ctx.moveTo(tipX + aDirX * 4, tipY + aDirY * 4);
-    ctx.lineTo(tipX + aDirY * 4 - aDirX * 3, tipY - aDirX * 4 - aDirY * 3);
-    ctx.lineTo(tipX - aDirY * 4 - aDirX * 3, tipY + aDirX * 4 - aDirY * 3);
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - Math.cos(bowAngle - 0.35) * 7, tipY - Math.sin(bowAngle - 0.35) * 7);
+    ctx.lineTo(tipX - Math.cos(bowAngle + 0.35) * 7, tipY - Math.sin(bowAngle + 0.35) * 7);
     ctx.closePath();
     ctx.fill();
+
+    const backAngle = bowAngle + Math.PI;
+    drawArrowFletching(nockX, nockY, backAngle, 4.5);
   }
 
   ctx.restore();
+}
+
+function drawArrowFletching(tailX: number, tailY: number, backAngle: number, fSize: number): void {
+  const spread = 0.6;
+  const featherWidth = fSize * 0.9;
+  const featherLen = fSize * 0.7;
+  ctx.fillStyle = "rgba(240, 245, 255, 0.9)";
+
+  for (const side of [-1, 1]) {
+    const sideSpread = spread * side;
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(
+      tailX + Math.cos(backAngle + sideSpread) * featherWidth,
+      tailY + Math.sin(backAngle + sideSpread) * featherWidth,
+    );
+    ctx.lineTo(
+      tailX + Math.cos(backAngle + sideSpread * 0.45) * featherLen,
+      tailY + Math.sin(backAngle + sideSpread * 0.45) * featherLen,
+    );
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
 function drawArrows(): void {
@@ -2202,31 +2675,7 @@ function drawArrows(): void {
     // Fletching
     const fSize = 5 * gameScale * arrowRenderScale;
     const backAngle = angle + Math.PI;
-    ctx.fillStyle = "#CC3333";
-    ctx.beginPath();
-    ctx.moveTo(tailX, tailY);
-    ctx.lineTo(
-      tailX + Math.cos(backAngle - 0.5) * fSize,
-      tailY + Math.sin(backAngle - 0.5) * fSize,
-    );
-    ctx.lineTo(
-      tailX + Math.cos(backAngle) * fSize * 0.7,
-      tailY + Math.sin(backAngle) * fSize * 0.7,
-    );
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(tailX, tailY);
-    ctx.lineTo(
-      tailX + Math.cos(backAngle + 0.5) * fSize,
-      tailY + Math.sin(backAngle + 0.5) * fSize,
-    );
-    ctx.lineTo(
-      tailX + Math.cos(backAngle) * fSize * 0.7,
-      tailY + Math.sin(backAngle) * fSize * 0.7,
-    );
-    ctx.closePath();
-    ctx.fill();
+    drawArrowFletching(tailX, tailY, backAngle, fSize);
 
     if (arrow.stuckInGround) {
       ctx.restore();
@@ -2239,11 +2688,32 @@ function drawArrows(): void {
       const targetScreenX = horse.screenX + fxDx * pxPerUnit;
       const targetScreenY = groundY - arrow.magnetTargetHeight * pxPerUnit;
       const fxAlpha = Math.min(0.5, 0.16 + arrow.magnetFxStrength * 0.5);
+      const lineDx = targetScreenX - screenX;
+      const lineDy = targetScreenY - screenY;
+      const lineLen = Math.sqrt(lineDx * lineDx + lineDy * lineDy);
+      const targetRadiusPx = Math.max(0, arrow.magnetTargetRadius * pxPerUnit);
+      const activationLenPx = Math.max(
+        CONFIG.MAGNET_RADIUS * pxPerUnit * 2.2,
+        targetRadiusPx + CONFIG.MAGNET_RADIUS * pxPerUnit * 1.6,
+      ) * 2;
+      const redZoneStartRatio = lineLen > 0.001
+        ? Math.max(0, Math.min(1, (lineLen - activationLenPx) / lineLen))
+        : 0;
+      const splitX = screenX + lineDx * redZoneStartRatio;
+      const splitY = screenY + lineDy * redZoneStartRatio;
 
-      ctx.strokeStyle = "rgba(120, 230, 255, " + fxAlpha.toFixed(3) + ")";
       ctx.lineWidth = Math.max(1.2, 2.2 * gameScale * arrow.magnetFxStrength);
+      if (redZoneStartRatio > 0.001) {
+        ctx.strokeStyle = "rgba(120, 230, 255, " + fxAlpha.toFixed(3) + ")";
+        ctx.beginPath();
+        ctx.moveTo(screenX, screenY);
+        ctx.lineTo(splitX, splitY);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "rgba(255, 90, 90, " + Math.min(0.8, fxAlpha + 0.15).toFixed(3) + ")";
       ctx.beginPath();
-      ctx.moveTo(screenX, screenY);
+      ctx.moveTo(splitX, splitY);
       ctx.lineTo(targetScreenX, targetScreenY);
       ctx.stroke();
 
@@ -2256,11 +2726,10 @@ function drawArrows(): void {
 }
 
 function drawWindReaderPreview(): void {
-  if (upgradeLevels.windReader <= 0) return;
   if (!isDrawing) return;
 
   const baseAngle = Math.PI / 4;
-  const speed = CONFIG.ARROW_SPEED * Math.max(drawProgress, CONFIG.MIN_DRAW_TO_FIRE);
+  const speed = getArrowLaunchSpeed(Math.max(drawProgress, CONFIG.MIN_DRAW_TO_FIRE));
   const spawnPoint = getArrowSpawnPointWorld();
   let simX = spawnPoint.worldX;
   let simY = spawnPoint.height;
@@ -2309,65 +2778,155 @@ function drawScorePopups(): void {
   ctx.textAlign = "left";
 }
 
-function drawDrawMeter(): void {
-  const s = gameScale;
-  const meterX = w * 0.5;
-  const meterW = Math.max(104, 120 * s);
-  const meterH = Math.max(8, 10 * s);
-  const bottomOffset = isMobile ? 110 : 90;
-  const meterY = h - Math.max(64, bottomOffset * s);
-  const barX = meterX - meterW / 2;
-  const barY = meterY;
-  const labelFontSize = Math.max(11, Math.round(11 * s));
+function drawCircularActionMeter(
+  centerX: number,
+  centerY: number,
+  progress: number,
+  label: string,
+  progressColor: string,
+  trackColor: string,
+  labelColor: string,
+  clockwise: boolean,
+): void {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const ringRadius = Math.max(15, 19 * gameScale);
+  const ringWidth = Math.max(3, 4 * gameScale);
+  const startAngle = -Math.PI / 2;
+  const sweep = Math.PI * 2 * clampedProgress;
+  const endAngle = clockwise ? startAngle + sweep : startAngle - sweep;
 
-  ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+  ctx.fillStyle = "rgba(23, 16, 11, 0.4)";
   ctx.beginPath();
-  ctx.roundRect(barX - 2, barY - 2, meterW + 4, meterH + 4, 4 * s);
+  ctx.arc(centerX, centerY, ringRadius + ringWidth, 0, Math.PI * 2);
   ctx.fill();
 
-  let fillColor: string;
-  if (wobbleAmount > 0.1) {
-    fillColor = "#FF4444";
-  } else if (drawProgress >= 0.95) {
-    fillColor = "#FFDD44";
-  } else {
-    fillColor = "#44CC44";
-  }
-
-  ctx.fillStyle = fillColor;
+  ctx.strokeStyle = trackColor;
+  ctx.lineWidth = ringWidth;
   ctx.beginPath();
-  ctx.roundRect(barX, barY, meterW * drawProgress, meterH, 3 * s);
-  ctx.fill();
+  ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+  ctx.stroke();
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-  ctx.font = `bold ${labelFontSize}px 'Sora', sans-serif`;
+  ctx.strokeStyle = progressColor;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, ringRadius, startAngle, endAngle, !clockwise);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+
+  ctx.fillStyle = labelColor;
+  ctx.font = `bold ${Math.max(9, Math.round(9 * gameScale))}px 'Sora', sans-serif`;
   ctx.textAlign = "center";
-  const label =
-    wobbleAmount > 0.1
-      ? "WOBBLING!"
-      : drawProgress >= 0.95
-        ? "FULL DRAW"
-        : "DRAWING...";
-  ctx.fillText(label, meterX, barY - Math.max(8, 10 * s));
+  ctx.fillText(label, centerX, centerY - ringRadius - Math.max(8, 10 * gameScale));
   ctx.textAlign = "left";
+}
+
+function drawHitTargetSlot(centerX: number, centerY: number, radius: number, markProgress: number): void {
+  for (let i = 0; i < CONFIG.RING_COLORS.length; i++) {
+    const r = radius * (1 - i / CONFIG.RING_COLORS.length);
+    if (r < 0.6) continue;
+    ctx.fillStyle = CONFIG.RING_COLORS[i];
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(34, 26, 20, 0.9)";
+  ctx.lineWidth = Math.max(1, 1.2 * gameScale);
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const p = Math.max(0, Math.min(1, markProgress));
+  if (p <= 0) return;
+  const half = radius * 0.88;
+  ctx.strokeStyle = "rgba(227, 48, 48, 0.98)";
+  ctx.lineWidth = Math.max(2.1, 2.9 * gameScale);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  if (p < 0.5) {
+    const t = p / 0.5;
+    ctx.moveTo(centerX - half, centerY - half);
+    ctx.lineTo(centerX - half + (half * 2) * t, centerY - half + (half * 2) * t);
+  } else {
+    const t = (p - 0.5) / 0.5;
+    ctx.moveTo(centerX - half, centerY - half);
+    ctx.lineTo(centerX + half, centerY + half);
+    ctx.moveTo(centerX + half, centerY - half);
+    ctx.lineTo(centerX + half - (half * 2) * t, centerY - half + (half * 2) * t);
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
+}
+
+function drawHitTracker(): void {
+  const count = CONFIG.WAVE_HIT_GOAL;
+  if (count <= 0) return;
+  const trackerY = Math.max(56, 68 * gameScale);
+  const slotGap = Math.max(18, Math.min(30, (w * 0.7) / Math.max(1, count - 1)));
+  const slotRadius = Math.max(6, Math.min(11, slotGap * 0.32));
+  const totalWidth = slotGap * (count - 1);
+  const startX = w * 0.5 - totalWidth * 0.5;
+
+  const panelPadX = Math.max(16, 20 * gameScale);
+  const panelPadY = Math.max(10, 12 * gameScale);
+  const panelX = startX - slotRadius - panelPadX;
+  const panelY = trackerY - slotRadius - panelPadY;
+  const panelW = totalWidth + slotRadius * 2 + panelPadX * 2;
+  const panelH = slotRadius * 2 + panelPadY * 2;
+  ctx.fillStyle = "rgba(30, 20, 12, 0.44)";
+  ctx.beginPath();
+  ctx.roundRect(panelX, panelY, panelW, panelH, Math.max(10, 12 * gameScale));
+  ctx.fill();
+  ctx.strokeStyle = "rgba(240, 210, 160, 0.2)";
+  ctx.lineWidth = Math.max(1, 1.2 * gameScale);
+  ctx.beginPath();
+  ctx.roundRect(panelX, panelY, panelW, panelH, Math.max(10, 12 * gameScale));
+  ctx.stroke();
+
+  for (let i = 0; i < count; i++) {
+    const x = startX + i * slotGap;
+    drawHitTargetSlot(x, trackerY, slotRadius, waveHitMarkProgress[i] || 0);
+  }
 }
 
 function drawHUD(): void {
   const secs = Math.ceil(timeRemaining / 1000);
   const timerText = secs.toString();
-  const urgent = secs <= 5;
   const labelFontSize = Math.max(11, Math.round(11 * gameScale));
   const valueFontSize = Math.max(18, Math.round(19 * gameScale));
-  const timeFontSize = Math.max(18, Math.round((urgent ? 21 : 19) * gameScale));
+  const timeElapsedRatio = Math.max(0, Math.min(1, 1 - timeRemaining / CONFIG.ROUND_TIME_MS));
+  const lastTenRatio = Math.max(0, Math.min(1, (10000 - timeRemaining) / 10000));
+  const lastFifteenShakeRatio = Math.max(0, Math.min(1, (15000 - timeRemaining) / 15000));
+  const minTimeFont = Math.max(34, Math.round(40 * gameScale));
+  const maxTimeFont = Math.max(102, Math.round(132 * gameScale));
+  const timeFontSize = Math.round(minTimeFont + (maxTimeFont - minTimeFont) * timeElapsedRatio);
   const hudLeftX = 20;
   const labelX = hudLeftX;
   const valueX = hudLeftX + Math.max(66, 74 * gameScale);
-  const startY = isMobile ? 138 : 62;
   const rowGap = Math.max(27, 29 * gameScale);
+  const hudRows = 2;
+  const hudBlockHeight = rowGap * (hudRows - 1);
+  const startY = h * 0.5 - hudBlockHeight * 0.5;
   const waveY = startY;
-  const hitsY = waveY + rowGap;
-  const scoreY = hitsY + rowGap;
-  const timeY = scoreY + rowGap;
+  const scoreY = waveY + rowGap;
+
+  const hudPanelX = hudLeftX - Math.max(10, 12 * gameScale);
+  const hudPanelY = waveY - Math.max(24, 28 * gameScale);
+  const hudPanelW = Math.max(136, 162 * gameScale);
+  const hudPanelH = (scoreY - waveY) + Math.max(42, 52 * gameScale);
+  const hudPanelR = Math.max(10, 14 * gameScale);
+  const hudPanelGrad = ctx.createLinearGradient(hudPanelX, hudPanelY, hudPanelX, hudPanelY + hudPanelH);
+  hudPanelGrad.addColorStop(0, "rgba(39, 27, 18, 0.72)");
+  hudPanelGrad.addColorStop(1, "rgba(24, 16, 10, 0.62)");
+  ctx.fillStyle = hudPanelGrad;
+  ctx.beginPath();
+  ctx.roundRect(hudPanelX, hudPanelY, hudPanelW, hudPanelH, hudPanelR);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(227, 192, 132, 0.28)";
+  ctx.lineWidth = Math.max(1, 1.4 * gameScale);
+  ctx.beginPath();
+  ctx.roundRect(hudPanelX, hudPanelY, hudPanelW, hudPanelH, hudPanelR);
+  ctx.stroke();
+
   ctx.textAlign = "left";
   ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
   ctx.shadowBlur = 8;
@@ -2375,52 +2934,79 @@ function drawHUD(): void {
   ctx.fillStyle = "rgba(200, 170, 120, 0.95)";
   ctx.font = `bold ${labelFontSize}px 'Sora', sans-serif`;
   ctx.fillText("WAVE", labelX, waveY);
-  ctx.fillText("HITS", labelX, hitsY);
   ctx.fillText("SCORE", labelX, scoreY);
-  ctx.fillText("TIME", labelX, timeY);
 
   ctx.textAlign = "left";
 
   ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
   ctx.font = `bold ${valueFontSize}px 'Sora', sans-serif`;
   ctx.fillText(waveNumber.toString(), valueX, waveY);
-  ctx.fillText(waveHits.toString() + "/" + CONFIG.WAVE_HIT_GOAL.toString(), valueX, hitsY);
   ctx.fillText(score.toString(), valueX, scoreY);
 
-  ctx.fillStyle = urgent ? "#FF3333" : "rgba(255, 255, 255, 0.95)";
+  drawHitTracker();
+
+  const timerX = w * 0.5;
+  const timerY = h - Math.max(64, 110 * gameScale);
+  const timerR = Math.round(245 + (255 - 245) * lastTenRatio);
+  const timerG = Math.round(245 + (60 - 245) * lastTenRatio);
+  const timerB = Math.round(245 + (60 - 245) * lastTenRatio);
+  const shakeAmp = lastFifteenShakeRatio * (1.2 + lastFifteenShakeRatio * 4.2);
+  const shakeX = Math.sin(environmentTime * 0.12) * shakeAmp;
+  const shakeY = Math.cos(environmentTime * 0.17) * shakeAmp;
+
+  ctx.fillStyle = "rgb(" + timerR + ", " + timerG + ", " + timerB + ")";
+  ctx.shadowColor = "rgba(" + (210 + Math.round(45 * lastTenRatio)) + ", 0, 0, " + (0.22 + lastTenRatio * 0.5).toFixed(3) + ")";
+  ctx.shadowBlur = 12 + lastTenRatio * 16;
+  ctx.textAlign = "center";
+  ctx.save();
+  ctx.translate(timerX + shakeX, timerY + shakeY);
   ctx.font = `bold ${timeFontSize}px 'Sora', sans-serif`;
-  ctx.shadowColor = urgent ? "rgba(255, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.55)";
-  ctx.shadowBlur = urgent ? 14 : 8;
-  ctx.fillText(timerText, valueX, timeY);
-
-  const quiverLabelY = timeY + rowGap;
-  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-  ctx.shadowBlur = 8;
+  ctx.fillText(timerText, 0, 0);
+  ctx.restore();
   ctx.textAlign = "left";
-  ctx.fillStyle = "rgba(200, 170, 120, 0.95)";
-  ctx.font = `bold ${labelFontSize}px 'Sora', sans-serif`;
-  ctx.fillText("QUIVER", labelX, quiverLabelY);
 
-  const quiverStartX = valueX;
-  const quiverY = quiverLabelY - Math.max(11, 12 * gameScale);
+  const headPos = getPlayerHeadScreenPosition();
+  const quiverCenterX = headPos.x;
+  const quiverY = headPos.y - Math.max(44, 52 * gameScale);
   ctx.shadowBlur = 0;
   const arrowSpacing = Math.max(15, 17 * gameScale);
   const arrowStemH = Math.max(10, 12 * gameScale);
   const arrowHeadH = Math.max(5, 6 * gameScale);
   const arrowHalfW = Math.max(3.5, 4.5 * gameScale);
   const maxQuiver = getMaxQuiverArrows();
+  const quiverStartX = quiverCenterX - ((maxQuiver - 1) * arrowSpacing) / 2;
+  const quiverSpan = (maxQuiver - 1) * arrowSpacing;
+  const actionCircleX = quiverStartX + quiverSpan * 0.5;
+  const actionCircleY = quiverY - Math.max(42, 48 * gameScale);
+
+  const quiverPadX = Math.max(10, 12 * gameScale);
+  const quiverPadY = Math.max(7, 9 * gameScale);
+  const quiverBgX = quiverStartX - arrowHalfW - quiverPadX;
+  const quiverBgY = quiverY - quiverPadY;
+  const quiverBgW = quiverSpan + arrowHalfW * 2 + quiverPadX * 2;
+  const quiverBgH = arrowHeadH + arrowStemH + quiverPadY * 2;
+  ctx.fillStyle = "rgba(30, 20, 12, 0.44)";
+  ctx.beginPath();
+  ctx.roundRect(quiverBgX, quiverBgY, quiverBgW, quiverBgH, Math.max(8, 10 * gameScale));
+  ctx.fill();
+  ctx.strokeStyle = "rgba(240, 210, 160, 0.2)";
+  ctx.lineWidth = Math.max(1, 1.3 * gameScale);
+  ctx.beginPath();
+  ctx.roundRect(quiverBgX, quiverBgY, quiverBgW, quiverBgH, Math.max(8, 10 * gameScale));
+  ctx.stroke();
+
   for (let i = 0; i < maxQuiver; i++) {
     const x = quiverStartX + i * arrowSpacing;
     const filled = i < ammoCount;
-    const alpha = filled ? 0.95 : 0.24;
-    ctx.strokeStyle = "rgba(236, 228, 211, " + alpha.toFixed(3) + ")";
+    const alpha = filled ? 1 : 0.22;
+    ctx.strokeStyle = filled ? "#FFFFFF" : "rgba(236, 228, 211, " + alpha.toFixed(3) + ")";
     ctx.lineWidth = Math.max(1.4, 2 * gameScale);
     ctx.beginPath();
     ctx.moveTo(x, quiverY + arrowHeadH);
     ctx.lineTo(x, quiverY + arrowHeadH + arrowStemH);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(189, 198, 212, " + alpha.toFixed(3) + ")";
+    ctx.fillStyle = filled ? "#FFFFFF" : "rgba(189, 198, 212, " + alpha.toFixed(3) + ")";
     ctx.beginPath();
     ctx.moveTo(x, quiverY);
     ctx.lineTo(x - arrowHalfW, quiverY + arrowHeadH);
@@ -2430,22 +3016,34 @@ function drawHUD(): void {
   }
 
   if (isReloading) {
-    const reloadX = valueX;
-    const reloadY = quiverY + arrowHeadH + arrowStemH + Math.max(12, 14 * gameScale);
-    const reloadW = Math.max(58, 72 * gameScale);
-    const reloadH = Math.max(6, 8 * gameScale);
     const reloadT = 1 - reloadRemaining / CONFIG.RELOAD_MS;
-    ctx.fillStyle = "rgba(60, 45, 30, 0.5)";
-    ctx.fillRect(reloadX, reloadY, reloadW, reloadH);
-    ctx.fillStyle = "rgba(232, 190, 92, 0.95)";
-    ctx.fillRect(reloadX, reloadY, reloadW * Math.max(0, Math.min(1, reloadT)), reloadH);
-    ctx.fillStyle = "rgba(255, 230, 190, 0.95)";
-    ctx.font = `bold ${Math.max(9, Math.round(9 * gameScale))}px 'Sora', sans-serif`;
-    ctx.fillText("RELOADING", reloadX, reloadY - Math.max(4, 5 * gameScale));
-  }
-
-  if (isDrawing) {
-    drawDrawMeter();
+    drawCircularActionMeter(
+      actionCircleX,
+      actionCircleY,
+      reloadT,
+      "RELOADING",
+      "rgba(232, 190, 92, 0.95)",
+      "rgba(60, 45, 30, 0.75)",
+      "rgba(255, 230, 190, 0.95)",
+      false,
+    );
+  } else if (isDrawing) {
+    const drawLabel = wobbleAmount > 0.1 ? "WOBBLING" : "DRAWING";
+    const drawColor = wobbleAmount > 0.1
+      ? "rgba(235, 96, 96, 0.95)"
+      : drawProgress >= 0.95
+        ? "rgba(108, 240, 199, 0.96)"
+        : "rgba(84, 209, 255, 0.95)";
+    drawCircularActionMeter(
+      actionCircleX,
+      actionCircleY,
+      drawProgress,
+      drawLabel,
+      drawColor,
+      "rgba(22, 48, 64, 0.82)",
+      "rgba(198, 236, 255, 0.95)",
+      true,
+    );
   }
 }
 
@@ -2493,15 +3091,22 @@ function update(dt: number): void {
   updateClouds(dt);
   updateWorld(dt);
   updateDraw(dt);
-  maintainCharacterVideoLoop();
   updateFireButton();
+  const trackedHits = Math.min(CONFIG.WAVE_HIT_GOAL, waveHits);
+  for (let i = 0; i < CONFIG.WAVE_HIT_GOAL; i++) {
+    if (i < trackedHits) {
+      const next = (waveHitMarkProgress[i] || 0) + dt / HIT_MARK_ANIM_MS;
+      waveHitMarkProgress[i] = Math.max(0, Math.min(1, next));
+    } else {
+      waveHitMarkProgress[i] = 0;
+    }
+  }
   if (isReloading) {
     reloadRemaining -= dt;
     if (reloadRemaining <= 0) {
       reloadRemaining = 0;
       isReloading = false;
       ammoCount = getMaxQuiverArrows();
-      playSfx("reloadReady");
     }
   }
   let waveClearedThisFrame = false;
@@ -2541,7 +3146,8 @@ function update(dt: number): void {
     let arrowDx = arrow.worldX - world.cameraX;
     if (arrowDx > world.width / 2) arrowDx -= world.width;
     if (arrowDx < -world.width / 2) arrowDx += world.width;
-    if (!arrow.stuckInGround && (arrowDx > 1200 || arrowDx < -100)) {
+    // Keep airborne arrows alive while ahead of camera so they can land and stick.
+    if (!arrow.stuckInGround && arrowDx < -100) {
       arrow.active = false;
       continue;
     }
@@ -2553,6 +3159,8 @@ function update(dt: number): void {
     // Target collision (2D: worldX + height)
     if (arrow.stuckInGround) continue;
     const collisionPoint = getArrowCollisionPoint(arrow);
+    const prevCollisionX = collisionPoint.x - arrow.vx * dt;
+    const prevCollisionY = collisionPoint.y - arrow.vy * dt;
     let closestTarget: WorldTarget | null = null;
     let closestDist = Number.POSITIVE_INFINITY;
     let closestDx = 0;
@@ -2566,57 +3174,111 @@ function update(dt: number): void {
 
       const dy = collisionPoint.y - t.postHeight;
       const dist = Math.sqrt(tdx * tdx + dy * dy);
-      if (dist < closestDist) {
-        closestDist = dist;
+      const targetXAligned = collisionPoint.x - tdx;
+      const sweptDist = getPointToSegmentDistance(
+        targetXAligned,
+        t.postHeight,
+        prevCollisionX,
+        prevCollisionY,
+        collisionPoint.x,
+        collisionPoint.y,
+      );
+      const sweptClosestPoint = getClosestPointOnSegment(
+        targetXAligned,
+        t.postHeight,
+        prevCollisionX,
+        prevCollisionY,
+        collisionPoint.x,
+        collisionPoint.y,
+      );
+      const sweptDx = sweptClosestPoint.x - targetXAligned;
+      const sweptDy = sweptClosestPoint.y - t.postHeight;
+      const useSweptForLock = sweptDist < dist;
+      const lockDx = useSweptForLock ? sweptDx : tdx;
+      const lockDy = useSweptForLock ? sweptDy : dy;
+      const pullDist = Math.min(dist, sweptDist);
+      if (pullDist < closestDist) {
+        closestDist = pullDist;
         closestTarget = t;
-        closestDx = tdx;
-        closestDy = dy;
+        closestDx = lockDx;
+        closestDy = lockDy;
       }
       const hitRadius = getTargetHitRadius(t);
-      const isMagnetHit = upgradeLevels.magnetArrows > 0 && dist <= CONFIG.MAGNET_RADIUS;
+      // Reduced by ~40% from prior tuning to avoid overpowered lock behavior.
+      const magnetCatchRadius = Math.max(CONFIG.MAGNET_RADIUS * 1.32, t.radius * 1.08);
+      const isMagnetLockHit =
+        upgradeLevels.magnetArrows > 0 && (dist <= magnetCatchRadius || sweptDist <= magnetCatchRadius);
+      const isDirectHit = dist < hitRadius;
 
-      if (isMagnetHit || dist < hitRadius) {
+      if (isMagnetLockHit || isDirectHit) {
         // Slight 3D target behavior: score by where the arrow is projected
         // toward the target's center plane instead of first edge contact.
         let scoreDx = tdx;
         let scoreDy = dy;
-        if (Math.abs(arrow.vx) > 0.00001) {
+        let scoreDist = Math.sqrt(scoreDx * scoreDx + scoreDy * scoreDy);
+        let impactAngle = collisionPoint.angle;
+        let magnetAssistedEdgeHit = false;
+
+        if (isMagnetLockHit) {
+          // Use current frame target-relative vector for embedding so arrows stick to the face.
+          const embedDx = Math.abs(tdx) + Math.abs(dy) > 0.0001 ? tdx : lockDx;
+          const embedDy = Math.abs(tdx) + Math.abs(dy) > 0.0001 ? dy : lockDy;
+          const safeDist = Math.max(0.0001, Math.sqrt(embedDx * embedDx + embedDy * embedDy));
+          const edgeNx = embedDx / safeDist;
+          const edgeNy = embedDy / safeDist;
+          // Magnet lock turns the arrow toward center but only grants an edge impact.
+          scoreDx = edgeNx * t.radius;
+          scoreDy = edgeNy * t.radius;
+          scoreDist = t.radius;
+          impactAngle = Math.atan2(embedDy, -embedDx);
+          magnetAssistedEdgeHit = true;
+        } else if (Math.abs(arrow.vx) > 0.00001) {
           const tToCenter = -tdx / arrow.vx;
           if (tToCenter >= 0 && tToCenter <= CONFIG.TARGET_PENETRATION_WINDOW_MS) {
             scoreDx = 0;
             scoreDy = dy + arrow.vy * tToCenter;
           }
+          scoreDist = Math.sqrt(scoreDx * scoreDx + scoreDy * scoreDy);
         }
-        const scoreDist = Math.sqrt(scoreDx * scoreDx + scoreDy * scoreDy);
 
         arrow.active = false;
-        const impactAngle = collisionPoint.angle;
+        // Always clamp embedded-arrow position to the target face to avoid floating off-disc artifacts.
+        const embedDist = Math.sqrt(scoreDx * scoreDx + scoreDy * scoreDy);
+        if (embedDist > t.radius && embedDist > 0.0001) {
+          const scaleToFace = t.radius / embedDist;
+          scoreDx *= scaleToFace;
+          scoreDy *= scaleToFace;
+        }
         t.embeddedArrow = {
           offsetX: scoreDx,
           offsetY: scoreDy,
           angle: impactAngle,
         };
+        if (t.kind === "stoneColumn") {
+          playSfx("targetHit");
+          triggerHaptic("heavy");
+          break;
+        }
         spawnTargetRingBurst(t);
 
         let points = 2;
         let isBullseye = false;
-        const scoringBias = t.radius * 0.08;
-        const adjustedDist = Math.max(0, scoreDist - scoringBias);
-        const ringFrac = adjustedDist / t.radius;
-        if (ringFrac < 0.25) {
-          points = 10;
-          isBullseye = true;
-        } else if (ringFrac < 0.4) {
-          points = 8;
-        } else if (ringFrac < 0.6) {
-          points = 6;
-        } else if (ringFrac < 0.8) {
-          points = 4;
+        if (!magnetAssistedEdgeHit) {
+          const scoringBias = t.radius * 0.08;
+          const adjustedDist = Math.max(0, scoreDist - scoringBias);
+          const ringFrac = adjustedDist / t.radius;
+          if (ringFrac < 0.25) {
+            points = 10;
+            isBullseye = true;
+          } else if (ringFrac < 0.4) {
+            points = 8;
+          } else if (ringFrac < 0.6) {
+            points = 6;
+          } else if (ringFrac < 0.8) {
+            points = 4;
+          }
         }
         if (t.kind === "tiny") points += 2;
-        if (t.kind === "decoy") {
-          points = -3;
-        }
 
         t.hp = Math.max(0, t.hp - 1);
         const targetCleared = t.hp <= 0;
@@ -2624,7 +3286,7 @@ function update(dt: number): void {
 
         score += points;
         if (score < 0) score = 0;
-        if (targetCleared && t.kind !== "decoy") {
+        if (targetCleared) {
           waveHits += 1;
         }
         // Screen position for score popup (perspective-matched)
@@ -2633,8 +3295,8 @@ function update(dt: number): void {
         const sx = horse.screenX + lateralX * pxPerUnit;
         const hitBaseY = groundY;
         const sy = hitBaseY - t.postHeight * hitScale;
-        spawnScorePopup(sx, sy - 30, points, isBullseye && t.kind !== "decoy");
-        if (isBullseye && t.kind !== "decoy") {
+        spawnScorePopup(sx, sy - 30, points, isBullseye);
+        if (isBullseye) {
           spawnPerfectBurst(t);
           if (upgradeLevels.perfectReload > 0) {
             isReloading = false;
@@ -2643,8 +3305,8 @@ function update(dt: number): void {
           }
         }
 
-        playSfx(isBullseye && t.kind !== "decoy" ? "perfectHit" : "targetHit");
-        triggerHaptic("light");
+        playSfx(isBullseye ? "perfectHit" : "targetHit");
+        triggerHaptic(isBullseye ? "success" : "heavy");
         if (waveHits >= CONFIG.WAVE_HIT_GOAL) {
           waveClearedThisFrame = true;
         }
@@ -2652,18 +3314,27 @@ function update(dt: number): void {
       }
 
     }
-    if (arrow.active && closestTarget && upgradeLevels.magnetArrows > 0 && closestDist <= CONFIG.MAGNET_PULL_RADIUS) {
-      const pullRatio = 1 - closestDist / CONFIG.MAGNET_PULL_RADIUS;
-      const pullAccel = CONFIG.MAGNET_PULL_STRENGTH * pullRatio * dt;
-      if (closestDist > 0.001) {
-        const pullX = -closestDx / closestDist;
-        const pullY = -closestDy / closestDist;
-        arrow.vx += pullX * pullAccel;
-        arrow.vy += pullY * pullAccel;
+    if (arrow.active && closestTarget && upgradeLevels.magnetArrows > 0) {
+      const magnetPullRadius = Math.max(CONFIG.MAGNET_PULL_RADIUS * 0.42, closestTarget.radius * 2.52);
+      if (closestDist <= magnetPullRadius) {
+        const pullRatio = 1 - closestDist / magnetPullRadius;
+        if (closestDist > 0.001) {
+          const pullX = -closestDx / closestDist;
+          const pullY = -closestDy / closestDist;
+          const speedMag = Math.sqrt(arrow.vx * arrow.vx + arrow.vy * arrow.vy);
+          const targetSpeed = Math.max(0.16, speedMag);
+          const desiredVx = pullX * targetSpeed;
+          const desiredVy = pullY * targetSpeed;
+          const steer = 1 - Math.exp(-(0.011 + pullRatio * 0.026) * dt);
+          // Strong directional steering makes above/below passes visibly bend toward center.
+          arrow.vx += (desiredVx - arrow.vx) * steer;
+          arrow.vy += (desiredVy - arrow.vy) * steer;
+        }
+        arrow.magnetFxStrength = pullRatio;
       }
-      arrow.magnetFxStrength = pullRatio;
       arrow.magnetTargetWorldX = closestTarget.worldX;
       arrow.magnetTargetHeight = closestTarget.postHeight;
+      arrow.magnetTargetRadius = closestTarget.radius;
     }
     if (waveClearedThisFrame) break arrowLoop;
   }
@@ -2727,6 +3398,15 @@ function update(dt: number): void {
   if (timeRemaining <= 0) {
     timeRemaining = 0;
     gameOver();
+    return;
+  }
+
+  const countdownSecond = Math.ceil(timeRemaining / 1000);
+  if (countdownSecond !== lastCountdownCueSecond) {
+    if (countdownSecond >= 1 && countdownSecond <= 5) {
+      playCountdownBeep(countdownSecond);
+    }
+    lastCountdownCueSecond = countdownSecond;
   }
 }
 
@@ -2928,12 +3608,6 @@ function gameLoop(timestamp: number): void {
     drawHUD();
   }
 
-  ctx.fillStyle = "rgba(255,255,255,0.3)";
-  ctx.font = `${Math.round(11 * gameScale)}px monospace`;
-  ctx.textAlign = "right";
-  ctx.fillText("build 17", w - 10, h - 10);
-  ctx.textAlign = "left";
-
   animationFrameId = requestAnimationFrame(gameLoop);
 }
 
@@ -2943,10 +3617,9 @@ function init(): void {
   window.addEventListener("resize", resizeCanvas);
 
   loadAudio();
+  updateStartTip();
   setupInputHandlers();
   setupUpgradeButtons();
-  loadCharacterVideo();
-  loadArcherImage();
   initClouds();
   generateTargets();
   updateOrientationState();

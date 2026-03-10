@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <style>
+        html,
+        body {
+            position: absolute;
+            left: 0;
+            top: 0;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #solitaire-html-layer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #solitaire-html-layer.hidden,
+        .solitaire-html-text.hidden {
+            display: none;
+        }
+
+        .solitaire-html-text {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-family: "Cinzel", Georgia, serif;
+            font-weight: 900;
+            line-height: 1;
+            white-space: pre;
+            text-align: center;
+            text-rendering: geometricPrecision;
+            -webkit-font-smoothing: antialiased;
+            font-smooth: always;
+            -webkit-text-stroke: var(--solitaire-html-stroke-width, 1.5px) var(--solitaire-html-stroke-color, #ffffff);
+        }
+
+        .solitaire-html-text--menu {
+            animation: solitaire-title-float 2500ms ease-in-out infinite;
+        }
+
+        .solitaire-html-text--modal {
+            letter-spacing: 2px;
+        }
+
+        .solitaire-html-letter {
+            display: inline-block;
+        }
+
+        @keyframes solitaire-title-float {
+            0%, 100% {
+                transform: translate(-50%, -50%);
+            }
+            50% {
+                transform: translate(-50%, calc(-50% - 12px));
+            }
+        }
+    </style>
+    <title>Solitaire</title>
+</head>
+
+<body>
+    <div id="game-container"></div>
+    <div id="solitaire-html-layer" class="hidden" aria-hidden="true">
+        <div id="solitaire-main-title" class="solitaire-html-text hidden"></div>
+        <div id="solitaire-modal-title" class="solitaire-html-text hidden"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

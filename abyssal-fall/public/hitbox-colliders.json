@@ -1,0 +1,759 @@
+{
+  "player_idle#0": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 19,
+    "height": 22
+  },
+  "player_idle#1": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 19,
+    "height": 22
+  },
+  "player_idle#2": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 19,
+    "height": 22
+  },
+  "player_idle#3": {
+    "type": "rect",
+    "x": 7,
+    "y": 8,
+    "width": 19,
+    "height": 23
+  },
+  "player_idle#4": {
+    "type": "rect",
+    "x": 7,
+    "y": 8,
+    "width": 19,
+    "height": 23
+  },
+  "player_idle#5": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 19,
+    "height": 24
+  },
+  "player_idle#6": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 19,
+    "height": 24
+  },
+  "player_idle#7": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 19,
+    "height": 24
+  },
+  "player_idle#8": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 19,
+    "height": 24
+  },
+  "player_idle#9": {
+    "type": "rect",
+    "x": 7,
+    "y": 8,
+    "width": 19,
+    "height": 23
+  },
+  "player_idle#10": {
+    "type": "rect",
+    "x": 7,
+    "y": 8,
+    "width": 19,
+    "height": 23
+  },
+  "player_run#0": {
+    "type": "rect",
+    "x": 7,
+    "y": 6,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#1": {
+    "type": "rect",
+    "x": 7,
+    "y": 5,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#2": {
+    "type": "rect",
+    "x": 7,
+    "y": 5,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#3": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#4": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 17,
+    "height": 21
+  },
+  "player_run#5": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 17,
+    "height": 21
+  },
+  "player_run#6": {
+    "type": "rect",
+    "x": 7,
+    "y": 6,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#7": {
+    "type": "rect",
+    "x": 7,
+    "y": 5,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#8": {
+    "type": "rect",
+    "x": 7,
+    "y": 5,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#9": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#10": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 17,
+    "height": 22
+  },
+  "player_run#11": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 17,
+    "height": 22
+  },
+  "player_jump#0": {
+    "type": "rect",
+    "x": 6,
+    "y": 5,
+    "width": 19,
+    "height": 26
+  },
+  "player_jump#1": {
+    "type": "rect",
+    "x": 16,
+    "y": 14,
+    "width": 14,
+    "height": 24
+  },
+  "player_jump#2": {
+    "type": "rect",
+    "x": 16,
+    "y": 14,
+    "width": 14,
+    "height": 24
+  },
+  "player_jump#3": {
+    "type": "rect",
+    "x": 16,
+    "y": 14,
+    "width": 14,
+    "height": 24
+  },
+  "player_jump#4": {
+    "type": "rect",
+    "x": 16,
+    "y": 14,
+    "width": 14,
+    "height": 24
+  },
+  "player_jump#5": {
+    "type": "rect",
+    "x": 16,
+    "y": 14,
+    "width": 14,
+    "height": 24
+  },
+  "player_fall#0": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 18,
+    "height": 24
+  },
+  "player_fall#1": {
+    "type": "rect",
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
+  },
+  "player_fall#2": {
+    "type": "rect",
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
+  },
+  "player_fall#3": {
+    "type": "rect",
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
+  },
+  "player_fall#4": {
+    "type": "rect",
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
+  },
+  "player_fall#5": {
+    "type": "rect",
+    "x": 15,
+    "y": 12,
+    "width": 14,
+    "height": 21
+  },
+  "player_shoot#0": {
+    "type": "rect",
+    "x": 7,
+    "y": 5,
+    "width": 19,
+    "height": 27
+  },
+  "player_shoot#1": {
+    "type": "rect",
+    "x": 7,
+    "y": 5,
+    "width": 19,
+    "height": 27
+  },
+  "player_shoot#2": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 19,
+    "height": 23
+  },
+  "player_shoot#3": {
+    "type": "rect",
+    "x": 7,
+    "y": 8,
+    "width": 19,
+    "height": 20
+  },
+  "player_shoot#4": {
+    "type": "rect",
+    "x": 7,
+    "y": 9,
+    "width": 19,
+    "height": 18
+  },
+  "player_shoot#5": {
+    "type": "rect",
+    "x": 7,
+    "y": 8,
+    "width": 19,
+    "height": 20
+  },
+  "player_shoot#6": {
+    "type": "rect",
+    "x": 7,
+    "y": 7,
+    "width": 19,
+    "height": 22
+  },
+  "player_slide#0": {
+    "type": "rect",
+    "x": 5,
+    "y": 6,
+    "width": 20,
+    "height": 23
+  },
+  "player_slide#1": {
+    "type": "rect",
+    "x": 5,
+    "y": 6,
+    "width": 20,
+    "height": 24
+  },
+  "player_slide#2": {
+    "type": "rect",
+    "x": 5,
+    "y": 6,
+    "width": 19,
+    "height": 23
+  },
+  "player_slide#3": {
+    "type": "rect",
+    "x": 5,
+    "y": 7,
+    "width": 19,
+    "height": 22
+  },
+  "player_slide#4": {
+    "type": "rect",
+    "x": 5,
+    "y": 7,
+    "width": 19,
+    "height": 22
+  },
+  "player_rollingJump#0": {
+    "type": "rect",
+    "x": 8,
+    "y": 4,
+    "width": 20,
+    "height": 22
+  },
+  "player_rollingJump#1": {
+    "type": "rect",
+    "x": 6,
+    "y": 6,
+    "width": 22,
+    "height": 19
+  },
+  "player_rollingJump#2": {
+    "type": "rect",
+    "x": 6,
+    "y": 6,
+    "width": 20,
+    "height": 22
+  },
+  "player_rollingJump#3": {
+    "type": "rect",
+    "x": 6,
+    "y": 6,
+    "width": 20,
+    "height": 22
+  },
+  "player_rollingJump#4": {
+    "type": "rect",
+    "x": 5,
+    "y": 6,
+    "width": 21,
+    "height": 20
+  },
+  "player_rollingJump#5": {
+    "type": "rect",
+    "x": 4,
+    "y": 7,
+    "width": 21,
+    "height": 18
+  },
+  "crab_idle#0": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 73,
+      "width": 19,
+      "height": 23
+    },
+    "safe": {
+      "type": "rect",
+      "x": 11,
+      "y": 61,
+      "width": 44,
+      "height": 11
+    }
+  },
+  "crab_idle#1": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 73,
+      "width": 19,
+      "height": 23
+    },
+    "safe": {
+      "type": "rect",
+      "x": 11,
+      "y": 61,
+      "width": 44,
+      "height": 11
+    }
+  },
+  "crab_idle#2": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 73,
+      "width": 19,
+      "height": 23
+    },
+    "safe": {
+      "type": "rect",
+      "x": 11,
+      "y": 61,
+      "width": 44,
+      "height": 11
+    }
+  },
+  "crab_idle#3": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 73,
+      "width": 19,
+      "height": 23
+    },
+    "safe": {
+      "type": "rect",
+      "x": 11,
+      "y": 61,
+      "width": 44,
+      "height": 11
+    }
+  },
+  "crab_attack#0": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 74,
+      "width": 19,
+      "height": 21
+    },
+    "safe": {
+      "type": "rect",
+      "x": 29,
+      "y": 60,
+      "width": 26,
+      "height": 12
+    }
+  },
+  "crab_attack#1": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 74,
+      "width": 19,
+      "height": 21
+    },
+    "safe": {
+      "type": "rect",
+      "x": 29,
+      "y": 60,
+      "width": 26,
+      "height": 12
+    }
+  },
+  "crab_attack#2": {
+    "unsafe": {
+      "type": "rect",
+      "x": 50,
+      "y": 60,
+      "width": 20,
+      "height": 21
+    },
+    "safe": {
+      "type": "rect",
+      "x": 23,
+      "y": 61,
+      "width": 26,
+      "height": 12
+    }
+  },
+  "crab_attack#3": {
+    "unsafe": {
+      "type": "rect",
+      "x": 47,
+      "y": 56,
+      "width": 20,
+      "height": 21
+    },
+    "safe": {
+      "type": "rect",
+      "x": 21,
+      "y": 61,
+      "width": 26,
+      "height": 12
+    }
+  },
+  "crab_attack#4": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 75,
+      "width": 24,
+      "height": 21
+    },
+    "safe": {
+      "type": "rect",
+      "x": 21,
+      "y": 61,
+      "width": 37,
+      "height": 12
+    }
+  },
+  "crab_attack#5": {
+    "unsafe": {
+      "type": "rect",
+      "x": 51,
+      "y": 75,
+      "width": 24,
+      "height": 21
+    },
+    "safe": {
+      "type": "rect",
+      "x": 21,
+      "y": 61,
+      "width": 37,
+      "height": 12
+    }
+  },
+  "shark_walk#0": {
+    "unsafe": {
+      "type": "rect",
+      "x": 57,
+      "y": 50,
+      "width": 34,
+      "height": 11
+    },
+    "safe": {
+      "type": "rect",
+      "x": 25,
+      "y": 36,
+      "width": 60,
+      "height": 13
+    }
+  },
+  "shark_walk#1": {
+    "unsafe": {
+      "type": "rect",
+      "x": 57,
+      "y": 50,
+      "width": 34,
+      "height": 11
+    },
+    "safe": {
+      "type": "rect",
+      "x": 25,
+      "y": 36,
+      "width": 60,
+      "height": 13
+    }
+  },
+  "shark_walk#2": {
+    "unsafe": {
+      "type": "rect",
+      "x": 57,
+      "y": 50,
+      "width": 34,
+      "height": 11
+    },
+    "safe": {
+      "type": "rect",
+      "x": 25,
+      "y": 36,
+      "width": 60,
+      "height": 13
+    }
+  },
+  "shark_walk#3": {
+    "unsafe": {
+      "type": "rect",
+      "x": 57,
+      "y": 50,
+      "width": 34,
+      "height": 11
+    },
+    "safe": {
+      "type": "rect",
+      "x": 25,
+      "y": 36,
+      "width": 60,
+      "height": 13
+    }
+  },
+  "shark_walk#4": {
+    "unsafe": {
+      "type": "rect",
+      "x": 57,
+      "y": 50,
+      "width": 34,
+      "height": 11
+    },
+    "safe": {
+      "type": "rect",
+      "x": 25,
+      "y": 36,
+      "width": 60,
+      "height": 13
+    }
+  },
+  "shark_walk#5": {
+    "unsafe": {
+      "type": "rect",
+      "x": 57,
+      "y": 50,
+      "width": 34,
+      "height": 11
+    },
+    "safe": {
+      "type": "rect",
+      "x": 25,
+      "y": 36,
+      "width": 60,
+      "height": 13
+    }
+  },
+  "squid_walk#0": {
+    "unsafe": {
+      "type": "rect",
+      "x": 22,
+      "y": 40,
+      "width": 39,
+      "height": 34
+    },
+    "safe": {
+      "type": "rect",
+      "x": 7,
+      "y": 38,
+      "width": 41,
+      "height": 23
+    }
+  },
+  "squid_walk#1": {
+    "unsafe": {
+      "type": "rect",
+      "x": 22,
+      "y": 40,
+      "width": 39,
+      "height": 34
+    },
+    "safe": {
+      "type": "rect",
+      "x": 7,
+      "y": 38,
+      "width": 41,
+      "height": 23
+    }
+  },
+  "squid_walk#2": {
+    "unsafe": {
+      "type": "rect",
+      "x": 22,
+      "y": 40,
+      "width": 49,
+      "height": 35
+    },
+    "safe": {
+      "type": "rect",
+      "x": 7,
+      "y": 38,
+      "width": 41,
+      "height": 23
+    }
+  },
+  "squid_walk#3": {
+    "unsafe": {
+      "type": "rect",
+      "x": 22,
+      "y": 40,
+      "width": 65,
+      "height": 22
+    },
+    "safe": {
+      "type": "rect",
+      "x": 7,
+      "y": 38,
+      "width": 41,
+      "height": 23
+    }
+  },
+  "squid_walk#4": {
+    "unsafe": {
+      "type": "rect",
+      "x": 22,
+      "y": 40,
+      "width": 65,
+      "height": 22
+    },
+    "safe": {
+      "type": "rect",
+      "x": 7,
+      "y": 38,
+      "width": 41,
+      "height": 23
+    }
+  },
+  "squid_walk#5": {
+    "unsafe": {
+      "type": "rect",
+      "x": 22,
+      "y": 40,
+      "width": 43,
+      "height": 34
+    },
+    "safe": {
+      "type": "rect",
+      "x": 7,
+      "y": 38,
+      "width": 41,
+      "height": 23
+    }
+  },
+  "weed_decor#0": {
+    "type": "rect",
+    "x": 25,
+    "y": 37,
+    "width": 81,
+    "height": 81
+  },
+  "weed_decor#1": {
+    "type": "rect",
+    "x": 33,
+    "y": 37,
+    "width": 81,
+    "height": 81
+  },
+  "weed_decor#2": {
+    "type": "rect",
+    "x": 33,
+    "y": 37,
+    "width": 81,
+    "height": 81
+  },
+  "weed_decor#7": {
+    "type": "rect",
+    "x": 19,
+    "y": 12,
+    "width": 81,
+    "height": 70
+  },
+  "puffer#0": {
+    "type": "circle",
+    "cx": 78,
+    "cy": 52,
+    "radius": 33
+  }
+}

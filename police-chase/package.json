@@ -17,6 +17,7 @@
     "vite-plugin-singlefile": "^2.0.3"
   },
   "dependencies": {
+    "@oasiz/sdk": "^1.0.0",
     "tone": "^15.1.22"
   }
 }

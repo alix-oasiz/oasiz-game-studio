@@ -125,9 +125,9 @@
         #screen-container {
             position: relative;
             width: 100%;
-            max-width: 360px;
+            max-width: 400px;
             flex: 1;
-            max-height: 55%;
+            max-height: 62%;
             background: #0a0a0a;
             border: 8px solid var(--screen-border);
             border-radius: 12px;
@@ -146,8 +146,8 @@
         @media (pointer: coarse) {
             #screen-container {
                 margin-top: 100px;
-                max-height: 50%;
-                max-width: 400px;
+                max-height: 55%;
+                max-width: 420px;
             }
         }
 
@@ -179,8 +179,8 @@
             align-items: center;
             width: 100%;
             max-width: 360px;
-            padding: 12px 10px;
-            margin-top: 4px;
+            padding: 6px 10px;
+            margin-top: 0px;
             z-index: 2;
         }
 
@@ -254,7 +254,7 @@
                 0 4px 0 rgba(0,0,0,0.3),
                 inset 0 2px 10px rgba(0,0,0,0.9);
             z-index: 2;
-            margin-top: 12px;
+            margin-top: 4px;
             position: relative;
         }
 
@@ -298,16 +298,16 @@
             align-items: center;
             width: 100%;
             max-width: 380px;
-            padding: 12px 8px;
-            margin-top: 6px;
+            padding: 6px 8px;
+            margin-top: 2px;
             z-index: 2;
         }
 
         @media (pointer: coarse) {
             #controls {
                 max-width: 420px;
-                padding: 16px 8px;
-                margin-top: -10px;
+                padding: 8px 8px;
+                margin-top: 0px;
             }
         }
 
@@ -318,8 +318,8 @@
         }
 
         .arrow-btn {
-            width: 58px;
-            height: 58px;
+            width: 84px;
+            height: 84px;
             background: linear-gradient(180deg, #ffffff 0%, var(--console-btn-color) 40%, var(--console-btn-dark) 100%);
             border: 5px solid var(--pixel-black);
             border-radius: 8px;
@@ -347,27 +347,27 @@
         }
 
         .arrow-btn svg {
-            width: 26px;
-            height: 26px;
+            width: 38px;
+            height: 38px;
             fill: var(--pixel-black);
             filter: drop-shadow(1px 1px 0 rgba(255,255,255,0.5));
         }
 
         @media (pointer: coarse) {
             .arrow-btn {
-                width: 68px;
-                height: 68px;
+                width: 96px;
+                height: 96px;
             }
             .arrow-btn svg {
-                width: 30px;
-                height: 30px;
+                width: 44px;
+                height: 44px;
             }
         }
 
         /* Jump button - larger and more prominent */
         #jump-btn {
-            width: 74px;
-            height: 74px;
+            width: 100px;
+            height: 100px;
             background: linear-gradient(180deg, #ffffff 0%, var(--console-btn-color) 40%, var(--console-btn-dark) 100%);
             border: 5px solid var(--pixel-black);
             border-radius: 50%;
@@ -396,8 +396,8 @@
 
         #jump-btn::after {
             content: '';
-            width: 40px;
-            height: 40px;
+            width: 56px;
+            height: 56px;
             background: linear-gradient(180deg, var(--console-color-light) 0%, var(--console-color) 50%, var(--console-color-dark) 100%);
             border: 4px solid var(--pixel-black);
             border-radius: 50%;
@@ -409,21 +409,20 @@
 
         @media (pointer: coarse) {
             #jump-btn {
-                width: 88px;
-                height: 88px;
+                width: 112px;
+                height: 112px;
                 border-width: 6px;
             }
             #jump-btn::after {
-                width: 48px;
-                height: 48px;
+                width: 64px;
+                height: 64px;
             }
         }
 
-        /* Pause button - refined */
-        #pauseBtn {
+        /* Pause & Settings buttons - shared style */
+        #pauseBtn, #settingsBtn {
             position: absolute;
             top: 16px;
-            right: 16px;
             width: 38px;
             height: 38px;
             background: linear-gradient(180deg, #ffffff 0%, var(--screen-bg) 100%);
@@ -440,24 +439,27 @@
             transition: transform 0.05s, box-shadow 0.05s;
         }
 
-        #pauseBtn:active {
+        #pauseBtn { right: 16px; }
+        #settingsBtn { left: 16px; }
+
+        #pauseBtn:active, #settingsBtn:active {
             transform: translateY(4px);
             box-shadow: 0 0 0 0 #404040, 0 2px 0 0 #2a2a2a;
         }
 
-        #pauseBtn svg {
+        #pauseBtn svg, #settingsBtn svg {
             width: 16px;
             height: 16px;
             fill: var(--pixel-black);
         }
 
         @media (pointer: coarse) {
-            #pauseBtn {
+            #pauseBtn, #settingsBtn {
                 top: 115px;
                 width: 42px;
                 height: 42px;
             }
-            #pauseBtn svg {
+            #pauseBtn svg, #settingsBtn svg {
                 width: 18px;
                 height: 18px;
             }
@@ -713,42 +715,14 @@
             text-shadow: 1px 1px 0 rgba(0,0,0,0.1);
         }
 
-        /* Settings Modal - refined */
-        .settings-modal {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: linear-gradient(180deg, #ffffff 0%, var(--console-btn-color) 100%);
-            border: 8px solid var(--pixel-black);
-            border-radius: 12px;
-            padding: 22px 20px;
-            z-index: 150;
-            box-shadow: 
-                0 8px 0 0 #404040,
-                0 12px 0 0 #2a2a2a,
-                0 16px 30px rgba(0,0,0,0.4);
-            min-width: 240px;
-            transition: background 0.5s ease;
-        }
-
-        .settings-modal.hidden {
-            display: none;
-        }
-
-        .settings-title {
-            font-size: 0.7rem;
-            color: var(--pixel-black);
-            margin-bottom: 18px;
-            text-align: center;
-        }
-
+        /* Settings rows & toggles (used inside overlay-content) */
         .settings-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 10px 0;
             border-bottom: 3px solid rgba(0,0,0,0.1);
+            width: 100%;
         }
 
         .settings-row:last-of-type {
@@ -841,19 +815,19 @@
         /* Mobile adjustments */
         @media (max-height: 680px) {
             #screen-container {
-                max-height: 42%;
+                max-height: 48%;
             }
             .arrow-btn {
-                width: 58px;
-                height: 58px;
+                width: 76px;
+                height: 76px;
             }
             #jump-btn {
-                width: 72px;
-                height: 72px;
+                width: 92px;
+                height: 92px;
             }
             #jump-btn::after {
-                width: 40px;
-                height: 40px;
+                width: 52px;
+                height: 52px;
             }
             .overlay-content {
                 padding: 20px 18px;
@@ -871,6 +845,13 @@
         <div class="screw screw-tr"></div>
         <div class="screw screw-bl"></div>
         <div class="screw screw-br"></div>
+        <!-- Settings Button (top-left) -->
+        <button id="settingsBtn" class="hidden">
+            <svg viewBox="0 0 24 24">
+                <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+        </button>
+
         <!-- Pause Button -->
         <button id="pauseBtn" class="hidden">
             <svg viewBox="0 0 24 24">
@@ -979,22 +960,24 @@
             </div>
         </div>
 
-        <!-- Settings Modal -->
-        <div id="settingsModal" class="settings-modal hidden">
-            <h3 class="settings-title">SETTINGS</h3>
-            <div class="settings-row">
-                <span class="settings-label">MUSIC</span>
-                <div class="toggle active" id="musicToggle"></div>
+        <!-- Settings Modal (overlay style matching pause screen) -->
+        <div id="settingsModal" class="overlay hidden">
+            <div class="overlay-content">
+                <h2 class="game-title">SETTINGS</h2>
+                <div class="settings-row">
+                    <span class="settings-label">MUSIC</span>
+                    <div class="toggle active" id="musicToggle"></div>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">SOUND FX</span>
+                    <div class="toggle active" id="fxToggle"></div>
+                </div>
+                <div class="settings-row">
+                    <span class="settings-label">HAPTICS</span>
+                    <div class="toggle active" id="hapticToggle"></div>
+                </div>
+                <button class="btn" id="settingsClose">DONE</button>
             </div>
-            <div class="settings-row">
-                <span class="settings-label">SOUND FX</span>
-                <div class="toggle active" id="fxToggle"></div>
-            </div>
-            <div class="settings-row">
-                <span class="settings-label">HAPTICS</span>
-                <div class="toggle active" id="hapticToggle"></div>
-            </div>
-            <button class="btn" id="settingsClose">DONE</button>
         </div>
     </div>
 

@@ -52,6 +52,10 @@ export function createJet(scene: THREE.Scene, modelPath?: string): JetModel {
 
 /** Loads (or swaps) the FBX ship model into the body group. */
 export function loadShipFBX(body: THREE.Group, modelPath: string): void {
+  _cachedBody = null;
+  _cachedGlow = null;
+  _cachedExh = null;
+
   const old = body.getObjectByName("shipModel");
   if (old) {
     body.remove(old);
@@ -97,17 +101,25 @@ export function loadShipFBX(body: THREE.Group, modelPath: string): void {
   );
 }
 
+let _cachedGlow: THREE.Mesh | null = null;
+let _cachedExh: THREE.Mesh | null = null;
+let _cachedBody: THREE.Group | null = null;
+
 /** Animates engine glow and exhaust based on elapsed time. */
 export function updateJetFX(body: THREE.Group, elapsed: number): void {
-  const glow = body.getObjectByName("glow") as THREE.Mesh | undefined;
-  if (glow) {
-    glow.scale.setScalar(1 + Math.sin(elapsed * 8) * 0.3);
-    (glow.material as THREE.MeshBasicMaterial).opacity =
+  if (body !== _cachedBody) {
+    _cachedBody = body;
+    _cachedGlow = body.getObjectByName("glow") as THREE.Mesh | null;
+    _cachedExh = body.getObjectByName("exh") as THREE.Mesh | null;
+  }
+
+  if (_cachedGlow) {
+    _cachedGlow.scale.setScalar(1 + Math.sin(elapsed * 8) * 0.3);
+    (_cachedGlow.material as THREE.MeshBasicMaterial).opacity =
       0.6 + Math.sin(elapsed * 6) * 0.25;
   }
 
-  const exh = body.getObjectByName("exh") as THREE.Mesh | undefined;
-  if (exh) {
-    exh.scale.set(1, 1, 0.7 + Math.sin(elapsed * 12) * 0.4);
+  if (_cachedExh) {
+    _cachedExh.scale.set(1, 1, 0.7 + Math.sin(elapsed * 12) * 0.4);
   }
 }

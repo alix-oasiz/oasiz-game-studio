@@ -34,7 +34,6 @@
       max-width: 1400px;
       max-height: 900px;
       background: #000;
-      box-shadow: 0 0 50px rgba(0,0,0,0.8), 0 0 20px rgba(0,221,119,0.2);
       border-radius: 20px;
       overflow: hidden;
       display: flex;
@@ -57,8 +56,9 @@
       width: 100%;
       height: 100%;
     }
+
+    .hidden:not(.overlay) { display: none !important; }
     
-    /* UI Overlays */
     .overlay {
       position: absolute;
       top: 0;
@@ -79,9 +79,8 @@
       visibility: hidden;
     }
     
-    /* Start Screen - transparent to show map behind */
     #start-screen {
-      background: linear-gradient(180deg, rgba(15, 15, 25, 0.85) 0%, rgba(10, 10, 20, 0.9) 50%, rgba(20, 20, 35, 0.85) 100%);
+      background: linear-gradient(180deg, rgba(8, 8, 18, 0.88) 0%, rgba(5, 5, 12, 0.92) 50%, rgba(10, 10, 22, 0.88) 100%);
       overflow: hidden;
     }
     
@@ -94,23 +93,16 @@
     }
     
     @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(40px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     
-    /* Police lights animation bar */
     .police-lights {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
-      height: 5px;
+      height: 4px;
       display: flex;
       z-index: 100;
     }
@@ -124,180 +116,67 @@
     
     .police-lights::before {
       background: linear-gradient(90deg, #ff0044, #ff3366);
-      box-shadow: 0 0 15px #ff0044;
     }
     
     .police-lights::after {
       background: linear-gradient(90deg, #0066ff, #0088ff);
-      box-shadow: 0 0 15px #0066ff;
       animation-delay: 0.2s;
     }
     
     @keyframes policeLights {
       0%, 45% { opacity: 1; }
-      50%, 100% { opacity: 0.2; }
+      50%, 100% { opacity: 0.15; }
     }
     
-    /* Title */
     #start-screen h1 {
       font-family: 'Bangers', cursive;
       font-size: clamp(3.5rem, 14vw, 8rem);
-      color: #c8c8c8;
+      color: #e0e0e0;
       margin-bottom: 0;
       text-shadow: 
-        0 0 10px #c8c8c8,
-        0 0 20px #c8c8c8,
-        4px 4px 0 #404040;
-      letter-spacing: 5px;
-      animation: titleGlow 2s ease-in-out infinite alternate;
+        0 4px 0 #2a2a2a,
+        0 5px 0 #1a1a1a;
+      letter-spacing: 6px;
     }
     
-    @keyframes titleGlow {
-      from {
-        text-shadow: 
-          0 0 10px #c8c8c8,
-          0 0 20px #c8c8c8,
-          4px 4px 0 #404040;
-      }
-      to {
-        text-shadow: 
-          0 0 15px #00ffaa,
-          0 0 30px #00ffaa,
-          4px 4px 0 #404040;
-      }
-    }
-    
-    #start-screen .subtitle {
+    .tagline {
       font-family: 'Nunito', sans-serif;
       font-weight: 800;
-      color: #ff6b35;
-      font-size: clamp(0.9rem, 2.5vw, 1.3rem);
-      margin-bottom: 1.5rem;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: clamp(0.65rem, 2vw, 0.95rem);
       text-transform: uppercase;
-      letter-spacing: 5px;
-      text-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
-    }
-    
-    /* City preview */
-    .city-preview {
-      width: 200px;
-      height: 150px;
+      letter-spacing: 8px;
       margin-bottom: 2rem;
-      position: relative;
-      animation: cityBounce 3s ease-in-out infinite;
     }
-    
-    @keyframes cityBounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
+
+    .start-coin-display {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 1.2rem;
+      pointer-events: none;
     }
-    
-    .city-block {
-      position: absolute;
-      background: #8b4513;
-      border: 2px solid #5c3317;
-    }
-    
-    .city-block:nth-child(1) { left: 10px; top: 20px; width: 50px; height: 80px; background: #a0522d; }
-    .city-block:nth-child(2) { left: 70px; top: 40px; width: 60px; height: 60px; background: #cd853f; }
-    .city-block:nth-child(3) { left: 140px; top: 10px; width: 50px; height: 90px; background: #708090; }
-    
-    .city-road {
-      position: absolute;
-      background: #3a3a3a;
-    }
-    
-    .city-road.h { left: 0; right: 0; height: 20px; top: 110px; }
-    .city-road.v { top: 0; bottom: 0; width: 20px; left: 90px; }
-    
-    .preview-car {
-      position: absolute;
-      width: 15px;
-      height: 25px;
-      background: #c8c8c8;
-      border-radius: 4px;
-      left: 85px;
-      top: 102px;
-      animation: carDrive 4s ease-in-out infinite;
-      box-shadow: 0 0 10px #c8c8c8;
-    }
-    
-    @keyframes carDrive {
-      0%, 100% { left: 85px; top: 102px; }
-      25% { left: 170px; top: 102px; }
-      50% { left: 170px; top: 40px; }
-      75% { left: 30px; top: 40px; }
-    }
-    
-    .preview-police {
-      position: absolute;
-      width: 14px;
+    .start-coin-icon {
+      width: 22px;
       height: 22px;
-      background: #1a1a3a;
-      border-radius: 3px;
-      left: 60px;
-      top: 103px;
-      animation: policeDrive 4s ease-in-out infinite 0.5s;
-    }
-    
-    .preview-police::before {
-      content: '';
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      right: 2px;
-      height: 4px;
-      background: #ff0044;
-      animation: policeFlash 0.3s infinite;
-    }
-    
-    @keyframes policeFlash {
-      0%, 50% { background: #ff0044; }
-      51%, 100% { background: #0066ff; }
-    }
-    
-    @keyframes policeDrive {
-      0%, 100% { left: 60px; top: 103px; }
-      25% { left: 150px; top: 103px; }
-      50% { left: 150px; top: 55px; }
-      75% { left: 50px; top: 55px; }
-    }
-    
-    /* Instructions */
-    .instructions {
-      display: flex;
-      gap: 2rem;
-      margin-bottom: 2rem;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    
-    .instruction {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      color: #aaa;
-      font-size: 0.85rem;
-    }
-    
-    .instruction-icon {
-      width: 50px;
-      height: 50px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 10px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #ffd700, #daa520);
+      border: 2px solid #b8860b;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 0.5rem;
+      font-size: 11px;
+      font-weight: 900;
+      color: #7a5c00;
+    }
+    .start-coin-count {
+      font-family: 'Bangers', cursive;
+      font-size: 1.3rem;
+      color: #ffd700;
+      text-shadow: 0 2px 0 #7a5c00;
+      letter-spacing: 1px;
     }
     
-    .instruction-icon svg {
-      width: 28px;
-      height: 28px;
-      fill: #c8c8c8;
-    }
-    
-    /* Start button */
     .start-btn {
       font-family: 'Bangers', cursive;
       font-size: clamp(1.6rem, 4.5vw, 2.2rem);
@@ -311,349 +190,104 @@
       pointer-events: auto;
       box-shadow: 
         0 5px 0 #a33d15,
-        0 0 25px rgba(255, 107, 53, 0.4);
+        0 8px 20px rgba(0,0,0,0.5);
       text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
       letter-spacing: 3px;
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .start-btn::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
-      animation: btnShine 3s infinite;
-    }
-    
-    @keyframes btnShine {
-      0% { left: -100%; }
-      50%, 100% { left: 100%; }
     }
     
     .start-btn:hover {
       transform: translateY(-3px);
-      box-shadow: 
-        0 8px 0 #a33d15,
-        0 0 40px rgba(255, 107, 53, 0.6);
+      box-shadow: 0 8px 0 #a33d15, 0 12px 30px rgba(0,0,0,0.6);
     }
     
     .start-btn:active {
       transform: translateY(2px);
-      box-shadow: 
-        0 3px 0 #a33d15,
-        0 0 15px rgba(255, 107, 53, 0.3);
+      box-shadow: 0 3px 0 #a33d15, 0 4px 10px rgba(0,0,0,0.4);
     }
     
-    /* Vehicle Gallery */
-    .vehicle-gallery {
-      margin-top: 1.2rem;
-      width: 100%;
-      max-width: 420px;
+    .vehicle-row {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: 1.5rem;
       animation: fadeInUp 0.8s ease-out 0.3s both;
     }
     
-    /* Vehicle Showcase - Large Preview */
-    .vehicle-showcase {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      background: rgba(0,0,0,0.5);
-      border-radius: 12px;
-      padding: 1rem;
-      margin-bottom: 0.8rem;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    
-    .showcase-car {
-      flex-shrink: 0;
+    .vehicle-chip {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      pointer-events: auto;
+      transition: all 0.15s ease;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 100px;
-      height: 130px;
-    }
-    
-    #showcase-canvas {
-      border-radius: 8px;
-    }
-    
-    .showcase-preview {
-      border-radius: 10px;
       position: relative;
-      transition: all 0.3s ease;
     }
     
-    /* Showcase uses canvas now, no size needed */
-    
-    .showcase-info {
-      flex: 1;
-      min-width: 0;
-    }
-    
-    .showcase-name {
-      font-family: 'Bangers', cursive;
-      font-size: 1.3rem;
-      color: #fff;
-      letter-spacing: 1px;
-      margin-bottom: 0.2rem;
-    }
-    
-    .showcase-desc {
-      font-family: 'Nunito', sans-serif;
-      font-size: 0.7rem;
-      color: #888;
-      margin-bottom: 0.6rem;
-    }
-    
-    .showcase-stats {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-    
-    .stat-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    
-    .stat-name {
-      font-family: 'Nunito', sans-serif;
-      font-size: 0.55rem;
-      font-weight: 700;
-      color: #666;
-      width: 38px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    
-    .stat-track {
-      flex: 1;
-      height: 6px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    
-    .stat-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #ff6b35, #ffaa00);
-      border-radius: 3px;
-      transition: width 0.3s ease;
-    }
-    
-    /* Carousel wrapper */
-    .carousel-wrapper {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    
-    .arrow-btn {
-      width: 28px;
-      height: 50px;
-      border: none;
-      border-radius: 6px;
-      background: rgba(255,255,255,0.1);
-      color: #aaa;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      pointer-events: auto;
-      flex-shrink: 0;
-    }
-    
-    .arrow-btn:hover {
-      background: rgba(255,255,255,0.2);
-      color: #fff;
-    }
-    
-    .arrow-btn:active {
-      transform: scale(0.95);
-    }
-    
-    .vehicle-carousel {
-      display: flex;
-      gap: 0.5rem;
-      overflow-x: auto;
-      padding: 0.4rem 0;
-      scroll-behavior: smooth;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-      flex: 1;
-    }
-    
-    .vehicle-carousel::-webkit-scrollbar {
-      display: none;
-    }
-    
-    .vehicle-card {
-      flex-shrink: 0;
-      width: 52px;
-      padding: 0.4rem;
-      background: rgba(0,0,0,0.4);
-      border: 2px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      pointer-events: auto;
-    }
-    
-    .vehicle-card:hover {
-      background: rgba(255,255,255,0.1);
-      border-color: rgba(255,255,255,0.2);
+    .vehicle-chip:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.25);
       transform: translateY(-2px);
     }
     
-    .vehicle-card.selected {
+    .vehicle-chip.selected {
       border-color: #ff6b35;
-      background: rgba(255,107,53,0.2);
-      box-shadow: 0 0 12px rgba(255,107,53,0.4);
+      background: rgba(255,107,53,0.15);
+    }
+
+    .vehicle-chip.locked {
+      opacity: 0.5;
+    }
+
+    .chip-lock {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 14px;
+      height: 14px;
+      fill: rgba(255,255,255,0.7);
     }
     
-    .vehicle-preview {
-      width: 32px;
-      height: 42px;
-      margin: 0 auto 0.25rem;
+    .vehicle-chip canvas {
       border-radius: 6px;
-      position: relative;
     }
     
-    .vehicle-name {
-      font-family: 'Nunito', sans-serif;
-      font-weight: 700;
-      font-size: 0.5rem;
-      color: #ccc;
-      text-align: center;
-      white-space: nowrap;
-    }
-    
-    /* Vehicle preview colors - shared between showcase and card */
-    .vehicle-preview.sedan, .showcase-preview.sedan {
-      background: linear-gradient(180deg, #c8c8c8 0%, #909090 100%);
-      box-shadow: 0 0 12px rgba(200,200,200,0.5);
-    }
-    .vehicle-preview.sports, .showcase-preview.sports {
-      background: linear-gradient(180deg, #ff3344 0%, #aa1122 100%);
-      box-shadow: 0 0 12px rgba(255,51,68,0.5);
-    }
-    .vehicle-preview.muscle, .showcase-preview.muscle {
-      background: linear-gradient(180deg, #1a1a2a 0%, #0a0a15 100%);
-      box-shadow: 0 0 12px rgba(255,102,0,0.5);
-      border: 1px solid #ff6600;
-    }
-    .vehicle-preview.buggy, .showcase-preview.buggy {
-      background: linear-gradient(180deg, #44cc66 0%, #228844 100%);
-      box-shadow: 0 0 12px rgba(68,204,102,0.5);
-      border-radius: 50%;
-    }
-    .vehicle-preview.tank, .showcase-preview.tank {
-      background: linear-gradient(180deg, #556655 0%, #334433 100%);
-      box-shadow: 0 0 12px rgba(85,102,85,0.5);
-      border-radius: 4px;
-    }
-    .vehicle-preview.hotrod, .showcase-preview.hotrod {
-      background: linear-gradient(180deg, #880000 0%, #550000 100%);
-      box-shadow: 0 0 12px rgba(255,68,0,0.5);
-    }
-    
-    /* Stripes on vehicle previews */
-    .vehicle-preview::before, .showcase-preview::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 35%;
-      width: 10%;
-      height: 100%;
-      background: rgba(255,255,255,0.4);
-      border-radius: 2px;
-    }
-    .vehicle-preview::after, .showcase-preview::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 55%;
-      width: 10%;
-      height: 100%;
-      background: rgba(255,255,255,0.4);
-      border-radius: 2px;
-    }
-    
-    /* Mobile responsive vehicle gallery */
     @media (pointer: coarse) {
-      .vehicle-gallery {
-        max-width: 95%;
-        margin-top: 1rem;
-      }
-      
-      .vehicle-showcase {
-        padding: 0.8rem;
-        gap: 0.8rem;
-      }
-      
-      .showcase-car {
-        width: 70px;
-        height: 90px;
-      }
-      
-      #showcase-canvas {
-        width: 80px;
-        height: 100px;
-      }
-      
-      .showcase-name {
-        font-size: 1.1rem;
-      }
-      
-      .showcase-desc {
-        font-size: 0.65rem;
-      }
-      
-      .vehicle-card {
-        width: 48px;
-        padding: 0.35rem;
-      }
-      
-      .vehicle-preview {
-        width: 28px;
-        height: 38px;
-      }
-      
-      .vehicle-name {
-        font-size: 0.45rem;
-      }
-      
-      .arrow-btn {
-        width: 24px;
+      .vehicle-chip {
+        width: 44px;
         height: 44px;
-        font-size: 0.7rem;
       }
     }
-    
-    @media (max-width: 380px) {
-      .vehicle-showcase {
-        flex-direction: column;
-        text-align: center;
-      }
-      
-      .showcase-info {
-        width: 100%;
-      }
-      
-      .stat-name {
-        width: 32px;
-        font-size: 0.5rem;
-      }
+
+    .start-shop-btn {
+      margin-top: 1rem;
+      font-family: 'Bangers', cursive;
+      font-size: 1rem;
+      padding: 0.5rem 1.2rem;
+      background: linear-gradient(180deg, #444 0%, #333 100%);
+      color: #ddd;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 3px 0 #222;
+      letter-spacing: 2px;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s ease;
     }
+    .start-shop-btn:hover { transform: translateY(-2px); }
+    .start-shop-btn:active { transform: translateY(1px); box-shadow: 0 1px 0 #222; }
+    .start-shop-btn svg { width: 18px; height: 18px; fill: #ddd; }
     
     /* HUD */
     #hud {
       position: absolute;
-      top: 12px;
+      top: 50px;
       left: 0;
       width: 100%;
       padding: 0 1rem;
@@ -664,61 +298,87 @@
     }
     
     @media (pointer: coarse) {
-      #hud {
-        top: 65px;
-      }
+      #hud { top: 125px; }
     }
     
-    #hud.hidden {
-      display: none;
+    .hud-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(0,0,0,0.35);
+      padding: 0.5rem 1rem;
+      border-radius: 30px;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,255,255,0.08);
     }
     
-     .hud-container {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: rgba(0,0,0,0.35);
-        padding: 0.5rem 1rem;
-        border-radius: 30px;
-        backdrop-filter: blur(4px);
-        border: 1px solid rgba(255,255,255,0.08);
-      }
-      
-      .hud-stat {
-        display: flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0 0.5rem;
-      }
-      
-      .hud-stat:first-child {
-        border-right: 1px solid rgba(255,255,255,0.15);
-        padding-right: 1rem;
-      }
-      
-      .hud-icon {
-        width: 20px;
-        height: 20px;
-        fill: rgba(255,255,255,0.6);
-        flex-shrink: 0;
-      }
-      
-      .hud-stat span {
-        font-family: 'Nunito', sans-serif;
-        font-weight: 800;
-        font-size: clamp(1.2rem, 3.5vw, 1.5rem);
-        color: #fff;
-        letter-spacing: 1px;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-      }
+    .hud-stat {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0 0.5rem;
+    }
     
-    .score-display span {
-      font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
-      font-weight: 700;
-      color: #ffffff;
-      font-size: 1.1em;
-      text-shadow: 
-        0 0 8px rgba(255,255,255,0.4);
+    .hud-divider {
+      border-right: 1px solid rgba(255,255,255,0.15);
+      padding-right: 1rem !important;
+    }
+    
+    .hud-icon {
+      width: 20px;
+      height: 20px;
+      fill: rgba(255,255,255,0.6);
+      flex-shrink: 0;
+    }
+
+    .hud-coin-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #ffd700, #daa520);
+      border: 1.5px solid #b8860b;
+      flex-shrink: 0;
+    }
+    
+    .hud-stat span {
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.2rem, 3.5vw, 1.5rem);
+      color: #fff;
+      letter-spacing: 1px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Enemy wave warning */
+    #wave-warning {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 15;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    #wave-warning.visible {
+      opacity: 1;
+      animation: waveFlash 2s ease-out forwards;
+    }
+    
+    @keyframes waveFlash {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+      80% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+    }
+    
+    #wave-warning span {
+      font-family: 'Bangers', cursive;
+      font-size: clamp(2rem, 8vw, 3.5rem);
+      color: #ff3333;
+      text-shadow: 0 4px 0 #550000;
+      letter-spacing: 4px;
     }
     
     /* Game Over Screen */
@@ -741,10 +401,8 @@
       color: #ff3333;
       margin-bottom: 1.5rem;
       text-shadow: 
-        0 0 20px #ff3333,
-        0 0 40px #ff3333,
-        0 0 60px #ff0000,
-        4px 4px 0 #550000;
+        0 6px 0 #550000,
+        0 7px 0 #440000;
       letter-spacing: 6px;
       animation: bustedPulse 0.6s ease-out;
     }
@@ -773,18 +431,15 @@
       padding: 1.2rem 2rem;
       border-radius: 16px;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      min-width: 140px;
+      min-width: 120px;
       text-align: center;
-      box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
     
     .stat-value {
       font-family: 'Bangers', cursive;
       font-size: clamp(2.2rem, 7vw, 3.5rem);
       color: #ffffff;
-      text-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+      text-shadow: 0 3px 0 #222;
       line-height: 1;
     }
     
@@ -819,21 +474,29 @@
       font-size: clamp(4.5rem, 16vw, 8rem);
       color: #ffffff;
       text-shadow: 
-        0 0 20px rgba(255, 255, 255, 0.6),
-        0 0 40px rgba(255, 255, 255, 0.3),
-        4px 4px 0 #333;
+        0 5px 0 #333,
+        0 6px 0 #222;
       line-height: 1;
+    }
+
+    .gameover-coins {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 1.5rem;
+      animation: statsSlideIn 0.5s ease-out 0.3s both;
+    }
+    .gameover-coins .start-coin-icon { width: 20px; height: 20px; }
+    .gameover-coins span {
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      color: #ffd700;
+      text-shadow: 0 2px 0 #7a5c00;
     }
     
     @keyframes scoreReveal {
-      from { 
-        transform: scale(0.5);
-        opacity: 0;
-      }
-      to {
-        transform: scale(1);
-        opacity: 1;
-      }
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
     }
     
     .restart-btn {
@@ -847,36 +510,344 @@
       cursor: pointer;
       transition: all 0.15s ease;
       pointer-events: auto;
-      box-shadow: 
-        0 4px 0 #606060,
-        0 0 25px rgba(0, 221, 119, 0.4);
+      box-shadow: 0 4px 0 #606060, 0 6px 16px rgba(0,0,0,0.5);
       letter-spacing: 2px;
       animation: btnAppear 0.5s ease-out 0.5s both;
     }
     
     @keyframes btnAppear {
-      from { 
-        transform: translateY(30px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
     
     .restart-btn:hover {
       transform: translateY(-2px);
-      box-shadow: 
-        0 6px 0 #606060,
-        0 0 40px rgba(0, 221, 119, 0.5);
+      box-shadow: 0 6px 0 #606060, 0 8px 24px rgba(0,0,0,0.6);
     }
     
     .restart-btn:active {
       transform: translateY(2px);
-      box-shadow: 
-        0 2px 0 #606060,
-        0 0 15px rgba(0, 221, 119, 0.3);
+      box-shadow: 0 2px 0 #606060, 0 3px 8px rgba(0,0,0,0.4);
+    }
+
+    /* Gameplay UI buttons (settings, pause, shop) */
+    .game-btn {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(4px);
+      cursor: pointer;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      transition: all 0.15s ease;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .game-btn svg { width: 22px; height: 22px; fill: rgba(255,255,255,0.7); }
+    .game-btn:active { transform: scale(0.92); background: rgba(0,0,0,0.6); }
+
+    #pause-btn { top: 45px; left: 20px; }
+    #settings-btn { top: 45px; right: 20px; }
+    #ingame-shop-btn { top: 95px; left: 20px; }
+
+    @media (pointer: coarse) {
+      #pause-btn { top: 120px; left: 20px; }
+      #settings-btn { top: 120px; right: 20px; }
+      #ingame-shop-btn { top: 170px; left: 20px; }
+    }
+
+    /* Modal backdrop */
+    .modal-backdrop {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(5, 5, 12, 0.88);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      pointer-events: auto;
+    }
+
+    .modal-panel {
+      background: linear-gradient(145deg, rgba(30, 30, 38, 0.98), rgba(18, 18, 24, 0.98));
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 2rem;
+      min-width: 280px;
+      max-width: 360px;
+      width: 85%;
+    }
+
+    .modal-title {
+      font-family: 'Bangers', cursive;
+      font-size: 1.8rem;
+      color: #e0e0e0;
+      text-shadow: 0 3px 0 #1a1a1a;
+      letter-spacing: 3px;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+    }
+    .modal-close svg { width: 18px; height: 18px; fill: rgba(255,255,255,0.5); }
+    .modal-close:hover svg { fill: rgba(255,255,255,0.8); }
+
+    /* Settings modal */
+    .settings-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .setting-row {
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: #e0e0e0;
+      padding: 14px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-name {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .setting-icon {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .setting-icon svg {
+      width: 20px;
+      height: 20px;
+      fill: rgba(255,255,255,0.5);
+      flex-shrink: 0;
+    }
+    .setting-row.active .setting-icon svg {
+      fill: #ff6b35;
+    }
+    .setting-title {
+      font-family: 'Nunito', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .setting-state {
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+    }
+    .setting-row.active .setting-state {
+      color: rgba(255,107,53,0.7);
+    }
+    .switch {
+      width: 48px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .switch::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.4);
+      top: 3px;
+      left: 3px;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .setting-row.active .switch {
+      background: rgba(255,107,53,0.35);
+    }
+    .setting-row.active .switch::after {
+      transform: translateX(22px);
+      background: #fff;
+    }
+    @media (pointer: coarse) {
+      .setting-row { min-height: 56px; }
+    }
+
+    /* Pause overlay */
+    .pause-menu-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+    .pause-action-btn {
+      font-family: 'Bangers', cursive;
+      font-size: 1.3rem;
+      padding: 0.8rem 2rem;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: 2px;
+      transition: all 0.15s ease;
+      width: 100%;
+    }
+    .pause-action-btn:active { transform: translateY(2px); }
+    .pause-resume {
+      background: linear-gradient(180deg, #ff6b35, #e85d26);
+      color: #fff;
+      box-shadow: 0 4px 0 #a33d15;
+    }
+    .pause-quit {
+      background: linear-gradient(180deg, #555, #444);
+      color: #ddd;
+      box-shadow: 0 4px 0 #333;
+    }
+    .pause-home {
+      background: linear-gradient(180deg, #444, #333);
+      color: #aaa;
+      box-shadow: 0 3px 0 #222;
+    }
+
+    /* Shop modal */
+    .shop-balance {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      margin-bottom: 1.2rem;
+    }
+    .shop-balance .start-coin-icon { width: 20px; height: 20px; }
+    .shop-balance span {
+      font-family: 'Bangers', cursive;
+      font-size: 1.3rem;
+      color: #ffd700;
+      text-shadow: 0 2px 0 #7a5c00;
+    }
+
+    .shop-vehicle-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .shop-arrow {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.08);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .shop-arrow svg { width: 20px; height: 20px; fill: rgba(255,255,255,0.6); }
+    .shop-arrow:hover svg { fill: rgba(255,255,255,0.9); }
+
+    #shop-canvas {
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .shop-vehicle-name {
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      color: #e0e0e0;
+      text-shadow: 0 2px 0 #1a1a1a;
+      text-align: center;
+      letter-spacing: 2px;
+    }
+    .shop-vehicle-desc {
+      font-family: 'Nunito', sans-serif;
+      font-weight: 600;
+      color: #888;
+      font-size: 0.78rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+
+    .shop-price {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      margin-bottom: 0.8rem;
+    }
+    .shop-price .start-coin-icon { width: 18px; height: 18px; }
+    .shop-price span {
+      font-family: 'Bangers', cursive;
+      font-size: 1.2rem;
+      color: #ffd700;
+      text-shadow: 0 2px 0 #7a5c00;
+    }
+    .shop-owned-badge {
+      font-family: 'Bangers', cursive;
+      font-size: 1.1rem;
+      color: #66cc66;
+      text-shadow: 0 2px 0 #225522;
+      text-align: center;
+      margin-bottom: 0.8rem;
+      letter-spacing: 2px;
+    }
+
+    .shop-buy-btn {
+      font-family: 'Bangers', cursive;
+      font-size: 1.2rem;
+      padding: 0.7rem 2rem;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: 2px;
+      width: 100%;
+      transition: all 0.15s ease;
+    }
+    .shop-buy-btn:active { transform: translateY(2px); }
+    .shop-buy-btn.buy {
+      background: linear-gradient(180deg, #ff6b35, #e85d26);
+      color: #fff;
+      box-shadow: 0 4px 0 #a33d15;
+    }
+    .shop-buy-btn.buy:disabled {
+      background: linear-gradient(180deg, #555, #444);
+      color: #888;
+      box-shadow: 0 4px 0 #333;
+      cursor: not-allowed;
+    }
+    .shop-buy-btn.select {
+      background: linear-gradient(180deg, #444, #333);
+      color: #ddd;
+      box-shadow: 0 3px 0 #222;
+    }
+    .shop-buy-btn.equipped {
+      background: linear-gradient(180deg, #333, #282828);
+      color: #888;
+      box-shadow: 0 3px 0 #1a1a1a;
+      cursor: default;
     }
 
     /* Control hints */
@@ -888,16 +859,14 @@
       transform: translateX(-50%);
       font-family: 'Nunito', sans-serif;
       font-weight: 600;
-      color: rgba(255, 255, 255, 0.35);
-      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 0.8rem;
       z-index: 5;
       letter-spacing: 1px;
     }
     
     @media (hover: hover) and (pointer: fine) {
-      .control-hint {
-        display: block;
-      }
+      .control-hint:not(.hidden) { display: block; }
     }
     
     .mobile-hint {
@@ -908,18 +877,15 @@
       transform: translateX(-50%);
       font-family: 'Nunito', sans-serif;
       font-weight: 600;
-      color: rgba(255, 255, 255, 0.35);
-      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 0.8rem;
       z-index: 5;
     }
     
     @media (pointer: coarse) {
-      .mobile-hint {
-        display: block;
-      }
+      .mobile-hint:not(.hidden) { display: block; }
     }
     
-    /* Mobile Steering Controls */
     .mobile-controls {
       display: none;
       position: absolute;
@@ -932,7 +898,7 @@
     }
     
     @media (pointer: coarse) {
-      .mobile-controls {
+      .mobile-controls:not(.hidden) {
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
@@ -977,114 +943,142 @@
   <div id="game-container">
     <canvas id="game"></canvas>
     
-    <!-- HUD -->
     <div id="hud" class="hidden">
       <div class="hud-container">
-        <div class="hud-stat">
+        <div class="hud-stat hud-divider">
           <svg class="hud-icon" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
           <span id="time-display">0:00</span>
         </div>
-        <div class="hud-stat">
+        <div class="hud-stat hud-divider">
           <svg class="hud-icon" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
           <span id="crash-display">0</span>
         </div>
+        <div class="hud-stat">
+          <div class="hud-coin-icon"></div>
+          <span id="coin-display">0</span>
+        </div>
       </div>
     </div>
     
-    <!-- Start Screen -->
     <div id="start-screen" class="overlay">
       <div class="police-lights"></div>
-      
       <div class="start-content">
         <h1>POLICE CHASE</h1>
-        <p class="subtitle">Open World Mayhem</p>
-        
-        <div class="instructions">
-          <div class="instruction">
-            <div class="instruction-icon">
-              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-            </div>
-            Drive freely
-          </div>
-          <div class="instruction">
-            <div class="instruction-icon">
-              <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
-            </div>
-            Evade police
-          </div>
-          <div class="instruction">
-            <div class="instruction-icon">
-              <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"/></svg>
-            </div>
-            Make them crash
-          </div>
+        <p class="tagline">Outrun &middot; Outmaneuver &middot; Outlast</p>
+        <div class="start-coin-display">
+          <div class="start-coin-icon">$</div>
+          <span class="start-coin-count" id="start-coin-count">0</span>
         </div>
-        
         <button class="start-btn" id="start-btn">DRIVE!</button>
-        
-        <!-- Vehicle Gallery -->
-        <div class="vehicle-gallery">
-          <!-- Large Preview -->
-          <div class="vehicle-showcase">
-            <div class="showcase-car" id="showcase-car">
-              <canvas id="showcase-canvas" width="100" height="130"></canvas>
-            </div>
-            <div class="showcase-info">
-              <div class="showcase-name" id="showcase-name">Street Sedan</div>
-              <div class="showcase-desc" id="showcase-desc">Balanced handling for all situations</div>
-              <div class="showcase-stats">
-                <div class="stat-bar">
-                  <span class="stat-name">SPEED</span>
-                  <div class="stat-track"><div class="stat-fill" id="stat-speed" style="width: 65%"></div></div>
-                </div>
-                <div class="stat-bar">
-                  <span class="stat-name">ACCEL</span>
-                  <div class="stat-track"><div class="stat-fill" id="stat-accel" style="width: 55%"></div></div>
-                </div>
-                <div class="stat-bar">
-                  <span class="stat-name">GRIP</span>
-                  <div class="stat-track"><div class="stat-fill" id="stat-grip" style="width: 70%"></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Carousel -->
-          <div class="carousel-wrapper">
-            <button class="arrow-btn arrow-left" id="prev-vehicle">&#9664;</button>
-            <div class="vehicle-carousel">
-              <div class="vehicle-card selected" data-vehicle="sedan">
-                <div class="vehicle-preview sedan"></div>
-                <div class="vehicle-name">Sedan</div>
-              </div>
-              <div class="vehicle-card" data-vehicle="sports">
-                <div class="vehicle-preview sports"></div>
-                <div class="vehicle-name">GT</div>
-              </div>
-              <div class="vehicle-card" data-vehicle="muscle">
-                <div class="vehicle-preview muscle"></div>
-                <div class="vehicle-name">V8</div>
-              </div>
-              <div class="vehicle-card" data-vehicle="buggy">
-                <div class="vehicle-preview buggy"></div>
-                <div class="vehicle-name">Buggy</div>
-              </div>
-              <div class="vehicle-card" data-vehicle="tank">
-                <div class="vehicle-preview tank"></div>
-                <div class="vehicle-name">Tank</div>
-              </div>
-              <div class="vehicle-card" data-vehicle="hotrod">
-                <div class="vehicle-preview hotrod"></div>
-                <div class="vehicle-name">Hotrod</div>
-              </div>
-            </div>
-            <button class="arrow-btn arrow-right" id="next-vehicle">&#9654;</button>
-          </div>
+        <div class="vehicle-row" id="vehicle-row">
+          <div class="vehicle-chip selected" data-vehicle="sedan"><canvas width="36" height="36"></canvas></div>
+          <div class="vehicle-chip" data-vehicle="sports"><canvas width="36" height="36"></canvas></div>
+          <div class="vehicle-chip" data-vehicle="muscle"><canvas width="36" height="36"></canvas></div>
+          <div class="vehicle-chip" data-vehicle="buggy"><canvas width="36" height="36"></canvas></div>
+          <div class="vehicle-chip" data-vehicle="tank"><canvas width="36" height="36"></canvas></div>
+          <div class="vehicle-chip" data-vehicle="hotrod"><canvas width="36" height="36"></canvas></div>
         </div>
+        <button class="start-shop-btn" id="start-shop-btn">
+          <svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+          SHOP
+        </button>
       </div>
     </div>
     
-    <!-- Game Over Screen -->
+    <div id="wave-warning"><span></span></div>
+
+    <!-- Gameplay buttons (hidden by default) -->
+    <button class="game-btn hidden" id="pause-btn">
+      <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    </button>
+    <button class="game-btn hidden" id="settings-btn">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </button>
+    <button class="game-btn hidden" id="ingame-shop-btn">
+      <svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+    </button>
+
+    <!-- Settings modal -->
+    <div id="settings-modal" class="modal-backdrop hidden">
+      <div class="modal-panel" style="position:relative;">
+        <div class="modal-title">SETTINGS</div>
+        <button class="modal-close" id="settings-close">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+        <div class="settings-list">
+          <button id="toggle-music" class="setting-row active">
+            <span class="setting-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+              <span class="setting-name">
+                <span class="setting-title">Music</span>
+                <span id="musicState" class="setting-state">On</span>
+              </span>
+            </span>
+            <span class="switch"></span>
+          </button>
+          <button id="toggle-fx" class="setting-row active">
+            <span class="setting-icon">
+              <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+              <span class="setting-name">
+                <span class="setting-title">Sound FX</span>
+                <span id="fxState" class="setting-state">On</span>
+              </span>
+            </span>
+            <span class="switch"></span>
+          </button>
+          <button id="toggle-haptics" class="setting-row active">
+            <span class="setting-icon">
+              <svg viewBox="0 0 24 24"><path d="M0 15h2V9H0v6zm3 2h2V7H3v10zm19-8v6h2V9h-2zm-3 8h2V7h-2v10zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z"/></svg>
+              <span class="setting-name">
+                <span class="setting-title">Haptics</span>
+                <span id="hapticsState" class="setting-state">On</span>
+              </span>
+            </span>
+            <span class="switch"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause modal -->
+    <div id="pause-modal" class="modal-backdrop hidden">
+      <div class="modal-panel">
+        <div class="modal-title">PAUSED</div>
+        <div class="pause-menu-btns">
+          <button class="pause-action-btn pause-resume" id="pause-resume">RESUME</button>
+          <button class="pause-action-btn pause-quit" id="pause-quit">QUIT GAME</button>
+          <button class="pause-action-btn pause-home" id="pause-home">HOME</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shop modal -->
+    <div id="shop-modal" class="modal-backdrop hidden">
+      <div class="modal-panel" style="position:relative; max-width:340px;">
+        <div class="modal-title">GARAGE</div>
+        <button class="modal-close" id="shop-close">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+        <div class="shop-balance">
+          <div class="start-coin-icon">$</div>
+          <span id="shop-coin-count">0</span>
+        </div>
+        <div class="shop-vehicle-preview">
+          <button class="shop-arrow" id="shop-prev">
+            <svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>
+          </button>
+          <canvas id="shop-canvas" width="100" height="100"></canvas>
+          <button class="shop-arrow" id="shop-next">
+            <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+          </button>
+        </div>
+        <div class="shop-vehicle-name" id="shop-vehicle-name">Street Sedan</div>
+        <div class="shop-vehicle-desc" id="shop-vehicle-desc">Your everyday getaway car.</div>
+        <div id="shop-price-area"></div>
+        <button class="shop-buy-btn buy" id="shop-action-btn">BUY</button>
+      </div>
+    </div>
+    
     <div id="game-over" class="overlay hidden">
       <div class="game-over-content">
         <h2>BUSTED!</h2>
@@ -1098,6 +1092,10 @@
             <div class="stat-label">CRASHES CAUSED</div>
           </div>
         </div>
+        <div class="gameover-coins">
+          <div class="start-coin-icon">$</div>
+          <span id="gameover-coins">+0</span>
+        </div>
         <div class="total-score">
           <div class="total-label">TOTAL SCORE</div>
           <div class="total-value" id="final-score">0</div>
@@ -1106,11 +1104,10 @@
       </div>
     </div>
     
-    <div class="control-hint">WASD or Arrow Keys to drive</div>
-    <div class="mobile-hint">Tap left/right to steer</div>
+    <div class="control-hint hidden" id="control-hint">WASD or Arrow Keys to drive</div>
+    <div class="mobile-hint hidden" id="mobile-hint">Tap left/right to steer</div>
     
-    <!-- Mobile Controls -->
-    <div class="mobile-controls">
+    <div class="mobile-controls hidden" id="mobile-controls">
       <button class="steer-btn steer-left" id="steer-left">
         <svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>
       </button>

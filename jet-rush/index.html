@@ -165,7 +165,7 @@
 
       #hud {
         position: fixed;
-        top: 28px;
+        top: 55px;
         left: 0;
         right: 0;
         z-index: 10;
@@ -185,7 +185,7 @@
 
       .hud-orbs {
         position: fixed;
-        top: 28px;
+        top: 60px;
         left: 20px;
         z-index: 10;
         pointer-events: none;
@@ -434,11 +434,11 @@
 
       @media (pointer: coarse) {
         #hud {
-          top: 100px;
+          top: 120px;
         }
 
         .hud-orbs {
-          top: 100px;
+          top: 130px;
         }
 
         .icon-btn {
@@ -459,32 +459,277 @@
 
       /* ── Shop Button (Start Screen) ── */
 
-      .shop-btn {
-        margin-top: 28px;
-        padding: 12px 36px;
-        border: 1px solid rgba(0, 212, 255, 0.35);
-        border-radius: 12px;
-        background: rgba(0, 20, 50, 0.6);
-        color: var(--accent);
+      /* ── Pause Button (matches .icon-btn style) ── */
+      .pause-btn {
+        position: fixed;
+        top: 45px;
+        right: 82px;
+        width: 54px;
+        height: 54px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        background: rgba(0, 10, 30, 0.6);
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        z-index: 12;
+        padding: 0;
+        transition: transform 0.16s ease, background 0.16s ease;
+      }
+      .pause-btn:active { transform: scale(0.94); }
+      .pause-btn svg { width: 24px; height: 24px; fill: currentColor; }
+      @media (pointer: coarse) {
+        .pause-btn { top: 120px; right: 78px; }
+      }
+
+      /* ── Pause Modal ── */
+      .pause-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 22px;
+        background: radial-gradient(ellipse at 50% 40%, transparent 20%, rgba(0, 0, 0, 0.7) 100%);
+        backdrop-filter: blur(12px);
+      }
+      .pause-card {
+        width: min(100%, 320px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        text-align: center;
+      }
+      .pause-title {
         font-family: "Orbitron", sans-serif;
-        font-size: clamp(0.8rem, 3vw, 1rem);
+        font-size: clamp(1.4rem, 7vw, 2rem);
+        font-weight: 700;
+        color: var(--text-main);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .pause-actions {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .pause-action-btn {
+        width: 100%;
+        padding: 16px 24px;
+        border: none;
+        border-radius: 14px;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.85rem, 3.5vw, 1rem);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: transform 0.12s ease;
+      }
+      .pause-action-btn:active { transform: scale(0.96); }
+      .pause-resume-btn {
+        background: linear-gradient(135deg, #00b4d8, #0077b6);
+        color: #fff;
+      }
+      .pause-home-btn {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-soft);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      /* ── Hyper Boost Button ── */
+      .stealth-btn {
+        position: fixed;
+        bottom: 180px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: clamp(200px, 48vw, 280px);
+        height: 62px;
+        background: rgba(0, 10, 30, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        z-index: 10;
+        cursor: pointer;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        transition: transform 0.16s ease, opacity 0.2s ease, border-color 0.3s ease;
+      }
+      .stealth-btn:active {
+        transform: translateX(-50%) scale(0.94);
+      }
+      .stealth-btn.disabled {
+        opacity: 0.35;
+        pointer-events: none;
+      }
+      .stealth-fill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 0%;
+        background: linear-gradient(90deg, rgba(0, 212, 255, 0.15), rgba(0, 212, 255, 0.3));
+        transition: width 0.1s linear;
+        z-index: 1;
+      }
+      .stealth-text {
+        position: relative;
+        z-index: 2;
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.9rem, 4vw, 1.15rem);
+        font-weight: 700;
+        color: var(--text-main);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .stealth-btn.stealth-full {
+        border-color: rgba(0, 255, 204, 0.5);
+      }
+      .stealth-btn.stealth-full .stealth-fill {
+        background: linear-gradient(90deg, rgba(0, 255, 204, 0.2), rgba(0, 255, 204, 0.4));
+      }
+      .stealth-btn.stealth-full .stealth-text {
+        color: #00ffcc;
+      }
+
+      /* ── Tutorial Overlay ── */
+      .tutorial-overlay {
+        position: fixed;
+        inset: 0;
+        top: 30%;
+        bottom: 30%;
+        z-index: 15;
+        pointer-events: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 8vw;
+        animation: pulseFade 2s infinite ease-in-out;
+      }
+      .tutorial-side {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      .tutorial-side span {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.9rem, 3.5vw, 1.4rem);
+        color: var(--text-main);
         font-weight: 600;
-        letter-spacing: 0.16em;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        text-shadow: 0 0 12px rgba(0, 161, 228, 0.8);
+      }
+      .tutorial-side svg {
+        width: clamp(32px, 8vw, 48px);
+        height: clamp(32px, 8vw, 48px);
+        fill: #00A1E4;
+        filter: drop-shadow(0 0 8px #00A1E4);
+      }
+      @keyframes pulseFade {
+        0%, 100% { opacity: 0.4; transform: scale(0.95); }
+        50% { opacity: 1; transform: scale(1.05); }
+      }
+
+      /* ── Plus One FX ── */
+      @keyframes floatUpFade {
+        0% { opacity: 0; transform: translateY(0) scale(0.5); }
+        20% { opacity: 1; transform: translateY(-10px) scale(1.2); }
+        100% { opacity: 0; transform: translateY(-40px) scale(1); }
+      }
+      .plus-one-fx {
+        position: fixed;
+        font-family: "Orbitron", sans-serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #00ffcc;
+        text-shadow: 0 0 8px rgba(0, 255, 204, 0.8);
+        z-index: 100;
+        pointer-events: none;
+        animation: floatUpFade 1s forwards;
+      }
+
+      /* ── Milestone Banner ── */
+      @keyframes milestonePop {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+        15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+        30% { transform: translate(-50%, -50%) scale(0.95); }
+        45% { transform: translate(-50%, -50%) scale(1.02); }
+        60% { transform: translate(-50%, -50%) scale(1); }
+        80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); }
+      }
+      .milestone-banner {
+        position: fixed;
+        top: 38%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 25;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        animation: milestonePop 1.8s ease-out forwards;
+      }
+      .milestone-distance {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(2.5rem, 12vw, 5rem);
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        line-height: 1;
+      }
+      .milestone-label {
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.7rem, 3vw, 1rem);
+        font-weight: 600;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        opacity: 0.7;
+      }
+
+      .start-bottom-row {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 21;
+      }
+
+      .shop-btn {
+        padding: 12px 28px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        background: rgba(0, 10, 30, 0.6);
+        color: var(--text-main);
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.75rem, 2.8vw, 0.92rem);
+        font-weight: 600;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 10px;
-        transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        transition: transform 0.15s ease, background 0.15s ease;
       }
 
       .shop-btn:active {
         transform: scale(0.95);
-      }
-
-      .shop-btn:hover {
-        background: rgba(0, 40, 80, 0.7);
-        border-color: var(--accent);
       }
 
       .shop-btn svg {
@@ -495,58 +740,10 @@
 
       /* ── Rotate Button (Start Screen, Mobile Only) ── */
 
-      .rotate-btn {
-        margin-top: 18px;
-        padding: 10px 28px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        border-radius: 12px;
-        background: rgba(0, 10, 30, 0.55);
-        color: var(--text-soft);
-        font-family: "Orbitron", sans-serif;
-        font-size: clamp(0.7rem, 2.5vw, 0.85rem);
-        font-weight: 500;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        cursor: pointer;
-        display: none;
-        align-items: center;
-        gap: 8px;
-        transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-      }
-
-      .rotate-btn:active {
-        transform: scale(0.95);
-      }
-
-      .rotate-btn:hover {
-        background: rgba(0, 30, 60, 0.6);
-        border-color: rgba(255, 255, 255, 0.3);
-      }
-
-      .rotate-btn svg {
-        width: 18px;
-        height: 18px;
-        fill: currentColor;
-        pointer-events: none;
-      }
-
       @media (pointer: coarse) {
-        .rotate-btn {
-          display: flex;
+        .start-bottom-row {
+          bottom: 100px;
         }
-      }
-
-      /* ── Forced Landscape (CSS rotation for portrait WebViews) ── */
-
-      body.force-landscape {
-        width: 100vh;
-        height: 100vw;
-        transform: rotate(90deg);
-        transform-origin: top left;
-        position: absolute;
-        top: 0;
-        left: 100vw;
-        overflow: hidden;
       }
 
       /* ── Shop Modal ── */
@@ -579,7 +776,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 8px;
+        margin-bottom: 16px;
       }
 
       .shop-title {
@@ -610,28 +807,31 @@
         box-shadow: 0 0 8px rgba(0, 255, 200, 0.6);
       }
 
-      .shop-close {
-        width: 40px;
-        height: 40px;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.06);
+      .shop-back-btn {
+        width: 100%;
+        max-width: 280px;
+        padding: 14px 24px;
+        border: none;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.08);
         color: var(--text-soft);
-        display: grid;
-        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        font-family: "Orbitron", sans-serif;
+        font-size: clamp(0.9rem, 3.5vw, 1.1rem);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
         cursor: pointer;
-        transition: background 0.15s ease;
-        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 12px;
+        transition: transform 0.12s ease, opacity 0.15s ease;
       }
 
-      .shop-close:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-
-      .shop-close svg {
-        width: 18px;
-        height: 18px;
-        fill: currentColor;
+      .shop-back-btn:active {
+        transform: scale(0.96);
       }
 
       /* Preview area */
@@ -684,13 +884,14 @@
         width: 24px;
         height: 24px;
         fill: currentColor;
+        pointer-events: none;
       }
 
       .shop-nav.prev { left: 8px; }
       .shop-nav.next { right: 8px; }
 
       .shop-ship-name {
-        margin-top: 12px;
+        margin-top: 20px;
         font-family: "Orbitron", sans-serif;
         font-size: clamp(1.1rem, 5vw, 1.5rem);
         font-weight: 700;
@@ -802,7 +1003,7 @@
       @media (pointer: coarse) {
         .shop-container {
           padding: 16px;
-          padding-top: 100px;
+          padding-top: 120px;
           padding-bottom: 40px;
           max-height: none;
         }
@@ -838,23 +1039,6 @@
         }
       }
 
-      body.force-landscape .shop-container {
-        padding-top: 16px;
-        padding-bottom: 16px;
-      }
-
-      body.force-landscape .shop-preview-wrap {
-        max-height: 35vh;
-        min-height: 100px;
-      }
-
-      body.force-landscape .shop-ship-name {
-        margin-top: 6px;
-      }
-
-      body.force-landscape .shop-action-btn {
-        margin-top: 10px;
-      }
     </style>
   </head>
   <body>
@@ -877,6 +1061,43 @@
       </svg>
     </button>
 
+    <button id="pauseBtn" class="pause-btn hidden" aria-label="Pause">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+      </svg>
+    </button>
+
+    <!-- Pause Modal -->
+    <div id="pauseModal" class="pause-overlay hidden">
+      <div class="pause-card">
+        <div class="pause-title">Paused</div>
+        <div class="pause-actions">
+          <button id="resumeBtn" class="pause-action-btn pause-resume-btn">Resume Game</button>
+          <button id="quitBtn" class="pause-action-btn pause-home-btn">Return to Home</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hyper Boost Button -->
+    <button id="stealthBtn" class="stealth-btn hidden disabled">
+      <div id="stealthFill" class="stealth-fill"></div>
+      <span class="stealth-text">
+        <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;vertical-align:middle;margin-right:6px"><path d="M11 15H6l7-14v8h5l-7 14v-8z"/></svg>Boost
+      </span>
+    </button>
+
+    <!-- Tutorial Overlay -->
+    <div id="tutorialOverlay" class="tutorial-overlay hidden">
+      <div class="tutorial-side tutorial-left">
+        <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        <span>Tap Left</span>
+      </div>
+      <div class="tutorial-side tutorial-right">
+        <span>Tap Right</span>
+        <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+      </div>
+    </div>
+
     <!-- Start Screen -->
     <div id="startScreen">
       <div class="start-title">Jet Rush</div>
@@ -886,13 +1107,13 @@
         <span id="startOrbTotal">0</span>
       </div>
       <div class="start-cta">Tap to Fly</div>
+    </div>
+
+    <!-- Start Screen Bottom Row (Shop) -->
+    <div id="startBottomRow" class="start-bottom-row">
       <button id="shopBtn" class="shop-btn">
         <svg viewBox="0 0 24 24"><path d="M18.36 9l.6-3H5.04l.6 3h12.72zM20 4H4l-1 5h.01L4 20h16l.99-11H21l-1-5zM6 18V11h12v7H6z"/></svg>
         Shop
-      </button>
-      <button id="rotateBtn" class="rotate-btn">
-        <svg viewBox="0 0 24 24"><path d="M7.34 6.41L.86 12.9l6.49 6.48 6.49-6.48-6.5-6.49zM3.69 12.9l3.66-3.66L11 12.9l-3.66 3.66-3.65-3.66zm15.67-6.26A8.95 8.95 0 0 0 13 4V.76L8.76 5 13 9.24V6c1.79 0 3.58.68 4.95 2.05a7.007 7.007 0 0 1 0 9.9 6.973 6.973 0 0 1-7.79 1.44l-1.49 1.49C10.02 21.62 11.51 22 13 22c2.3 0 4.61-.88 6.36-2.64a8.98 8.98 0 0 0 0-12.72z"/></svg>
-        <span id="rotateBtnLabel">Landscape</span>
       </button>
     </div>
 
@@ -916,9 +1137,6 @@
             <span class="orb-dot"></span>
             <span id="shopOrbCount">0</span>
           </div>
-          <button id="shopCloseBtn" class="shop-close" aria-label="Close shop">
-            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-          </button>
         </div>
 
         <div id="shopPreviewWrap" class="shop-preview-wrap">
@@ -938,6 +1156,8 @@
           <span id="shopBuyLabel">Equipped</span>
           <span id="shopBuyPrice" class="shop-buy-price"></span>
         </button>
+
+        <button id="shopCloseBtn" class="shop-back-btn" aria-label="Back">Back</button>
       </div>
     </div>
 

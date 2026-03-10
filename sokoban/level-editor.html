@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sokoban Level Editor</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Left Panel: Level List ── */
+    .level-list-panel {
+      width: 220px;
+      background: #161822;
+      border-right: 1px solid #2a2d3a;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .level-list-header {
+      padding: 16px;
+      border-bottom: 1px solid #2a2d3a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .level-list-header h2 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #aaa;
+    }
+
+    .add-level-btn {
+      width: 30px;
+      height: 30px;
+      border: 1px solid #3a3d4a;
+      border-radius: 8px;
+      background: #1e2030;
+      color: #7eb8ff;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+
+    .add-level-btn:hover { background: #2a2d40; }
+
+    .level-list-items {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .level-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: background 0.12s;
+      margin-bottom: 4px;
+    }
+
+    .level-item:hover { background: #1e2030; }
+    .level-item.active { background: #1e2a42; color: #7eb8ff; }
+
+    .level-item .level-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: #2a2d3a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 800;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+
+    .level-item.active .level-num { background: #2a3f5e; }
+
+    .level-item .level-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .level-item .delete-level-btn {
+      opacity: 0;
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #f87171;
+      cursor: pointer;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.15s, background 0.15s;
+      flex-shrink: 0;
+    }
+
+    .level-item:hover .delete-level-btn { opacity: 1; }
+    .level-item .delete-level-btn:hover { background: rgba(248, 113, 113, 0.15); }
+
+    .level-list-actions {
+      padding: 12px;
+      border-top: 1px solid #2a2d3a;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .list-action-btn {
+      padding: 10px;
+      border: 1px solid #3a3d4a;
+      border-radius: 8px;
+      background: #1e2030;
+      color: #ccc;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .list-action-btn:hover { background: #2a2d40; border-color: #4a4d5a; }
+    .list-action-btn.primary { background: #1a3a5e; border-color: #2a5a8e; color: #7eb8ff; }
+    .list-action-btn.primary:hover { background: #224a6e; }
+    .list-action-btn.success { background: #1a3e2a; border-color: #2a6e4a; color: #86efac; }
+    .list-action-btn.success:hover { background: #224e3a; }
+
+    .sync-status {
+      padding: 6px 12px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-align: center;
+      color: #666;
+      border-top: 1px solid #2a2d3a;
+    }
+
+    .sync-status.synced { color: #86efac; }
+    .sync-status.dirty { color: #fbbf24; }
+    .sync-status.error { color: #f87171; }
+
+    /* ── Center: Grid Editor ── */
+    .editor-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .editor-toolbar {
+      padding: 12px 20px;
+      border-bottom: 1px solid #2a2d3a;
+      background: #161822;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+    }
+
+    .toolbar-input {
+      background: #1e2030;
+      border: 1px solid #3a3d4a;
+      border-radius: 6px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+
+    .toolbar-input:focus { border-color: #5a8dbf; }
+    .toolbar-input.small { width: 55px; text-align: center; }
+    .toolbar-input.name { width: 180px; }
+    .toolbar-input.id { width: 55px; text-align: center; }
+
+    .toolbar-sep { width: 1px; height: 28px; background: #2a2d3a; }
+
+    .size-btn {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #3a3d4a;
+      border-radius: 6px;
+      background: #1e2030;
+      color: #aaa;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s;
+    }
+
+    .size-btn:hover { background: #2a2d40; color: #fff; }
+    .size-btn:active { background: #3a3d50; }
+
+    /* ── Tool Palette ── */
+    .palette-bar {
+      padding: 10px 20px;
+      border-bottom: 1px solid #2a2d3a;
+      background: #13151e;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .palette-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1px solid #2a2d3a;
+      border-radius: 8px;
+      background: #1a1c28;
+      color: #999;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: all 0.12s;
+      white-space: nowrap;
+    }
+
+    .palette-btn:hover { background: #22253a; border-color: #3a3d4a; color: #ccc; }
+
+    .palette-btn.active {
+      border-color: #5a8dbf;
+      background: #1a2a42;
+      color: #7eb8ff;
+      box-shadow: 0 0 8px rgba(126, 184, 255, 0.15);
+    }
+
+    .palette-swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+      flex-shrink: 0;
+    }
+
+    .swatch-floor { background: #d8c9ab; }
+    .swatch-wall { background: #4a4f58; }
+    .swatch-goal { background: #e0948b; border-radius: 50%; }
+    .swatch-box { background: linear-gradient(180deg, #f1b64a, #cc7e1e); }
+    .swatch-player { background: #235da6; border-radius: 50%; }
+    .swatch-eraser { background: repeating-linear-gradient(45deg, #444, #444 2px, #666 2px, #666 4px); }
+
+    .palette-shortcut {
+      display: inline-block;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #2a2d3a;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      color: #888;
+    }
+
+    /* ── Grid Canvas ── */
+    .grid-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: auto;
+      background: #0c0e14;
+    }
+
+    .grid-container {
+      display: inline-grid;
+      gap: 1px;
+      background: #1a1c28;
+      border: 2px solid #2a2d3a;
+      border-radius: 6px;
+      padding: 1px;
+    }
+
+    .grid-cell {
+      width: 48px;
+      height: 48px;
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      transition: outline 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .grid-cell:hover {
+      outline: 2px solid rgba(126, 184, 255, 0.4);
+      outline-offset: -1px;
+      z-index: 1;
+    }
+
+    .cell-floor { background: #c4b696; }
+    .cell-wall { background: #3e424a; }
+    .cell-goal { background: #c4b696; }
+    .cell-goal::after {
+      content: '';
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(224, 120, 110, 0.85);
+      box-shadow: 0 0 6px rgba(224, 120, 110, 0.4);
+    }
+
+    .cell-player-marker {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #235da6;
+      border: 2px solid rgba(255,255,255,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #fff;
+      position: absolute;
+      z-index: 2;
+    }
+
+    .cell-box-marker {
+      width: 30px;
+      height: 30px;
+      border-radius: 4px;
+      background: linear-gradient(180deg, #f1b64a, #cc7e1e);
+      border: 2px solid #7e4715;
+      position: absolute;
+      z-index: 2;
+    }
+
+    .cell-box-marker::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 2px;
+    }
+
+    /* ── Right Panel: Output ── */
+    .output-panel {
+      width: 380px;
+      background: #161822;
+      border-left: 1px solid #2a2d3a;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .output-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #2a2d3a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .output-header h3 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #aaa;
+    }
+
+    .copy-btn {
+      padding: 6px 14px;
+      border: 1px solid #2a6e4a;
+      border-radius: 6px;
+      background: #1a3e2a;
+      color: #86efac;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .copy-btn:hover { background: #224e3a; }
+    .copy-btn.copied { background: #2a6e4a; color: #fff; }
+
+    .output-code {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 16px;
+    }
+
+    .output-code pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      line-height: 1.55;
+      color: #b0b8c8;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    .output-tabs {
+      display: flex;
+      border-bottom: 1px solid #2a2d3a;
+    }
+
+    .output-tab {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      background: transparent;
+      color: #666;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .output-tab:hover { color: #aaa; }
+    .output-tab.active { color: #7eb8ff; border-bottom-color: #5a8dbf; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1a3e2a;
+      border: 1px solid #2a6e4a;
+      color: #86efac;
+      padding: 10px 22px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      z-index: 100;
+      opacity: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.error { background: #3e1a1a; border-color: #6e2a2a; color: #f87171; }
+
+    /* ── Validation Warnings ── */
+    .validation-bar {
+      padding: 6px 20px;
+      background: #2a1a1a;
+      border-bottom: 1px solid #4a2a2a;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #f87171;
+      display: none;
+    }
+
+    .validation-bar.visible { display: block; }
+    .validation-bar.ok { background: #1a2a1a; border-color: #2a4a2a; color: #86efac; }
+  </style>
+</head>
+<body>
+
+  <!-- Left: Level List -->
+  <div class="level-list-panel">
+    <div class="level-list-header">
+      <h2>Levels</h2>
+      <button class="add-level-btn" id="addLevelBtn" title="Add new level">+</button>
+    </div>
+    <div class="level-list-items" id="levelListItems"></div>
+    <div class="level-list-actions">
+      <button class="list-action-btn" id="reloadBtn">Reload from file</button>
+      <button class="list-action-btn success" id="saveToFileBtn">Save to levels.ts</button>
+    </div>
+    <div class="sync-status" id="syncStatus">Loading...</div>
+  </div>
+
+  <!-- Center: Editor -->
+  <div class="editor-main">
+    <div class="editor-toolbar">
+      <div class="toolbar-group">
+        <span class="toolbar-label">ID</span>
+        <input type="number" class="toolbar-input id" id="levelId" value="1" min="1">
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Name</span>
+        <input type="text" class="toolbar-input name" id="levelName" placeholder="Level name" maxlength="32">
+      </div>
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Rows</span>
+        <button class="size-btn" id="rowsDec">-</button>
+        <input type="number" class="toolbar-input small" id="rowsInput" value="8" min="4" max="20">
+        <button class="size-btn" id="rowsInc">+</button>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">Cols</span>
+        <button class="size-btn" id="colsDec">-</button>
+        <input type="number" class="toolbar-input small" id="colsInput" value="8" min="4" max="20">
+        <button class="size-btn" id="colsInc">+</button>
+      </div>
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-group">
+        <button class="size-btn" id="fillWallsBtn" title="Fill borders with walls" style="width:auto;padding:0 10px;font-size:0.7rem;font-weight:700;">Border</button>
+        <button class="size-btn" id="clearAllBtn" title="Clear everything" style="width:auto;padding:0 10px;font-size:0.7rem;font-weight:700;color:#f87171;">Clear</button>
+      </div>
+    </div>
+
+    <div class="palette-bar">
+      <button class="palette-btn" data-tool="floor">
+        <span class="palette-swatch swatch-floor"></span> Floor
+        <span class="palette-shortcut">1</span>
+      </button>
+      <button class="palette-btn active" data-tool="wall">
+        <span class="palette-swatch swatch-wall"></span> Wall
+        <span class="palette-shortcut">2</span>
+      </button>
+      <button class="palette-btn" data-tool="goal">
+        <span class="palette-swatch swatch-goal"></span> Goal
+        <span class="palette-shortcut">3</span>
+      </button>
+      <button class="palette-btn" data-tool="box">
+        <span class="palette-swatch swatch-box"></span> Box
+        <span class="palette-shortcut">4</span>
+      </button>
+      <button class="palette-btn" data-tool="player">
+        <span class="palette-swatch swatch-player"></span> Player
+        <span class="palette-shortcut">5</span>
+      </button>
+      <button class="palette-btn" data-tool="eraser">
+        <span class="palette-swatch swatch-eraser"></span> Erase
+        <span class="palette-shortcut">E</span>
+      </button>
+    </div>
+
+    <div class="validation-bar" id="validationBar"></div>
+
+    <div class="grid-area" id="gridArea">
+      <div class="grid-container" id="gridContainer"></div>
+    </div>
+  </div>
+
+  <!-- Right: Output -->
+  <div class="output-panel">
+    <div class="output-header">
+      <h3>src/levels.ts</h3>
+      <button class="copy-btn" id="copyOutputBtn">Copy</button>
+    </div>
+    <div class="output-tabs">
+      <button class="output-tab active" data-tab="current">Current</button>
+      <button class="output-tab" data-tab="all">All Levels</button>
+    </div>
+    <div class="output-code">
+      <pre id="outputCode"></pre>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    const TILE_WALL = 0;
+    const TILE_FLOOR = 1;
+    const TILE_GOAL = 2;
+
+    let levels = [];
+    let currentLevelIdx = 0;
+    let selectedTool = 'wall';
+    let pointerDown = false;
+    let outputTab = 'current';
+    let isDirty = false;
+
+    // ── DOM refs ──
+    const levelListEl = document.getElementById('levelListItems');
+    const gridContainer = document.getElementById('gridContainer');
+    const levelIdInput = document.getElementById('levelId');
+    const levelNameInput = document.getElementById('levelName');
+    const rowsInput = document.getElementById('rowsInput');
+    const colsInput = document.getElementById('colsInput');
+    const validationBar = document.getElementById('validationBar');
+    const outputCode = document.getElementById('outputCode');
+    const toastEl = document.getElementById('toast');
+    const syncStatusEl = document.getElementById('syncStatus');
+
+    // ── API ──
+    async function loadLevelsFromFile() {
+      try {
+        const res = await fetch(API_BASE + '/api/levels');
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          levels = data.map(lv => ({
+            id: lv.id,
+            name: lv.name,
+            grid: lv.grid.map(row => [...row]),
+            player: lv.player ? { x: lv.player.x, y: lv.player.y } : null,
+            boxes: (lv.boxes || []).map(b => ({ x: b.x, y: b.y })),
+          }));
+          if (levels.length === 0) {
+            levels.push(createBlankLevel(1, 8, 8));
+          }
+          currentLevelIdx = 0;
+          syncFromLevel();
+          renderAll();
+          isDirty = false;
+          updateSyncStatus();
+          showToast('Loaded ' + levels.length + ' levels from levels.ts');
+        }
+      } catch (e) {
+        showToast('Failed to load: ' + e.message, true);
+        updateSyncStatus('error');
+      }
+    }
+
+    async function saveLevelsToFile() {
+      syncToLevel();
+      try {
+        const res = await fetch(API_BASE + '/api/levels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(levels),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          isDirty = false;
+          updateSyncStatus();
+          showToast('Saved ' + data.count + ' levels to src/levels.ts');
+        } else {
+          showToast('Save failed: ' + (data.error || 'unknown'), true);
+        }
+      } catch (e) {
+        showToast('Save failed: ' + e.message, true);
+      }
+    }
+
+    function markDirty() {
+      isDirty = true;
+      updateSyncStatus();
+    }
+
+    function updateSyncStatus(override) {
+      if (override === 'error') {
+        syncStatusEl.textContent = 'Connection error';
+        syncStatusEl.className = 'sync-status error';
+        return;
+      }
+      if (isDirty) {
+        syncStatusEl.textContent = 'Unsaved changes';
+        syncStatusEl.className = 'sync-status dirty';
+      } else {
+        syncStatusEl.textContent = 'In sync with levels.ts';
+        syncStatusEl.className = 'sync-status synced';
+      }
+    }
+
+    // ── Level data structure ──
+    function createBlankLevel(id, rows, cols) {
+      const grid = [];
+      for (let y = 0; y < rows; y++) {
+        const row = [];
+        for (let x = 0; x < cols; x++) {
+          const isBorder = y === 0 || y === rows - 1 || x === 0 || x === cols - 1;
+          row.push(isBorder ? TILE_WALL : TILE_FLOOR);
+        }
+        grid.push(row);
+      }
+      return { id, name: 'Level ' + id, grid, player: null, boxes: [] };
+    }
+
+    levels.push(createBlankLevel(1, 8, 8));
+
+    // ── Helpers ──
+    function cur() { return levels[currentLevelIdx]; }
+    function curRows() { return cur().grid.length; }
+    function curCols() { return cur().grid[0]?.length || 8; }
+
+    // ── Render level list ──
+    function renderLevelList() {
+      levelListEl.innerHTML = '';
+      levels.forEach((lv, idx) => {
+        const item = document.createElement('div');
+        item.className = 'level-item' + (idx === currentLevelIdx ? ' active' : '');
+        item.innerHTML =
+          '<span class="level-num">' + lv.id + '</span>' +
+          '<span class="level-name">' + (lv.name || 'Untitled') + '</span>' +
+          '<button class="delete-level-btn" title="Delete">x</button>';
+        item.addEventListener('click', (e) => {
+          if (e.target.classList.contains('delete-level-btn')) return;
+          switchToLevel(idx);
+        });
+        item.querySelector('.delete-level-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (levels.length <= 1) return;
+          levels.splice(idx, 1);
+          if (currentLevelIdx >= levels.length) currentLevelIdx = levels.length - 1;
+          syncFromLevel();
+          markDirty();
+          renderAll();
+        });
+        levelListEl.appendChild(item);
+      });
+    }
+
+    // ── Level sync ──
+    function syncToLevel() {
+      const lv = cur();
+      lv.id = parseInt(levelIdInput.value) || 1;
+      lv.name = levelNameInput.value || 'Untitled';
+    }
+
+    function syncFromLevel() {
+      const lv = cur();
+      levelIdInput.value = lv.id;
+      levelNameInput.value = lv.name;
+      rowsInput.value = curRows();
+      colsInput.value = curCols();
+    }
+
+    function switchToLevel(idx) {
+      syncToLevel();
+      currentLevelIdx = idx;
+      syncFromLevel();
+      renderAll();
+    }
+
+    // ── Grid rendering ──
+    function renderGrid() {
+      const lv = cur();
+      const rows = curRows();
+      const cols = curCols();
+
+      gridContainer.style.gridTemplateColumns = 'repeat(' + cols + ', 48px)';
+      gridContainer.innerHTML = '';
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'grid-cell';
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+
+          const tile = lv.grid[y][x];
+          if (tile === TILE_WALL) {
+            cell.classList.add('cell-wall');
+          } else if (tile === TILE_GOAL) {
+            cell.classList.add('cell-goal');
+          } else {
+            cell.classList.add('cell-floor');
+          }
+
+          if (lv.player && lv.player.x === x && lv.player.y === y) {
+            const marker = document.createElement('div');
+            marker.className = 'cell-player-marker';
+            marker.textContent = 'P';
+            cell.appendChild(marker);
+          }
+
+          if (lv.boxes.some(b => b.x === x && b.y === y)) {
+            const marker = document.createElement('div');
+            marker.className = 'cell-box-marker';
+            cell.appendChild(marker);
+          }
+
+          gridContainer.appendChild(cell);
+        }
+      }
+    }
+
+    // ── Apply tool ──
+    function applyTool(x, y) {
+      const lv = cur();
+      if (x < 0 || x >= curCols() || y < 0 || y >= curRows()) return;
+
+      switch (selectedTool) {
+        case 'floor':
+          lv.grid[y][x] = TILE_FLOOR;
+          lv.boxes = lv.boxes.filter(b => b.x !== x || b.y !== y);
+          if (lv.player && lv.player.x === x && lv.player.y === y) lv.player = null;
+          break;
+        case 'wall':
+          lv.grid[y][x] = TILE_WALL;
+          lv.boxes = lv.boxes.filter(b => b.x !== x || b.y !== y);
+          if (lv.player && lv.player.x === x && lv.player.y === y) lv.player = null;
+          break;
+        case 'goal':
+          lv.grid[y][x] = TILE_GOAL;
+          lv.boxes = lv.boxes.filter(b => b.x !== x || b.y !== y);
+          if (lv.player && lv.player.x === x && lv.player.y === y) lv.player = null;
+          break;
+        case 'box':
+          if (lv.grid[y][x] === TILE_WALL) lv.grid[y][x] = TILE_FLOOR;
+          if (lv.player && lv.player.x === x && lv.player.y === y) break;
+          const idx = lv.boxes.findIndex(b => b.x === x && b.y === y);
+          if (idx >= 0) lv.boxes.splice(idx, 1);
+          else lv.boxes.push({ x, y });
+          break;
+        case 'player':
+          if (lv.grid[y][x] === TILE_WALL) lv.grid[y][x] = TILE_FLOOR;
+          lv.boxes = lv.boxes.filter(b => b.x !== x || b.y !== y);
+          lv.player = { x, y };
+          break;
+        case 'eraser':
+          lv.grid[y][x] = TILE_FLOOR;
+          lv.boxes = lv.boxes.filter(b => b.x !== x || b.y !== y);
+          if (lv.player && lv.player.x === x && lv.player.y === y) lv.player = null;
+          break;
+      }
+
+      markDirty();
+      renderGrid();
+      validate();
+      updateOutput();
+    }
+
+    // ── Validation ──
+    function validate() {
+      const lv = cur();
+      const warnings = [];
+      if (!lv.player) warnings.push('No player placed');
+      if (lv.boxes.length === 0) warnings.push('No boxes placed');
+      let goalCount = 0;
+      for (const row of lv.grid) for (const t of row) if (t === TILE_GOAL) goalCount++;
+      if (goalCount === 0) warnings.push('No goals placed');
+      if (goalCount !== lv.boxes.length && goalCount > 0 && lv.boxes.length > 0) {
+        warnings.push('Goals (' + goalCount + ') != Boxes (' + lv.boxes.length + ')');
+      }
+      if (warnings.length === 0) {
+        validationBar.textContent = 'Valid level';
+        validationBar.className = 'validation-bar visible ok';
+      } else {
+        validationBar.textContent = warnings.join(' | ');
+        validationBar.className = 'validation-bar visible';
+      }
+    }
+
+    // ── Output generation ──
+    function formatLevel(lv) {
+      const gridStr = lv.grid.map(row => '      [' + row.join(', ') + ']').join(',\n');
+      const boxesStr = lv.boxes.map(b => '{ x: ' + b.x + ', y: ' + b.y + ' }').join(', ');
+      const playerStr = lv.player ? '{ x: ' + lv.player.x + ', y: ' + lv.player.y + ' }' : '{ x: 0, y: 0 }';
+      return '  {\n    id: ' + lv.id + ',\n    name: "' + (lv.name || 'Untitled').replace(/"/g, '\\"') +
+        '",\n    grid: [\n' + gridStr + ',\n    ],\n    player: ' + playerStr +
+        ',\n    boxes: [' + boxesStr + '],\n  }';
+    }
+
+    function formatAllLevels() {
+      syncToLevel();
+      const items = levels.map(lv => formatLevel(lv));
+      return 'const LEVELS: LevelData[] = [\n' + items.join(',\n') + ',\n];';
+    }
+
+    function updateOutput() {
+      syncToLevel();
+      outputCode.textContent = outputTab === 'current' ? formatLevel(cur()) : formatAllLevels();
+    }
+
+    // ── Toast ──
+    let toastTimer = null;
+    function showToast(msg, isError) {
+      clearTimeout(toastTimer);
+      toastEl.textContent = msg;
+      toastEl.className = 'toast show' + (isError ? ' error' : '');
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+    }
+
+    // ── Clipboard ──
+    async function copyToClipboard(text) {
+      try { await navigator.clipboard.writeText(text); return true; }
+      catch { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); return true; }
+    }
+
+    // ── Resize grid ──
+    function resizeGrid(newRows, newCols) {
+      const lv = cur();
+      newRows = Math.max(4, Math.min(20, newRows));
+      newCols = Math.max(4, Math.min(20, newCols));
+      const oldGrid = lv.grid;
+      const grid = [];
+      for (let y = 0; y < newRows; y++) {
+        const row = [];
+        for (let x = 0; x < newCols; x++) {
+          const isBorder = y === 0 || y === newRows - 1 || x === 0 || x === newCols - 1;
+          if (isBorder) row.push(TILE_WALL);
+          else if (y < oldGrid.length && x < (oldGrid[y]?.length || 0)) row.push(oldGrid[y][x]);
+          else row.push(TILE_FLOOR);
+        }
+        grid.push(row);
+      }
+      lv.grid = grid;
+      if (lv.player && (lv.player.x >= newCols || lv.player.y >= newRows)) lv.player = null;
+      lv.boxes = lv.boxes.filter(b => b.x > 0 && b.x < newCols - 1 && b.y > 0 && b.y < newRows - 1);
+      rowsInput.value = newRows;
+      colsInput.value = newCols;
+      markDirty();
+      renderGrid();
+      validate();
+      updateOutput();
+    }
+
+    function fillBorders() {
+      const lv = cur();
+      const rows = curRows(), cols = curCols();
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        if (y === 0 || y === rows - 1 || x === 0 || x === cols - 1) {
+          lv.grid[y][x] = TILE_WALL;
+          lv.boxes = lv.boxes.filter(b => b.x !== x || b.y !== y);
+          if (lv.player && lv.player.x === x && lv.player.y === y) lv.player = null;
+        }
+      }
+      markDirty(); renderGrid(); validate(); updateOutput();
+    }
+
+    function clearAll() {
+      const lv = cur();
+      const rows = curRows(), cols = curCols();
+      lv.grid = [];
+      for (let y = 0; y < rows; y++) {
+        const row = [];
+        for (let x = 0; x < cols; x++) {
+          row.push((y === 0 || y === rows - 1 || x === 0 || x === cols - 1) ? TILE_WALL : TILE_FLOOR);
+        }
+        lv.grid.push(row);
+      }
+      lv.player = null;
+      lv.boxes = [];
+      markDirty(); renderGrid(); validate(); updateOutput();
+    }
+
+    function renderAll() {
+      renderLevelList();
+      renderGrid();
+      validate();
+      updateOutput();
+    }
+
+    // ── Event handlers ──
+
+    gridContainer.addEventListener('pointerdown', (e) => {
+      const cell = e.target.closest('.grid-cell');
+      if (!cell) return;
+      e.preventDefault();
+      pointerDown = true;
+      applyTool(parseInt(cell.dataset.x), parseInt(cell.dataset.y));
+    });
+
+    gridContainer.addEventListener('pointermove', (e) => {
+      if (!pointerDown) return;
+      const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest('.grid-cell');
+      if (!cell) return;
+      if (selectedTool === 'box' || selectedTool === 'player') return;
+      applyTool(parseInt(cell.dataset.x), parseInt(cell.dataset.y));
+    });
+
+    window.addEventListener('pointerup', () => { pointerDown = false; });
+
+    document.querySelectorAll('.palette-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedTool = btn.dataset.tool;
+        document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      const map = { '1': 'floor', '2': 'wall', '3': 'goal', '4': 'box', '5': 'player', 'e': 'eraser', 'E': 'eraser' };
+      if (map[e.key]) {
+        selectedTool = map[e.key];
+        document.querySelectorAll('.palette-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === selectedTool));
+      }
+      // Ctrl+S / Cmd+S to save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveLevelsToFile();
+      }
+    });
+
+    document.getElementById('rowsDec').addEventListener('click', () => resizeGrid(curRows() - 1, curCols()));
+    document.getElementById('rowsInc').addEventListener('click', () => resizeGrid(curRows() + 1, curCols()));
+    document.getElementById('colsDec').addEventListener('click', () => resizeGrid(curRows(), curCols() - 1));
+    document.getElementById('colsInc').addEventListener('click', () => resizeGrid(curRows(), curCols() + 1));
+    rowsInput.addEventListener('change', () => resizeGrid(parseInt(rowsInput.value) || 8, curCols()));
+    colsInput.addEventListener('change', () => resizeGrid(curRows(), parseInt(colsInput.value) || 8));
+    document.getElementById('fillWallsBtn').addEventListener('click', fillBorders);
+    document.getElementById('clearAllBtn').addEventListener('click', clearAll);
+
+    levelIdInput.addEventListener('input', () => { syncToLevel(); markDirty(); renderLevelList(); updateOutput(); });
+    levelNameInput.addEventListener('input', () => { syncToLevel(); markDirty(); renderLevelList(); updateOutput(); });
+
+    document.getElementById('addLevelBtn').addEventListener('click', () => {
+      syncToLevel();
+      const nextId = levels.length > 0 ? Math.max(...levels.map(l => l.id)) + 1 : 1;
+      levels.push(createBlankLevel(nextId, 8, 8));
+      currentLevelIdx = levels.length - 1;
+      syncFromLevel();
+      markDirty();
+      renderAll();
+    });
+
+    document.getElementById('reloadBtn').addEventListener('click', loadLevelsFromFile);
+    document.getElementById('saveToFileBtn').addEventListener('click', saveLevelsToFile);
+
+    document.getElementById('copyOutputBtn').addEventListener('click', async () => {
+      await copyToClipboard(outputCode.textContent);
+      const btn = document.getElementById('copyOutputBtn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+
+    document.querySelectorAll('.output-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        outputTab = tab.dataset.tab;
+        document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        updateOutput();
+      });
+    });
+
+    // Warn before leaving with unsaved changes
+    window.addEventListener('beforeunload', (e) => {
+      if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    // ── Init: load from file ──
+    syncFromLevel();
+    renderAll();
+    loadLevelsFromFile();
+  </script>
+</body>
+</html>
