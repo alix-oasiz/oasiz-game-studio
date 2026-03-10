@@ -28,7 +28,7 @@
     "format": "prettier --write 'src/**/*.{ts,tsx,css,html}'"
   },
   "dependencies": {
-    "@oasiz/sdk": "^1.0.2",
+    "@oasiz/sdk": "^1.2.0",
     "colyseus.js": "^0.16.18",
     "howler": "^2.2.4",
     "matter-js": "^0.20.0",

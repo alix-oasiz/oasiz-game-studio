@@ -31,6 +31,20 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-11 - Online lobby: platform invite wiring
+
+- Scope:
+  - `@oasiz/sdk` updated 1.0.2 → 1.2.0. Wired `openInviteModal` + `shareRoomCode inviteOverride` into online lobby. Files: `src/platform/oasizBridge.ts`, `index.html`, `src/ui/elements.ts`, `src/ui/lobby.ts`.
+- Key changes:
+  - `oasizBridge.ts`: added `openInviteModal()` export. `shareRoomCode` now passes `{ inviteOverride: true }` so platform hides its own invite pill; game owns the invite entry point.
+  - `index.html`: added hidden `addInvitePlayerBtn` to compatibility section; added `addPlayerInviteBtn` to `addPlayerModal`.
+  - `elements.ts`: registered `addInvitePlayerBtn`.
+  - `lobby.ts`: added `canShowInviteOption()` (`!isLocalSession() && isPlatform`). Invite button added to `buildEmptyCardHTML` (visible on desktop/iPad in empty card slots; not leader-gated). `emptyKey` updated to include invite flag for correct card cache invalidation. Card event delegation handles `data-action="invite"`. Phone compact empty-card tap opens modal when `canInvite` (non-leaders allowed through). `openAddPlayerDialog()` dynamically shows local vs invite vs both. Hidden `addInvitePlayerBtn` handler calls `openInviteModal()` with tap guard.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Desktop/iPad: "Invite" button visible directly in empty card slots (online+platform). Phone: tapping empty card opens modal with "Add Bot" + "Invite". Both host and non-host can invite as long as slots are open.
+
 ## 2026-03-11 - Map picker: all maps available in all modes + rename to "Random"
 
 - Scope:

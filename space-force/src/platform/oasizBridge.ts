@@ -66,7 +66,11 @@ export function saveGameState(state: Record<string, unknown>): void {
 }
 
 export function shareRoomCode(code: string | null): void {
-  oasiz.shareRoomCode(code);
+  oasiz.shareRoomCode(code, { inviteOverride: true });
+}
+
+export function openInviteModal(): void {
+  oasiz.openInviteModal();
 }
 
 export function onPause(callback: () => void): () => void {

@@ -14,7 +14,7 @@ import {
 import { renderMapPreviewOnCanvas } from "./mapPreview";
 import { escapeHtml } from "./text";
 import { createUIFeedback } from "../feedback/uiFeedback";
-import { isPlatformRuntime } from "../platform/oasizBridge";
+import { isPlatformRuntime, openInviteModal } from "../platform/oasizBridge";
 import {
   getOrCreatePreferredShipSkinId,
   setPreferredShipSkinId,
@@ -216,6 +216,10 @@ export function createLobbyUI(
     return isLocalSession() && supportsLocalPlayers && !hasRemote;
   }
 
+  function canShowInviteOption(): boolean {
+    return !isLocalSession() && isPlatform;
+  }
+
   function updateSessionModeIndicator(): void {
     const isLocal = isLocalSession();
     elements.sessionModeIndicator.setAttribute("data-mode", isLocal ? "local" : "online");
@@ -378,10 +382,19 @@ export function createLobbyUI(
     slotIdx: number,
     canAdd: boolean,
     canShowLocalAdd: boolean,
+    canShowInvite: boolean,
   ): string {
     const localBtn = canShowLocalAdd
       ? `<button class="empty-btn" data-action="add-local"${canAdd ? "" : " disabled"}><span class="eb-plus">+</span><span>Add Local</span></button>`
       : "";
+    const inviteBtn = canShowInvite
+      ? `<button class="empty-btn" data-action="invite"><span class="eb-plus">+</span><span>Invite</span></button>`
+      : "";
+    const tapHint = canShowLocalAdd
+      ? "Tap to add player"
+      : canShowInvite
+        ? "Tap to add or invite"
+        : "Tap to add bot";
     return `<div class="card-scene">
             <div class="empty-content">
               <div class="empty-icon">${PLUS_CIRCLE_SVG}</div>
@@ -389,8 +402,9 @@ export function createLobbyUI(
               <div class="empty-btns">
                 <button class="empty-btn" data-action="add-ai"${canAdd ? "" : " disabled"}><span class="eb-plus">+</span><span>Add Bot</span></button>
                 ${localBtn}
+                ${inviteBtn}
               </div>
-              <div class="empty-tap-hint">${canShowLocalAdd ? "Tap to add player" : "Tap to add bot"}</div>
+              <div class="empty-tap-hint">${tapHint}</div>
             </div>
           </div>`;
   }
@@ -426,6 +440,7 @@ export function createLobbyUI(
     const isLeader = game.isLeader();
     const leaderId = game.getLeaderId();
     const canShowLocalAdd = canShowLocalAddOption();
+    const canShowInvite = canShowInviteOption();
     applyPreferredSkinToSelf();
 
     const cards = ensureCardSlots();
@@ -542,7 +557,7 @@ export function createLobbyUI(
       } else {
         // Empty slot
         const prevPlayerId = card.dataset.slotPlayerId ?? "";
-        const emptyKey = `${isLeader ? "1" : "0"}_${canShowLocalAdd ? "1" : "0"}`;
+        const emptyKey = `${isLeader ? "1" : "0"}_${canShowLocalAdd ? "1" : "0"}_${canShowInvite ? "1" : "0"}`;
         if (prevPlayerId !== "" || card.dataset.emptySlotKey !== emptyKey) {
           // Transitioning from filled, or empty-slot params changed: redraw
           card.dataset.slotPlayerId = "";
@@ -550,7 +565,7 @@ export function createLobbyUI(
           card.className = "pcard pcard--empty";
           card.style.removeProperty("--pc");
           card.style.removeProperty("--pc-rgb");
-          card.innerHTML = buildEmptyCardHTML(i, isLeader, canShowLocalAdd);
+          card.innerHTML = buildEmptyCardHTML(i, isLeader, canShowLocalAdd, canShowInvite);
         }
       }
     }
@@ -597,9 +612,12 @@ export function createLobbyUI(
   const addPlayerBackdrop = document.getElementById("addPlayerBackdrop") as HTMLElement;
   const addPlayerAIBtn = document.getElementById("addPlayerAIBtn") as HTMLButtonElement;
   const addPlayerLocalBtn = document.getElementById("addPlayerLocalBtn") as HTMLButtonElement;
+  const addPlayerInviteBtn = document.getElementById("addPlayerInviteBtn") as HTMLButtonElement;
   const addPlayerCloseBtn = document.getElementById("addPlayerCloseBtn") as HTMLButtonElement;
 
   function openAddPlayerDialog(): void {
+    addPlayerLocalBtn.style.display = canShowLocalAddOption() ? "" : "none";
+    addPlayerInviteBtn.style.display = canShowInviteOption() ? "" : "none";
     addPlayerModal.classList.add("active");
     addPlayerBackdrop.classList.add("active");
   }
@@ -615,6 +633,10 @@ export function createLobbyUI(
   addPlayerLocalBtn.addEventListener("click", () => {
     closeAddPlayerDialog();
     elements.addLocalPlayerBtn.click();
+  });
+  addPlayerInviteBtn.addEventListener("click", () => {
+    closeAddPlayerDialog();
+    elements.addInvitePlayerBtn.click();
   });
   addPlayerCloseBtn.addEventListener("click", closeAddPlayerDialog);
   addPlayerBackdrop.addEventListener("click", closeAddPlayerDialog);
@@ -637,6 +659,8 @@ export function createLobbyUI(
         elements.addAIBotBtn.click();
       } else if (action === "add-local") {
         elements.addLocalPlayerBtn.click();
+      } else if (action === "invite") {
+        elements.addInvitePlayerBtn.click();
       } else if ((action === "remove" || action === "kick") && playerId) {
         if (!game.isLeader()) {
           showHostOnlyActionToast();
@@ -655,13 +679,14 @@ export function createLobbyUI(
       return;
     }
 
-    // Phone: tap on empty card → add bot directly (online) or open add-player dialog (local)
+    // Phone: tap on empty card → open add-player dialog (local or online+platform) or add bot directly
     const emptyCard = (e.target as HTMLElement).closest<HTMLElement>(".pcard--empty");
     if (emptyCard && window.matchMedia("(pointer: coarse) and (max-height: 600px)").matches) {
-      if (!game.isLeader()) return;
-      if (canShowLocalAddOption()) {
+      const canInvite = canShowInviteOption();
+      if (!game.isLeader() && !canInvite) return;
+      if (canShowLocalAddOption() || canInvite) {
         openAddPlayerDialog();
-      } else {
+      } else if (game.isLeader()) {
         elements.addAIBotBtn.click();
       }
       return;
@@ -931,6 +956,12 @@ export function createLobbyUI(
       elements.addLocalPlayerBtn.disabled = false;
       endAddButtonAction();
     }
+  });
+
+  elements.addInvitePlayerBtn.addEventListener("click", (event) => {
+    if (isTapGuardBlocked(event, "invite", ADD_BUTTON_TAP_GUARD_MS)) return;
+    feedback.button();
+    openInviteModal();
   });
 
   elements.keySelectBackdrop.addEventListener("click", (event) => {

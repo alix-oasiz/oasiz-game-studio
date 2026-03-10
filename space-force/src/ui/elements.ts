@@ -77,6 +77,7 @@ export const elements = {
   addBotSection: getElement<HTMLElement>("addBotSection"),
   addAIBotBtn: getElement<HTMLButtonElement>("addAIBotBtn"),
   addLocalPlayerBtn: getElement<HTMLButtonElement>("addLocalPlayerBtn"),
+  addInvitePlayerBtn: getElement<HTMLButtonElement>("addInvitePlayerBtn"),
   advancedSettingsBtn: getElement<HTMLButtonElement>("advancedSettingsBtn"),
   mapPreviewCanvas: getElement<HTMLCanvasElement>("mapPreviewCanvas"),
 

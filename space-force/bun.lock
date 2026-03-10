@@ -5,7 +5,7 @@
     "": {
       "name": "space-force",
       "dependencies": {
-        "@oasiz/sdk": "^1.0.2",
+        "@oasiz/sdk": "^1.2.0",
         "colyseus.js": "^0.16.18",
         "howler": "^2.2.4",
         "matter-js": "^0.20.0",
@@ -95,7 +95,7 @@
 
     "@msgpackr-extract/msgpackr-extract-win32-x64": ["@msgpackr-extract/msgpackr-extract-win32-x64@3.0.3", "", { "os": "win32", "cpu": "x64" }, "sha512-x0fWaQtYp4E6sktbsdAqnehxDgEc/VwM7uLsRCYWaiGu0ykYdZPiS8zCWdnjHwyiumousxfBm4SO31eXqwEZhQ=="],
 
-    "@oasiz/sdk": ["@oasiz/sdk@1.0.2", "", {}, "sha512-gntKgfOn/XMStPyuycf7ChT/CExXF0Rbyc8lee41WUq9mAL6CMkcXcHaO9AQd3KlAri0GBfYSDm4PL0oleiniQ=="],
+    "@oasiz/sdk": ["@oasiz/sdk@1.2.0", "", {}, "sha512-xJceJWtpGfiHhgRQ0HxrjAMKzBLnugD3VJyRy7hFfAHsGoSBILLjL5ec868dKxn8YgL9qX3uRm1nL+WbPBkLxg=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.55.1", "", { "os": "android", "cpu": "arm" }, "sha512-9R0DM/ykwfGIlNu6+2U09ga0WXeZ9MRC2Ter8jnz8415VbuIykVuc6bhdrbORFZANDmTDvq26mJrEVTl8TdnDg=="],
 
