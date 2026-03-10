@@ -31,6 +31,19 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-11 - Tutorial: respawn player ship on tutorial start
+
+- Scope:
+  - Player ship could be dead (or ejected as pilot) when tutorial starts due to attract gameplay. File: `src/demo/DemoController.ts`.
+- Root cause:
+  - `enterTutorial()` restored the host to human control and froze bots but never guaranteed the ship was alive. Attract mode runs a real PLAYING sim so the host ship can be destroyed before "How to Play" is tapped.
+- Key changes:
+  - `DemoController.enterTutorial()`: after `setDemoBotFreeze`, call `game.demoRespawnPlayer(myId)` if `myId` is non-null. This removes any ejected pilot, places the ship at its spawn point, sets `alive: true`, full ammo, and 2s invulnerability.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Player ship is always alive and at spawn when tutorial begins, regardless of attract state.
+
 ## 2026-03-10 - GCP Cloud Build config + repo integration
 
 - Scope:

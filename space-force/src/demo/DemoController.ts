@@ -90,6 +90,12 @@ export class DemoController {
     // Freeze all bot ships — only the player's ship moves during tutorial
     const myId = this.game.getMyPlayerId();
     this.game.setDemoBotFreeze(myId);
+
+    // Ensure the player's ship is alive at tutorial start — attract gameplay
+    // may have destroyed it before the user tapped "How to Play"
+    if (myId) {
+      this.game.demoRespawnPlayer(myId);
+    }
   }
 
   /** Promote the tutorial session into a normal live match without teardown. */
