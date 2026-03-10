@@ -1,6 +1,6 @@
 import WebFont from "webfontloader";
 
-export const TITLE_FONT_FAMILY = "'Cinzel', 'Georgia', serif";
+export const TITLE_FONT_FAMILY = "'Open Sans', 'Arial', sans-serif";
 export const UI_FONT_FAMILY = TITLE_FONT_FAMILY;
 export const BUTTON_FONT_FAMILY = TITLE_FONT_FAMILY;
 
@@ -9,6 +9,11 @@ let fontsReadyPromise: Promise<void> | null = null;
 export function getUiTextResolution(): number {
     if (typeof window === "undefined") return 2;
     return Math.max(2, Math.min(4, window.devicePixelRatio || 1));
+}
+
+export function normalizeUiFontWeight(weight: string): string {
+    void weight;
+    return "800";
 }
 
 export function ensureFontsReady(): Promise<void> {
@@ -26,7 +31,7 @@ export function ensureFontsReady(): Promise<void> {
 
         WebFont.load({
             custom: {
-                families: ["Cinzel"]
+                families: ["Open Sans"]
             },
             active: () => {
                 window.clearTimeout(timeoutId);

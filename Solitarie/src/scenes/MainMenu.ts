@@ -1,8 +1,10 @@
 import Phaser from "phaser";
 import { clearBackButtonHandler, gameplayStop, leavePlatformGame, setBackButtonHandler, triggerPlatformHaptic } from "../platform/oasiz";
 import { syncBackgroundMusic } from "../audio/backgroundMusic";
-import { UI_FONT_FAMILY, getUiTextResolution } from "../ui/fonts";
+import { UI_FONT_FAMILY, getUiTextResolution, normalizeUiFontWeight } from "../ui/fonts";
+import { hideAllHtmlButtons, hideHtmlButton, showHtmlButton } from "../ui/htmlButton";
 import { hideAllHtmlText, hideHtmlText, showHtmlText } from "../ui/htmlText";
+import { HOW_TO_PLAY_PAGES } from "../ui/howToPlayPages";
 
 interface SettingsState {
     music: boolean;
@@ -15,10 +17,12 @@ interface SettingsState {
 export default class MainMenu extends Phaser.Scene {
     private settingsOverlay?: Phaser.GameObjects.Container;
     private bgOverlay?: Phaser.GameObjects.Container;
+    private howToOverlay?: Phaser.GameObjects.Container;
     private settings: SettingsState = { music: true, fx: true, haptics: true, drawCount: 1, background: "table_bg" };
     private mainBg!: Phaser.GameObjects.Image;
     private bgShade!: Phaser.GameObjects.Rectangle;
     private decorationCards: Phaser.GameObjects.Image[] = [];
+    private howToPageIndex = 0;
 
     constructor() {
         super("MainMenu");
@@ -27,14 +31,20 @@ export default class MainMenu extends Phaser.Scene {
     create() {
         gameplayStop();
         hideAllHtmlText();
+        hideAllHtmlButtons();
         this.settings = this.loadSettings();
-        syncBackgroundMusic(this, this.settings.music);
-        const handleBackButton = () => leavePlatformGame();
+        syncBackgroundMusic(this, this.settings.music, true);
+        const handleBackButton = () => {
+            if (this.settingsOverlay?.visible || this.bgOverlay?.visible || this.howToOverlay?.visible) return;
+            leavePlatformGame();
+        };
         setBackButtonHandler(handleBackButton);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             this.destroySettingsOverlay();
             this.destroyBgOverlay();
+            this.destroyHowToOverlay();
             hideAllHtmlText();
+            hideAllHtmlButtons();
             clearBackButtonHandler(handleBackButton);
         });
 
@@ -89,7 +99,7 @@ export default class MainMenu extends Phaser.Scene {
         drawChunkyBtn(false, false);
 
         const playTxt = this.add.text(0, -2, "Play", {
-            fontSize: "38px", color: "#FFFFFF", fontStyle: "900",
+            fontSize: "38px", color: "#FFFFFF", fontStyle: normalizeUiFontWeight("900"),
             fontFamily: UI_FONT_FAMILY,
             resolution: getUiTextResolution(),
             stroke: "#1A0003", strokeThickness: 3
@@ -97,6 +107,8 @@ export default class MainMenu extends Phaser.Scene {
 
         const playHitZone = this.add.zone(0, 0, btnW, btnH + 12).setInteractive({ useHandCursor: true });
         playBtn.add([btnGraphics, playTxt, playHitZone]);
+        btnGraphics.setVisible(false);
+        playHitZone.input!.enabled = false;
 
         // Breathing animation for button to make it feel alive
         const breathe = this.tweens.add({
@@ -138,12 +150,17 @@ export default class MainMenu extends Phaser.Scene {
         });
 
         // --- Background Button ---
-        this.makeStandardButton(w * 0.5, h * 0.58, 240, 60, "Backgrounds", () => {
+        this.makeStandardButton(w * 0.5, h * 0.57, 240, 60, "How to play", () => {
+            this.openHowToOverlay();
+        }, "blue", true);
+
+        // --- Background Button ---
+        this.makeStandardButton(w * 0.5, h * 0.67, 240, 60, "Backgrounds", () => {
             this.openBgSelector();
         }, "blue", true);
 
         // --- Settings Button ---
-        this.makeStandardButton(w * 0.5, h * 0.68, 240, 60, "Settings", () => {
+        this.makeStandardButton(w * 0.5, h * 0.77, 240, 60, "Settings", () => {
             this.openSettings();
         }, "blue", true);
 
@@ -188,7 +205,7 @@ export default class MainMenu extends Phaser.Scene {
         draw(false, false);
 
         const txt = this.add.text(0, -2, label, {
-            fontSize: "25px", color: "#FFFFFF", fontStyle: "900",
+            fontSize: "25px", color: "#FFFFFF", fontStyle: normalizeUiFontWeight("900"),
             fontFamily: UI_FONT_FAMILY,
             resolution: getUiTextResolution(),
             stroke: "#1A0003",
@@ -197,6 +214,11 @@ export default class MainMenu extends Phaser.Scene {
 
         const hit = this.add.zone(0, 0, w, h + 10).setInteractive({ useHandCursor: true });
         c.add([gfx, txt, hit]);
+        if (useHtmlLabel) {
+            gfx.setVisible(false);
+            txt.setVisible(false);
+            hit.input!.enabled = false;
+        }
 
         hit.on("pointerover", () => { document.body.style.cursor = "pointer"; draw(false, true); });
         hit.on("pointerout", () => { document.body.style.cursor = "default"; draw(false, false); txt.y = -2; });
@@ -212,17 +234,24 @@ export default class MainMenu extends Phaser.Scene {
     }
 
     private uiText(size = 20, color = "#ffffff", weight: string = "700", stroke?: string): Phaser.Types.GameObjects.Text.TextStyle {
-        const strokeThickness = !stroke ? 0 : size <= 18 ? 2 : size <= 24 ? 3 : 4;
+        const strokeThickness = !stroke ? 0 : size <= 18 ? 1 : size <= 24 ? 2 : 3;
         return {
-            fontSize: `${size}px`, color, fontStyle: weight as any,
+            fontSize: `${size}px`, color: stroke ? "#111111" : color,
+            fontStyle: normalizeUiFontWeight(weight),
             fontFamily: UI_FONT_FAMILY,
             resolution: getUiTextResolution(),
-            stroke: stroke || undefined,
+            stroke: stroke ? "#FFFFFF" : undefined,
             strokeThickness
         };
     }
 
     private renderModalTitle(container: Phaser.GameObjects.Container, label: string): void {
+        const solidColor = label === "Select theme"
+            ? "#00A1E4"
+            : label === "Settings" || label === "How to play"
+                ? "#FFFFFF"
+                : undefined;
+        const strokeColor = solidColor === "#FFFFFF" ? "#111111" : "#FFFFFF";
         if (document.getElementById("solitaire-modal-title")) {
             container.setVisible(false);
             showHtmlText("modal-title", {
@@ -231,21 +260,24 @@ export default class MainMenu extends Phaser.Scene {
                 y: container.y,
                 fontSize: 32,
                 letterSpacing: 2,
-                variant: "modal"
+                variant: "modal",
+                multicolor: !solidColor,
+                color: solidColor,
+                strokeColor: solidColor ? strokeColor : undefined
             });
             return;
         }
 
         container.setVisible(true);
         container.removeAll(true);
-        const colors = ["#FFFFFF", "#111111", "#B3131B"];
+        const colors = solidColor ? [solidColor] : ["#FFFFFF", "#111111", "#B3131B"];
         const letters = [...label].map((char, index) => this.add.text(0, 0, char, {
             fontSize: "32px",
             color: colors[index % colors.length],
             fontFamily: UI_FONT_FAMILY,
-            fontStyle: "900",
+            fontStyle: normalizeUiFontWeight("900"),
             resolution: getUiTextResolution(),
-            stroke: "#FFFFFF",
+            stroke: solidColor ? strokeColor : "#FFFFFF",
             strokeThickness: 2
         }).setOrigin(0.5));
         const gap = 3;
@@ -273,51 +305,86 @@ export default class MainMenu extends Phaser.Scene {
     private showMenuButtonLabels(): void {
         const w = this.scale.width;
         const h = this.scale.height;
-        const buttonColor = "#FFFFFF";
-        const strokeColor = "#1A0003";
-        showHtmlText("menu-play-label", {
+        hideHtmlText("menu-play-label");
+        hideHtmlText("menu-howto-label");
+        hideHtmlText("menu-backgrounds-label");
+        hideHtmlText("menu-settings-label");
+        showHtmlButton("menu-play-button", {
             text: "Play",
             x: w * 0.5,
-            y: h * 0.45 - 2,
+            y: h * 0.45,
+            width: 280,
+            height: 80,
+            radius: 40,
             fontSize: 38,
-            letterSpacing: 1,
-            multicolor: false,
-            color: buttonColor,
-            strokeColor,
-            strokeWidth: 2.5
+            theme: "orange",
+            onClick: () => {
+                this.playButton();
+                hideAllHtmlText();
+                hideAllHtmlButtons();
+                this.scene.start("Level");
+            }
         });
-        showHtmlText("menu-backgrounds-label", {
+        showHtmlButton("menu-howto-button", {
+            text: "How to play",
+            x: w * 0.5,
+            y: h * 0.57,
+            width: 240,
+            height: 60,
+            radius: 30,
+            fontSize: 25,
+            theme: "blue",
+            onClick: () => {
+                this.playButton();
+                this.triggerHaptic("light");
+                this.openHowToOverlay();
+            }
+        });
+        showHtmlButton("menu-backgrounds-button", {
             text: "Backgrounds",
             x: w * 0.5,
-            y: h * 0.58 - 2,
+            y: h * 0.67,
+            width: 240,
+            height: 60,
+            radius: 30,
             fontSize: 25,
-            letterSpacing: 1,
-            multicolor: false,
-            color: buttonColor,
-            strokeColor,
-            strokeWidth: 2
+            theme: "blue",
+            onClick: () => {
+                this.playButton();
+                this.triggerHaptic("light");
+                this.openBgSelector();
+            }
         });
-        showHtmlText("menu-settings-label", {
+        showHtmlButton("menu-settings-button", {
             text: "Settings",
             x: w * 0.5,
-            y: h * 0.68 - 2,
+            y: h * 0.77,
+            width: 240,
+            height: 60,
+            radius: 30,
             fontSize: 25,
-            letterSpacing: 1,
-            multicolor: false,
-            color: buttonColor,
-            strokeColor,
-            strokeWidth: 2
+            theme: "blue",
+            onClick: () => {
+                this.playButton();
+                this.triggerHaptic("light");
+                this.openSettings();
+            }
         });
     }
 
     private hideMenuButtonLabels(): void {
         hideHtmlText("menu-play-label");
+        hideHtmlText("menu-howto-label");
         hideHtmlText("menu-backgrounds-label");
         hideHtmlText("menu-settings-label");
+        hideHtmlButton("menu-play-button");
+        hideHtmlButton("menu-howto-button");
+        hideHtmlButton("menu-backgrounds-button");
+        hideHtmlButton("menu-settings-button");
     }
 
     private syncMainTitleVisibility(): void {
-        const overlayVisible = !!this.settingsOverlay?.visible || !!this.bgOverlay?.visible;
+        const overlayVisible = !!this.settingsOverlay?.visible || !!this.bgOverlay?.visible || !!this.howToOverlay?.visible;
         if (overlayVisible) {
             hideHtmlText("main-title");
             this.hideMenuButtonLabels();
@@ -399,8 +466,25 @@ export default class MainMenu extends Phaser.Scene {
         this.createBgOverlay();
         this.setStartScreenBlur(true);
         const overlay = this.bgOverlay!;
+        const topInset = this.scale.height > this.scale.width ? 132 : 54;
+        const bottomInset = this.scale.height > this.scale.width ? 70 : 40;
+        const panelHeight = Math.min(500, this.scale.height - topInset - bottomInset);
         overlay.setVisible(true);
         overlay.setAlpha(0);
+        showHtmlButton("menu-background-close-button", {
+            text: "Close",
+            x: this.scale.width * 0.5,
+            y: topInset + panelHeight - 44,
+            width: 204,
+            height: 50,
+            radius: 25,
+            fontSize: 23,
+            theme: "blue",
+            onClick: () => {
+                this.playButton();
+                this.closeBgSelector();
+            }
+        });
         this.tweens.add({ targets: overlay, alpha: 1, duration: 250 });
     }
 
@@ -439,6 +523,39 @@ export default class MainMenu extends Phaser.Scene {
         });
     }
 
+    private openHowToOverlay() {
+        if (this.howToOverlay?.visible) return;
+        hideHtmlText("main-title");
+        this.hideMenuButtonLabels();
+        this.destroyHowToOverlay(true);
+        this.setStartScreenBlur(true);
+        this.createHowToOverlay();
+        this.howToPageIndex = 0;
+        const overlay = this.howToOverlay!;
+        overlay.setVisible(true);
+        this.updateHowToOverlay();
+        overlay.setAlpha(0);
+        this.tweens.add({ targets: overlay, alpha: 1, duration: 220 });
+    }
+
+    private closeHowToOverlay() {
+        const overlay = this.howToOverlay;
+        if (!overlay) return;
+        this.tweens.killTweensOf(overlay);
+        this.tweens.add({
+            targets: overlay,
+            alpha: 0,
+            duration: 180,
+            onComplete: () => {
+                if (this.howToOverlay === overlay) {
+                    this.destroyHowToOverlay();
+                }
+                this.setStartScreenBlur(false);
+                this.syncMainTitleVisibility();
+            }
+        });
+    }
+
     private destroySettingsOverlay(suppressTitleSync = false) {
         if (!this.settingsOverlay) {
             if (!suppressTitleSync) {
@@ -450,6 +567,32 @@ export default class MainMenu extends Phaser.Scene {
         this.settingsOverlay.destroy();
         this.settingsOverlay = undefined;
         this.hideMainMenuSettingsHtml();
+        hideHtmlButton("menu-settings-close-button");
+        hideHtmlText("modal-title");
+        if (!suppressTitleSync) {
+            this.syncMainTitleVisibility();
+        }
+    }
+
+    private destroyHowToOverlay(suppressTitleSync = false) {
+        if (!this.howToOverlay) {
+            if (!suppressTitleSync) {
+                this.syncMainTitleVisibility();
+            }
+            return;
+        }
+        this.tweens.killTweensOf(this.howToOverlay);
+        this.howToOverlay.destroy();
+        this.howToOverlay = undefined;
+        this.setStartScreenBlur(false);
+        [
+            "howto-step-title",
+            "howto-step-body",
+            "howto-page-indicator"
+        ].forEach((id) => hideHtmlText(id));
+        hideHtmlButton("howto-prev-button");
+        hideHtmlButton("howto-next-button");
+        hideHtmlButton("howto-close-button");
         hideHtmlText("modal-title");
         if (!suppressTitleSync) {
             this.syncMainTitleVisibility();
@@ -466,6 +609,7 @@ export default class MainMenu extends Phaser.Scene {
         this.tweens.killTweensOf(this.bgOverlay);
         this.bgOverlay.destroy();
         this.bgOverlay = undefined;
+        hideHtmlButton("menu-background-close-button");
         hideHtmlText("modal-title");
         if (!suppressTitleSync) {
             this.syncMainTitleVisibility();
@@ -473,14 +617,149 @@ export default class MainMenu extends Phaser.Scene {
     }
 
     private setStartScreenBlur(enabled: boolean) {
+        const isMobile = window.matchMedia("(pointer: coarse)").matches;
         const targets = [this.mainBg, this.bgShade, ...this.decorationCards];
         targets.forEach((target) => {
             if (!target.postFX) return;
             target.postFX.clear();
-            if (enabled) {
+            if (enabled && !isMobile) {
                 target.postFX.addBlur(2, 3, 3, 1.2, 0xffffff, 4);
             }
         });
+    }
+
+    private changeHowToPage(direction: -1 | 1): void {
+        const nextIndex = Phaser.Math.Clamp(this.howToPageIndex + direction, 0, HOW_TO_PLAY_PAGES.length - 1);
+        if (nextIndex === this.howToPageIndex) return;
+        this.howToPageIndex = nextIndex;
+        this.playButton();
+        this.triggerHaptic("light");
+        this.updateHowToOverlay();
+    }
+
+    private updateHowToOverlay(): void {
+        if (!this.howToOverlay?.visible) return;
+        const page = HOW_TO_PLAY_PAGES[this.howToPageIndex];
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const pH = 560;
+        const panelTop = h * 0.5 - pH / 2;
+        const panelBottom = h * 0.5 + pH / 2;
+        const navButtonY = panelBottom - 88;
+        const closeButtonY = panelBottom - 38;
+        const hasPrev = this.howToPageIndex > 0;
+        const hasNext = this.howToPageIndex < HOW_TO_PLAY_PAGES.length - 1;
+        this.renderModalTitle(this.howToOverlay.getByName("title") as Phaser.GameObjects.Container, "How to play");
+        showHtmlText("howto-step-title", {
+            text: page.title,
+            x: w * 0.5,
+            y: panelTop + 116,
+            fontSize: 26,
+            variant: "modal",
+            maxWidth: 360,
+            multicolor: false,
+            strokeWidth: 1.2
+        });
+        showHtmlText("howto-step-body", {
+            text: page.body,
+            x: w * 0.5,
+            y: panelTop + 202,
+            fontSize: 20,
+            variant: "modal",
+            maxWidth: 390,
+            letterSpacing: 0.1,
+            multicolor: false,
+            strokeWidth: 1.1
+        });
+        showHtmlText("howto-page-indicator", {
+            text: `${this.howToPageIndex + 1} / ${HOW_TO_PLAY_PAGES.length}`,
+            x: w * 0.5,
+            y: panelBottom - 148,
+            fontSize: 18,
+            variant: "modal",
+            multicolor: false,
+            strokeWidth: 1
+        });
+        showHtmlButton("howto-prev-button", {
+            text: "Prev",
+            x: w * 0.5 - 118,
+            y: navButtonY,
+            width: 120,
+            height: 46,
+            radius: 23,
+            fontSize: 20,
+            theme: "blue",
+            enabled: hasPrev,
+            opacity: hasPrev ? 1 : 0.72,
+            onClick: () => this.changeHowToPage(-1)
+        });
+        showHtmlButton("howto-next-button", {
+            text: hasNext ? "Next" : "Done",
+            x: w * 0.5 + 118,
+            y: navButtonY,
+            width: 120,
+            height: 46,
+            radius: 23,
+            fontSize: 20,
+            theme: hasNext ? "blue" : "green",
+            onClick: () => {
+                if (hasNext) {
+                    this.changeHowToPage(1);
+                    return;
+                }
+                this.playButton();
+                this.closeHowToOverlay();
+            }
+        });
+        showHtmlButton("howto-close-button", {
+            text: "Close",
+            x: w * 0.5,
+            y: closeButtonY,
+            width: 164,
+            height: 46,
+            radius: 23,
+            fontSize: 20,
+            theme: "red",
+            onClick: () => {
+                this.playButton();
+                this.closeHowToOverlay();
+            }
+        });
+    }
+
+    private createHowToOverlay() {
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const c = this.add.container(0, 0).setDepth(5000);
+        const dark = this.add.rectangle(0, 0, w, h, 0x000000, 0.74).setOrigin(0, 0);
+        dark.setInteractive();
+        const pW = Math.min(500, w - 36);
+        const pH = 560;
+        const panelTop = h * 0.5 - pH / 2;
+        const panelLeft = w * 0.5 - pW / 2;
+        const panel = this.add.graphics();
+        panel.fillStyle(0x1E272E, 0.96);
+        panel.fillRoundedRect(panelLeft, panelTop, pW, pH, 24);
+        const title = this.add.container(w * 0.5, panelTop + 54);
+        title.name = "title";
+        this.renderModalTitle(title, "How to play");
+        const swipeZone = this.add.zone(w * 0.5, h * 0.5 - 6, pW - 36, pH - 170).setInteractive({ useHandCursor: true });
+        let swipeStartX = 0;
+        swipeZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+            swipeStartX = pointer.x;
+        });
+        swipeZone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+            const deltaX = pointer.x - swipeStartX;
+            if (Math.abs(deltaX) < 42) return;
+            if (deltaX < 0) {
+                this.changeHowToPage(1);
+            } else {
+                this.changeHowToPage(-1);
+            }
+        });
+        c.add([dark, panel, title, swipeZone]);
+        c.setVisible(false);
+        this.howToOverlay = c;
     }
 
     private createBgOverlay() {
@@ -654,7 +933,7 @@ export default class MainMenu extends Phaser.Scene {
         // Close button
         const closeBtn = this.makeStandardButton(w * 0.5, panelY + pH - 42, 180, 46, "Close", () => {
             this.closeBgSelector();
-        });
+        }, "blue", true);
 
         c.add([blocker, panel, title, grid, closeBtn]);
         c.setVisible(false);
@@ -712,22 +991,10 @@ export default class MainMenu extends Phaser.Scene {
 
             const rowHitZone = this.add.zone(251, 0, 90, 40).setInteractive({ useHandCursor: true });
             row.add([txt, btnObj, val, rowHitZone]);
+            btnObj.setVisible(false);
+            val.setVisible(false);
+            rowHitZone.input!.enabled = false;
 
-            rowHitZone.on("pointerover", () => { document.body.style.cursor = "pointer"; });
-            rowHitZone.on("pointerout", () => { document.body.style.cursor = "default"; });
-            rowHitZone.on("pointerdown", () => {
-                this.settings[key] = !this.settings[key];
-                drawToggle(this.settings[key]);
-                val.setText(this.settings[key] ? "On" : "Off");
-                val.setStroke(this.settings[key] ? "#196F3D" : "#943126", 4);
-                this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
-                this.saveSettings();
-                this.playButton();
-                if (key === "music") {
-                    syncBackgroundMusic(this, this.settings.music);
-                }
-                this.triggerHaptic("light");
-            });
             return row;
         };
 
@@ -757,17 +1024,9 @@ export default class MainMenu extends Phaser.Scene {
 
         const drawHitZone = this.add.zone(251, 0, 90, 40).setInteractive({ useHandCursor: true });
         drawRow.add([drawTxt, drawBtnObj, drawVal, drawHitZone]);
-
-        drawHitZone.on("pointerover", () => { document.body.style.cursor = "pointer"; });
-        drawHitZone.on("pointerout", () => { document.body.style.cursor = "default"; });
-        drawHitZone.on("pointerdown", () => {
-            this.settings.drawCount = this.settings.drawCount === 1 ? 3 : 1;
-            drawVal.setText(`Draw ${this.settings.drawCount}`);
-            this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
-            this.saveSettings();
-            this.playButton();
-            this.triggerHaptic("light");
-        });
+        drawBtnObj.setVisible(false);
+        drawVal.setVisible(false);
+        drawHitZone.input!.enabled = false;
 
         // Close button
         const closeBtn = this.makeStandardButton(w * 0.5, panelBottom - 42, 180, 46, "Close", () => {
@@ -799,54 +1058,83 @@ export default class MainMenu extends Phaser.Scene {
                 letterSpacing: 0.4,
                 multicolor: false,
                 color: row.color,
-                strokeColor: "#10254A",
+                strokeColor: "#111111",
                 strokeWidth: 1.5
             });
         });
 
-        showHtmlText("menu-settings-value-music", {
+        hideHtmlText("menu-settings-value-music");
+        hideHtmlText("menu-settings-value-fx");
+        hideHtmlText("menu-settings-value-haptics");
+        showHtmlButton("menu-settings-toggle-music", {
             text: this.settings.music ? "On" : "Off",
             x: valueX,
-            y: rowBaseY - 2,
+            y: rowBaseY,
+            width: 90,
+            height: 40,
+            radius: 20,
             fontSize: 18,
-            letterSpacing: 0.4,
-            multicolor: false,
-            color: "#FFFFFF",
-            strokeColor: this.settings.music ? "#196F3D" : "#943126",
-            strokeWidth: 1.5
+            theme: this.settings.music ? "green" : "red",
+            onClick: () => {
+                this.settings.music = !this.settings.music;
+                this.saveSettings();
+                this.playButton();
+                syncBackgroundMusic(this, this.settings.music, this.settings.music);
+                this.triggerHaptic("light");
+                this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
+            }
         });
-        showHtmlText("menu-settings-value-fx", {
+        showHtmlButton("menu-settings-toggle-fx", {
             text: this.settings.fx ? "On" : "Off",
             x: valueX,
-            y: rowBaseY + 60,
+            y: rowBaseY + 62,
+            width: 90,
+            height: 40,
+            radius: 20,
             fontSize: 18,
-            letterSpacing: 0.4,
-            multicolor: false,
-            color: "#FFFFFF",
-            strokeColor: this.settings.fx ? "#196F3D" : "#943126",
-            strokeWidth: 1.5
+            theme: this.settings.fx ? "green" : "red",
+            onClick: () => {
+                this.settings.fx = !this.settings.fx;
+                this.saveSettings();
+                this.playButton();
+                this.triggerHaptic("light");
+                this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
+            }
         });
-        showHtmlText("menu-settings-value-haptics", {
+        showHtmlButton("menu-settings-toggle-haptics", {
             text: this.settings.haptics ? "On" : "Off",
             x: valueX,
-            y: rowBaseY + 122,
+            y: rowBaseY + 124,
+            width: 90,
+            height: 40,
+            radius: 20,
             fontSize: 18,
-            letterSpacing: 0.4,
-            multicolor: false,
-            color: "#FFFFFF",
-            strokeColor: this.settings.haptics ? "#196F3D" : "#943126",
-            strokeWidth: 1.5
+            theme: this.settings.haptics ? "green" : "red",
+            onClick: () => {
+                this.settings.haptics = !this.settings.haptics;
+                this.saveSettings();
+                this.playButton();
+                this.triggerHaptic("light");
+                this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
+            }
         });
-        showHtmlText("menu-settings-value-draw", {
+        hideHtmlText("menu-settings-value-draw");
+        showHtmlButton("menu-settings-toggle-draw", {
             text: `Draw ${this.settings.drawCount}`,
             x: valueX,
-            y: panelTop + 310,
+            y: panelTop + 312,
+            width: 90,
+            height: 40,
+            radius: 20,
             fontSize: 18,
-            letterSpacing: 0.4,
-            multicolor: false,
-            color: "#FFFFFF",
-            strokeColor: "#1A0003",
-            strokeWidth: 1.5
+            theme: "red",
+            onClick: () => {
+                this.settings.drawCount = this.settings.drawCount === 1 ? 3 : 1;
+                this.saveSettings();
+                this.playButton();
+                this.triggerHaptic("light");
+                this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
+            }
         });
         showHtmlText("menu-settings-close", {
             text: "Close",
@@ -858,6 +1146,21 @@ export default class MainMenu extends Phaser.Scene {
             color: "#FFFFFF",
             strokeColor: "#1A0003",
             strokeWidth: 1.5
+        });
+        hideHtmlText("menu-settings-close");
+        showHtmlButton("menu-settings-close-button", {
+            text: "Close",
+            x: this.scale.width * 0.5,
+            y: panelBottom - 44,
+            width: 204,
+            height: 50,
+            radius: 25,
+            fontSize: 23,
+            theme: "blue",
+            onClick: () => {
+                this.playButton();
+                this.closeSettingsOverlay();
+            }
         });
     }
 
@@ -873,6 +1176,11 @@ export default class MainMenu extends Phaser.Scene {
             "menu-settings-value-draw",
             "menu-settings-close"
         ].forEach((id) => hideHtmlText(id));
+        hideHtmlButton("menu-settings-toggle-music");
+        hideHtmlButton("menu-settings-toggle-fx");
+        hideHtmlButton("menu-settings-toggle-haptics");
+        hideHtmlButton("menu-settings-toggle-draw");
+        hideHtmlButton("menu-settings-close-button");
     }
 
     private addDecorations(w: number, h: number) {

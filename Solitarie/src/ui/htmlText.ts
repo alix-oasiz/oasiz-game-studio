@@ -47,7 +47,8 @@ function escapeHtml(value: string): string {
 function renderLetters(text: string, multicolor: boolean, color: string): string {
     return [...text]
         .map((char, index) => {
-            const safeChar = char === " " ? "&nbsp;" : escapeHtml(char);
+            if (char === "\n") return "<br>";
+            const safeChar = char === " " ? " " : escapeHtml(char);
             const letterColor = multicolor ? COLOR_SEQUENCE[index % COLOR_SEQUENCE.length] : color;
             return `<span class="solitaire-html-letter" style="color:${letterColor}">${safeChar}</span>`;
         })
@@ -59,8 +60,14 @@ export function showHtmlText(id: HtmlTextId, options: HtmlTextOptions): void {
     const element = getTextElement(id);
     if (!layer || !element) return;
 
-    const color = options.color ?? "#FFFFFF";
+    const color = "#111111";
     const multicolor = options.multicolor ?? true;
+    const resolvedStrokeWidth = Math.max(0.8, (options.strokeWidth ?? 1.5) - 0.45);
+    const viewportWidth = typeof window === "undefined" ? 720 : window.innerWidth;
+    const modalSafeWidth = Math.max(180, Math.min(420, viewportWidth - 112));
+    const resolvedMaxWidth = options.maxWidth
+        ? Math.min(options.maxWidth, options.variant === "modal" ? modalSafeWidth : options.maxWidth)
+        : (options.variant === "modal" ? modalSafeWidth : undefined);
 
     layer.classList.remove("hidden");
     element.classList.remove("hidden");
@@ -70,9 +77,12 @@ export function showHtmlText(id: HtmlTextId, options: HtmlTextOptions): void {
     element.style.top = `${Math.round(options.y)}px`;
     element.style.fontSize = `${Math.round(options.fontSize)}px`;
     element.style.letterSpacing = `${options.letterSpacing ?? 3}px`;
-    element.style.maxWidth = options.maxWidth ? `${Math.round(options.maxWidth)}px` : "none";
-    element.style.setProperty("--solitaire-html-stroke-color", options.strokeColor ?? "#FFFFFF");
-    element.style.setProperty("--solitaire-html-stroke-width", `${options.strokeWidth ?? 1.5}px`);
+    element.style.maxWidth = resolvedMaxWidth ? `${Math.round(resolvedMaxWidth)}px` : "none";
+    element.style.width = resolvedMaxWidth ? `${Math.round(resolvedMaxWidth)}px` : "auto";
+    element.style.paddingInline = options.variant === "modal" ? "12px" : "0px";
+    element.style.boxSizing = "border-box";
+    element.style.setProperty("--solitaire-html-stroke-color", "#FFFFFF");
+    element.style.setProperty("--solitaire-html-stroke-width", `${resolvedStrokeWidth}px`);
     element.style.opacity = `${options.opacity ?? 1}`;
     element.innerHTML = renderLetters(options.text, multicolor, color);
 }

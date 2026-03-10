@@ -27,6 +27,7 @@ interface PlayerCar {
   turnSpeed: number;
   driftAngle: number;
   vehicleId: string;
+  waterExposureMs: number;
 }
 
 interface VehicleType {
@@ -76,6 +77,7 @@ interface PoliceCar {
   state: "chase" | "crashed";
   enemyType: EnemyType;
   health: number;
+  waterExposureMs: number;
 }
 
 interface Explosion {
@@ -113,7 +115,7 @@ interface SkidMark {
   y: number;
   angle: number;
   alpha: number;
-  width: number;  // Track width based on vehicle size
+  width: number; // Track width based on vehicle size
   length: number; // Track length based on vehicle size
   isTank: boolean; // Tank uses chunky tracks, others use solid lines
 }
@@ -154,12 +156,21 @@ interface Chunk {
   decorations: Decoration[];
   landmarks: Landmark[];
   coins: Coin[];
+  backdropCanvas?: HTMLCanvasElement;
 }
 
 interface Landmark {
   x: number;
   y: number;
-  type: "shrine" | "ruins" | "oasis" | "monument" | "campfire" | "racetrack" | "arena" | "crystals";
+  type:
+    | "shrine"
+    | "ruins"
+    | "oasis"
+    | "monument"
+    | "campfire"
+    | "racetrack"
+    | "arena"
+    | "crystals";
   size: number;
   rotation: number;
   discovered: boolean;
@@ -231,10 +242,45 @@ const MAX_POLICE = 15;
 const INTERCEPTOR_UNLOCK_TIME = 20000;
 const SWAT_UNLOCK_TIME = 40000;
 
-const ENEMY_STATS: Record<EnemyType, { width: number; height: number; maxSpeed: number; accel: number; turnRate: number; health: number; points: number }> = {
-  patrol: { width: 30, height: 52, maxSpeed: 16, accel: 0.15, turnRate: 0.05, health: 1, points: 100 },
-  interceptor: { width: 26, height: 48, maxSpeed: 22, accel: 0.22, turnRate: 0.08, health: 1, points: 150 },
-  swat: { width: 44, height: 72, maxSpeed: 12, accel: 0.10, turnRate: 0.03, health: 2, points: 250 },
+const ENEMY_STATS: Record<
+  EnemyType,
+  {
+    width: number;
+    height: number;
+    maxSpeed: number;
+    accel: number;
+    turnRate: number;
+    health: number;
+    points: number;
+  }
+> = {
+  patrol: {
+    width: 30,
+    height: 52,
+    maxSpeed: 16,
+    accel: 0.15,
+    turnRate: 0.05,
+    health: 1,
+    points: 100,
+  },
+  interceptor: {
+    width: 26,
+    height: 48,
+    maxSpeed: 22,
+    accel: 0.22,
+    turnRate: 0.08,
+    health: 1,
+    points: 150,
+  },
+  swat: {
+    width: 44,
+    height: 72,
+    maxSpeed: 12,
+    accel: 0.1,
+    turnRate: 0.03,
+    health: 2,
+    points: 250,
+  },
 };
 
 // Explosion settings
@@ -248,18 +294,34 @@ const SHAKE_DECAY = 0.88;
 // Combo
 const COMBO_TIMEOUT = 2500;
 
+// Water danger
+const WATER_DROWN_TIME = 5000;
+const WATER_RECOVERY_TIME = 5000;
+
+// Performance tuning
+const DEBUG_LOGS = false;
+const MAX_SKID_MARKS = 900;
+const SKID_MARK_FADE_RATE = 0.00035;
+const SKID_MARK_EMIT_DISTANCE = 18;
+const MAX_DRIFT_SMOKE = 120;
+const MINIMAP_REFRESH_MS = 160;
+const MINIMAP_MOVE_REFRESH_DISTANCE = 48;
+
 // Biome color palettes
-const BIOME_COLORS: Record<BiomeType, {
-  ground1: string;
-  ground2: string;
-  ground3: string;
-  road: string;
-  roadLine: string;
-  rock1: string;
-  rock2: string;
-  water: string;
-  accent: string;
-}> = {
+const BIOME_COLORS: Record<
+  BiomeType,
+  {
+    ground1: string;
+    ground2: string;
+    ground3: string;
+    road: string;
+    roadLine: string;
+    rock1: string;
+    rock2: string;
+    water: string;
+    accent: string;
+  }
+> = {
   desert: {
     ground1: "#d4a574",
     ground2: "#c49464",
@@ -449,6 +511,12 @@ let scorePopups: ScorePopup[] = [];
 // Chunk-based world
 let chunks: Map<string, Chunk> = new Map();
 let loadedChunks: Chunk[] = [];
+let loadedRoadSegments: RoadSegment[] = [];
+let loadedLakes: Lake[] = [];
+let loadedRocks: Rock[] = [];
+let loadedCoins: Coin[] = [];
+let loadedChunkX = Number.NaN;
+let loadedChunkY = Number.NaN;
 
 let nextPoliceSpawn = 0;
 let spawnInterval = POLICE_SPAWN_INTERVAL_START;
@@ -483,6 +551,14 @@ let sessionCoins = 0;
 let coinPopups: CoinPopup[] = [];
 let ownedVehicles: Set<string> = new Set(["sedan"]);
 let shopIndex = 0;
+let rafId = 0;
+let skidMarkDistance = 0;
+let coinSpriteCanvas: HTMLCanvasElement | null = null;
+let minimapTerrainCanvas: HTMLCanvasElement | null = null;
+let minimapTerrainCtx: CanvasRenderingContext2D | null = null;
+let lastMinimapTerrainRender = -Infinity;
+let lastMinimapCenterX = 0;
+let lastMinimapCenterY = 0;
 
 const COIN_COLLECT_RADIUS = 35;
 const COIN_SIZE = 12;
@@ -491,21 +567,61 @@ const COIN_SIZE = 12;
 const MUSIC_URL = "https://assets.oasiz.ai/audio/car-song.mp3";
 let bgMusic: HTMLAudioElement | null = null;
 
+function debugLog(...args: unknown[]): void {
+  if (DEBUG_LOGS) {
+    console.log(...args);
+  }
+}
+
+function createCanvasElement(width: number, height: number): HTMLCanvasElement {
+  const buffer = document.createElement("canvas");
+  buffer.width = width;
+  buffer.height = height;
+  return buffer;
+}
+
+function trimArrayStartInPlace<T>(items: T[], maxLength: number): void {
+  if (items.length <= maxLength) return;
+
+  const overflow = items.length - maxLength;
+  items.copyWithin(0, overflow);
+  items.length = maxLength;
+}
+
+function compactArrayInPlace<T>(
+  items: T[],
+  shouldKeep: (item: T) => boolean,
+): void {
+  let writeIndex = 0;
+
+  for (let readIndex = 0; readIndex < items.length; readIndex++) {
+    const item = items[readIndex];
+    if (!shouldKeep(item)) continue;
+    items[writeIndex++] = item;
+  }
+
+  items.length = writeIndex;
+}
+
+function invalidateMinimapCache(): void {
+  lastMinimapTerrainRender = -Infinity;
+}
+
 function initMusic(): void {
   if (bgMusic) return;
-  
+
   bgMusic = new Audio(MUSIC_URL);
   bgMusic.loop = true;
   bgMusic.volume = 0.4;
-  
-  console.log("[initMusic] Background music initialized");
+
+  debugLog("[initMusic] Background music initialized");
 }
 
 function playMusic(): void {
   if (!bgMusic || !settings.music) return;
-  
+
   bgMusic.play().catch((e) => {
-    console.log("[playMusic] Autoplay blocked, will play on interaction:", e);
+    debugLog("[playMusic] Autoplay blocked, will play on interaction:", e);
   });
 }
 
@@ -527,7 +643,7 @@ let rumbleSynth: Tone.Synth | null = null;
 
 function initExplosionSound(): void {
   if (explosionInitialized) return;
-  
+
   // Layer 1: Deep bass impact (like a bomb hit)
   const impactDistortion = new Tone.Distortion(0.4).toDestination();
   impactSynth = new Tone.MembraneSynth({
@@ -542,7 +658,7 @@ function initExplosionSound(): void {
     },
   }).connect(impactDistortion);
   impactSynth.volume.value = 2;
-  
+
   // Layer 2: Crackle/debris noise burst
   const noiseFilter = new Tone.Filter({
     type: "bandpass",
@@ -560,7 +676,7 @@ function initExplosionSound(): void {
     },
   }).connect(noiseDistortion);
   crackleNoise.volume.value = -4;
-  
+
   // Layer 3: Low rumble with pitch drop
   const rumbleFilter = new Tone.Filter({
     type: "lowpass",
@@ -576,37 +692,37 @@ function initExplosionSound(): void {
     },
   }).connect(rumbleFilter);
   rumbleSynth.volume.value = -2;
-  
+
   explosionInitialized = true;
-  console.log("[initExplosionSound] Multi-layer explosion synths initialized");
+  debugLog("[initExplosionSound] Multi-layer explosion synths initialized");
 }
 
 function playExplosionSound(): void {
   if (!settings.fx) return;
-  
+
   const triggerExplosion = (): void => {
     if (!impactSynth || !crackleNoise || !rumbleSynth) return;
-    
+
     const now = Tone.now();
-    
+
     // Layer 1: Deep impact boom
     impactSynth.triggerAttackRelease("C1", "8n", now);
-    
+
     // Layer 2: Debris crackle (slightly delayed)
     crackleNoise.triggerAttackRelease("16n", now + 0.01);
-    
+
     // Layer 3: Rumble with pitch drop from G1 to C1
     rumbleSynth.triggerAttackRelease("G1", "4n", now);
     rumbleSynth.frequency.exponentialRampTo("C1", 0.3, now);
-    
-    console.log("[playExplosionSound] BOOM!");
+
+    debugLog("[playExplosionSound] BOOM!");
   };
-  
+
   // Initialize on first play (needs user interaction)
   if (!explosionInitialized) {
     initExplosionSound();
   }
-  
+
   // Start Tone.js context if needed
   if (Tone.getContext().state !== "running") {
     Tone.start().then(() => {
@@ -618,14 +734,20 @@ function playExplosionSound(): void {
 }
 
 // Joystick state for mobile
-let joystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0 };
+let joystick = {
+  active: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0,
+};
 
 // ============================================================================
 // SEEDED RANDOM FOR PROCEDURAL GENERATION
 // ============================================================================
 
 function seededRandom(seed: number): () => number {
-  return function() {
+  return function () {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
     return seed / 0x7fffffff;
   };
@@ -644,11 +766,12 @@ function getBiomeAt(worldX: number, worldY: number): BiomeType {
   // Use layered noise for natural biome distribution
   const scale1 = BIOME_SCALE;
   const scale2 = BIOME_SCALE * 2.3;
-  
+
   const n1 = Math.sin(worldX * scale1) * Math.cos(worldY * scale1 * 0.7);
-  const n2 = Math.sin(worldX * scale2 + 100) * Math.cos(worldY * scale2 * 0.8 + 50);
+  const n2 =
+    Math.sin(worldX * scale2 + 100) * Math.cos(worldY * scale2 * 0.8 + 50);
   const combined = n1 * 0.6 + n2 * 0.4;
-  
+
   // Map noise to biomes
   if (combined < -0.5) return "volcanic";
   if (combined < -0.2) return "forest";
@@ -658,7 +781,10 @@ function getBiomeAt(worldX: number, worldY: number): BiomeType {
   return "snow";
 }
 
-function getBiomeColors(worldX: number, worldY: number): typeof BIOME_COLORS["desert"] {
+function getBiomeColors(
+  worldX: number,
+  worldY: number,
+): (typeof BIOME_COLORS)["desert"] {
   return BIOME_COLORS[getBiomeAt(worldX, worldY)];
 }
 
@@ -671,9 +797,15 @@ function loadSettings(): void {
     const saved = localStorage.getItem("policeChase_settings");
     if (saved) {
       const parsed = JSON.parse(saved);
-      settings = { music: !!parsed.music, fx: !!parsed.fx, haptics: !!parsed.haptics };
+      settings = {
+        music: !!parsed.music,
+        fx: !!parsed.fx,
+        haptics: !!parsed.haptics,
+      };
     }
-  } catch { /* use defaults */ }
+  } catch {
+    /* use defaults */
+  }
 }
 
 function saveSettings(): void {
@@ -689,18 +821,40 @@ function loadPersistentState(): void {
     ownedVehicles = new Set(gs.owned as string[]);
     if (!ownedVehicles.has("sedan")) ownedVehicles.add("sedan");
   }
-  if (gs && typeof gs.selectedVehicle === "string" && ownedVehicles.has(gs.selectedVehicle as string)) {
+  if (
+    gs &&
+    typeof gs.selectedVehicle === "string" &&
+    ownedVehicles.has(gs.selectedVehicle as string)
+  ) {
     selectedVehicleId = gs.selectedVehicle as string;
   }
-  console.log("[loadPersistentState] Coins:", totalCoins, "Owned:", [...ownedVehicles]);
+  debugLog("[loadPersistentState] Coins:", totalCoins, "Owned:", [
+    ...ownedVehicles,
+  ]);
 }
 
 function savePersistentState(): void {
-  oasiz.saveGameState({ coins: totalCoins, owned: [...ownedVehicles], selectedVehicle: selectedVehicleId });
+  oasiz.saveGameState({
+    coins: totalCoins,
+    owned: [...ownedVehicles],
+    selectedVehicle: selectedVehicleId,
+  });
+}
+
+function startLoop(): void {
+  if (rafId !== 0) return;
+  lastTime = performance.now();
+  rafId = requestAnimationFrame(gameLoop);
+}
+
+function stopLoop(): void {
+  if (rafId === 0) return;
+  cancelAnimationFrame(rafId);
+  rafId = 0;
 }
 
 function init(): void {
-  console.log("[init] Starting Police Chase - Infinite World");
+  debugLog("[init] Starting Police Chase - Infinite World");
 
   canvas = document.getElementById("game") as HTMLCanvasElement;
   ctx = canvas.getContext("2d")!;
@@ -715,12 +869,22 @@ function init(): void {
     if (gamePhase === "playing") {
       pauseGame();
     }
+    stopLoop();
   });
 
   oasiz.onResume(() => {
-    if (bgMusic && settings.music && gamePhase === "playing") {
-      bgMusic.play().catch(() => {});
+    startLoop();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (gamePhase === "playing") {
+        pauseGame();
+      }
+      stopLoop();
+      return;
     }
+    startLoop();
   });
 
   window.addEventListener("resize", resizeCanvas);
@@ -728,17 +892,23 @@ function init(): void {
 
   chunks.clear();
   loadedChunks = [];
+  loadedRoadSegments = [];
+  loadedLakes = [];
+  loadedRocks = [];
+  loadedCoins = [];
+  loadedChunkX = Number.NaN;
+  loadedChunkY = Number.NaN;
   initPlayer();
-  updateLoadedChunks();
-  
+  updateLoadedChunks(true);
+
   initMusic();
-  
+
   setupInputHandlers();
   setupUIHandlers();
 
   updateStartScreenUI();
 
-  requestAnimationFrame(gameLoop);
+  startLoop();
 }
 
 function resizeCanvas(): void {
@@ -750,10 +920,11 @@ function resizeCanvas(): void {
     w = window.innerWidth;
     h = window.innerHeight;
   }
-  
+
   canvas.width = w;
   canvas.height = h;
-  console.log("[resizeCanvas] Canvas:", w, "x", h);
+  invalidateMinimapCache();
+  debugLog("[resizeCanvas] Canvas:", w, "x", h);
 }
 
 // ============================================================================
@@ -769,7 +940,7 @@ function getChunk(cx: number, cy: number): Chunk {
   if (chunks.has(key)) {
     return chunks.get(key)!;
   }
-  
+
   // Generate new chunk
   const chunk = generateChunk(cx, cy);
   chunks.set(key, chunk);
@@ -779,20 +950,20 @@ function getChunk(cx: number, cy: number): Chunk {
 function generateChunk(cx: number, cy: number): Chunk {
   const seed = hashCoords(cx, cy);
   const rand = seededRandom(seed);
-  
+
   const worldX = cx * CHUNK_SIZE + CHUNK_SIZE / 2;
   const worldY = cy * CHUNK_SIZE + CHUNK_SIZE / 2;
   const biome = getBiomeAt(worldX, worldY);
   const colors = BIOME_COLORS[biome];
-  
+
   const rocks: Rock[] = [];
   const lakes: Lake[] = [];
   const roadSegments: RoadSegment[] = [];
   const decorations: Decoration[] = [];
-  
+
   const chunkLeft = cx * CHUNK_SIZE;
   const chunkTop = cy * CHUNK_SIZE;
-  
+
   // Generate roads based on chunk position
   // Horizontal road through chunks where cy % 3 === 0
   if (Math.abs(cy % 3) === 0) {
@@ -804,7 +975,7 @@ function generateChunk(cx: number, cy: number): Chunk {
       width: 100,
     });
   }
-  
+
   // Vertical road through chunks where cx % 3 === 0
   if (Math.abs(cx % 3) === 0) {
     roadSegments.push({
@@ -815,7 +986,7 @@ function generateChunk(cx: number, cy: number): Chunk {
       width: 100,
     });
   }
-  
+
   // Diagonal roads occasionally
   if ((cx + cy) % 7 === 0 && rand() > 0.5) {
     roadSegments.push({
@@ -826,19 +997,26 @@ function generateChunk(cx: number, cy: number): Chunk {
       width: 70,
     });
   }
-  
+
   // Generate lake (rare, ~10% of chunks)
   if (rand() < 0.1) {
     const lakeX = chunkLeft + 200 + rand() * (CHUNK_SIZE - 400);
     const lakeY = chunkTop + 200 + rand() * (CHUNK_SIZE - 400);
-    
+
     // Don't place lake on roads
     let onRoad = false;
     for (const road of roadSegments) {
-      const dist = pointToLineDistance(lakeX, lakeY, road.x1, road.y1, road.x2, road.y2);
+      const dist = pointToLineDistance(
+        lakeX,
+        lakeY,
+        road.x1,
+        road.y1,
+        road.x2,
+        road.y2,
+      );
       if (dist < road.width / 2 + 150) onRoad = true;
     }
-    
+
     if (!onRoad) {
       lakes.push({
         x: lakeX,
@@ -849,29 +1027,39 @@ function generateChunk(cx: number, cy: number): Chunk {
       });
     }
   }
-  
+
   // Generate rocks (1-3 per chunk)
   const numRocks = 1 + Math.floor(rand() * 3);
   for (let i = 0; i < numRocks; i++) {
     const rx = chunkLeft + 50 + rand() * (CHUNK_SIZE - 100);
     const ry = chunkTop + 50 + rand() * (CHUNK_SIZE - 100);
-    
+
     // Check not on road
     let onRoad = false;
     for (const road of roadSegments) {
-      const dist = pointToLineDistance(rx, ry, road.x1, road.y1, road.x2, road.y2);
+      const dist = pointToLineDistance(
+        rx,
+        ry,
+        road.x1,
+        road.y1,
+        road.x2,
+        road.y2,
+      );
       if (dist < road.width / 2 + 60) onRoad = true;
     }
-    
+
     // Check not in lake
     for (const lake of lakes) {
       const dx = rx - lake.x;
       const dy = ry - lake.y;
-      if (Math.sqrt(dx * dx + dy * dy) < Math.max(lake.radiusX, lake.radiusY) + 50) {
+      if (
+        Math.sqrt(dx * dx + dy * dy) <
+        Math.max(lake.radiusX, lake.radiusY) + 50
+      ) {
         onRoad = true;
       }
     }
-    
+
     if (!onRoad) {
       rocks.push({
         x: rx,
@@ -883,75 +1071,113 @@ function generateChunk(cx: number, cy: number): Chunk {
       });
     }
   }
-  
+
   // Generate decorations (visual only, no collision) - denser
   const numDecorations = 15 + Math.floor(rand() * 20);
   for (let i = 0; i < numDecorations; i++) {
     const dx = chunkLeft + rand() * CHUNK_SIZE;
     const dy = chunkTop + rand() * CHUNK_SIZE;
-    
+
     let decorType: string;
     let decorColor: string;
     let decorSize: number;
-    
+
     if (biome === "forest") {
       const r = rand();
-      if (r < 0.35) { decorType = "tree"; }
-      else if (r < 0.55) { decorType = "bush"; }
-      else if (r < 0.70) { decorType = "fallenlog"; }
-      else if (r < 0.82) { decorType = "mushroom"; }
-      else if (r < 0.92) { decorType = "flowers"; }
-      else { decorType = "tree"; }
+      if (r < 0.35) {
+        decorType = "tree";
+      } else if (r < 0.55) {
+        decorType = "bush";
+      } else if (r < 0.7) {
+        decorType = "fallenlog";
+      } else if (r < 0.82) {
+        decorType = "mushroom";
+      } else if (r < 0.92) {
+        decorType = "flowers";
+      } else {
+        decorType = "tree";
+      }
       decorColor = colors.accent;
       decorSize = 15 + rand() * 25;
     } else if (biome === "desert") {
       const r = rand();
-      if (r < 0.30) { decorType = "cactus"; }
-      else if (r < 0.50) { decorType = "shrub"; }
-      else if (r < 0.65) { decorType = "skull"; }
-      else if (r < 0.80) { decorType = "tumbleweed"; }
-      else { decorType = "shrub"; }
+      if (r < 0.3) {
+        decorType = "cactus";
+      } else if (r < 0.5) {
+        decorType = "shrub";
+      } else if (r < 0.65) {
+        decorType = "skull";
+      } else if (r < 0.8) {
+        decorType = "tumbleweed";
+      } else {
+        decorType = "shrub";
+      }
       decorColor = colors.accent;
       decorSize = 10 + rand() * 20;
     } else if (biome === "snow") {
       const r = rand();
-      if (r < 0.35) { decorType = "pine"; }
-      else if (r < 0.55) { decorType = "snowdrift"; }
-      else if (r < 0.70) { decorType = "snowman"; }
-      else if (r < 0.85) { decorType = "icepatch"; }
-      else { decorType = "pine"; }
+      if (r < 0.35) {
+        decorType = "pine";
+      } else if (r < 0.55) {
+        decorType = "snowdrift";
+      } else if (r < 0.7) {
+        decorType = "snowman";
+      } else if (r < 0.85) {
+        decorType = "icepatch";
+      } else {
+        decorType = "pine";
+      }
       decorColor = rand() > 0.5 ? "#2a4a3a" : "#ffffff";
       decorSize = 12 + rand() * 22;
     } else if (biome === "beach") {
       const r = rand();
-      if (r < 0.30) { decorType = "palm"; }
-      else if (r < 0.50) { decorType = "umbrella"; }
-      else if (r < 0.65) { decorType = "sandcastle"; }
-      else if (r < 0.80) { decorType = "surfboard"; }
-      else { decorType = "palm"; }
+      if (r < 0.3) {
+        decorType = "palm";
+      } else if (r < 0.5) {
+        decorType = "umbrella";
+      } else if (r < 0.65) {
+        decorType = "sandcastle";
+      } else if (r < 0.8) {
+        decorType = "surfboard";
+      } else {
+        decorType = "palm";
+      }
       decorColor = rand() > 0.5 ? colors.accent : "#ff6666";
       decorSize = 15 + rand() * 20;
     } else if (biome === "volcanic") {
       const r = rand();
-      if (r < 0.30) { decorType = "vent"; }
-      else if (r < 0.50) { decorType = "ashpile"; }
-      else if (r < 0.70) { decorType = "lavapool"; }
-      else if (r < 0.85) { decorType = "charredtree"; }
-      else { decorType = "vent"; }
+      if (r < 0.3) {
+        decorType = "vent";
+      } else if (r < 0.5) {
+        decorType = "ashpile";
+      } else if (r < 0.7) {
+        decorType = "lavapool";
+      } else if (r < 0.85) {
+        decorType = "charredtree";
+      } else {
+        decorType = "vent";
+      }
       decorColor = rand() > 0.5 ? "#ff4400" : "#2a2a2a";
       decorSize = 12 + rand() * 18;
     } else {
       const r = rand();
-      if (r < 0.25) { decorType = "lamppost"; }
-      else if (r < 0.45) { decorType = "bench"; }
-      else if (r < 0.60) { decorType = "parkedcar"; }
-      else if (r < 0.75) { decorType = "dumpster"; }
-      else if (r < 0.88) { decorType = "hydrant"; }
-      else { decorType = "lamppost"; }
+      if (r < 0.25) {
+        decorType = "lamppost";
+      } else if (r < 0.45) {
+        decorType = "bench";
+      } else if (r < 0.6) {
+        decorType = "parkedcar";
+      } else if (r < 0.75) {
+        decorType = "dumpster";
+      } else if (r < 0.88) {
+        decorType = "hydrant";
+      } else {
+        decorType = "lamppost";
+      }
       decorColor = "#666666";
       decorSize = 8 + rand() * 12;
     }
-    
+
     decorations.push({
       x: dx,
       y: dy,
@@ -961,48 +1187,96 @@ function generateChunk(cx: number, cy: number): Chunk {
       rotation: rand() * Math.PI * 2,
     });
   }
-  
+
   // Generate landmarks (~18% of chunks)
   const landmarks: Landmark[] = [];
   if (rand() < 0.18) {
     const lx = chunkLeft + CHUNK_SIZE / 2 + (rand() - 0.5) * 400;
     const ly = chunkTop + CHUNK_SIZE / 2 + (rand() - 0.5) * 400;
-    
+
     // Check not on road or lake
     let blocked = false;
     for (const road of roadSegments) {
-      if (pointToLineDistance(lx, ly, road.x1, road.y1, road.x2, road.y2) < road.width / 2 + 250) {
+      if (
+        pointToLineDistance(lx, ly, road.x1, road.y1, road.x2, road.y2) <
+        road.width / 2 + 250
+      ) {
         blocked = true;
       }
     }
     for (const lake of lakes) {
       const ldx = lx - lake.x;
       const ldy = ly - lake.y;
-      if (Math.sqrt(ldx * ldx + ldy * ldy) < Math.max(lake.radiusX, lake.radiusY) + 200) {
+      if (
+        Math.sqrt(ldx * ldx + ldy * ldy) <
+        Math.max(lake.radiusX, lake.radiusY) + 200
+      ) {
         blocked = true;
       }
     }
-    
+
     if (!blocked) {
       // Pick landmark type based on biome
       let lmType: Landmark["type"];
       const r = rand();
-      
+
       if (biome === "desert") {
-        lmType = r < 0.3 ? "ruins" : r < 0.6 ? "oasis" : r < 0.8 ? "shrine" : "monument";
+        lmType =
+          r < 0.3
+            ? "ruins"
+            : r < 0.6
+              ? "oasis"
+              : r < 0.8
+                ? "shrine"
+                : "monument";
       } else if (biome === "forest") {
-        lmType = r < 0.4 ? "shrine" : r < 0.7 ? "campfire" : r < 0.9 ? "ruins" : "crystals";
+        lmType =
+          r < 0.4
+            ? "shrine"
+            : r < 0.7
+              ? "campfire"
+              : r < 0.9
+                ? "ruins"
+                : "crystals";
       } else if (biome === "snow") {
-        lmType = r < 0.3 ? "crystals" : r < 0.6 ? "shrine" : r < 0.8 ? "monument" : "ruins";
+        lmType =
+          r < 0.3
+            ? "crystals"
+            : r < 0.6
+              ? "shrine"
+              : r < 0.8
+                ? "monument"
+                : "ruins";
       } else if (biome === "volcanic") {
-        lmType = r < 0.4 ? "arena" : r < 0.7 ? "ruins" : r < 0.9 ? "crystals" : "monument";
+        lmType =
+          r < 0.4
+            ? "arena"
+            : r < 0.7
+              ? "ruins"
+              : r < 0.9
+                ? "crystals"
+                : "monument";
       } else if (biome === "beach") {
-        lmType = r < 0.4 ? "oasis" : r < 0.7 ? "shrine" : r < 0.9 ? "racetrack" : "campfire";
+        lmType =
+          r < 0.4
+            ? "oasis"
+            : r < 0.7
+              ? "shrine"
+              : r < 0.9
+                ? "racetrack"
+                : "campfire";
       } else {
         // city
-        lmType = r < 0.4 ? "monument" : r < 0.7 ? "arena" : r < 0.9 ? "racetrack" : "shrine";
+        lmType =
+          r < 0.4
+            ? "monument"
+            : r < 0.7
+              ? "arena"
+              : r < 0.9
+                ? "racetrack"
+                : "shrine";
       }
-      
+
       landmarks.push({
         x: lx,
         y: ly,
@@ -1013,7 +1287,7 @@ function generateChunk(cx: number, cy: number): Chunk {
       });
     }
   }
-  
+
   const coins: Coin[] = [];
   const numCoins = 2 + Math.floor(rand() * 4);
   for (let i = 0; i < numCoins; i++) {
@@ -1023,7 +1297,9 @@ function generateChunk(cx: number, cy: number): Chunk {
     for (const lake of lakes) {
       const ldx = coinX - lake.x;
       const ldy = coinY - lake.y;
-      if (Math.sqrt(ldx * ldx + ldy * ldy) < Math.max(lake.radiusX, lake.radiusY)) {
+      if (
+        Math.sqrt(ldx * ldx + ldy * ldy) < Math.max(lake.radiusX, lake.radiusY)
+      ) {
         blocked = true;
       }
     }
@@ -1035,58 +1311,170 @@ function generateChunk(cx: number, cy: number): Chunk {
       }
     }
     if (!blocked) {
-      coins.push({ x: coinX, y: coinY, collected: false, bobPhase: rand() * Math.PI * 2, collectTime: 0 });
+      coins.push({
+        x: coinX,
+        y: coinY,
+        collected: false,
+        bobPhase: rand() * Math.PI * 2,
+        collectTime: 0,
+      });
     }
   }
 
-  return { cx, cy, biome, rocks, lakes, roadSegments, decorations, landmarks, coins };
+  return {
+    cx,
+    cy,
+    biome,
+    rocks,
+    lakes,
+    roadSegments,
+    decorations,
+    landmarks,
+    coins,
+  };
 }
 
-function updateLoadedChunks(): void {
+function rebuildLoadedWorldData(): void {
+  loadedRoadSegments = [];
+  loadedLakes = [];
+  loadedRocks = [];
+  loadedCoins = [];
+
+  for (const chunk of loadedChunks) {
+    loadedRoadSegments.push(...chunk.roadSegments);
+    loadedLakes.push(...chunk.lakes);
+    loadedRocks.push(...chunk.rocks);
+    loadedCoins.push(...chunk.coins);
+  }
+
+  invalidateMinimapCache();
+}
+
+function prewarmForwardChunks(
+  playerChunkX: number,
+  playerChunkY: number,
+): void {
+  const dirX = Math.sign(player.vx);
+  const dirY = Math.sign(player.vy);
+
+  if (dirX !== 0) {
+    const preloadX = playerChunkX + dirX * (RENDER_DISTANCE + 1);
+    for (let dy = -RENDER_DISTANCE; dy <= RENDER_DISTANCE; dy++) {
+      getChunk(preloadX, playerChunkY + dy);
+    }
+  }
+
+  if (dirY !== 0) {
+    const preloadY = playerChunkY + dirY * (RENDER_DISTANCE + 1);
+    for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+      getChunk(playerChunkX + dx, preloadY);
+    }
+  }
+}
+
+function updateLoadedChunks(force: boolean = false): void {
   const playerChunkX = Math.floor(player.x / CHUNK_SIZE);
   const playerChunkY = Math.floor(player.y / CHUNK_SIZE);
-  
+
+  if (
+    !force &&
+    playerChunkX === loadedChunkX &&
+    playerChunkY === loadedChunkY
+  ) {
+    return;
+  }
+
+  loadedChunkX = playerChunkX;
+  loadedChunkY = playerChunkY;
   loadedChunks = [];
-  
+
   for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
     for (let dy = -RENDER_DISTANCE; dy <= RENDER_DISTANCE; dy++) {
       const chunk = getChunk(playerChunkX + dx, playerChunkY + dy);
       loadedChunks.push(chunk);
     }
   }
-  
+
+  rebuildLoadedWorldData();
+  prewarmForwardChunks(playerChunkX, playerChunkY);
+
   // Clean up old chunks (keep chunks within 2x render distance)
   const maxDist = RENDER_DISTANCE * 2;
   for (const [key, chunk] of chunks.entries()) {
-    if (Math.abs(chunk.cx - playerChunkX) > maxDist || Math.abs(chunk.cy - playerChunkY) > maxDist) {
+    if (
+      Math.abs(chunk.cx - playerChunkX) > maxDist ||
+      Math.abs(chunk.cy - playerChunkY) > maxDist
+    ) {
       chunks.delete(key);
     }
   }
 }
 
 function isOnRoad(x: number, y: number): boolean {
-  for (const chunk of loadedChunks) {
-    for (const road of chunk.roadSegments) {
-      const dist = pointToLineDistance(x, y, road.x1, road.y1, road.x2, road.y2);
-      if (dist < road.width / 2) return true;
-    }
+  for (const road of loadedRoadSegments) {
+    const dist = pointToLineDistance(x, y, road.x1, road.y1, road.x2, road.y2);
+    if (dist < road.width / 2) return true;
   }
   return false;
 }
 
 function isInLake(x: number, y: number): boolean {
-  for (const chunk of loadedChunks) {
-    for (const lake of chunk.lakes) {
-      // Approximate ellipse check
-      const dx = (x - lake.x) / lake.radiusX;
-      const dy = (y - lake.y) / lake.radiusY;
-      if (dx * dx + dy * dy < 1) return true;
-    }
+  for (const lake of loadedLakes) {
+    const dx = (x - lake.x) / lake.radiusX;
+    const dy = (y - lake.y) / lake.radiusY;
+    if (dx * dx + dy * dy < 1) return true;
   }
   return false;
 }
 
-function pointToLineDistance(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+function sampleSurfaceAt(
+  x: number,
+  y: number,
+): { onRoad: boolean; inWater: boolean } {
+  let onRoad = false;
+  let inWater = false;
+
+  for (const road of loadedRoadSegments) {
+    const dist = pointToLineDistance(x, y, road.x1, road.y1, road.x2, road.y2);
+    if (dist < road.width / 2) {
+      onRoad = true;
+      break;
+    }
+  }
+
+  for (const lake of loadedLakes) {
+    const dx = (x - lake.x) / lake.radiusX;
+    const dy = (y - lake.y) / lake.radiusY;
+    if (dx * dx + dy * dy < 1) {
+      inWater = true;
+      break;
+    }
+  }
+
+  return { onRoad, inWater };
+}
+
+function updateWaterExposure(
+  exposureMs: number,
+  inWater: boolean,
+  dt: number,
+): number {
+  if (inWater) {
+    return Math.min(WATER_DROWN_TIME, exposureMs + dt);
+  }
+
+  const recoveryAmount = dt * (WATER_DROWN_TIME / WATER_RECOVERY_TIME);
+  return Math.max(0, exposureMs - recoveryAmount);
+}
+
+function pointToLineDistance(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): number {
   const A = px - x1;
   const B = py - y1;
   const C = x2 - x1;
@@ -1103,7 +1491,7 @@ function pointToLineDistance(px: number, py: number, x1: number, y1: number, x2:
 }
 
 function getSelectedVehicle(): VehicleType {
-  return VEHICLES.find(v => v.id === selectedVehicleId) || VEHICLES[0];
+  return VEHICLES.find((v) => v.id === selectedVehicleId) || VEHICLES[0];
 }
 
 function initPlayer(): void {
@@ -1127,12 +1515,13 @@ function initPlayer(): void {
     turnSpeed: vehicle.turnSpeed,
     driftAngle: 0,
     vehicleId: vehicle.id,
+    waterExposureMs: 0,
   };
 
   camera.x = player.x;
   camera.y = player.y;
 
-  console.log("[initPlayer] Player at", player.x, player.y, "with", vehicle.name);
+  debugLog("[initPlayer] Player at", player.x, player.y, "with", vehicle.name);
 }
 
 // ============================================================================
@@ -1152,41 +1541,49 @@ function setupInputHandlers(): void {
   // Mobile steering buttons
   const steerLeft = document.getElementById("steer-left");
   const steerRight = document.getElementById("steer-right");
-  
+
   if (steerLeft) {
-    steerLeft.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      if (gamePhase !== "playing") return;
-      input.left = true;
-      steerLeft.classList.add("active");
-      triggerHaptic("light");
-    }, { passive: false });
-    
+    steerLeft.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        if (gamePhase !== "playing") return;
+        input.left = true;
+        steerLeft.classList.add("active");
+        triggerHaptic("light");
+      },
+      { passive: false },
+    );
+
     steerLeft.addEventListener("touchend", () => {
       input.left = false;
       steerLeft.classList.remove("active");
     });
-    
+
     steerLeft.addEventListener("touchcancel", () => {
       input.left = false;
       steerLeft.classList.remove("active");
     });
   }
-  
+
   if (steerRight) {
-    steerRight.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      if (gamePhase !== "playing") return;
-      input.right = true;
-      steerRight.classList.add("active");
-      triggerHaptic("light");
-    }, { passive: false });
-    
+    steerRight.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        if (gamePhase !== "playing") return;
+        input.right = true;
+        steerRight.classList.add("active");
+        triggerHaptic("light");
+      },
+      { passive: false },
+    );
+
     steerRight.addEventListener("touchend", () => {
       input.right = false;
       steerRight.classList.remove("active");
     });
-    
+
     steerRight.addEventListener("touchcancel", () => {
       input.right = false;
       steerRight.classList.remove("active");
@@ -1214,7 +1611,7 @@ function updateJoystickInput(): void {
   const dx = joystick.currentX - joystick.startX;
   const dy = joystick.currentY - joystick.startY;
   const deadzone = 20;
-  
+
   input.left = dx < -deadzone;
   input.right = dx > deadzone;
   input.up = dy < -deadzone;
@@ -1226,9 +1623,9 @@ function drawChipVehicle(chip: Element, vehicleId: string): void {
   if (!chipCanvas) return;
   const chipCtx = chipCanvas.getContext("2d");
   if (!chipCtx) return;
-  const vehicle = VEHICLES.find(v => v.id === vehicleId);
+  const vehicle = VEHICLES.find((v) => v.id === vehicleId);
   if (!vehicle) return;
-  
+
   chipCtx.clearRect(0, 0, chipCanvas.width, chipCanvas.height);
   chipCtx.save();
   chipCtx.translate(chipCanvas.width / 2, chipCanvas.height / 2);
@@ -1240,26 +1637,35 @@ function drawChipVehicle(chip: Element, vehicleId: string): void {
 
 function updateStartScreenUI(): void {
   document.getElementById("start-coin-count")!.textContent = String(totalCoins);
-  
+
   const vehicleChips = document.querySelectorAll(".vehicle-chip");
-  vehicleChips.forEach(chip => {
+  vehicleChips.forEach((chip) => {
     const vid = chip.getAttribute("data-vehicle");
     if (!vid) return;
-    
+
     drawChipVehicle(chip, vid);
-    
+
     const isOwned = ownedVehicles.has(vid);
     chip.classList.toggle("locked", !isOwned);
     chip.classList.toggle("selected", vid === selectedVehicleId);
-    
+
     let lockIcon = chip.querySelector(".chip-lock");
     if (!isOwned) {
       if (!lockIcon) {
-        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        const svg = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "svg",
+        );
         svg.setAttribute("class", "chip-lock");
         svg.setAttribute("viewBox", "0 0 24 24");
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z");
+        const path = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "path",
+        );
+        path.setAttribute(
+          "d",
+          "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z",
+        );
         svg.appendChild(path);
         chip.appendChild(svg);
       }
@@ -1270,12 +1676,20 @@ function updateStartScreenUI(): void {
 }
 
 function updateSettingsToggles(): void {
-  document.getElementById("toggle-music")!.classList.toggle("active", settings.music);
+  document
+    .getElementById("toggle-music")!
+    .classList.toggle("active", settings.music);
   document.getElementById("toggle-fx")!.classList.toggle("active", settings.fx);
-  document.getElementById("toggle-haptics")!.classList.toggle("active", settings.haptics);
-  document.getElementById("musicState")!.textContent = settings.music ? "On" : "Off";
+  document
+    .getElementById("toggle-haptics")!
+    .classList.toggle("active", settings.haptics);
+  document.getElementById("musicState")!.textContent = settings.music
+    ? "On"
+    : "Off";
   document.getElementById("fxState")!.textContent = settings.fx ? "On" : "Off";
-  document.getElementById("hapticsState")!.textContent = settings.haptics ? "On" : "Off";
+  document.getElementById("hapticsState")!.textContent = settings.haptics
+    ? "On"
+    : "Off";
 }
 
 function openShop(): void {
@@ -1292,9 +1706,12 @@ function updateShopUI(): void {
   const vehicle = VEHICLES[shopIndex];
   document.getElementById("shop-coin-count")!.textContent = String(totalCoins);
   document.getElementById("shop-vehicle-name")!.textContent = vehicle.name;
-  document.getElementById("shop-vehicle-desc")!.textContent = vehicle.description;
-  
-  const shopCanvas = document.getElementById("shop-canvas") as HTMLCanvasElement;
+  document.getElementById("shop-vehicle-desc")!.textContent =
+    vehicle.description;
+
+  const shopCanvas = document.getElementById(
+    "shop-canvas",
+  ) as HTMLCanvasElement;
   const sCtx = shopCanvas.getContext("2d");
   if (sCtx) {
     sCtx.clearRect(0, 0, shopCanvas.width, shopCanvas.height);
@@ -1305,12 +1722,12 @@ function updateShopUI(): void {
     drawVehicleShape(sCtx, vehicle, vehicle.width, vehicle.height, false);
     sCtx.restore();
   }
-  
+
   const priceArea = document.getElementById("shop-price-area")!;
   const actionBtn = document.getElementById("shop-action-btn")!;
   const isOwned = ownedVehicles.has(vehicle.id);
   const isEquipped = vehicle.id === selectedVehicleId;
-  
+
   if (isOwned) {
     priceArea.innerHTML = '<div class="shop-owned-badge">OWNED</div>';
     if (isEquipped) {
@@ -1323,7 +1740,10 @@ function updateShopUI(): void {
       (actionBtn as HTMLButtonElement).disabled = false;
     }
   } else {
-    priceArea.innerHTML = '<div class="shop-price"><div class="start-coin-icon">$</div><span>' + vehicle.cost + '</span></div>';
+    priceArea.innerHTML =
+      '<div class="shop-price"><div class="start-coin-icon">$</div><span>' +
+      vehicle.cost +
+      "</span></div>";
     actionBtn.className = "shop-buy-btn buy";
     actionBtn.textContent = "BUY";
     (actionBtn as HTMLButtonElement).disabled = totalCoins < vehicle.cost;
@@ -1336,7 +1756,7 @@ function buyOrSelectVehicle(): void {
     if (vehicle.id !== selectedVehicleId) {
       selectedVehicleId = vehicle.id;
       initPlayer();
-      updateLoadedChunks();
+      updateLoadedChunks(true);
       triggerHaptic("light");
       savePersistentState();
       updateStartScreenUI();
@@ -1346,11 +1766,16 @@ function buyOrSelectVehicle(): void {
     ownedVehicles.add(vehicle.id);
     selectedVehicleId = vehicle.id;
     initPlayer();
-    updateLoadedChunks();
+    updateLoadedChunks(true);
     triggerHaptic("success");
     savePersistentState();
     updateStartScreenUI();
-    console.log("[buyOrSelectVehicle] Bought:", vehicle.id, "Remaining coins:", totalCoins);
+    debugLog(
+      "[buyOrSelectVehicle] Bought:",
+      vehicle.id,
+      "Remaining coins:",
+      totalCoins,
+    );
   }
   updateShopUI();
 }
@@ -1367,6 +1792,7 @@ function resumeGame(): void {
   if (gamePhase !== "paused") return;
   gamePhase = "playing";
   lastTime = performance.now();
+  startLoop();
   playMusic();
   gameplayStart();
   document.getElementById("pause-modal")!.classList.add("hidden");
@@ -1376,7 +1802,7 @@ function quitToHome(): void {
   gamePhase = "start";
   pauseMusic();
   gameplayStop();
-  
+
   document.getElementById("pause-modal")!.classList.add("hidden");
   document.getElementById("settings-modal")!.classList.add("hidden");
   document.getElementById("shop-modal")!.classList.add("hidden");
@@ -1384,18 +1810,28 @@ function quitToHome(): void {
   document.getElementById("hud")!.classList.add("hidden");
   hideGameplayUI();
   document.getElementById("start-screen")!.classList.remove("hidden");
-  
+
   chunks.clear();
   loadedChunks = [];
+  loadedRoadSegments = [];
+  loadedLakes = [];
+  loadedRocks = [];
+  loadedCoins = [];
+  loadedChunkX = Number.NaN;
+  loadedChunkY = Number.NaN;
+  minimapTerrainCanvas = null;
+  minimapTerrainCtx = null;
+  invalidateMinimapCache();
   policeCars = [];
   explosions = [];
   skidMarks = [];
   driftSmoke = [];
   scorePopups = [];
   coinPopups = [];
-  
+  skidMarkDistance = 0;
+
   initPlayer();
-  updateLoadedChunks();
+  updateLoadedChunks(true);
   updateStartScreenUI();
 }
 
@@ -1430,37 +1866,37 @@ function setupUIHandlers(): void {
     triggerHaptic("light");
     restartGame();
   });
-  
+
   // Vehicle chip selection on start screen
   const vehicleChips = document.querySelectorAll(".vehicle-chip");
-  vehicleChips.forEach(chip => {
+  vehicleChips.forEach((chip) => {
     chip.addEventListener("click", () => {
       const vid = chip.getAttribute("data-vehicle");
       if (!vid) return;
-      
+
       if (!ownedVehicles.has(vid)) {
-        shopIndex = VEHICLES.findIndex(v => v.id === vid);
+        shopIndex = VEHICLES.findIndex((v) => v.id === vid);
         if (shopIndex < 0) shopIndex = 0;
         openShop();
         return;
       }
-      
+
       selectedVehicleId = vid;
       initPlayer();
-      updateLoadedChunks();
+      updateLoadedChunks(true);
       triggerHaptic("light");
       savePersistentState();
       updateStartScreenUI();
-      console.log("[setupUIHandlers] Selected vehicle:", vid);
+      debugLog("[setupUIHandlers] Selected vehicle:", vid);
     });
   });
-  
+
   // Start screen shop button
   document.getElementById("start-shop-btn")!.addEventListener("click", () => {
     triggerHaptic("light");
     openShop();
   });
-  
+
   // Settings button + modal (does NOT trigger pause UI)
   let settingsWasPlaying = false;
   document.getElementById("settings-btn")!.addEventListener("click", () => {
@@ -1483,7 +1919,7 @@ function setupUIHandlers(): void {
       gameplayStart();
     }
   });
-  
+
   let lastToggle = 0;
   function settingsToggle(cb: () => void): (e: Event) => void {
     return (e: Event) => {
@@ -1498,18 +1934,27 @@ function setupUIHandlers(): void {
     };
   }
 
-  document.getElementById("toggle-music")!.addEventListener("click", settingsToggle(() => {
-    settings.music = !settings.music;
-    if (!settings.music) pauseMusic();
-    else if (gamePhase === "playing") playMusic();
-  }));
-  document.getElementById("toggle-fx")!.addEventListener("click", settingsToggle(() => {
-    settings.fx = !settings.fx;
-  }));
-  document.getElementById("toggle-haptics")!.addEventListener("click", settingsToggle(() => {
-    settings.haptics = !settings.haptics;
-  }));
-  
+  document.getElementById("toggle-music")!.addEventListener(
+    "click",
+    settingsToggle(() => {
+      settings.music = !settings.music;
+      if (!settings.music) pauseMusic();
+      else if (gamePhase === "playing") playMusic();
+    }),
+  );
+  document.getElementById("toggle-fx")!.addEventListener(
+    "click",
+    settingsToggle(() => {
+      settings.fx = !settings.fx;
+    }),
+  );
+  document.getElementById("toggle-haptics")!.addEventListener(
+    "click",
+    settingsToggle(() => {
+      settings.haptics = !settings.haptics;
+    }),
+  );
+
   // Pause button + modal
   document.getElementById("pause-btn")!.addEventListener("click", () => {
     triggerHaptic("light");
@@ -1529,14 +1974,14 @@ function setupUIHandlers(): void {
     triggerHaptic("light");
     quitToHome();
   });
-  
+
   // In-game shop button
   document.getElementById("ingame-shop-btn")!.addEventListener("click", () => {
     triggerHaptic("light");
     if (gamePhase === "playing") pauseGame();
     openShop();
   });
-  
+
   // Shop modal
   document.getElementById("shop-close")!.addEventListener("click", () => {
     closeShop();
@@ -1548,14 +1993,20 @@ function setupUIHandlers(): void {
     shopIndex = (shopIndex + delta + VEHICLES.length) % VEHICLES.length;
     updateShopUI();
     triggerHaptic("light");
-    setTimeout(() => { shopNavLock = false; }, 200);
+    setTimeout(() => {
+      shopNavLock = false;
+    }, 200);
   }
-  document.getElementById("shop-prev")!.addEventListener("click", () => shopNav(-1));
-  document.getElementById("shop-next")!.addEventListener("click", () => shopNav(1));
+  document
+    .getElementById("shop-prev")!
+    .addEventListener("click", () => shopNav(-1));
+  document
+    .getElementById("shop-next")!
+    .addEventListener("click", () => shopNav(1));
   document.getElementById("shop-action-btn")!.addEventListener("click", () => {
     buyOrSelectVehicle();
   });
-  
+
   // Escape key for pause
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -1568,7 +2019,7 @@ function setupUIHandlers(): void {
       }
     }
   });
-  
+
   updateSettingsToggles();
 }
 
@@ -1576,25 +2027,27 @@ function setupUIHandlers(): void {
 // HAPTICS & PLATFORM INTEGRATION
 // ============================================================================
 
-function triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error"): void {
+function triggerHaptic(
+  type: "light" | "medium" | "heavy" | "success" | "error",
+): void {
   if (!settings.haptics) return;
   oasiz.triggerHaptic(type);
 }
 
 function submitFinalScore(): void {
-  console.log("[submitFinalScore] Submitting score:", score);
+  debugLog("[submitFinalScore] Submitting score:", score);
   oasiz.submitScore(score);
 }
 
 function gameplayStart(): void {
-  console.log("[gameplayStart] Gameplay started");
+  debugLog("[gameplayStart] Gameplay started");
   if (typeof (window as any).gameplayStart === "function") {
     (window as any).gameplayStart();
   }
 }
 
 function gameplayStop(): void {
-  console.log("[gameplayStop] Gameplay stopped");
+  debugLog("[gameplayStop] Gameplay stopped");
   if (typeof (window as any).gameplayStop === "function") {
     (window as any).gameplayStop();
   }
@@ -1605,7 +2058,7 @@ function gameplayStop(): void {
 // ============================================================================
 
 function startGame(): void {
-  console.log("[startGame] Starting game");
+  debugLog("[startGame] Starting game");
 
   gamePhase = "playing";
   score = 0;
@@ -1627,6 +2080,7 @@ function startGame(): void {
   skidMarks = [];
   driftSmoke = [];
   scorePopups = [];
+  skidMarkDistance = 0;
 
   interceptorWarningShown = false;
   swatWarningShown = false;
@@ -1637,11 +2091,20 @@ function startGame(): void {
 
   chunks.clear();
   loadedChunks = [];
-  
-  initPlayer();
-  updateLoadedChunks();
+  loadedRoadSegments = [];
+  loadedLakes = [];
+  loadedRocks = [];
+  loadedCoins = [];
+  loadedChunkX = Number.NaN;
+  loadedChunkY = Number.NaN;
+  minimapTerrainCanvas = null;
+  minimapTerrainCtx = null;
+  invalidateMinimapCache();
 
-  lastTime = performance.now();
+  initPlayer();
+  updateLoadedChunks(true);
+
+  startLoop();
 
   document.getElementById("start-screen")!.classList.add("hidden");
   document.getElementById("hud")!.classList.remove("hidden");
@@ -1653,23 +2116,28 @@ function startGame(): void {
 }
 
 function restartGame(): void {
-  console.log("[restartGame] Restarting game");
+  debugLog("[restartGame] Restarting game");
   document.getElementById("game-over")!.classList.add("hidden");
   startGame();
 }
 
 function endGame(): void {
-  console.log("[endGame] Game over! Survival score:", Math.floor(survivalScore), "Crashes:", crashCount);
+  debugLog(
+    "[endGame] Game over! Survival score:",
+    Math.floor(survivalScore),
+    "Crashes:",
+    crashCount,
+  );
 
   gamePhase = "gameOver";
   gameplayStop();
   pauseMusic();
-  
+
   const survivalPoints = Math.floor(survivalScore);
   score = survivalPoints + score;
-  
+
   totalCoins += sessionCoins;
-  
+
   submitFinalScore();
   savePersistentState();
   oasiz.flushGameState();
@@ -1681,11 +2149,12 @@ function endGame(): void {
   document.getElementById("settings-modal")!.classList.add("hidden");
   document.getElementById("shop-modal")!.classList.add("hidden");
   hideGameplayUI();
-  
+
   const totalSeconds = Math.floor(gameTime / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  document.getElementById("final-time")!.textContent = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+  document.getElementById("final-time")!.textContent =
+    minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
   document.getElementById("final-crashes")!.textContent = String(crashCount);
   document.getElementById("final-score")!.textContent = String(score);
   document.getElementById("gameover-coins")!.textContent = "+" + sessionCoins;
@@ -1699,9 +2168,12 @@ function updateScoreDisplay(): void {
   const totalSeconds = Math.floor(gameTime / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  document.getElementById("time-display")!.textContent = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+  document.getElementById("time-display")!.textContent =
+    minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
   document.getElementById("crash-display")!.textContent = String(crashCount);
-  document.getElementById("coin-display")!.textContent = String(totalCoins + sessionCoins);
+  document.getElementById("coin-display")!.textContent = String(
+    totalCoins + sessionCoins,
+  );
 }
 
 // ============================================================================
@@ -1709,6 +2181,8 @@ function updateScoreDisplay(): void {
 // ============================================================================
 
 function gameLoop(currentTime: number): void {
+  rafId = 0;
+
   if (lastTime === 0 || currentTime - lastTime > 100) {
     lastTime = currentTime;
   }
@@ -1719,38 +2193,37 @@ function gameLoop(currentTime: number): void {
   if (freezeFrame > 0) {
     freezeFrame -= deltaTime;
     render();
-    requestAnimationFrame(gameLoop);
+    rafId = requestAnimationFrame(gameLoop);
     return;
   }
 
   update(deltaTime);
   render();
 
-  requestAnimationFrame(gameLoop);
+  rafId = requestAnimationFrame(gameLoop);
 }
 
 function updateCoins(dt: number): void {
-  for (const chunk of loadedChunks) {
-    for (const coin of chunk.coins) {
-      if (coin.collected) continue;
-      const dx = player.x - coin.x;
-      const dy = player.y - coin.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < COIN_COLLECT_RADIUS + player.width / 2) {
-        coin.collected = true;
-        coin.collectTime = performance.now();
-        sessionCoins++;
-        coinPopups.push({ x: coin.x, y: coin.y, time: 0 });
-        triggerHaptic("light");
-        if (settings.fx) playCoinSound();
-      }
+  for (const coin of loadedCoins) {
+    if (coin.collected) continue;
+    const dx = player.x - coin.x;
+    const dy = player.y - coin.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < COIN_COLLECT_RADIUS + player.width / 2) {
+      coin.collected = true;
+      coin.collectTime = performance.now();
+      sessionCoins++;
+      coinPopups.push({ x: coin.x, y: coin.y, time: 0 });
+      triggerHaptic("light");
+      if (settings.fx) playCoinSound();
+      trimArrayStartInPlace(coinPopups, 40);
     }
   }
-  
+
   for (const popup of coinPopups) {
     popup.time += dt;
   }
-  coinPopups = coinPopups.filter(p => p.time < 800);
+  compactArrayInPlace(coinPopups, (popup) => popup.time < 800);
 }
 
 let coinSynthInitialized = false;
@@ -1770,7 +2243,9 @@ function playCoinSound(): void {
   if (!settings.fx) return;
   if (!coinSynthInitialized) initCoinSound();
   if (Tone.getContext().state !== "running") {
-    Tone.start().then(() => { coinSynth?.triggerAttackRelease("C6", "16n"); });
+    Tone.start().then(() => {
+      coinSynth?.triggerAttackRelease("C6", "16n");
+    });
   } else {
     coinSynth?.triggerAttackRelease("C6", "16n");
   }
@@ -1779,18 +2254,20 @@ function playCoinSound(): void {
 function update(dt: number): void {
   if (gamePhase === "playing") {
     gameTime += dt;
-    
+
     survivalScore += dt * 0.01;
-    
+
     updateScoreDisplay();
-    
+
     updateDifficulty();
     updateLoadedChunks();
     updatePlayer(dt);
+    if (gamePhase !== "playing") return;
     updateCamera(dt);
     updatePoliceSpawning(dt);
     updatePolice(dt);
     checkCollisions();
+    cleanupPoliceCars();
     updateCoins(dt);
     updateExplosions(dt);
     updateSkidMarks(dt);
@@ -1812,14 +2289,14 @@ function update(dt: number): void {
 
 function updateDifficulty(): void {
   difficultyMultiplier = 1 + (gameTime / 25000) * 0.7;
-  
+
   // Exponential spawn rate increase: starts slow, ramps up fast
   // decay factor - smaller = faster exponential decay
   const decayFactor = 0.00003;
   const exponentialFactor = Math.exp(-gameTime * decayFactor);
   spawnInterval = Math.max(
     POLICE_SPAWN_INTERVAL_MIN,
-    POLICE_SPAWN_INTERVAL_START * exponentialFactor
+    POLICE_SPAWN_INTERVAL_START * exponentialFactor,
   );
 }
 
@@ -1834,14 +2311,15 @@ function updatePlayer(dt: number): void {
   const minTurnFactor = 0.6;
   const speedRatio = Math.min(1, Math.abs(player.speed) / 8);
   const turnFactor = minTurnFactor + (1 - minTurnFactor) * speedRatio;
-  
+
   // On mobile, no handbrake - just steering
   const handbrakeActive = !isMobile && input.down && player.speed > 3;
   const handbrakeBoost = handbrakeActive ? 1.8 : 1.0;
-  
+
   // Steering - use player's turn speed
-  const effectiveTurnSpeed = player.turnSpeed * turnFactor * handbrakeBoost * dtFactor;
-  
+  const effectiveTurnSpeed =
+    player.turnSpeed * turnFactor * handbrakeBoost * dtFactor;
+
   if (input.left) {
     player.angle -= effectiveTurnSpeed;
   }
@@ -1868,10 +2346,11 @@ function updatePlayer(dt: number): void {
 
   // 3. SURFACE PROPERTIES - based on road presence and vehicle stats
   const vehicle = getSelectedVehicle();
-  const onRoad = isOnRoad(player.x, player.y);
+  const surface = sampleSurfaceAt(player.x, player.y);
+  const onRoad = surface.onRoad;
   let surfaceMaxSpeed = player.maxSpeed * 0.85;
   let surfaceGrip = vehicle.grip * 0.8;
-  
+
   if (onRoad) {
     surfaceMaxSpeed = player.maxSpeed * 1.25;
     surfaceGrip = vehicle.grip * 1.1;
@@ -1885,12 +2364,12 @@ function updatePlayer(dt: number): void {
 
   const lateralVelocity = player.vx * rightX + player.vy * rightY;
   const lateralSlip = Math.abs(lateralVelocity);
-  
+
   let effectiveGrip = surfaceGrip;
   if (handbrakeActive) {
     effectiveGrip *= 0.4;
   }
-  
+
   player.vx -= rightX * lateralVelocity * effectiveGrip * dtFactor;
   player.vy -= rightY * lateralVelocity * effectiveGrip * dtFactor;
 
@@ -1900,13 +2379,13 @@ function updatePlayer(dt: number): void {
   player.vy *= PLAYER_DRAG * driftSpeedBoost;
 
   if (!input.up && !input.down) {
-    player.vx *= (1 - PLAYER_FRICTION * dtFactor);
-    player.vy *= (1 - PLAYER_FRICTION * dtFactor);
+    player.vx *= 1 - PLAYER_FRICTION * dtFactor;
+    player.vy *= 1 - PLAYER_FRICTION * dtFactor;
   }
 
   // 6. SPEED CALCULATION
   player.speed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
-  
+
   const speedCap = surfaceMaxSpeed * (1 + Math.min(0.1, lateralSlip * 0.01));
   if (player.speed > speedCap) {
     const ratio = speedCap / player.speed;
@@ -1921,7 +2400,7 @@ function updatePlayer(dt: number): void {
     let angleDiff = velocityAngle - player.angle;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-    
+
     const targetDrift = angleDiff * 1.2;
     player.driftAngle += (targetDrift - player.driftAngle) * 0.2 * dtFactor;
   } else {
@@ -1935,43 +2414,47 @@ function updatePlayer(dt: number): void {
   // No world bounds - infinite world!
 
   // 9. ROCK COLLISION (from chunks)
-  for (const chunk of loadedChunks) {
-    for (const rock of chunk.rocks) {
-      const dx = player.x - rock.x;
-      const dy = player.y - rock.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minDist = rock.radius + player.width / 2;
-      
-      if (dist < minDist) {
-        const overlap = minDist - dist;
-        const nx = dx / dist || 0;
-        const ny = dy / dist || 0;
-        
-        player.x += nx * overlap * 1.2;
-        player.y += ny * overlap * 1.2;
-        
-        const dot = player.vx * nx + player.vy * ny;
-        player.vx = (player.vx - 1.5 * dot * nx) * 0.7;
-        player.vy = (player.vy - 1.5 * dot * ny) * 0.7;
-        
-        if (player.speed > 4) {
-          screenShake = Math.max(screenShake, 6);
-          triggerHaptic("medium");
-        }
+  const surfaceAfterMove = sampleSurfaceAt(player.x, player.y);
+  for (const rock of loadedRocks) {
+    const dx = player.x - rock.x;
+    const dy = player.y - rock.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const minDist = rock.radius + player.width / 2;
+
+    if (dist < minDist) {
+      const overlap = minDist - dist;
+      const nx = dx / dist || 0;
+      const ny = dy / dist || 0;
+
+      player.x += nx * overlap * 1.2;
+      player.y += ny * overlap * 1.2;
+
+      const dot = player.vx * nx + player.vy * ny;
+      player.vx = (player.vx - 1.5 * dot * nx) * 0.7;
+      player.vy = (player.vy - 1.5 * dot * ny) * 0.7;
+
+      if (player.speed > 4) {
+        screenShake = Math.max(screenShake, 6);
+        triggerHaptic("medium");
       }
     }
-    
-    // 10. LAKE COLLISION (slow down in water)
-    for (const lake of chunk.lakes) {
-      const dx = (player.x - lake.x) / lake.radiusX;
-      const dy = (player.y - lake.y) / lake.radiusY;
-      if (dx * dx + dy * dy < 1) {
-        // In water - slow down significantly
-        player.vx *= 0.95;
-        player.vy *= 0.95;
-        surfaceGrip *= 0.3;
-      }
-    }
+  }
+
+  if (surfaceAfterMove.inWater) {
+    player.vx *= 0.95;
+    player.vy *= 0.95;
+    surfaceGrip *= 0.3;
+  }
+
+  player.waterExposureMs = updateWaterExposure(
+    player.waterExposureMs,
+    surfaceAfterMove.inWater,
+    dt,
+  );
+  if (player.waterExposureMs >= WATER_DROWN_TIME) {
+    createExplosion(player.x, player.y);
+    endGame();
+    return;
   }
 
   // 11. TIRE TRACKS & SMOKE
@@ -1979,43 +2462,54 @@ function updatePlayer(dt: number): void {
   const vehicleSizeScale = (player.width * player.height) / (38 * 70);
   const trackScale = Math.sqrt(vehicleSizeScale); // Square root for more subtle scaling
   const isTankVehicle = vehicle.id === "tank";
-  
+
   // Always show tire tracks when moving
   if (player.speed > 1) {
     const backX = player.x - Math.cos(player.angle) * player.height * 0.4;
     const backY = player.y - Math.sin(player.angle) * player.height * 0.4;
     const wheelOffset = player.width * 0.35;
-    
+
     // Base alpha - always visible, darker when drifting
     const baseAlpha = 0.25 * trackScale;
-    const driftAlpha = lateralSlip > 2 ? Math.min(0.4, lateralSlip * 0.06) * trackScale : 0;
+    const driftAlpha =
+      lateralSlip > 2 ? Math.min(0.4, lateralSlip * 0.06) * trackScale : 0;
     const trackAlpha = baseAlpha + driftAlpha;
-    
+
     // Track dimensions - length must match distance traveled per frame
     // At 60fps with FIXED_DT=16.67ms, car moves ~speed * 0.28 pixels per frame
     // Add 50% extra length for guaranteed overlap
     const distancePerFrame = player.speed * 0.42; // Speed * dt factor with overlap
     const trackWidth = isTankVehicle ? 12 * trackScale : 4 * trackScale;
-    const trackLength = Math.max(isTankVehicle ? 20 : 8, distancePerFrame) * trackScale;
-    
-    skidMarks.push({
-      x: backX + Math.cos(player.angle + Math.PI / 2) * wheelOffset,
-      y: backY + Math.sin(player.angle + Math.PI / 2) * wheelOffset,
-      angle: player.angle,
-      alpha: trackAlpha,
-      width: trackWidth,
-      length: trackLength,
-      isTank: isTankVehicle,
-    });
-    skidMarks.push({
-      x: backX - Math.cos(player.angle + Math.PI / 2) * wheelOffset,
-      y: backY - Math.sin(player.angle + Math.PI / 2) * wheelOffset,
-      angle: player.angle,
-      alpha: trackAlpha,
-      width: trackWidth,
-      length: trackLength,
-      isTank: isTankVehicle,
-    });
+    const trackLength =
+      Math.max(isTankVehicle ? 20 : 8, distancePerFrame) * trackScale;
+
+    skidMarkDistance += distancePerFrame;
+    if (
+      skidMarkDistance >= SKID_MARK_EMIT_DISTANCE ||
+      lateralSlip > 5 ||
+      handbrakeActive
+    ) {
+      skidMarkDistance %= SKID_MARK_EMIT_DISTANCE;
+      skidMarks.push({
+        x: backX + Math.cos(player.angle + Math.PI / 2) * wheelOffset,
+        y: backY + Math.sin(player.angle + Math.PI / 2) * wheelOffset,
+        angle: player.angle,
+        alpha: trackAlpha,
+        width: trackWidth,
+        length: trackLength,
+        isTank: isTankVehicle,
+      });
+      skidMarks.push({
+        x: backX - Math.cos(player.angle + Math.PI / 2) * wheelOffset,
+        y: backY - Math.sin(player.angle + Math.PI / 2) * wheelOffset,
+        angle: player.angle,
+        alpha: trackAlpha,
+        width: trackWidth,
+        length: trackLength,
+        isTank: isTankVehicle,
+      });
+      trimArrayStartInPlace(skidMarks, MAX_SKID_MARKS);
+    }
 
     // Smoke only when drifting hard - size scales with vehicle
     if (lateralSlip > 3 && Math.random() < 0.4 * trackScale) {
@@ -2030,6 +2524,7 @@ function updatePlayer(dt: number): void {
         size: baseSmoke + Math.random() * smokeVariance,
         alpha: 0.4 * trackScale,
       });
+      trimArrayStartInPlace(driftSmoke, MAX_DRIFT_SMOKE);
     }
   }
 }
@@ -2037,12 +2532,12 @@ function updatePlayer(dt: number): void {
 function updateCamera(dt: number): void {
   const dtFactor = dt / 16.667;
   const smoothing = 0.08;
-  
+
   // Look ahead based on velocity
   const lookAhead = 140;
   const targetX = player.x + player.vx * (lookAhead / PLAYER_MAX_SPEED);
   const targetY = player.y + player.vy * (lookAhead / PLAYER_MAX_SPEED);
-  
+
   camera.x += (targetX - camera.x) * smoothing * dtFactor;
   camera.y += (targetY - camera.y) * smoothing * dtFactor;
 }
@@ -2065,12 +2560,12 @@ function showWaveWarning(text: string): void {
 function pickEnemyType(): EnemyType {
   if (gameTime >= SWAT_UNLOCK_TIME) {
     const r = Math.random();
-    if (r < 0.40) return "patrol";
+    if (r < 0.4) return "patrol";
     if (r < 0.75) return "interceptor";
     return "swat";
   }
   if (gameTime >= INTERCEPTOR_UNLOCK_TIME) {
-    return Math.random() < 0.60 ? "patrol" : "interceptor";
+    return Math.random() < 0.6 ? "patrol" : "interceptor";
   }
   return "patrol";
 }
@@ -2098,7 +2593,7 @@ function updatePoliceSpawning(dt: number): void {
 function spawnPoliceCar(): void {
   const angle = Math.random() * Math.PI * 2;
   const distance = Math.max(w, h) * 0.8;
-  
+
   const x = player.x + Math.cos(angle) * distance;
   const y = player.y + Math.sin(angle) * distance;
 
@@ -2112,16 +2607,46 @@ function spawnPoliceCar(): void {
     height: stats.height,
     angle: Math.atan2(player.y - y, player.x - x),
     speed: 0,
-    maxSpeed: stats.maxSpeed * (0.9 + Math.random() * 0.2) * difficultyMultiplier,
+    maxSpeed:
+      stats.maxSpeed * (0.9 + Math.random() * 0.2) * difficultyMultiplier,
     id: policeIdCounter++,
     lightPhase: Math.random() * Math.PI * 2,
     state: "chase",
     enemyType,
     health: stats.health,
+    waterExposureMs: 0,
   };
 
   policeCars.push(police);
-  console.log("[spawnPoliceCar]", enemyType, police.id, "spawned");
+  debugLog("[spawnPoliceCar]", enemyType, police.id, "spawned");
+}
+
+function destroyPoliceCar(police: PoliceCar, popupColor: string): void {
+  police.health = 0;
+  police.waterExposureMs = WATER_DROWN_TIME;
+  createExplosion(police.x, police.y);
+  police.state = "crashed";
+  crashCount++;
+
+  if (gameTime - lastCrashTime < COMBO_TIMEOUT) {
+    combo++;
+  } else {
+    combo = 1;
+  }
+  lastCrashTime = gameTime;
+
+  const pts = ENEMY_STATS[police.enemyType].points;
+  score += pts * Math.max(1, combo);
+  scorePopups.push({
+    x: 0,
+    y: 0,
+    worldX: police.x,
+    worldY: police.y - 50,
+    text: "+" + pts,
+    time: 0,
+    color: popupColor,
+  });
+  triggerHaptic("medium");
 }
 
 function updatePolice(dt: number): void {
@@ -2129,6 +2654,7 @@ function updatePolice(dt: number): void {
 
   for (const police of policeCars) {
     if (police.state === "crashed") continue;
+    let policeDestroyed = false;
 
     const dx = player.x - police.x;
     const dy = player.y - police.y;
@@ -2153,7 +2679,7 @@ function updatePolice(dt: number): void {
     let angleDiff = targetAngle - police.angle;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-    
+
     police.angle += angleDiff * stats.turnRate * dtFactor;
 
     if (distToPlayer > 80) {
@@ -2161,89 +2687,56 @@ function updatePolice(dt: number): void {
     } else {
       police.speed *= 0.97;
     }
-    
-    const policeOnRoad = isOnRoad(police.x, police.y);
-    const policeMaxSpd = policeOnRoad ? police.maxSpeed * 1.15 : police.maxSpeed * 0.85;
+
+    const policeSurface = sampleSurfaceAt(police.x, police.y);
+    const policeOnRoad = policeSurface.onRoad;
+    const policeMaxSpd = policeOnRoad
+      ? police.maxSpeed * 1.15
+      : police.maxSpeed * 0.85;
     police.speed = Math.min(policeMaxSpd, police.speed);
 
     police.x += Math.cos(police.angle) * police.speed * dtFactor;
     police.y += Math.sin(police.angle) * police.speed * dtFactor;
+    const policeSurfaceAfterMove = sampleSurfaceAt(police.x, police.y);
 
-    for (const chunk of loadedChunks) {
-      for (const rock of chunk.rocks) {
-        const odx = police.x - rock.x;
-        const ody = police.y - rock.y;
-        const odist = Math.sqrt(odx * odx + ody * ody);
-        const minDist = rock.radius + police.width / 2;
+    for (const rock of loadedRocks) {
+      const odx = police.x - rock.x;
+      const ody = police.y - rock.y;
+      const odist = Math.sqrt(odx * odx + ody * ody);
+      const minDist = rock.radius + police.width / 2;
 
-        if (odist < minDist) {
-          police.health = 0;
-          createExplosion(police.x, police.y);
-          police.state = "crashed";
-          crashCount++;
-
-          if (gameTime - lastCrashTime < COMBO_TIMEOUT) {
-            combo++;
-          } else {
-            combo = 1;
-          }
-          lastCrashTime = gameTime;
-
-          const pts = ENEMY_STATS[police.enemyType].points;
-          score += pts * Math.max(1, combo);
-          scorePopups.push({
-            x: 0, y: 0,
-            worldX: police.x,
-            worldY: police.y - 50,
-            text: "+" + pts,
-            time: 0,
-            color: "#ff9944",
-          });
-          triggerHaptic("medium");
-          screenShake = SHAKE_INTENSITY * 0.5;
-          break;
-        }
-      }
-      if (police.state === "crashed") break;
-
-      for (const lake of chunk.lakes) {
-        const ldx = (police.x - lake.x) / lake.radiusX;
-        const ldy = (police.y - lake.y) / lake.radiusY;
-        if (ldx * ldx + ldy * ldy < 0.85) {
-          police.health = 0;
-          createExplosion(police.x, police.y);
-          police.state = "crashed";
-          crashCount++;
-
-          if (gameTime - lastCrashTime < COMBO_TIMEOUT) {
-            combo++;
-          } else {
-            combo = 1;
-          }
-          lastCrashTime = gameTime;
-
-          const pts = ENEMY_STATS[police.enemyType].points;
-          score += pts * Math.max(1, combo);
-          scorePopups.push({
-            x: 0, y: 0,
-            worldX: police.x,
-            worldY: police.y - 50,
-            text: "+" + pts,
-            time: 0,
-            color: "#44aaff",
-          });
-          triggerHaptic("medium");
-          screenShake = SHAKE_INTENSITY * 0.4;
-          break;
-        }
+      if (odist < minDist) {
+        destroyPoliceCar(police, "#ff9944");
+        screenShake = SHAKE_INTENSITY * 0.5;
+        policeDestroyed = true;
+        break;
       }
     }
-  }
 
-  policeCars = policeCars.filter((p) => {
-    if (p.state === "crashed") return false;
-    const dx = p.x - player.x;
-    const dy = p.y - player.y;
+    if (policeDestroyed) continue;
+
+    const policeInWater = policeSurfaceAfterMove.inWater;
+    if (policeInWater) {
+      police.speed *= 0.96;
+    }
+    police.waterExposureMs = updateWaterExposure(
+      police.waterExposureMs,
+      policeInWater,
+      dt,
+    );
+    if (police.waterExposureMs >= WATER_DROWN_TIME) {
+      destroyPoliceCar(police, "#44aaff");
+      screenShake = SHAKE_INTENSITY * 0.4;
+      policeDestroyed = true;
+    }
+  }
+}
+
+function cleanupPoliceCars(): void {
+  compactArrayInPlace(policeCars, (police) => {
+    if (police.state === "crashed") return false;
+    const dx = police.x - player.x;
+    const dy = police.y - player.y;
     return Math.sqrt(dx * dx + dy * dy) < 2500;
   });
 }
@@ -2275,8 +2768,16 @@ function checkCollisions(): void {
         p1.health--;
         p2.health--;
 
-        if (p1.health <= 0) { p1Destroyed = true; toRemove.add(p1.id); }
-        if (p2.health <= 0) { p2Destroyed = true; toRemove.add(p2.id); }
+        if (p1.health <= 0) {
+          p1Destroyed = true;
+          toRemove.add(p1.id);
+          p1.state = "crashed";
+        }
+        if (p2.health <= 0) {
+          p2Destroyed = true;
+          toRemove.add(p2.id);
+          p2.state = "crashed";
+        }
 
         if (p1Destroyed || p2Destroyed) {
           const midX = (p1.x + p2.x) / 2;
@@ -2287,8 +2788,8 @@ function checkCollisions(): void {
           if (p1Destroyed) framePoints += ENEMY_STATS[p1.enemyType].points;
           if (p2Destroyed) framePoints += ENEMY_STATS[p2.enemyType].points;
         } else {
-          const nx = (dx / dist) || 0;
-          const ny = (dy / dist) || 0;
+          const nx = dx / dist || 0;
+          const ny = dy / dist || 0;
           p1.x += nx * 15;
           p1.y += ny * 15;
           p2.x -= nx * 15;
@@ -2315,7 +2816,8 @@ function checkCollisions(): void {
       if (toRemove.has(p.id)) {
         const pts = ENEMY_STATS[p.enemyType].points;
         scorePopups.push({
-          x: 0, y: 0,
+          x: 0,
+          y: 0,
           worldX: p.x,
           worldY: p.y - 50,
           text: combo > 1 ? "+" + pts + " x" + combo + " COMBO!" : "+" + pts,
@@ -2336,28 +2838,31 @@ function checkCollisions(): void {
       freezeFrame = 40;
     }
 
-    console.log("[checkCollisions] Crashes:", crashesThisFrame, "Combo:", combo, "Total crashes:", crashCount);
+    debugLog(
+      "[checkCollisions] Crashes:",
+      crashesThisFrame,
+      "Combo:",
+      combo,
+      "Total crashes:",
+      crashCount,
+    );
   }
 
-  policeCars = policeCars.filter((p) => !toRemove.has(p.id));
-
   const vehicle = getSelectedVehicle();
-  
+
   for (const police of policeCars) {
     if (police.state === "crashed") continue;
-    
+
     const dx = police.x - player.x;
     const dy = police.y - player.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist < (player.width + police.width) / 2 * 0.75) {
+    if (dist < ((player.width + police.width) / 2) * 0.75) {
       createExplosion(player.x, player.y);
       endGame();
       return;
     }
   }
-  
-  policeCars = policeCars.filter(p => p.state !== "crashed");
 }
 
 // ============================================================================
@@ -2367,21 +2872,24 @@ function checkCollisions(): void {
 function createExplosion(x: number, y: number): void {
   // Play explosion sound effect
   playExplosionSound();
-  
+
   triggerHaptic("heavy");
-  
+
   const particles: Particle[] = [];
   const debris: Debris[] = [];
 
   for (let i = 0; i < EXPLOSION_PARTICLE_COUNT; i++) {
-    const angle = (Math.PI * 2 * i) / EXPLOSION_PARTICLE_COUNT + Math.random() * 0.5;
+    const angle =
+      (Math.PI * 2 * i) / EXPLOSION_PARTICLE_COUNT + Math.random() * 0.5;
     const speed = 4 + Math.random() * 10;
     particles.push({
-      x, y,
+      x,
+      y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       size: 10 + Math.random() * 18,
-      color: COLORS.explosion[Math.floor(Math.random() * COLORS.explosion.length)],
+      color:
+        COLORS.explosion[Math.floor(Math.random() * COLORS.explosion.length)],
       life: 1,
     });
   }
@@ -2390,7 +2898,8 @@ function createExplosion(x: number, y: number): void {
     const angle = Math.random() * Math.PI * 2;
     const speed = 3 + Math.random() * 6;
     debris.push({
-      x, y,
+      x,
+      y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       rotation: Math.random() * Math.PI * 2,
@@ -2400,7 +2909,14 @@ function createExplosion(x: number, y: number): void {
     });
   }
 
-  explosions.push({ x, y, time: 0, maxTime: EXPLOSION_DURATION, particles, debris });
+  explosions.push({
+    x,
+    y,
+    time: 0,
+    maxTime: EXPLOSION_DURATION,
+    particles,
+    debris,
+  });
 }
 
 function updateExplosions(dt: number): void {
@@ -2427,17 +2943,18 @@ function updateExplosions(dt: number): void {
     }
   }
 
-  explosions = explosions.filter((e) => e.time < e.maxTime);
+  compactArrayInPlace(
+    explosions,
+    (explosion) => explosion.time < explosion.maxTime,
+  );
 }
 
 function updateSkidMarks(dt: number): void {
-  // Very slow fade so tracks persist for a long time
   for (const mark of skidMarks) {
-    mark.alpha -= 0.00015 * dt;
+    mark.alpha -= SKID_MARK_FADE_RATE * dt;
   }
-  skidMarks = skidMarks.filter((m) => m.alpha > 0);
-  // Allow many more tracks to persist
-  if (skidMarks.length > 3000) skidMarks = skidMarks.slice(-2500);
+  compactArrayInPlace(skidMarks, (mark) => mark.alpha > 0.02);
+  trimArrayStartInPlace(skidMarks, MAX_SKID_MARKS);
 }
 
 function updateDriftSmoke(dt: number): void {
@@ -2448,19 +2965,195 @@ function updateDriftSmoke(dt: number): void {
     smoke.size *= 1.025;
     smoke.alpha *= 0.94;
   }
-  driftSmoke = driftSmoke.filter((s) => s.alpha > 0.05);
+  compactArrayInPlace(driftSmoke, (smoke) => smoke.alpha > 0.05);
+  trimArrayStartInPlace(driftSmoke, MAX_DRIFT_SMOKE);
 }
 
 function updateScorePopups(dt: number): void {
   for (const popup of scorePopups) {
     popup.time += dt;
   }
-  scorePopups = scorePopups.filter((p) => p.time < 1200);
+  compactArrayInPlace(scorePopups, (popup) => popup.time < 1200);
 }
 
 // ============================================================================
 // RENDERING
 // ============================================================================
+
+function getChunkBackdropCanvas(chunk: Chunk): HTMLCanvasElement {
+  if (chunk.backdropCanvas) {
+    return chunk.backdropCanvas;
+  }
+
+  const chunkLeft = chunk.cx * CHUNK_SIZE;
+  const chunkTop = chunk.cy * CHUNK_SIZE;
+  const colors = BIOME_COLORS[chunk.biome];
+  const buffer = createCanvasElement(CHUNK_SIZE, CHUNK_SIZE);
+  const c = buffer.getContext("2d")!;
+
+  const tileSize = 100;
+  for (let tx = 0; tx < CHUNK_SIZE; tx += tileSize) {
+    for (let ty = 0; ty < CHUNK_SIZE; ty += tileSize) {
+      const wx = chunkLeft + tx;
+      const wy = chunkTop + ty;
+      const hash = ((wx * 73856093) ^ (wy * 19349663)) & 0x7fffffff;
+      const shade = hash % 3;
+
+      if (shade === 0) c.fillStyle = colors.ground1;
+      else if (shade === 1) c.fillStyle = colors.ground2;
+      else c.fillStyle = colors.ground3;
+
+      c.fillRect(tx, ty, tileSize, tileSize);
+
+      const noiseVal = ((hash >> 4) % 20) - 10;
+      if (noiseVal > 3) {
+        c.fillStyle = "rgba(255,255,255,0.04)";
+        c.fillRect(tx, ty, tileSize, tileSize);
+      } else if (noiseVal < -3) {
+        c.fillStyle = "rgba(0,0,0,0.04)";
+        c.fillRect(tx, ty, tileSize, tileSize);
+      }
+    }
+  }
+
+  for (const lake of chunk.lakes) {
+    c.save();
+    c.translate(lake.x - chunkLeft, lake.y - chunkTop);
+    c.rotate(lake.rotation);
+    c.fillStyle =
+      chunk.biome === "volcanic"
+        ? "rgba(60,40,30,0.5)"
+        : "rgba(200,180,140,0.4)";
+    c.beginPath();
+    c.ellipse(0, 0, lake.radiusX + 18, lake.radiusY + 18, 0, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = colors.water;
+    c.beginPath();
+    c.ellipse(0, 0, lake.radiusX, lake.radiusY, 0, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = "rgba(255,255,255,0.15)";
+    c.beginPath();
+    c.ellipse(
+      -lake.radiusX * 0.3,
+      -lake.radiusY * 0.3,
+      lake.radiusX * 0.35,
+      lake.radiusY * 0.25,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    c.fill();
+    c.restore();
+  }
+
+  for (const road of chunk.roadSegments) {
+    const angle = Math.atan2(road.y2 - road.y1, road.x2 - road.x1);
+    const perpX = Math.cos(angle + Math.PI / 2);
+    const perpY = Math.sin(angle + Math.PI / 2);
+    const x1 = road.x1 - chunkLeft;
+    const y1 = road.y1 - chunkTop;
+    const x2 = road.x2 - chunkLeft;
+    const y2 = road.y2 - chunkTop;
+
+    c.fillStyle = "rgba(0,0,0,0.25)";
+    c.beginPath();
+    c.moveTo(
+      x1 + perpX * (road.width / 2 + 6),
+      y1 + perpY * (road.width / 2 + 6),
+    );
+    c.lineTo(
+      x2 + perpX * (road.width / 2 + 6),
+      y2 + perpY * (road.width / 2 + 6),
+    );
+    c.lineTo(
+      x2 - perpX * (road.width / 2 + 6),
+      y2 - perpY * (road.width / 2 + 6),
+    );
+    c.lineTo(
+      x1 - perpX * (road.width / 2 + 6),
+      y1 - perpY * (road.width / 2 + 6),
+    );
+    c.closePath();
+    c.fill();
+
+    c.fillStyle = colors.road;
+    c.beginPath();
+    c.moveTo(x1 + (perpX * road.width) / 2, y1 + (perpY * road.width) / 2);
+    c.lineTo(x2 + (perpX * road.width) / 2, y2 + (perpY * road.width) / 2);
+    c.lineTo(x2 - (perpX * road.width) / 2, y2 - (perpY * road.width) / 2);
+    c.lineTo(x1 - (perpX * road.width) / 2, y1 - (perpY * road.width) / 2);
+    c.closePath();
+    c.fill();
+
+    c.strokeStyle = colors.roadLine;
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(
+      x1 + perpX * (road.width / 2 - 6),
+      y1 + perpY * (road.width / 2 - 6),
+    );
+    c.lineTo(
+      x2 + perpX * (road.width / 2 - 6),
+      y2 + perpY * (road.width / 2 - 6),
+    );
+    c.stroke();
+    c.beginPath();
+    c.moveTo(
+      x1 - perpX * (road.width / 2 - 6),
+      y1 - perpY * (road.width / 2 - 6),
+    );
+    c.lineTo(
+      x2 - perpX * (road.width / 2 - 6),
+      y2 - perpY * (road.width / 2 - 6),
+    );
+    c.stroke();
+
+    c.lineWidth = 4;
+    c.setLineDash([20, 15]);
+    c.beginPath();
+    c.moveTo(x1, y1);
+    c.lineTo(x2, y2);
+    c.stroke();
+    c.setLineDash([]);
+  }
+
+  chunk.backdropCanvas = buffer;
+  return buffer;
+}
+
+function drawChunkLakeRipples(chunk: Chunk): void {
+  const t = gameTime * 0.001;
+
+  for (const lake of chunk.lakes) {
+    ctx.save();
+    ctx.translate(lake.x, lake.y);
+    ctx.rotate(lake.rotation);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1.5;
+
+    for (let r = 0; r < 3; r++) {
+      const ripplePhase = (t * 0.5 + r * 0.8) % 1;
+      const rippleR = ripplePhase * 0.6 + 0.2;
+      ctx.globalAlpha = 1 - ripplePhase;
+      ctx.beginPath();
+      ctx.ellipse(
+        0,
+        0,
+        lake.radiusX * rippleR,
+        lake.radiusY * rippleR,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
 
 function render(): void {
   ctx.save();
@@ -2496,7 +3189,11 @@ function render(): void {
       drawPoliceCar(police);
     }
 
-    if (gamePhase === "playing" || gamePhase === "paused" || gamePhase === "gameOver") {
+    if (
+      gamePhase === "playing" ||
+      gamePhase === "paused" ||
+      gamePhase === "gameOver"
+    ) {
       drawPlayerCar();
     }
 
@@ -2528,162 +3225,25 @@ function drawChunks(): void {
     const chunkLeft = chunk.cx * CHUNK_SIZE;
     const chunkTop = chunk.cy * CHUNK_SIZE;
     const colors = BIOME_COLORS[chunk.biome];
-    
+
     // Check if chunk is visible
-    if (Math.abs(chunkLeft + CHUNK_SIZE / 2 - camera.x) > w / 2 + CHUNK_SIZE) continue;
-    if (Math.abs(chunkTop + CHUNK_SIZE / 2 - camera.y) > h / 2 + CHUNK_SIZE) continue;
-    
-    // Draw ground tiles with subtle noise shading
-    const tileSize = 100;
-    for (let tx = 0; tx < CHUNK_SIZE; tx += tileSize) {
-      for (let ty = 0; ty < CHUNK_SIZE; ty += tileSize) {
-        const wx = chunkLeft + tx;
-        const wy = chunkTop + ty;
-        
-        const hash = ((wx * 73856093) ^ (wy * 19349663)) & 0x7fffffff;
-        const shade = hash % 3;
-        
-        if (shade === 0) ctx.fillStyle = colors.ground1;
-        else if (shade === 1) ctx.fillStyle = colors.ground2;
-        else ctx.fillStyle = colors.ground3;
-        
-        ctx.fillRect(wx, wy, tileSize, tileSize);
-        
-        // Subtle noise variation per tile
-        const noiseVal = ((hash >> 4) % 20) - 10;
-        if (noiseVal > 3) {
-          ctx.fillStyle = "rgba(255,255,255,0.04)";
-          ctx.fillRect(wx, wy, tileSize, tileSize);
-        } else if (noiseVal < -3) {
-          ctx.fillStyle = "rgba(0,0,0,0.04)";
-          ctx.fillRect(wx, wy, tileSize, tileSize);
-        }
-      }
-    }
-    
-    // Draw lakes with shoreline and ripples
-    for (const lake of chunk.lakes) {
-      ctx.save();
-      ctx.translate(lake.x, lake.y);
-      ctx.rotate(lake.rotation);
-      
-      // Shoreline ring (sand-colored)
-      ctx.fillStyle = chunk.biome === "volcanic" ? "rgba(60,40,30,0.5)" : "rgba(200,180,140,0.4)";
-      ctx.beginPath();
-      ctx.ellipse(0, 0, lake.radiusX + 18, lake.radiusY + 18, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Lake body
-      ctx.fillStyle = colors.water;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, lake.radiusX, lake.radiusY, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Ripple rings
-      const t = Date.now() * 0.001;
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
-      ctx.lineWidth = 1.5;
-      for (let r = 0; r < 3; r++) {
-        const ripplePhase = (t * 0.5 + r * 0.8) % 1;
-        const rippleR = ripplePhase * 0.6 + 0.2;
-        ctx.globalAlpha = 1 - ripplePhase;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, lake.radiusX * rippleR, lake.radiusY * rippleR, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      
-      // Highlight
-      ctx.fillStyle = "rgba(255,255,255,0.15)";
-      ctx.beginPath();
-      ctx.ellipse(-lake.radiusX * 0.3, -lake.radiusY * 0.3, lake.radiusX * 0.35, lake.radiusY * 0.25, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      ctx.restore();
-    }
-    
-    // Draw roads with curbs and markings
-    for (const road of chunk.roadSegments) {
-      const angle = Math.atan2(road.y2 - road.y1, road.x2 - road.x1);
-      const perpX = Math.cos(angle + Math.PI / 2);
-      const perpY = Math.sin(angle + Math.PI / 2);
-      
-      // Curb extrusion (slightly wider, darker)
-      ctx.fillStyle = "rgba(0,0,0,0.25)";
-      ctx.beginPath();
-      ctx.moveTo(road.x1 + perpX * (road.width / 2 + 6), road.y1 + perpY * (road.width / 2 + 6));
-      ctx.lineTo(road.x2 + perpX * (road.width / 2 + 6), road.y2 + perpY * (road.width / 2 + 6));
-      ctx.lineTo(road.x2 - perpX * (road.width / 2 + 6), road.y2 - perpY * (road.width / 2 + 6));
-      ctx.lineTo(road.x1 - perpX * (road.width / 2 + 6), road.y1 - perpY * (road.width / 2 + 6));
-      ctx.closePath();
-      ctx.fill();
-      
-      // Road surface
-      ctx.fillStyle = colors.road;
-      ctx.beginPath();
-      ctx.moveTo(road.x1 + perpX * road.width / 2, road.y1 + perpY * road.width / 2);
-      ctx.lineTo(road.x2 + perpX * road.width / 2, road.y2 + perpY * road.width / 2);
-      ctx.lineTo(road.x2 - perpX * road.width / 2, road.y2 - perpY * road.width / 2);
-      ctx.lineTo(road.x1 - perpX * road.width / 2, road.y1 - perpY * road.width / 2);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Road edge lines (white)
-      ctx.strokeStyle = colors.roadLine;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(road.x1 + perpX * (road.width / 2 - 6), road.y1 + perpY * (road.width / 2 - 6));
-      ctx.lineTo(road.x2 + perpX * (road.width / 2 - 6), road.y2 + perpY * (road.width / 2 - 6));
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(road.x1 - perpX * (road.width / 2 - 6), road.y1 - perpY * (road.width / 2 - 6));
-      ctx.lineTo(road.x2 - perpX * (road.width / 2 - 6), road.y2 - perpY * (road.width / 2 - 6));
-      ctx.stroke();
-      
-      // Center dashes
-      ctx.lineWidth = 4;
-      ctx.setLineDash([20, 15]);
-      ctx.beginPath();
-      ctx.moveTo(road.x1, road.y1);
-      ctx.lineTo(road.x2, road.y2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      
-      // Manhole covers along road (deterministic placement)
-      const roadLen = Math.sqrt((road.x2 - road.x1) ** 2 + (road.y2 - road.y1) ** 2);
-      const dirX = (road.x2 - road.x1) / roadLen;
-      const dirY = (road.y2 - road.y1) / roadLen;
-      const manholeHash = ((chunk.cx * 31 + chunk.cy * 17) & 0xff);
-      if (manholeHash % 3 === 0) {
-        const mx = road.x1 + dirX * roadLen * 0.4 + perpX * road.width * 0.15;
-        const my = road.y1 + dirY * roadLen * 0.4 + perpY * road.width * 0.15;
-        ctx.fillStyle = "rgba(0,0,0,0.15)";
-        ctx.beginPath();
-        ctx.arc(mx, my, 12, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(0,0,0,0.2)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(mx, my, 10, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(mx - 6, my);
-        ctx.lineTo(mx + 6, my);
-        ctx.moveTo(mx, my - 6);
-        ctx.lineTo(mx, my + 6);
-        ctx.stroke();
-      }
-    }
-    
+    if (Math.abs(chunkLeft + CHUNK_SIZE / 2 - camera.x) > w / 2 + CHUNK_SIZE)
+      continue;
+    if (Math.abs(chunkTop + CHUNK_SIZE / 2 - camera.y) > h / 2 + CHUNK_SIZE)
+      continue;
+
+    ctx.drawImage(getChunkBackdropCanvas(chunk), chunkLeft, chunkTop);
+    drawChunkLakeRipples(chunk);
+
     // Draw decorations with pseudo-3D depth
     for (const dec of chunk.decorations) {
       if (Math.abs(dec.x - camera.x) > w / 2 + 100) continue;
       if (Math.abs(dec.y - camera.y) > h / 2 + 100) continue;
-      
+
       ctx.save();
       ctx.translate(dec.x, dec.y);
       const s = dec.size;
-      
+
       if (dec.type === "tree") {
         // Ground shadow
         ctx.fillStyle = "rgba(0,0,0,0.18)";
@@ -2800,7 +3360,15 @@ function drawChunks(): void {
         ctx.fill();
         ctx.fillStyle = "rgba(255,255,255,0.2)";
         ctx.beginPath();
-        ctx.ellipse(-s * 0.15, -s * 0.08, s * 0.3, s * 0.12, -0.2, 0, Math.PI * 2);
+        ctx.ellipse(
+          -s * 0.15,
+          -s * 0.08,
+          s * 0.3,
+          s * 0.12,
+          -0.2,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
       } else if (dec.type === "vent") {
         ctx.fillStyle = "rgba(0,0,0,0.15)";
@@ -2813,7 +3381,7 @@ function drawChunks(): void {
         ctx.fill();
         // Glow rings
         const gp = 0.5 + Math.sin(Date.now() * 0.008 + dec.x) * 0.3;
-        ctx.strokeStyle = "rgba(255,80,0," + (gp * 0.4) + ")";
+        ctx.strokeStyle = "rgba(255,80,0," + gp * 0.4 + ")";
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.35, 0, Math.PI * 2);
@@ -2950,7 +3518,7 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.ellipse(0, 0, s * 0.45, s * 0.3, dec.rotation, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "rgba(255,200,50," + (lp * 0.6) + ")";
+        ctx.fillStyle = "rgba(255,200,50," + lp * 0.6 + ")";
         ctx.beginPath();
         ctx.ellipse(0, 0, s * 0.2, s * 0.12, dec.rotation, 0, Math.PI * 2);
         ctx.fill();
@@ -2977,7 +3545,8 @@ function drawChunks(): void {
         ctx.save();
         ctx.rotate(dec.rotation);
         const carColors = ["#884444", "#446688", "#888844", "#448844"];
-        ctx.fillStyle = carColors[Math.floor(Math.abs(Math.sin(dec.x * 0.1)) * 4)];
+        ctx.fillStyle =
+          carColors[Math.floor(Math.abs(Math.sin(dec.x * 0.1)) * 4)];
         ctx.beginPath();
         ctx.roundRect(-s * 0.3, -s * 0.5, s * 0.6, s * 1.0, 5);
         ctx.fill();
@@ -3028,32 +3597,32 @@ function drawChunks(): void {
         ctx.arc(0, 0, s * 0.4, 0, Math.PI * 2);
         ctx.fill();
       }
-      
+
       ctx.restore();
     }
-    
+
     // Draw landmarks (points of interest) - MASSIVE and impressive
     for (const lm of chunk.landmarks) {
       if (Math.abs(lm.x - camera.x) > w / 2 + lm.size * 2) continue;
       if (Math.abs(lm.y - camera.y) > h / 2 + lm.size * 2) continue;
-      
+
       ctx.save();
       ctx.translate(lm.x, lm.y);
-      
+
       const s = lm.size;
       const time = Date.now() * 0.001;
       const pulse = 0.9 + Math.sin(time * 3 + lm.x * 0.01) * 0.1;
       const slowPulse = 0.95 + Math.sin(time * 1.5 + lm.y * 0.01) * 0.05;
-      
+
       if (lm.type === "shrine") {
         // GRAND TEMPLE with multiple tiers, stairs, and magical energy
-        
+
         // Outer plaza - stone floor
         ctx.fillStyle = "#6a5a4a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.2, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Stone tile pattern on plaza
         ctx.strokeStyle = "#5a4a3a";
         ctx.lineWidth = 2;
@@ -3068,27 +3637,27 @@ function drawChunks(): void {
           ctx.lineTo(Math.cos(angle) * s * 1.1, Math.sin(angle) * s * 1.1);
           ctx.stroke();
         }
-        
+
         // 8 outer pillars in a circle
         for (let i = 0; i < 8; i++) {
           const angle = (i / 8) * Math.PI * 2;
           const px = Math.cos(angle) * s * 0.9;
           const py = Math.sin(angle) * s * 0.9;
-          
+
           // Pillar shadow
           ctx.fillStyle = "rgba(0,0,0,0.3)";
           ctx.beginPath();
           ctx.ellipse(px + 8, py + 8, s * 0.08, s * 0.06, 0, 0, Math.PI * 2);
           ctx.fill();
-          
+
           // Pillar base
           ctx.fillStyle = "#8a7a6a";
           ctx.fillRect(px - s * 0.07, py - s * 0.2, s * 0.14, s * 0.4);
-          
+
           // Pillar detail
           ctx.fillStyle = "#9a8a7a";
           ctx.fillRect(px - s * 0.05, py - s * 0.18, s * 0.1, s * 0.36);
-          
+
           // Pillar top orb
           ctx.shadowColor = "#00ddaa";
           ctx.shadowBlur = 12 * pulse;
@@ -3098,7 +3667,7 @@ function drawChunks(): void {
           ctx.fill();
           ctx.shadowBlur = 0;
         }
-        
+
         // Inner elevated platform (tier 1)
         ctx.fillStyle = "#7a6a5a";
         ctx.beginPath();
@@ -3107,31 +3676,41 @@ function drawChunks(): void {
         ctx.strokeStyle = "#5a4a3a";
         ctx.lineWidth = 4;
         ctx.stroke();
-        
+
         // Central temple structure (tier 2)
         ctx.fillStyle = "#8b7355";
         ctx.fillRect(-s * 0.35, -s * 0.35, s * 0.7, s * 0.7);
-        
+
         // Temple roof layers
         ctx.fillStyle = "#9a8a7a";
         ctx.fillRect(-s * 0.4, -s * 0.4, s * 0.8, s * 0.15);
         ctx.fillRect(-s * 0.4, s * 0.25, s * 0.8, s * 0.15);
         ctx.fillRect(-s * 0.4, -s * 0.4, s * 0.15, s * 0.8);
         ctx.fillRect(s * 0.25, -s * 0.4, s * 0.15, s * 0.8);
-        
+
         // Corner pillars of inner temple
-        const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+        const corners = [
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [1, 1],
+        ];
         for (const [cx, cy] of corners) {
           ctx.fillStyle = "#7a6a5a";
-          ctx.fillRect(cx * s * 0.28 - s * 0.06, cy * s * 0.28 - s * 0.06, s * 0.12, s * 0.12);
+          ctx.fillRect(
+            cx * s * 0.28 - s * 0.06,
+            cy * s * 0.28 - s * 0.06,
+            s * 0.12,
+            s * 0.12,
+          );
         }
-        
+
         // Central sanctum
         ctx.fillStyle = "#5a4a3a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.15, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // MASSIVE central glowing orb with particle effects
         ctx.shadowColor = "#00ffaa";
         ctx.shadowBlur = 60 * pulse;
@@ -3148,49 +3727,57 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.08 * pulse, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Energy beams shooting up
         for (let i = 0; i < 4; i++) {
           const beamAngle = (i / 4) * Math.PI * 2 + time * 0.5;
-          ctx.strokeStyle = "rgba(0,255,170," + (0.3 + Math.sin(time * 5 + i) * 0.2) + ")";
+          ctx.strokeStyle =
+            "rgba(0,255,170," + (0.3 + Math.sin(time * 5 + i) * 0.2) + ")";
           ctx.lineWidth = 3;
           ctx.beginPath();
           ctx.moveTo(0, 0);
-          ctx.lineTo(Math.cos(beamAngle) * s * 0.5, Math.sin(beamAngle) * s * 0.5);
+          ctx.lineTo(
+            Math.cos(beamAngle) * s * 0.5,
+            Math.sin(beamAngle) * s * 0.5,
+          );
           ctx.stroke();
         }
         ctx.shadowBlur = 0;
-        
       } else if (lm.type === "ruins") {
         // MASSIVE ANCIENT COLISEUM with crumbling walls
-        
+
         // Outer ring - collapsed arena walls
         ctx.fillStyle = "#5a5a4a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.3, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Sandy arena floor
         ctx.fillStyle = "#8a7a5a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.0, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Crumbling wall sections - varying heights
         for (let i = 0; i < 16; i++) {
           const angle = (i / 16) * Math.PI * 2;
           const wallHeight = 0.15 + Math.sin(i * 2.7 + lm.rotation) * 0.1;
           const px = Math.cos(angle) * s * 1.15;
           const py = Math.sin(angle) * s * 1.15;
-          
+
           // Skip some sections for "collapsed" look
           if (Math.sin(i * 3.14 + lm.rotation * 2) > 0.3) {
             ctx.fillStyle = "#7a7a6a";
             ctx.save();
             ctx.translate(px, py);
             ctx.rotate(angle + Math.PI / 2);
-            ctx.fillRect(-s * 0.12, -s * wallHeight, s * 0.24, s * wallHeight * 2);
-            
+            ctx.fillRect(
+              -s * 0.12,
+              -s * wallHeight,
+              s * 0.24,
+              s * wallHeight * 2,
+            );
+
             // Stone detail
             ctx.fillStyle = "#6a6a5a";
             ctx.fillRect(-s * 0.1, -s * wallHeight * 0.8, s * 0.2, s * 0.05);
@@ -3198,30 +3785,35 @@ function drawChunks(): void {
             ctx.restore();
           }
         }
-        
+
         // Inner ring of broken pillars
         for (let i = 0; i < 12; i++) {
           const angle = (i / 12) * Math.PI * 2 + 0.1;
           const pillarHeight = 0.2 + Math.sin(i * 1.5) * 0.15;
           const px = Math.cos(angle) * s * 0.7;
           const py = Math.sin(angle) * s * 0.7;
-          
+
           // Some pillars are just stumps
           if (Math.cos(i * 2.1) > -0.5) {
             ctx.fillStyle = "#8a8a7a";
             ctx.save();
             ctx.translate(px, py);
-            
+
             // Pillar shadow
             ctx.fillStyle = "rgba(0,0,0,0.2)";
             ctx.beginPath();
             ctx.ellipse(5, 5, s * 0.06, s * 0.04, 0, 0, Math.PI * 2);
             ctx.fill();
-            
+
             // Pillar
             ctx.fillStyle = "#9a9a8a";
-            ctx.fillRect(-s * 0.05, -s * pillarHeight, s * 0.1, s * pillarHeight * 2);
-            
+            ctx.fillRect(
+              -s * 0.05,
+              -s * pillarHeight,
+              s * 0.1,
+              s * pillarHeight * 2,
+            );
+
             // Broken top
             if (pillarHeight > 0.25) {
               ctx.fillStyle = "#7a7a6a";
@@ -3235,20 +3827,20 @@ function drawChunks(): void {
             ctx.restore();
           }
         }
-        
+
         // Central altar with mysterious runes
         ctx.fillStyle = "#6a6a5a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.25, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Rune circle
         ctx.strokeStyle = "rgba(100,80,60,0.6)";
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.18, 0, Math.PI * 2);
         ctx.stroke();
-        
+
         // Rune symbols
         ctx.fillStyle = "#4a4a3a";
         for (let i = 0; i < 6; i++) {
@@ -3257,33 +3849,32 @@ function drawChunks(): void {
           const ry = Math.sin(angle) * s * 0.12;
           ctx.fillRect(rx - 4, ry - 8, 8, 16);
         }
-        
+
         // Scattered rubble around the arena
         for (let i = 0; i < 15; i++) {
-          const rx = (Math.sin(i * 4.1 + lm.rotation) * 0.8) * s;
-          const ry = (Math.cos(i * 3.7 + lm.rotation) * 0.8) * s;
+          const rx = Math.sin(i * 4.1 + lm.rotation) * 0.8 * s;
+          const ry = Math.cos(i * 3.7 + lm.rotation) * 0.8 * s;
           const rubbleSize = 8 + Math.sin(i * 2.3) * 6;
           ctx.fillStyle = "#7a7a6a";
           ctx.beginPath();
           ctx.arc(rx, ry, rubbleSize, 0, Math.PI * 2);
           ctx.fill();
         }
-        
       } else if (lm.type === "oasis") {
         // PARADISE OASIS with multiple pools, waterfalls, and lush vegetation
-        
+
         // Outer sandy area
         ctx.fillStyle = "#c4a060";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.4, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Grass ring around water
         ctx.fillStyle = "#4a8a4a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.1, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Main lagoon - large irregular shape
         const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.9);
         gradient.addColorStop(0, "#2a8aaa");
@@ -3293,51 +3884,65 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.ellipse(0, 0, s * 0.85, s * 0.65, 0, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Secondary pool
         ctx.fillStyle = "#3a9aba";
         ctx.beginPath();
-        ctx.ellipse(-s * 0.5, -s * 0.4, s * 0.25, s * 0.18, -0.3, 0, Math.PI * 2);
+        ctx.ellipse(
+          -s * 0.5,
+          -s * 0.4,
+          s * 0.25,
+          s * 0.18,
+          -0.3,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
-        
+
         // Water shimmer effects
         ctx.fillStyle = "rgba(255,255,255,0.4)";
         for (let i = 0; i < 5; i++) {
-          const sx = (Math.sin(time * 2 + i * 1.5) * 0.4) * s;
-          const sy = (Math.cos(time * 1.8 + i * 2.1) * 0.3) * s;
+          const sx = Math.sin(time * 2 + i * 1.5) * 0.4 * s;
+          const sy = Math.cos(time * 1.8 + i * 2.1) * 0.3 * s;
           ctx.beginPath();
           ctx.ellipse(sx, sy, s * 0.12, s * 0.06, time + i, 0, Math.PI * 2);
           ctx.fill();
         }
-        
+
         // Small island in center
         ctx.fillStyle = "#5a9a5a";
         ctx.beginPath();
         ctx.ellipse(s * 0.15, s * 0.1, s * 0.2, s * 0.15, 0.2, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Palm trees around the oasis (8 trees)
         const palmPositions = [
-          [-0.9, -0.3], [-0.7, 0.6], [-0.3, -0.8], [0.2, -0.85],
-          [0.8, -0.4], [0.9, 0.3], [0.5, 0.7], [-0.4, 0.75]
+          [-0.9, -0.3],
+          [-0.7, 0.6],
+          [-0.3, -0.8],
+          [0.2, -0.85],
+          [0.8, -0.4],
+          [0.9, 0.3],
+          [0.5, 0.7],
+          [-0.4, 0.75],
         ];
         for (const [px, py] of palmPositions) {
           const tx = px * s;
           const ty = py * s;
-          
+
           // Tree shadow
           ctx.fillStyle = "rgba(0,0,0,0.15)";
           ctx.beginPath();
           ctx.ellipse(tx + 15, ty + 10, 25, 15, 0.3, 0, Math.PI * 2);
           ctx.fill();
-          
+
           // Trunk
           ctx.fillStyle = "#6a4a2a";
           ctx.save();
           ctx.translate(tx, ty);
           ctx.rotate(Math.sin(time * 0.5 + px * 3) * 0.05);
           ctx.fillRect(-6, -s * 0.25, 12, s * 0.25);
-          
+
           // Fronds (leaves)
           ctx.fillStyle = "#3a7a3a";
           for (let f = 0; f < 7; f++) {
@@ -3354,7 +3959,7 @@ function drawChunks(): void {
           }
           ctx.restore();
         }
-        
+
         // Central palm on island
         ctx.fillStyle = "#5a3a1a";
         ctx.fillRect(s * 0.13, s * 0.1 - s * 0.3, 14, s * 0.3);
@@ -3362,26 +3967,25 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.arc(s * 0.17, s * 0.1 - s * 0.32, s * 0.15, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Lily pads
         ctx.fillStyle = "#4a9a4a";
         for (let i = 0; i < 6; i++) {
-          const lx = (Math.sin(i * 2.3 + lm.rotation) * 0.5) * s;
-          const ly = (Math.cos(i * 1.9 + lm.rotation) * 0.35) * s;
+          const lx = Math.sin(i * 2.3 + lm.rotation) * 0.5 * s;
+          const ly = Math.cos(i * 1.9 + lm.rotation) * 0.35 * s;
           ctx.beginPath();
           ctx.arc(lx, ly, 12, 0, Math.PI * 1.8);
           ctx.fill();
         }
-        
       } else if (lm.type === "monument") {
         // COLOSSAL PYRAMID with hieroglyphics and golden cap
-        
+
         // Outer plaza
         ctx.fillStyle = "#a08050";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.3, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Stone pathway rings
         ctx.strokeStyle = "#806040";
         ctx.lineWidth = 8;
@@ -3391,18 +3995,18 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.9, 0, Math.PI * 2);
         ctx.stroke();
-        
+
         // 4 sphinx statues at cardinal directions
         for (let i = 0; i < 4; i++) {
           const angle = (i / 4) * Math.PI * 2;
           const sx = Math.cos(angle) * s * 1.0;
           const sy = Math.sin(angle) * s * 1.0;
-          
+
           ctx.fillStyle = "#8a7a5a";
           ctx.save();
           ctx.translate(sx, sy);
           ctx.rotate(angle + Math.PI / 2);
-          
+
           // Sphinx body
           ctx.fillRect(-s * 0.12, -s * 0.05, s * 0.24, s * 0.1);
           // Sphinx head
@@ -3411,7 +4015,7 @@ function drawChunks(): void {
           ctx.fill();
           ctx.restore();
         }
-        
+
         // Main pyramid base (bottom tier)
         ctx.fillStyle = "#9a8a6a";
         ctx.beginPath();
@@ -3420,7 +4024,7 @@ function drawChunks(): void {
         ctx.lineTo(-s * 0.7, s * 0.6);
         ctx.closePath();
         ctx.fill();
-        
+
         // Pyramid shading (left side darker)
         ctx.fillStyle = "rgba(0,0,0,0.2)";
         ctx.beginPath();
@@ -3429,7 +4033,7 @@ function drawChunks(): void {
         ctx.lineTo(0, s * 0.3);
         ctx.closePath();
         ctx.fill();
-        
+
         // Pyramid shading (right side lighter)
         ctx.fillStyle = "rgba(255,255,255,0.1)";
         ctx.beginPath();
@@ -3438,19 +4042,19 @@ function drawChunks(): void {
         ctx.lineTo(0, s * 0.3);
         ctx.closePath();
         ctx.fill();
-        
+
         // Stone block lines
         ctx.strokeStyle = "rgba(80,70,50,0.4)";
         ctx.lineWidth = 2;
         for (let row = 0; row < 8; row++) {
           const y = -s * 0.8 + row * s * 0.17;
-          const widthAtRow = s * 0.08 + (row * s * 0.08);
+          const widthAtRow = s * 0.08 + row * s * 0.08;
           ctx.beginPath();
           ctx.moveTo(-widthAtRow, y);
           ctx.lineTo(widthAtRow, y);
           ctx.stroke();
         }
-        
+
         // Golden capstone at top
         ctx.shadowColor = "#ffdd00";
         ctx.shadowBlur = 30 * pulse;
@@ -3461,56 +4065,61 @@ function drawChunks(): void {
         ctx.lineTo(-s * 0.12, -s * 0.7);
         ctx.closePath();
         ctx.fill();
-        
+
         // Sun rays from capstone
-        ctx.strokeStyle = "rgba(255,220,0," + (0.3 * pulse) + ")";
+        ctx.strokeStyle = "rgba(255,220,0," + 0.3 * pulse + ")";
         ctx.lineWidth = 3;
         for (let r = 0; r < 8; r++) {
           const rayAngle = (r / 8) * Math.PI * 2 + time * 0.2;
           ctx.beginPath();
           ctx.moveTo(0, -s * 0.85);
-          ctx.lineTo(Math.cos(rayAngle) * s * 0.25, -s * 0.85 + Math.sin(rayAngle) * s * 0.25);
+          ctx.lineTo(
+            Math.cos(rayAngle) * s * 0.25,
+            -s * 0.85 + Math.sin(rayAngle) * s * 0.25,
+          );
           ctx.stroke();
         }
         ctx.shadowBlur = 0;
-        
+
         // Entrance at base
         ctx.fillStyle = "#3a3020";
         ctx.fillRect(-s * 0.08, s * 0.35, s * 0.16, s * 0.25);
         ctx.fillStyle = "#4a4030";
         ctx.fillRect(-s * 0.06, s * 0.37, s * 0.12, s * 0.2);
-        
       } else if (lm.type === "campfire") {
         // VIKING ENCAMPMENT with multiple tents, campfire, and longship
-        
+
         // Clearing
         ctx.fillStyle = "#5a6a4a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.2, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Dirt path around camp
         ctx.fillStyle = "#6a5a4a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.95, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // 5 Viking tents in a circle
         const tentPositions = [
-          [0.65, -0.5, 0.3], [-0.7, -0.4, -0.4], [-0.6, 0.55, 0.2],
-          [0.55, 0.6, -0.2], [0, -0.8, 0]
+          [0.65, -0.5, 0.3],
+          [-0.7, -0.4, -0.4],
+          [-0.6, 0.55, 0.2],
+          [0.55, 0.6, -0.2],
+          [0, -0.8, 0],
         ];
         for (const [tx, ty, rot] of tentPositions) {
           ctx.save();
           ctx.translate(tx * s, ty * s);
           ctx.rotate(rot);
-          
+
           // Tent shadow
           ctx.fillStyle = "rgba(0,0,0,0.2)";
           ctx.beginPath();
           ctx.ellipse(10, 8, s * 0.18, s * 0.1, 0, 0, Math.PI * 2);
           ctx.fill();
-          
+
           // Tent body
           ctx.fillStyle = "#8a7a5a";
           ctx.beginPath();
@@ -3519,7 +4128,7 @@ function drawChunks(): void {
           ctx.lineTo(-s * 0.15, s * 0.1);
           ctx.closePath();
           ctx.fill();
-          
+
           // Tent entrance
           ctx.fillStyle = "#5a4a3a";
           ctx.beginPath();
@@ -3528,7 +4137,7 @@ function drawChunks(): void {
           ctx.lineTo(-s * 0.05, -s * 0.05);
           ctx.closePath();
           ctx.fill();
-          
+
           // Tent pole
           ctx.strokeStyle = "#4a3a2a";
           ctx.lineWidth = 4;
@@ -3538,13 +4147,13 @@ function drawChunks(): void {
           ctx.stroke();
           ctx.restore();
         }
-        
+
         // Central fire pit (larger)
         ctx.fillStyle = "#4a4a4a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.18, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Fire pit stones
         ctx.fillStyle = "#6a6a6a";
         for (let i = 0; i < 12; i++) {
@@ -3555,7 +4164,7 @@ function drawChunks(): void {
           ctx.arc(stoneX, stoneY, 8, 0, Math.PI * 2);
           ctx.fill();
         }
-        
+
         // Logs in fire
         ctx.fillStyle = "#4a2a1a";
         ctx.save();
@@ -3566,86 +4175,100 @@ function drawChunks(): void {
         ctx.rotate(-0.4);
         ctx.fillRect(-s * 0.08, -4, s * 0.16, 8);
         ctx.restore();
-        
+
         // ROARING FIRE with multiple layers
         ctx.shadowColor = "#ff6600";
         ctx.shadowBlur = 80 * pulse;
-        
+
         // Outer flame glow
         ctx.fillStyle = "rgba(255,100,0,0.3)";
         ctx.beginPath();
         ctx.arc(0, -s * 0.05, s * 0.2 * pulse, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Main flames
         for (let f = 0; f < 5; f++) {
           const flameOffset = Math.sin(time * 8 + f * 1.3) * s * 0.03;
-          const flameHeight = s * (0.25 + Math.sin(time * 6 + f * 2) * 0.08) * pulse;
-          
+          const flameHeight =
+            s * (0.25 + Math.sin(time * 6 + f * 2) * 0.08) * pulse;
+
           ctx.fillStyle = f < 2 ? "#ff2200" : f < 4 ? "#ff6600" : "#ffaa00";
           ctx.beginPath();
           ctx.moveTo(flameOffset + (f - 2) * s * 0.04, s * 0.05);
-          ctx.quadraticCurveTo(flameOffset + (f - 2) * s * 0.06, -flameHeight * 0.5, flameOffset + (f - 2) * s * 0.02, -flameHeight);
-          ctx.quadraticCurveTo(flameOffset + (f - 2) * s * 0.01, -flameHeight * 0.5, flameOffset + (f - 2) * s * 0.04 - s * 0.05, s * 0.05);
+          ctx.quadraticCurveTo(
+            flameOffset + (f - 2) * s * 0.06,
+            -flameHeight * 0.5,
+            flameOffset + (f - 2) * s * 0.02,
+            -flameHeight,
+          );
+          ctx.quadraticCurveTo(
+            flameOffset + (f - 2) * s * 0.01,
+            -flameHeight * 0.5,
+            flameOffset + (f - 2) * s * 0.04 - s * 0.05,
+            s * 0.05,
+          );
           ctx.fill();
         }
-        
+
         // Inner bright core
         ctx.fillStyle = "#ffffaa";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.05, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        
+
         // Sparks floating up
         for (let sp = 0; sp < 8; sp++) {
-          const sparkY = -s * 0.1 - (((time * 50 + sp * 30) % 100) / 100) * s * 0.3;
+          const sparkY =
+            -s * 0.1 - (((time * 50 + sp * 30) % 100) / 100) * s * 0.3;
           const sparkX = Math.sin(time * 3 + sp * 2) * s * 0.08;
-          ctx.fillStyle = "rgba(255,200,100," + (1 - ((time * 50 + sp * 30) % 100) / 100) + ")";
+          ctx.fillStyle =
+            "rgba(255,200,100," +
+            (1 - ((time * 50 + sp * 30) % 100) / 100) +
+            ")";
           ctx.beginPath();
           ctx.arc(sparkX, sparkY, 3, 0, Math.PI * 2);
           ctx.fill();
         }
-        
+
         // Weapon rack
         ctx.fillStyle = "#5a4a3a";
         ctx.fillRect(s * 0.3, -s * 0.15, s * 0.04, s * 0.3);
         ctx.fillRect(s * 0.38, -s * 0.15, s * 0.04, s * 0.3);
         ctx.fillRect(s * 0.28, -s * 0.12, s * 0.16, s * 0.04);
-        
       } else if (lm.type === "racetrack") {
         // FULL NASCAR-STYLE OVAL with grandstands
-        
+
         // Outer area (parking/grass)
         ctx.fillStyle = "#5a6a4a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.4, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Outer track barrier
         ctx.fillStyle = "#aaaaaa";
         ctx.beginPath();
         ctx.ellipse(0, 0, s * 1.15, s * 0.75, 0, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Track surface
         ctx.fillStyle = "#3a3a3a";
         ctx.beginPath();
         ctx.ellipse(0, 0, s * 1.05, s * 0.65, 0, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Inner barrier
         ctx.fillStyle = "#888888";
         ctx.beginPath();
         ctx.ellipse(0, 0, s * 0.65, s * 0.35, 0, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Infield grass
         ctx.fillStyle = "#4a7a4a";
         ctx.beginPath();
         ctx.ellipse(0, 0, s * 0.55, s * 0.25, 0, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Track lane markings
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 4;
@@ -3654,107 +4277,124 @@ function drawChunks(): void {
         ctx.ellipse(0, 0, s * 0.85, s * 0.5, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
-        
+
         // Start/finish line
         ctx.fillStyle = "#ffffff";
         for (let sq = 0; sq < 8; sq++) {
           if (sq % 2 === 0) {
-            ctx.fillRect(s * 0.65 + (sq * 6), -s * 0.08, 6, s * 0.16);
+            ctx.fillRect(s * 0.65 + sq * 6, -s * 0.08, 6, s * 0.16);
           }
         }
         ctx.fillStyle = "#000000";
         for (let sq = 0; sq < 8; sq++) {
           if (sq % 2 === 1) {
-            ctx.fillRect(s * 0.65 + (sq * 6), -s * 0.08, 6, s * 0.16);
+            ctx.fillRect(s * 0.65 + sq * 6, -s * 0.08, 6, s * 0.16);
           }
         }
-        
+
         // Grandstands (top and bottom)
         ctx.fillStyle = "#6a6a7a";
         ctx.fillRect(-s * 0.7, -s * 0.9, s * 1.4, s * 0.12);
         ctx.fillRect(-s * 0.7, s * 0.78, s * 1.4, s * 0.12);
-        
+
         // Crowd (colored dots)
-        const crowdColors = ["#ff4444", "#44ff44", "#4444ff", "#ffff44", "#ff44ff"];
+        const crowdColors = [
+          "#ff4444",
+          "#44ff44",
+          "#4444ff",
+          "#ffff44",
+          "#ff44ff",
+        ];
         for (let row = 0; row < 3; row++) {
           for (let col = 0; col < 20; col++) {
             ctx.fillStyle = crowdColors[(row + col) % 5];
             ctx.beginPath();
-            ctx.arc(-s * 0.65 + col * s * 0.065, -s * 0.87 + row * 4, 3, 0, Math.PI * 2);
+            ctx.arc(
+              -s * 0.65 + col * s * 0.065,
+              -s * 0.87 + row * 4,
+              3,
+              0,
+              Math.PI * 2,
+            );
             ctx.fill();
             ctx.beginPath();
-            ctx.arc(-s * 0.65 + col * s * 0.065, s * 0.81 + row * 4, 3, 0, Math.PI * 2);
+            ctx.arc(
+              -s * 0.65 + col * s * 0.065,
+              s * 0.81 + row * 4,
+              3,
+              0,
+              Math.PI * 2,
+            );
             ctx.fill();
           }
         }
-        
+
         // Pit lane
         ctx.fillStyle = "#4a4a4a";
         ctx.fillRect(-s * 0.5, s * 0.58, s * 1.0, s * 0.1);
-        
+
         // Pit crew boxes
         for (let pit = 0; pit < 6; pit++) {
           ctx.fillStyle = crowdColors[pit % 5];
           ctx.fillRect(-s * 0.45 + pit * s * 0.15, s * 0.55, s * 0.1, s * 0.04);
         }
-        
+
         // Infield structures
         ctx.fillStyle = "#7a7a8a";
         ctx.fillRect(-s * 0.1, -s * 0.15, s * 0.2, s * 0.12);
         ctx.fillStyle = "#5a5a6a";
         ctx.fillRect(-s * 0.08, -s * 0.18, s * 0.16, s * 0.04);
-        
       } else if (lm.type === "arena") {
         // GLADIATOR ARENA with seating tiers
-        
+
         // Outer seating (3 tiers)
         ctx.fillStyle = "#7a6a5a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.3, 0, Math.PI * 2);
         ctx.fill();
-        
+
         ctx.fillStyle = "#8a7a6a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.1, 0, Math.PI * 2);
         ctx.fill();
-        
+
         ctx.fillStyle = "#9a8a7a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.9, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Arena floor
         ctx.fillStyle = "#b09060";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.7, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Sand texture pattern
         ctx.fillStyle = "rgba(150,120,80,0.3)";
         for (let i = 0; i < 20; i++) {
-          const sandX = (Math.sin(i * 3.7 + lm.rotation) * 0.5) * s;
-          const sandY = (Math.cos(i * 2.9 + lm.rotation) * 0.5) * s;
+          const sandX = Math.sin(i * 3.7 + lm.rotation) * 0.5 * s;
+          const sandY = Math.cos(i * 2.9 + lm.rotation) * 0.5 * s;
           ctx.beginPath();
           ctx.arc(sandX, sandY, 15 + Math.sin(i) * 10, 0, Math.PI * 2);
           ctx.fill();
         }
-        
+
         // Entry gates (4 cardinal points)
         for (let i = 0; i < 4; i++) {
           const angle = (i / 4) * Math.PI * 2;
           ctx.save();
           ctx.rotate(angle);
-          
+
           // Gate structure
           ctx.fillStyle = "#5a4a3a";
           ctx.fillRect(s * 0.65, -s * 0.1, s * 0.25, s * 0.2);
-          
+
           // Gate arch
           ctx.fillStyle = "#3a2a1a";
           ctx.beginPath();
           ctx.arc(s * 0.77, 0, s * 0.08, 0, Math.PI * 2);
           ctx.fill();
-          
+
           // Gate bars
           ctx.strokeStyle = "#2a2a2a";
           ctx.lineWidth = 3;
@@ -3766,7 +4406,7 @@ function drawChunks(): void {
           }
           ctx.restore();
         }
-        
+
         // Tier dividers (seats)
         ctx.strokeStyle = "#6a5a4a";
         ctx.lineWidth = 3;
@@ -3776,7 +4416,7 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.8, 0, Math.PI * 2);
         ctx.stroke();
-        
+
         // Spectators (dots in tiers)
         for (let tier = 0; tier < 3; tier++) {
           const tierRadius = s * (0.85 + tier * 0.15);
@@ -3785,19 +4425,21 @@ function drawChunks(): void {
             const angle = (sp / numSpecs) * Math.PI * 2;
             const specX = Math.cos(angle) * tierRadius;
             const specY = Math.sin(angle) * tierRadius;
-            ctx.fillStyle = ["#aa6666", "#66aa66", "#6666aa", "#aaaa66"][(sp + tier) % 4];
+            ctx.fillStyle = ["#aa6666", "#66aa66", "#6666aa", "#aaaa66"][
+              (sp + tier) % 4
+            ];
             ctx.beginPath();
             ctx.arc(specX, specY, 4, 0, Math.PI * 2);
             ctx.fill();
           }
         }
-        
+
         // Central combat platform
         ctx.fillStyle = "#8a7050";
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Combat circle markings
         ctx.strokeStyle = "#ff4444";
         ctx.lineWidth = 5;
@@ -3809,7 +4451,7 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.48, 0, Math.PI * 2);
         ctx.stroke();
-        
+
         // Weapons on ground
         ctx.fillStyle = "#888888";
         ctx.save();
@@ -3821,16 +4463,15 @@ function drawChunks(): void {
         ctx.rotate(-0.7);
         ctx.fillRect(s * 0.15, -2, s * 0.12, 4);
         ctx.restore();
-        
       } else if (lm.type === "crystals") {
         // MASSIVE CRYSTAL CAVERN with multiple formations
-        
+
         // Dark cavern base
         ctx.fillStyle = "#2a1a2a";
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.3, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Purple glow around cavern
         const cavGrad = ctx.createRadialGradient(0, 0, s * 0.5, 0, 0, s * 1.3);
         cavGrad.addColorStop(0, "rgba(100,50,150,0.3)");
@@ -3839,17 +4480,17 @@ function drawChunks(): void {
         ctx.beginPath();
         ctx.arc(0, 0, s * 1.3, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Rocky ground texture
         ctx.fillStyle = "#3a2a3a";
         for (let i = 0; i < 25; i++) {
-          const rx = (Math.sin(i * 4.3 + lm.rotation) * 0.9) * s;
-          const ry = (Math.cos(i * 3.1 + lm.rotation) * 0.9) * s;
+          const rx = Math.sin(i * 4.3 + lm.rotation) * 0.9 * s;
+          const ry = Math.cos(i * 3.1 + lm.rotation) * 0.9 * s;
           ctx.beginPath();
           ctx.arc(rx, ry, 15 + Math.sin(i * 2) * 10, 0, Math.PI * 2);
           ctx.fill();
         }
-        
+
         // Ring of smaller crystals
         for (let i = 0; i < 10; i++) {
           const angle = (i / 10) * Math.PI * 2 + lm.rotation;
@@ -3857,11 +4498,11 @@ function drawChunks(): void {
           const cy = Math.sin(angle) * s * 0.85;
           const cHeight = s * (0.15 + Math.sin(i * 1.7) * 0.08);
           const crystalPulse = 0.9 + Math.sin(time * 4 + i * 0.8) * 0.1;
-          
+
           ctx.shadowColor = "#aa44ff";
           ctx.shadowBlur = 15 * crystalPulse;
           ctx.fillStyle = ["#8833cc", "#9944dd", "#7722bb"][i % 3];
-          
+
           ctx.beginPath();
           ctx.moveTo(cx, cy - cHeight * crystalPulse);
           ctx.lineTo(cx + s * 0.04, cy + cHeight * 0.2);
@@ -3870,7 +4511,7 @@ function drawChunks(): void {
           ctx.fill();
           ctx.shadowBlur = 0;
         }
-        
+
         // Central crystal cluster (massive)
         const mainCrystals = [
           [0, 0, 0.6, "#aa55ff", 0],
@@ -3881,17 +4522,18 @@ function drawChunks(): void {
           [-0.25, -0.05, 0.3, "#6611aa", 0.4],
           [0.28, -0.02, 0.32, "#cc77ff", -0.35],
         ];
-        
+
         for (const [ox, oy, height, color, tilt] of mainCrystals) {
-          const crystalPulse = 0.9 + Math.sin(time * 3 + (ox as number) * 10) * 0.1;
-          
+          const crystalPulse =
+            0.9 + Math.sin(time * 3 + (ox as number) * 10) * 0.1;
+
           ctx.save();
           ctx.translate((ox as number) * s, (oy as number) * s);
           ctx.rotate(tilt as number);
-          
+
           ctx.shadowColor = color as string;
           ctx.shadowBlur = 40 * crystalPulse;
-          
+
           // Crystal body
           ctx.fillStyle = color as string;
           ctx.beginPath();
@@ -3900,7 +4542,7 @@ function drawChunks(): void {
           ctx.lineTo(-s * 0.08, s * 0.1);
           ctx.closePath();
           ctx.fill();
-          
+
           // Crystal facet (lighter side)
           ctx.fillStyle = "rgba(255,255,255,0.2)";
           ctx.beginPath();
@@ -3910,34 +4552,38 @@ function drawChunks(): void {
           ctx.lineTo(0, -(height as number) * s * 0.8 * crystalPulse);
           ctx.closePath();
           ctx.fill();
-          
+
           ctx.restore();
         }
         ctx.shadowBlur = 0;
-        
+
         // Energy tendrils between crystals
-        ctx.strokeStyle = "rgba(170,100,255," + (0.4 + Math.sin(time * 5) * 0.2) + ")";
+        ctx.strokeStyle =
+          "rgba(170,100,255," + (0.4 + Math.sin(time * 5) * 0.2) + ")";
         ctx.lineWidth = 2;
         for (let t = 0; t < 5; t++) {
           const startAngle = time * 0.5 + t * 1.2;
           const endAngle = startAngle + Math.PI * 0.6;
           ctx.beginPath();
-          ctx.moveTo(Math.cos(startAngle) * s * 0.15, Math.sin(startAngle) * s * 0.15);
+          ctx.moveTo(
+            Math.cos(startAngle) * s * 0.15,
+            Math.sin(startAngle) * s * 0.15,
+          );
           ctx.quadraticCurveTo(
             Math.cos(startAngle + 0.5) * s * 0.3,
             Math.sin(startAngle + 0.5) * s * 0.3,
             Math.cos(endAngle) * s * 0.2,
-            Math.sin(endAngle) * s * 0.2
+            Math.sin(endAngle) * s * 0.2,
           );
           ctx.stroke();
         }
-        
+
         // Floating crystal shards
         for (let sh = 0; sh < 8; sh++) {
           const shardY = -s * 0.3 - Math.sin(time * 2 + sh * 1.5) * s * 0.1;
-          const shardX = Math.cos(time * 0.5 + sh * Math.PI / 4) * s * 0.4;
+          const shardX = Math.cos(time * 0.5 + (sh * Math.PI) / 4) * s * 0.4;
           const shardSize = 8 + Math.sin(sh) * 4;
-          
+
           ctx.shadowColor = "#cc88ff";
           ctx.shadowBlur = 10;
           ctx.fillStyle = "#bb77ff";
@@ -3950,31 +4596,47 @@ function drawChunks(): void {
           ctx.shadowBlur = 0;
         }
       }
-      
+
       ctx.restore();
     }
-    
+
     // Draw rocks with ambient occlusion and highlights
     for (const rock of chunk.rocks) {
       if (Math.abs(rock.x - camera.x) > w / 2 + rock.radius * 2) continue;
       if (Math.abs(rock.y - camera.y) > h / 2 + rock.radius * 2) continue;
-      
+
       ctx.save();
       ctx.translate(rock.x, rock.y);
       ctx.rotate(rock.rotation);
-      
+
       // Ambient occlusion ring
       ctx.fillStyle = "rgba(0,0,0,0.12)";
       ctx.beginPath();
-      ctx.ellipse(0, 2, rock.radius * 1.1, rock.radius * 0.85, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        0,
+        2,
+        rock.radius * 1.1,
+        rock.radius * 0.85,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
-      
+
       // Ground shadow
       ctx.fillStyle = "rgba(0,0,0,0.3)";
       ctx.beginPath();
-      ctx.ellipse(5, 6, rock.radius * 0.85, rock.radius * 0.65, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        5,
+        6,
+        rock.radius * 0.85,
+        rock.radius * 0.65,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
-      
+
       // Extruded base (darker)
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       ctx.beginPath();
@@ -3987,13 +4649,21 @@ function drawChunks(): void {
         ctx.lineTo(2, -rock.radius * 0.85 + 3);
         ctx.lineTo(rock.radius * 0.6 + 2, -rock.radius * 0.4 + 3);
       } else if (rock.variant === 1) {
-        ctx.ellipse(2, 3, rock.radius * 0.9, rock.radius * 0.7, 0, 0, Math.PI * 2);
+        ctx.ellipse(
+          2,
+          3,
+          rock.radius * 0.9,
+          rock.radius * 0.7,
+          0,
+          0,
+          Math.PI * 2,
+        );
       } else {
         ctx.arc(2, 3, rock.radius * 0.85, 0, Math.PI * 2);
       }
       ctx.closePath();
       ctx.fill();
-      
+
       // Rock shape
       ctx.fillStyle = rock.color;
       ctx.beginPath();
@@ -4006,24 +4676,44 @@ function drawChunks(): void {
         ctx.lineTo(0, -rock.radius * 0.85);
         ctx.lineTo(rock.radius * 0.6, -rock.radius * 0.4);
       } else if (rock.variant === 1) {
-        ctx.ellipse(0, 0, rock.radius * 0.9, rock.radius * 0.7, 0, 0, Math.PI * 2);
+        ctx.ellipse(
+          0,
+          0,
+          rock.radius * 0.9,
+          rock.radius * 0.7,
+          0,
+          0,
+          Math.PI * 2,
+        );
       } else {
         ctx.arc(0, 0, rock.radius * 0.85, 0, Math.PI * 2);
       }
       ctx.closePath();
       ctx.fill();
-      
+
       // Bright highlight spot
       ctx.fillStyle = "rgba(255,255,255,0.22)";
       ctx.beginPath();
-      ctx.arc(-rock.radius * 0.25, -rock.radius * 0.3, rock.radius * 0.25, 0, Math.PI * 2);
+      ctx.arc(
+        -rock.radius * 0.25,
+        -rock.radius * 0.3,
+        rock.radius * 0.25,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
       // Secondary smaller highlight
       ctx.fillStyle = "rgba(255,255,255,0.12)";
       ctx.beginPath();
-      ctx.arc(-rock.radius * 0.1, -rock.radius * 0.15, rock.radius * 0.12, 0, Math.PI * 2);
+      ctx.arc(
+        -rock.radius * 0.1,
+        -rock.radius * 0.15,
+        rock.radius * 0.12,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
-      
+
       ctx.restore();
     }
   }
@@ -4037,7 +4727,7 @@ function drawSkidMarks(): void {
     ctx.save();
     ctx.translate(mark.x, mark.y);
     ctx.rotate(mark.angle);
-    
+
     if (mark.isTank) {
       // Tank: chunky tread marks with pattern
       ctx.fillStyle = "rgba(30, 30, 30, " + mark.alpha + ")";
@@ -4045,7 +4735,7 @@ function drawSkidMarks(): void {
       const halfL = mark.length / 2;
       ctx.fillRect(-halfW, -halfL, mark.width, mark.length);
       // Add tread pattern
-      ctx.fillStyle = "rgba(70, 70, 70, " + (mark.alpha * 0.6) + ")";
+      ctx.fillStyle = "rgba(70, 70, 70, " + mark.alpha * 0.6 + ")";
       for (let i = -halfL + 3; i < halfL; i += 8) {
         ctx.fillRect(-halfW + 2, i, mark.width - 4, 3);
       }
@@ -4059,13 +4749,15 @@ function drawSkidMarks(): void {
       ctx.lineTo(0, mark.length / 2);
       ctx.stroke();
     }
-    
+
     ctx.restore();
   }
 }
 
 function drawDriftSmoke(): void {
   for (const smoke of driftSmoke) {
+    if (Math.abs(smoke.x - camera.x) > w / 2 + smoke.size) continue;
+    if (Math.abs(smoke.y - camera.y) > h / 2 + smoke.size) continue;
     ctx.globalAlpha = smoke.alpha;
     ctx.fillStyle = "rgba(180, 160, 140, 0.8)";
     ctx.beginPath();
@@ -4075,26 +4767,32 @@ function drawDriftSmoke(): void {
   ctx.globalAlpha = 1;
 }
 
-function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2: number, h2: number, isBraking: boolean = false): void {
+function drawVehicleShape(
+  c: CanvasRenderingContext2D,
+  vehicle: VehicleType,
+  w2: number,
+  h2: number,
+  isBraking: boolean = false,
+): void {
   const bodyGrad = c.createLinearGradient(-w2 / 2, 0, w2 / 2, 0);
   bodyGrad.addColorStop(0, vehicle.colors.dark);
   bodyGrad.addColorStop(0.5, vehicle.colors.main);
   bodyGrad.addColorStop(1, vehicle.colors.dark);
 
   const extH = 5;
-  
+
   // Ground shadow for all vehicles
   c.fillStyle = "rgba(0,0,0,0.22)";
   c.beginPath();
   c.ellipse(3, 6, w2 * 0.52, h2 * 0.38, 0, 0, Math.PI * 2);
   c.fill();
-  
+
   // Extruded side (dark underside visible below body)
   c.fillStyle = "rgba(0,0,0,0.45)";
   c.beginPath();
   c.roundRect(-w2 / 2 + 2, -h2 / 2 + extH, w2, h2, 8);
   c.fill();
-  
+
   if (vehicle.id === "sedan") {
     c.fillStyle = bodyGrad;
     c.beginPath();
@@ -4103,19 +4801,18 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.strokeStyle = "rgba(0,0,0,0.4)";
     c.lineWidth = 1.5;
     c.stroke();
-    
+
     // Cabin
     c.fillStyle = vehicle.colors.dark;
     c.beginPath();
     c.roundRect(-w2 * 0.35, -h2 * 0.2, w2 * 0.7, h2 * 0.4, 5);
     c.fill();
-    
+
     // Windshield
     c.fillStyle = "#88ddff";
     c.beginPath();
     c.roundRect(-w2 * 0.28, -h2 * 0.18, w2 * 0.56, h2 * 0.12, 3);
     c.fill();
-    
   } else if (vehicle.id === "sports") {
     // Low sleek sports car
     c.fillStyle = "rgba(0,0,0,0.3)";
@@ -4126,7 +4823,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.lineTo(w2 / 2 + 4, h2 / 2 + 2);
     c.closePath();
     c.fill();
-    
+
     c.fillStyle = bodyGrad;
     c.beginPath();
     c.moveTo(-w2 / 2, h2 / 2);
@@ -4138,30 +4835,29 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.strokeStyle = "rgba(0,0,0,0.5)";
     c.lineWidth = 2;
     c.stroke();
-    
+
     // Racing stripe
     c.fillStyle = vehicle.colors.accent;
     c.fillRect(-2, -h2 / 2, 4, h2);
-    
+
     // Tiny cabin
     c.fillStyle = "#222";
     c.beginPath();
     c.roundRect(-w2 * 0.25, -h2 * 0.1, w2 * 0.5, h2 * 0.35, 4);
     c.fill();
-    
+
     // Windshield
     c.fillStyle = "#66ccff";
     c.beginPath();
     c.roundRect(-w2 * 0.2, -h2 * 0.05, w2 * 0.4, h2 * 0.12, 2);
     c.fill();
-    
   } else if (vehicle.id === "muscle") {
     // Big chunky muscle car
     c.fillStyle = "rgba(0,0,0,0.35)";
     c.beginPath();
     c.roundRect(-w2 / 2 + 4, -h2 / 2 + 4, w2, h2, 6);
     c.fill();
-    
+
     c.fillStyle = bodyGrad;
     c.beginPath();
     c.roundRect(-w2 / 2, -h2 / 2, w2, h2, 6);
@@ -4169,35 +4865,34 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.strokeStyle = "rgba(0,0,0,0.5)";
     c.lineWidth = 2;
     c.stroke();
-    
+
     // Hood bulge
     c.fillStyle = vehicle.colors.dark;
     c.beginPath();
     c.roundRect(-w2 * 0.3, -h2 * 0.45, w2 * 0.6, h2 * 0.25, 4);
     c.fill();
-    
+
     // Hood scoop
     c.fillStyle = "#111";
     c.fillRect(-w2 * 0.15, -h2 * 0.42, w2 * 0.3, h2 * 0.08);
-    
+
     // Accent stripes
     c.fillStyle = vehicle.colors.accent;
     c.fillRect(-w2 * 0.42, -h2 / 2, 6, h2);
     c.fillRect(w2 * 0.42 - 6, -h2 / 2, 6, h2);
-    
+
     // Cabin
     c.fillStyle = "#1a1a1a";
     c.beginPath();
     c.roundRect(-w2 * 0.32, -h2 * 0.12, w2 * 0.64, h2 * 0.4, 4);
     c.fill();
-    
   } else if (vehicle.id === "buggy") {
     // Small dune buggy with visible wheels
     c.fillStyle = "rgba(0,0,0,0.3)";
     c.beginPath();
     c.roundRect(-w2 / 2 + 3, -h2 / 2 + 3, w2, h2, 10);
     c.fill();
-    
+
     // Wheels (visible)
     c.fillStyle = "#222";
     c.beginPath();
@@ -4212,7 +4907,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.beginPath();
     c.ellipse(w2 * 0.4, h2 * 0.35, 8, 10, 0, 0, Math.PI * 2);
     c.fill();
-    
+
     // Body
     c.fillStyle = bodyGrad;
     c.beginPath();
@@ -4221,7 +4916,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.strokeStyle = vehicle.colors.dark;
     c.lineWidth = 2;
     c.stroke();
-    
+
     // Roll cage
     c.strokeStyle = "#333";
     c.lineWidth = 3;
@@ -4233,19 +4928,18 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.moveTo(-w2 * 0.25, -h2 * 0.1);
     c.lineTo(w2 * 0.25, -h2 * 0.1);
     c.stroke();
-    
   } else if (vehicle.id === "tank") {
     // TANK!
     c.fillStyle = "rgba(0,0,0,0.4)";
     c.beginPath();
     c.roundRect(-w2 / 2 + 5, -h2 / 2 + 5, w2, h2, 4);
     c.fill();
-    
+
     // Treads
     c.fillStyle = "#222";
     c.fillRect(-w2 / 2, -h2 / 2, w2 * 0.22, h2);
     c.fillRect(w2 / 2 - w2 * 0.22, -h2 / 2, w2 * 0.22, h2);
-    
+
     // Tread detail
     c.strokeStyle = "#111";
     c.lineWidth = 2;
@@ -4260,7 +4954,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
       c.lineTo(w2 / 2 - w2 * 0.22, ty);
       c.stroke();
     }
-    
+
     // Main body
     c.fillStyle = bodyGrad;
     c.beginPath();
@@ -4269,7 +4963,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.strokeStyle = "rgba(0,0,0,0.5)";
     c.lineWidth = 2;
     c.stroke();
-    
+
     // Turret
     c.fillStyle = vehicle.colors.dark;
     c.beginPath();
@@ -4278,7 +4972,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.strokeStyle = "#222";
     c.lineWidth = 2;
     c.stroke();
-    
+
     // Cannon
     c.fillStyle = "#333";
     c.fillRect(-4, -h2 * 0.55, 8, h2 * 0.45);
@@ -4286,20 +4980,19 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.beginPath();
     c.arc(0, -h2 * 0.55, 5, 0, Math.PI * 2);
     c.fill();
-    
+
     // Hatch
     c.fillStyle = vehicle.colors.accent;
     c.beginPath();
     c.arc(0, h2 * 0.05, 6, 0, Math.PI * 2);
     c.fill();
-    
   } else if (vehicle.id === "hotrod") {
     // Hot rod with flames
     c.fillStyle = "rgba(0,0,0,0.3)";
     c.beginPath();
     c.roundRect(-w2 / 2 + 4, -h2 / 2 + 4, w2, h2, 6);
     c.fill();
-    
+
     // Exposed engine at front
     c.fillStyle = "#333";
     c.fillRect(-w2 * 0.3, -h2 * 0.52, w2 * 0.6, h2 * 0.15);
@@ -4307,7 +5000,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.fillStyle = "#666";
     c.fillRect(-w2 * 0.25, -h2 * 0.5, w2 * 0.12, h2 * 0.1);
     c.fillRect(w2 * 0.25 - w2 * 0.12, -h2 * 0.5, w2 * 0.12, h2 * 0.1);
-    
+
     // Body
     c.fillStyle = bodyGrad;
     c.beginPath();
@@ -4316,7 +5009,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
     c.strokeStyle = "rgba(0,0,0,0.5)";
     c.lineWidth = 2;
     c.stroke();
-    
+
     // Flame decals
     c.fillStyle = vehicle.colors.accent;
     for (let i = 0; i < 3; i++) {
@@ -4336,14 +5029,14 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
       c.closePath();
       c.fill();
     }
-    
+
     // Cabin
     c.fillStyle = "#111";
     c.beginPath();
     c.roundRect(-w2 * 0.28, -h2 * 0.05, w2 * 0.56, h2 * 0.35, 4);
     c.fill();
   }
-  
+
   // Rim highlight (top edge)
   const rimGrad = c.createLinearGradient(-w2 / 2, -h2 / 2, w2 / 2, -h2 / 2);
   rimGrad.addColorStop(0, "rgba(255,255,255,0)");
@@ -4356,7 +5049,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
   c.moveTo(-w2 * 0.35, -h2 / 2 + 2);
   c.lineTo(w2 * 0.35, -h2 / 2 + 2);
   c.stroke();
-  
+
   // Headlights with glow
   c.fillStyle = "#fff";
   c.shadowColor = "#ffffaa";
@@ -4368,7 +5061,7 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
   c.ellipse(w2 * 0.3, -h2 / 2 + 6, 4, 3, 0, 0, Math.PI * 2);
   c.fill();
   c.shadowBlur = 0;
-  
+
   // Tail lights
   c.fillStyle = isBraking ? "#ff0000" : "#880000";
   if (isBraking) {
@@ -4382,9 +5075,9 @@ function drawVehicleShape(c: CanvasRenderingContext2D, vehicle: VehicleType, w2:
 
 function drawPlayerCar(): void {
   if (!player) return;
-  
+
   const vehicle = getSelectedVehicle();
-  
+
   ctx.save();
   ctx.translate(player.x, player.y);
   ctx.rotate(player.angle + Math.PI / 2 + player.driftAngle);
@@ -4392,7 +5085,7 @@ function drawPlayerCar(): void {
   const w2 = player.width;
   const h2 = player.height;
   const isBraking = player.speed > 0 && input.down;
-  
+
   drawVehicleShape(ctx, vehicle, w2, h2, isBraking);
 
   ctx.restore();
@@ -4447,7 +5140,12 @@ function drawPoliceCar(police: PoliceCar): void {
     ctx.fillRect(-2.5, -h2 / 2, 5, h2 * 0.9);
 
     // Windshield
-    const wsGrad = ctx.createLinearGradient(-w2 * 0.2, -h2 * 0.15, w2 * 0.2, -h2 * 0.05);
+    const wsGrad = ctx.createLinearGradient(
+      -w2 * 0.2,
+      -h2 * 0.15,
+      w2 * 0.2,
+      -h2 * 0.05,
+    );
     wsGrad.addColorStop(0, "#446688");
     wsGrad.addColorStop(1, "#223344");
     ctx.fillStyle = wsGrad;
@@ -4469,7 +5167,6 @@ function drawPoliceCar(police: PoliceCar): void {
     ctx.arc(w2 * 0.1, h2 * 0.01, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-
   } else if (police.enemyType === "swat") {
     // Wide armored SWAT van
     ctx.fillStyle = "#2a3a2a";
@@ -4520,7 +5217,6 @@ function drawPoliceCar(police: PoliceCar): void {
       ctx.lineTo(w2 * 0.05, h2 * 0.05);
       ctx.stroke();
     }
-
   } else {
     // Patrol car (default)
     ctx.fillStyle = COLORS.policeCar;
@@ -4536,7 +5232,12 @@ function drawPoliceCar(police: PoliceCar): void {
     ctx.fillRect(-w2 / 2 + 3, -h2 * 0.05, w2 - 6, h2 * 0.1);
 
     // Windshield with reflection
-    const wsGrad = ctx.createLinearGradient(-w2 * 0.3, -h2 * 0.34, w2 * 0.3, -h2 * 0.12);
+    const wsGrad = ctx.createLinearGradient(
+      -w2 * 0.3,
+      -h2 * 0.34,
+      w2 * 0.3,
+      -h2 * 0.12,
+    );
     wsGrad.addColorStop(0, "#445566");
     wsGrad.addColorStop(1, "#223344");
     ctx.fillStyle = wsGrad;
@@ -4597,9 +5298,22 @@ function drawExplosions(): void {
 
     if (progress < 0.2) {
       const flashSize = 70 * (1 - progress / 0.2);
-      const gradient = ctx.createRadialGradient(explosion.x, explosion.y, 0, explosion.x, explosion.y, flashSize);
-      gradient.addColorStop(0, "rgba(255, 255, 255, " + (1 - progress * 5) + ")");
-      gradient.addColorStop(0.5, "rgba(255, 200, 50, " + (0.8 - progress * 4) + ")");
+      const gradient = ctx.createRadialGradient(
+        explosion.x,
+        explosion.y,
+        0,
+        explosion.x,
+        explosion.y,
+        flashSize,
+      );
+      gradient.addColorStop(
+        0,
+        "rgba(255, 255, 255, " + (1 - progress * 5) + ")",
+      );
+      gradient.addColorStop(
+        0.5,
+        "rgba(255, 200, 50, " + (0.8 - progress * 4) + ")",
+      );
       gradient.addColorStop(1, "transparent");
       ctx.fillStyle = gradient;
       ctx.beginPath();
@@ -4727,9 +5441,81 @@ function drawComboIndicator(): void {
   ctx.restore();
 }
 
+function refreshMinimapTerrainCache(mapSize: number, scale: number): void {
+  const now = performance.now();
+  const needsResize =
+    !minimapTerrainCanvas ||
+    minimapTerrainCanvas.width !== mapSize ||
+    minimapTerrainCanvas.height !== mapSize;
+  const movedFar =
+    Math.abs(player.x - lastMinimapCenterX) > MINIMAP_MOVE_REFRESH_DISTANCE ||
+    Math.abs(player.y - lastMinimapCenterY) > MINIMAP_MOVE_REFRESH_DISTANCE;
+  const stale = now - lastMinimapTerrainRender > MINIMAP_REFRESH_MS;
+
+  if (!needsResize && !movedFar && !stale) {
+    return;
+  }
+
+  if (needsResize || !minimapTerrainCanvas || !minimapTerrainCtx) {
+    minimapTerrainCanvas = createCanvasElement(mapSize, mapSize);
+    minimapTerrainCtx = minimapTerrainCanvas.getContext("2d")!;
+  }
+
+  const c = minimapTerrainCtx!;
+  c.clearRect(0, 0, mapSize, mapSize);
+
+  for (const chunk of loadedChunks) {
+    const chunkCenterX = chunk.cx * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const chunkCenterY = chunk.cy * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const relX = chunkCenterX - player.x;
+    const relY = chunkCenterY - player.y;
+    const colors = BIOME_COLORS[chunk.biome];
+    const px = mapSize / 2 + relX * scale;
+    const py = mapSize / 2 + relY * scale;
+    const chunkSize = CHUNK_SIZE * scale;
+
+    c.fillStyle = colors.ground2;
+    c.fillRect(px - chunkSize / 2, py - chunkSize / 2, chunkSize, chunkSize);
+
+    c.strokeStyle = colors.road;
+    c.lineWidth = 2;
+    for (const road of chunk.roadSegments) {
+      c.beginPath();
+      c.moveTo(
+        mapSize / 2 + (road.x1 - player.x) * scale,
+        mapSize / 2 + (road.y1 - player.y) * scale,
+      );
+      c.lineTo(
+        mapSize / 2 + (road.x2 - player.x) * scale,
+        mapSize / 2 + (road.y2 - player.y) * scale,
+      );
+      c.stroke();
+    }
+
+    c.fillStyle = colors.water;
+    for (const lake of chunk.lakes) {
+      c.beginPath();
+      c.ellipse(
+        mapSize / 2 + (lake.x - player.x) * scale,
+        mapSize / 2 + (lake.y - player.y) * scale,
+        lake.radiusX * scale,
+        lake.radiusY * scale,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      c.fill();
+    }
+  }
+
+  lastMinimapTerrainRender = now;
+  lastMinimapCenterX = player.x;
+  lastMinimapCenterY = player.y;
+}
+
 function drawMinimap(): void {
   if (!player) return;
-  
+
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -4742,7 +5528,13 @@ function drawMinimap(): void {
   // Background
   ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
   ctx.beginPath();
-  ctx.arc(mapX + mapSize / 2, mapY + mapSize / 2, mapSize / 2 + 3, 0, Math.PI * 2);
+  ctx.arc(
+    mapX + mapSize / 2,
+    mapY + mapSize / 2,
+    mapSize / 2 + 3,
+    0,
+    Math.PI * 2,
+  );
   ctx.fill();
 
   // Clip to circle
@@ -4750,46 +5542,9 @@ function drawMinimap(): void {
   ctx.arc(mapX + mapSize / 2, mapY + mapSize / 2, mapSize / 2, 0, Math.PI * 2);
   ctx.clip();
 
-  // Draw biome colors for each chunk on minimap
-  for (const chunk of loadedChunks) {
-    const chunkCenterX = chunk.cx * CHUNK_SIZE + CHUNK_SIZE / 2;
-    const chunkCenterY = chunk.cy * CHUNK_SIZE + CHUNK_SIZE / 2;
-    
-    const relX = chunkCenterX - player.x;
-    const relY = chunkCenterY - player.y;
-    
-    const colors = BIOME_COLORS[chunk.biome];
-    ctx.fillStyle = colors.ground2;
-    
-    const px = mapX + mapSize / 2 + relX * scale;
-    const py = mapY + mapSize / 2 + relY * scale;
-    const chunkSize = CHUNK_SIZE * scale;
-    
-    ctx.fillRect(px - chunkSize / 2, py - chunkSize / 2, chunkSize, chunkSize);
-    
-    // Draw roads on minimap
-    ctx.strokeStyle = colors.road;
-    ctx.lineWidth = 2;
-    for (const road of chunk.roadSegments) {
-      const rx1 = mapX + mapSize / 2 + (road.x1 - player.x) * scale;
-      const ry1 = mapY + mapSize / 2 + (road.y1 - player.y) * scale;
-      const rx2 = mapX + mapSize / 2 + (road.x2 - player.x) * scale;
-      const ry2 = mapY + mapSize / 2 + (road.y2 - player.y) * scale;
-      ctx.beginPath();
-      ctx.moveTo(rx1, ry1);
-      ctx.lineTo(rx2, ry2);
-      ctx.stroke();
-    }
-    
-    // Draw lakes on minimap
-    ctx.fillStyle = colors.water;
-    for (const lake of chunk.lakes) {
-      const lx = mapX + mapSize / 2 + (lake.x - player.x) * scale;
-      const ly = mapY + mapSize / 2 + (lake.y - player.y) * scale;
-      ctx.beginPath();
-      ctx.ellipse(lx, ly, lake.radiusX * scale, lake.radiusY * scale, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  refreshMinimapTerrainCache(mapSize, scale);
+  if (minimapTerrainCanvas) {
+    ctx.drawImage(minimapTerrainCanvas, mapX, mapY);
   }
 
   // Police dots
@@ -4820,7 +5575,7 @@ function drawMinimap(): void {
   ctx.moveTo(playerDotX, playerDotY);
   ctx.lineTo(
     playerDotX + Math.cos(player.angle) * 12,
-    playerDotY + Math.sin(player.angle) * 12
+    playerDotY + Math.sin(player.angle) * 12,
   );
   ctx.stroke();
 
@@ -4833,65 +5588,79 @@ function drawMinimap(): void {
 
 function drawWorldCoins(): void {
   const now = performance.now();
-  for (const chunk of loadedChunks) {
-    for (const coin of chunk.coins) {
-      if (coin.collected) {
-        const elapsed = now - coin.collectTime;
-        if (elapsed < 300) {
-          const progress = elapsed / 300;
-          const scale = 1 + progress * 0.5;
-          const alpha = 1 - progress;
-          ctx.save();
-          ctx.globalAlpha = alpha;
-          ctx.translate(coin.x, coin.y);
-          ctx.scale(scale, scale);
-          drawCoinSprite(0, 0);
-          ctx.restore();
-        }
-        continue;
-      }
-      
-      const bob = Math.sin(gameTime * 0.004 + coin.bobPhase) * 3;
-      drawCoinSprite(coin.x, coin.y + bob);
+  for (const coin of loadedCoins) {
+    if (
+      Math.abs(coin.x - camera.x) > w / 2 + COIN_SIZE * 3 ||
+      Math.abs(coin.y - camera.y) > h / 2 + COIN_SIZE * 3
+    ) {
+      continue;
     }
+
+    if (coin.collected) {
+      const elapsed = now - coin.collectTime;
+      if (elapsed < 300) {
+        const progress = elapsed / 300;
+        const scale = 1 + progress * 0.5;
+        const alpha = 1 - progress;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(coin.x, coin.y);
+        ctx.scale(scale, scale);
+        drawCoinSprite(0, 0);
+        ctx.restore();
+      }
+      continue;
+    }
+
+    const bob = Math.sin(gameTime * 0.004 + coin.bobPhase) * 3;
+    drawCoinSprite(coin.x, coin.y + bob);
   }
 }
 
 function drawCoinSprite(x: number, y: number): void {
-  const r = COIN_SIZE;
-  
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
-  ctx.beginPath();
-  ctx.ellipse(x + 2, y + 4, r * 0.9, r * 0.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  
-  const grad = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, r);
-  grad.addColorStop(0, "#fff8b0");
-  grad.addColorStop(0.4, "#ffd700");
-  grad.addColorStop(0.8, "#daa520");
-  grad.addColorStop(1, "#b8860b");
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-  
-  ctx.strokeStyle = "#8b6914";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.stroke();
-  
-  ctx.strokeStyle = "#8b6914";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(x, y, r * 0.65, 0, Math.PI * 2);
-  ctx.stroke();
-  
-  ctx.fillStyle = "#8b6914";
-  ctx.font = "bold " + Math.round(r * 1.1) + "px 'Nunito', sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("$", x, y + 1);
+  if (!coinSpriteCanvas) {
+    const r = COIN_SIZE;
+    const size = r * 3;
+    coinSpriteCanvas = createCanvasElement(size, size);
+    const coinCtx = coinSpriteCanvas.getContext("2d")!;
+    const cx = size / 2;
+    const cy = size / 2;
+
+    coinCtx.fillStyle = "rgba(0,0,0,0.2)";
+    coinCtx.beginPath();
+    coinCtx.ellipse(cx + 2, cy + 4, r * 0.9, r * 0.5, 0, 0, Math.PI * 2);
+    coinCtx.fill();
+
+    const grad = coinCtx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, r);
+    grad.addColorStop(0, "#fff8b0");
+    grad.addColorStop(0.4, "#ffd700");
+    grad.addColorStop(0.8, "#daa520");
+    grad.addColorStop(1, "#b8860b");
+    coinCtx.fillStyle = grad;
+    coinCtx.beginPath();
+    coinCtx.arc(cx, cy, r, 0, Math.PI * 2);
+    coinCtx.fill();
+
+    coinCtx.strokeStyle = "#8b6914";
+    coinCtx.lineWidth = 1.5;
+    coinCtx.beginPath();
+    coinCtx.arc(cx, cy, r, 0, Math.PI * 2);
+    coinCtx.stroke();
+
+    coinCtx.lineWidth = 1;
+    coinCtx.beginPath();
+    coinCtx.arc(cx, cy, r * 0.65, 0, Math.PI * 2);
+    coinCtx.stroke();
+
+    coinCtx.fillStyle = "#8b6914";
+    coinCtx.font = "bold " + Math.round(r * 1.1) + "px 'Nunito', sans-serif";
+    coinCtx.textAlign = "center";
+    coinCtx.textBaseline = "middle";
+    coinCtx.fillText("$", cx, cy + 1);
+  }
+
+  const size = coinSpriteCanvas.width;
+  ctx.drawImage(coinSpriteCanvas, x - size / 2, y - size / 2);
 }
 
 function drawCoinPopups(): void {
@@ -4899,7 +5668,7 @@ function drawCoinPopups(): void {
     const progress = popup.time / 800;
     const alpha = 1 - progress;
     const yOff = -30 * progress;
-    
+
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.font = "bold 16px 'Bangers', cursive";

@@ -5,7 +5,7 @@
     "": {
       "name": "phaser-editor-template-vite-ts",
       "dependencies": {
-        "@fontsource/cinzel": "^5.2.8",
+        "@fontsource/open-sans": "^5.2.7",
         "@oasiz/sdk": "^1.2.0",
         "@phaserjs/editor-scripts-base": "^1.0.0",
         "phaser": "3.80.1",
@@ -69,7 +69,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.21.5", "", { "os": "win32", "cpu": "x64" }, "sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw=="],
 
-    "@fontsource/cinzel": ["@fontsource/cinzel@5.2.8", "", {}, "sha512-B9WeF/jPlOJOrcXfX96cy4KfM+s1QcU2C9W2hE3azBOBzPvzFkNpBovT5JmhAeicE/s4HZWKF9LF5hmEcqlbsw=="],
+    "@fontsource/open-sans": ["@fontsource/open-sans@5.2.7", "", {}, "sha512-8yfgDYjE5O0vmTPdrcjV35y4yMnctsokmi9gN49Gcsr0sjzkMkR97AnKDe6OqZh2SFkYlR28fxOvi21bYEgMSw=="],
 
     "@img/colour": ["@img/colour@1.1.0", "", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
 

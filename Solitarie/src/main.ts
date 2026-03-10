@@ -1,7 +1,6 @@
-import "@fontsource/cinzel/600.css";
-import "@fontsource/cinzel/700.css";
-import "@fontsource/cinzel/800.css";
-import "@fontsource/cinzel/900.css";
+import "@fontsource/open-sans/400.css";
+import "@fontsource/open-sans/700.css";
+import "@fontsource/open-sans/800.css";
 import Phaser from "phaser";
 import Level from "./scenes/Level";
 import Preload from "./scenes/Preload";
@@ -31,7 +30,11 @@ class Boot extends Phaser.Scene {
 }
 
 window.addEventListener("load", function () {
-    const resolution = window.devicePixelRatio || 1;
+    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+    const deviceResolution = window.devicePixelRatio || 1;
+    const resolution = isMobile
+        ? Math.min(deviceResolution, 1.5)
+        : Math.min(deviceResolution, 2);
     const config = {
         type: Phaser.WEBGL,
         width: 720,
@@ -42,7 +45,7 @@ window.addEventListener("load", function () {
         pixelArt: false,
         roundPixels: false,
         resolution,
-        powerPreference: "high-performance",
+        powerPreference: "default",
         parent: "game-container",
         scale: {
             mode: Phaser.Scale.RESIZE,
@@ -58,7 +61,7 @@ window.addEventListener("load", function () {
             antialias: true,
             antialiasGL: true,
             mipmapFilter: "LINEAR_MIPMAP_LINEAR",
-            powerPreference: "high-performance"
+            powerPreference: "default"
         }
     } as Phaser.Types.Core.GameConfig;
     const game = new Phaser.Game(config);

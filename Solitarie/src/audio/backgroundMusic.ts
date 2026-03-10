@@ -6,6 +6,7 @@ let currentTrackIndex = 0;
 let activeScene: Phaser.Scene | undefined;
 let activeSound: Phaser.Sound.BaseSound | undefined;
 let musicEnabled = true;
+let pendingUnlockHandler: (() => void) | undefined;
 
 function cleanupActiveSound(stopPlayback: boolean): void {
     if (!activeSound) return;
@@ -15,6 +16,12 @@ function cleanupActiveSound(stopPlayback: boolean): void {
     }
     activeSound.destroy();
     activeSound = undefined;
+}
+
+function clearPendingUnlock(): void {
+    if (!activeScene || !pendingUnlockHandler) return;
+    activeScene.sound.off(Phaser.Sound.Events.UNLOCKED, pendingUnlockHandler);
+    pendingUnlockHandler = undefined;
 }
 
 function playNextTrack(): void {
@@ -35,29 +42,39 @@ function playNextTrack(): void {
     activeSound.play();
 }
 
-export function syncBackgroundMusic(scene: Phaser.Scene, enabled: boolean): void {
+export function syncBackgroundMusic(scene: Phaser.Scene, enabled: boolean, refresh = false): void {
+    const sceneChanged = activeScene !== scene;
+    if (sceneChanged) {
+        clearPendingUnlock();
+    }
     activeScene = scene;
     musicEnabled = enabled;
 
     if (!enabled) {
+        clearPendingUnlock();
         cleanupActiveSound(true);
         return;
     }
 
     if (scene.sound.locked) {
-        scene.sound.once(Phaser.Sound.Events.UNLOCKED, () => {
-            syncBackgroundMusic(scene, enabled);
-        });
+        clearPendingUnlock();
+        pendingUnlockHandler = () => {
+            pendingUnlockHandler = undefined;
+            syncBackgroundMusic(scene, enabled, true);
+        };
+        scene.sound.once(Phaser.Sound.Events.UNLOCKED, pendingUnlockHandler);
         return;
     }
 
-    if (activeSound?.isPlaying) {
+    const shouldRestart = refresh || sceneChanged || !activeSound || !activeSound.isPlaying;
+    if (shouldRestart) {
+        cleanupActiveSound(true);
+        playNextTrack();
         return;
     }
-
-    playNextTrack();
 }
 
 export function stopBackgroundMusic(): void {
+    clearPendingUnlock();
     cleanupActiveSound(true);
 }

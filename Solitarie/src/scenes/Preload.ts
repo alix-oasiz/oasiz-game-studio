@@ -4,7 +4,7 @@
 /* START OF COMPILED CODE */
 
 /* START-USER-IMPORTS */
-import { UI_FONT_FAMILY, getUiTextResolution } from "../ui/fonts";
+import { hideHtmlText, showHtmlText } from "../ui/htmlText";
 /* END-USER-IMPORTS */
 
 export default class Preload extends Phaser.Scene {
@@ -28,22 +28,8 @@ export default class Preload extends Phaser.Scene {
 		this.add.rectangle(0, 0, w, h, 0x03110b, 0.56).setOrigin(0, 0);
 
 		const panelY = h * 0.54;
-
-		this.add.text(w * 0.5, panelY - 18, "Shuffling the deck", {
-			fontFamily: UI_FONT_FAMILY,
-			fontSize: "19px",
-			fontStyle: "700",
-			color: "#F2EDED",
-			resolution: getUiTextResolution()
-		}).setOrigin(0.5);
-
-		const percentText = this.add.text(w * 0.5, panelY + 26, "0%", {
-			fontFamily: UI_FONT_FAMILY,
-			fontSize: "34px",
-			fontStyle: "900",
-			color: "#FFFFFF",
-			resolution: getUiTextResolution()
-		}).setOrigin(0.5);
+		this.loadingPanelY = panelY;
+		this.updateLoadingHtml(0);
 
 		const dots = [w * 0.5 - 24, w * 0.5, w * 0.5 + 24].map((x) => {
 			return this.add.circle(x, panelY + 78, 5, accentColor, 0.35);
@@ -61,15 +47,41 @@ export default class Preload extends Phaser.Scene {
 				delay: index * 140
 			});
 		});
-
-		this.percentText = percentText;
+		this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+			hideHtmlText("loading-status");
+			hideHtmlText("loading-percent");
+		});
 
 		this.events.emit("scene-awake");
 	}
 
-	private percentText!: Phaser.GameObjects.Text;
-
 	/* START-USER-CODE */
+
+	private loadingPanelY = 0;
+
+	private updateLoadingHtml(progressPercent: number): void {
+		const w = this.scale.width;
+		const panelY = this.loadingPanelY || this.scale.height * 0.54;
+		showHtmlText("loading-status", {
+			text: "Shuffling the deck",
+			x: w * 0.5,
+			y: panelY - 18,
+			fontSize: 19,
+			letterSpacing: 0.4,
+			maxWidth: Math.max(240, w - 80),
+			multicolor: false,
+			strokeWidth: 2
+		});
+		showHtmlText("loading-percent", {
+			text: `${progressPercent}%`,
+			x: w * 0.5,
+			y: panelY + 26,
+			fontSize: 34,
+			letterSpacing: 0.6,
+			multicolor: false,
+			strokeWidth: 3
+		});
+	}
 
 	private preloadCardAssets() {
 		// Use Vite's native bundler glob import to process all cards.
@@ -139,11 +151,13 @@ export default class Preload extends Phaser.Scene {
 		this.preloadCardAssets();
 
 		this.load.on("progress", (value: number) => {
-			this.percentText.setText(`${Math.round(value * 100)}%`);
+			this.updateLoadingHtml(Math.round(value * 100));
 		});
 	}
 
 	create() {
+		hideHtmlText("loading-status");
+		hideHtmlText("loading-percent");
 
 		if (process.env.NODE_ENV === "development") {
 
