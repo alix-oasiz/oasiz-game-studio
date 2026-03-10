@@ -619,6 +619,15 @@ async function init(): Promise<void> {
     syncDemoTouchLayoutForState();
     startUI.resetStartButtons(false);
     startUI.setBeforeAction(null);
+    // teardown() already moved the game to START via leaveGame(), so the normal
+    // phase-change path skipped queueDemoStartupAfterIntro (demoController was
+    // still non-null at that point). No title intro will replay, so clear the
+    // intro-wait flags and kick off the attract directly.
+    waitingForStartIntroAudioCompletion = false;
+    waitingForStartIntroVisualCompletion = false;
+    clearStartMenuMusicTimer();
+    queueDemoStartupAfterIntro(false);
+    startPendingDemoStartupAfterIntro();
   }
 
   async function teardownDemoForAction(): Promise<void> {
@@ -912,8 +921,10 @@ async function init(): Promise<void> {
     syncPlatformGameplayActivity();
     demoOverlay.showTutorial(viewport.isMobile);
     if (!isPlatform) {
-      demoOverlay.showExitButton(() => leaveModal.openLeaveModal());
+      demoOverlay.showExitButton(() => leaveModal.openLeaveModal("TUTORIAL_LEAVE"));
     }
+    demoOverlay.showSkipTutorialButton(() => demoOverlay?.triggerTutorialComplete());
+    demoOverlay.showSettingsButton(() => settingsUI.openSettingsModal());
   }
 
   startUI.setOnHowToPlay(async () => {

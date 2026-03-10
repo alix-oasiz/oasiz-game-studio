@@ -146,4 +146,6 @@ export const elements = {
   demoTutorialDiagram: getElement<HTMLElement>("demoTutorialDiagram"),
   demoTutorialDialogue: getElement<HTMLElement>("demoTutorialDialogue"),
   demoTutorialSkip: getElement<HTMLButtonElement>("demoTutorialSkip"),
+  demoSettingsBtn: getElement<HTMLButtonElement>("demoSettingsBtn"),
+  demoSkipTutorialBtn: getElement<HTMLButtonElement>("demoSkipTutorialBtn"),
 } as const;

@@ -31,6 +31,107 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-10 - GCP Cloud Build config + repo integration
+
+- Scope:
+  - Renamed `astro-party` → `space-force` in Cloud Build config, moved it into the repo, stripped redundant fields. Files: `space-force/cloudbuild.yaml`.
+- Key changes:
+  - Created `space-force/cloudbuild.yaml` with corrected build context (`space-force`) and Dockerfile path (`space-force/server/Dockerfile`).
+  - Dropped inline `substitutions` block (values managed in GCP portal), `_TRIGGER_ID` default, `tags`, and `substitutionOption: ALLOW_LOOSE`.
+  - GCP trigger: file filter set to `space-force/server/**`, `space-force/shared/**`, `space-force/cloudbuild.yaml`.
+- Outcome:
+  - Cloud Build trigger now picks up config from repo; only rebuilds on server/shared/config changes.
+
+## 2026-03-10 - Branch rebase onto upstream main
+
+- Scope:
+  - Synced local `main` to `upstream/main` (was 109 commits behind), rebased `space-force-dev` (129 commits) on top. Files: `.gitignore`.
+- Key changes:
+  - Reset `main` worktree (`I:/Repos/Oasiz/oasiz-game-studio`) to `upstream/main` via `git reset --hard`.
+  - Rebased `space-force-dev` with `git rebase -X ours main` — single `.gitignore` conflict resolved by keeping upstream's comprehensive asset patterns.
+  - Restored space-force-specific `.gitignore` entries post-rebase: asset overrides, tooling ignores, `observed-runs` partial-track rules.
+- Validation:
+  - `bun run typecheck`: clean. Force-pushed to `origin/space-force-dev`.
+- Outcome:
+  - `space-force-dev` is 130 commits ahead of main, 0 behind.
+
+## 2026-03-10 - Rebase code-drop recovery (`-X ours` casualties)
+
+- Scope:
+  - `git rebase -X ours` silently dropped code in two files. Files: `src/ui/startScreen.ts`, `src/main.ts`.
+- Root cause:
+  - `startScreen.ts`: entire block of closure variables and helpers (`beforeAction`, `onActionCommit`, `startActionInFlight`, `setStartActionLock`, `isSecondaryTapGuardBlocked`, `getInjectedPlayerName`, etc.) dropped during conflict resolution — `isPlatform` reference was left dangling.
+  - `main.ts`: single line `if (demoController?.isDemoActive()) return;` dropped from `onCountdownUpdate`.
+- Validation:
+  - `bun run typecheck`: clean post-fix. Full repo diff against backup branch confirmed only these two files were affected.
+- Outcome:
+  - Both files restored from backup branch. No other casualties.
+
+## 2026-03-10 - Tutorial leave button: wrong modal context
+
+- Scope:
+  - Non-platform exit button during tutorial called `leaveModal.openLeaveModal()` with no argument → defaulted to `"MATCH_LEAVE"` → on confirm called `game.leaveGame()` instead of `teardownDemoAndShowMenu()`. File: `src/main.ts`.
+- Root cause:
+  - `showExitButton` callback was missing the `"TUTORIAL_LEAVE"` context argument.
+- Key changes:
+  - `src/main.ts` line ~915: `leaveModal.openLeaveModal()` → `leaveModal.openLeaveModal("TUTORIAL_LEAVE")`.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Confirm dialog now says "Leave Tutorial?" and routes to `teardownDemoAndShowMenu` on confirm.
+
+## 2026-03-10 - Tutorial leave: background attract did not restart
+
+- Scope:
+  - After leaving the tutorial via exit button, the dark attract cover stayed opaque and the background sim never restarted. File: `src/main.ts`.
+- Root cause:
+  - `teardownDemoAndShowMenu` calls `demoController.teardown()` which calls `game.leaveGame()`, transitioning phase PLAYING→START while `demoController` is still non-null. Phase handler's `queueDemoStartupAfterIntro` guard (`demoController === null`) therefore skipped the requeue. Subsequent `syncAudioToPhase` set `waitingForStartIntroVisualCompletion = true`; since no title intro replays after tutorial exit, `onIntroVisualComplete` never fired to clear it, blocking `startPendingDemoStartupAfterIntro`.
+- Key changes:
+  - End of `teardownDemoAndShowMenu`: clear both intro-wait flags, cancel stale music timer, call `queueDemoStartupAfterIntro(false)` + `startPendingDemoStartupAfterIntro()` directly.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Attract cover fades out and background sim restarts correctly after leaving tutorial.
+
+## 2026-03-10 - Tutorial: settings button + modal wiring
+
+- Scope:
+  - Settings were inaccessible during tutorial (start screen hidden, `settingsBtn` at z-60 buried under tutorial overlay at z-500). Files: `index.html`, `src/ui/elements.ts`, `src/demo/DemoOverlayUI.ts`, `src/main.ts`.
+- Key changes:
+  - Added `demoSettingsBtn` (fixed, z-600, top-right, same styling as `settingsBtn`) to HTML.
+  - Moved `#settingsBackdrop`/`#settingsModal` and `#advancedSettingsBackdrop`/`#advancedSettingsModal` outside `#game-wrapper` so their z-index participates in root stacking context (same fix pattern as leave modal).
+  - `DemoOverlayUI`: added `showSettingsButton(onOpenSettings)`, hides in `hideAll()`.
+  - `main.ts` `triggerAutoTutorial`: calls `demoOverlay.showSettingsButton(() => settingsUI.openSettingsModal())` (non-platform only).
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Gear icon visible top-right during tutorial; settings modal renders above captain dialog; cleans up correctly on tutorial exit/complete.
+
+## 2026-03-11 - Tutorial: skip + settings incorrectly gated to non-platform
+
+- Scope:
+  - Skip and settings buttons were both wrapped in `!isPlatform` guard with no basis. File: `src/main.ts`.
+- What went wrong:
+  - Assumed platform manages settings at the OS level (no evidence for this anywhere in code or docs). Also conflated skip (forward action → gameplay) with exit (backward action → menu) and assumed they shared the same platform gating rationale.
+- Fix:
+  - Only the exit button remains `!isPlatform` (platform has back gesture for that). Skip and settings are now shown unconditionally during tutorial.
+- Validation:
+  - `bun run typecheck`: clean.
+
+## 2026-03-10 - Tutorial: skip button
+
+- Scope:
+  - Added a "Skip »" button next to the settings button during tutorial that immediately promotes to live gameplay. Files: `index.html`, `src/ui/elements.ts`, `src/demo/DemoOverlayUI.ts`, `src/main.ts`.
+- Key changes:
+  - Added `demoSkipTutorialBtn` (fixed, z-600, top-right left of settings button, pill-shaped) to HTML.
+  - `DemoOverlayUI`: added `triggerTutorialComplete()` (calls `hideAll()` + `onTutorialComplete` callback), `showSkipTutorialButton(onSkip)`, hides in `hideAll()`.
+  - `main.ts` `triggerAutoTutorial`: calls `demoOverlay.showSkipTutorialButton(() => demoOverlay?.triggerTutorialComplete())` (non-platform only).
+  - No confirmation modal — skip moves forward into gameplay, not backward.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - "Skip »" visible at any tutorial stage; click immediately enters gameplay. Disappears on skip, complete, or leave.
+
 ## 2026-03-09 - Tutorial leave modal layering + back button fix
 
 - Scope:

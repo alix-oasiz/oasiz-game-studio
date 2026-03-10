@@ -2856,6 +2856,63 @@
       display: none;
     }
 
+    .demo-settings-btn {
+      position: fixed;
+      top: calc(var(--box-top) + var(--hud-top-pad));
+      right: var(--hud-side-gap);
+      z-index: 600;
+      width: 42px;
+      height: 42px;
+      background: rgba(10, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .demo-settings-btn:hover {
+      background: var(--bg-panel);
+    }
+    .demo-settings-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: #fff;
+    }
+    .demo-settings-btn.hidden {
+      display: none;
+    }
+
+    .demo-skip-tutorial-btn {
+      position: fixed;
+      top: calc(var(--box-top) + var(--hud-top-pad));
+      right: calc(var(--hud-side-gap) + 42px + 8px);
+      z-index: 600;
+      height: 42px;
+      padding: 0 14px;
+      background: rgba(10, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 21px;
+      color: rgba(255, 255, 255, 0.75);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .demo-skip-tutorial-btn:hover {
+      background: var(--bg-panel);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    .demo-skip-tutorial-btn.hidden {
+      display: none;
+    }
+
     .demo-start-playing-btn {
       align-self: stretch;
       background: rgba(0,240,255,0.12) !important;
@@ -4211,7 +4268,52 @@
     </div>
   </div>
 
-  <!-- Settings Modal -->
+  <!-- Key Selection Modal (for local players) -->
+  <div class="settings-backdrop" id="keySelectBackdrop"></div>
+  <div class="settings-modal" id="keySelectModal">
+    <h3 class="settings-title">Select Controls</h3>
+    <p style="color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 1rem; font-size: 0.9rem;">Choose keyboard controls for the local player</p>
+    <div class="key-options" id="keyOptions">
+      <button class="key-option" data-slot="1">
+        <span class="key-name">Arrows</span>
+        <span class="key-hint">Left: rotate | Right: fire</span>
+      </button>
+      <button class="key-option" data-slot="2">
+        <span class="key-name">IJKL</span>
+        <span class="key-hint">J: rotate | L: fire</span>
+      </button>
+      <button class="key-option" data-slot="3">
+        <span class="key-name">Numpad</span>
+        <span class="key-hint">4: rotate | 6: fire</span>
+      </button>
+    </div>
+    <button class="btn secondary" id="keySelectCancel" style="margin-top: 1rem;">Cancel</button>
+  </div>
+
+  <!-- Local Player Hints (shown during game) -->
+    <!-- Mobile Controls (single-player online) -->
+    <div class="mobile-controls" id="mobileControls">
+    <div class="control-zone control-zone-left" id="control-zone-left">
+      <div class="zone-label">
+        ROTATE
+        <div class="zone-hint">hold to turn | double-tap: dodge</div>
+      </div>
+    </div>
+    <div class="control-zone control-zone-right" id="control-zone-right">
+      <div class="zone-label">
+        FIRE
+        <div class="zone-hint">recoil pushes you back</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fades out to reveal attract game once it's running -->
+  <div id="attractCover"></div>
+
+  </div><!-- /game-wrapper -->
+
+  <!-- Settings + Advanced Settings Modals — OUTSIDE game-wrapper so z-index
+       participates in root stacking context and beats tutorial overlay (z-500). -->
   <div class="settings-backdrop" id="settingsBackdrop"></div>
   <div class="settings-modal" id="settingsModal">
     <h3 class="settings-title">Settings</h3>
@@ -4241,7 +4343,6 @@
       <button class="btn settings-close" id="settingsClose">Done</button>
     </div>
   </div>
-  <!-- Advanced Settings Modal -->
   <div class="settings-backdrop" id="advancedSettingsBackdrop"></div>
   <div class="settings-modal advanced-settings-modal" id="advancedSettingsModal">
     <div class="advanced-settings-header">
@@ -4315,50 +4416,6 @@
     <button class="btn settings-close" id="advancedSettingsDone">Done</button>
   </div>
 
-  <!-- Key Selection Modal (for local players) -->
-  <div class="settings-backdrop" id="keySelectBackdrop"></div>
-  <div class="settings-modal" id="keySelectModal">
-    <h3 class="settings-title">Select Controls</h3>
-    <p style="color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 1rem; font-size: 0.9rem;">Choose keyboard controls for the local player</p>
-    <div class="key-options" id="keyOptions">
-      <button class="key-option" data-slot="1">
-        <span class="key-name">Arrows</span>
-        <span class="key-hint">Left: rotate | Right: fire</span>
-      </button>
-      <button class="key-option" data-slot="2">
-        <span class="key-name">IJKL</span>
-        <span class="key-hint">J: rotate | L: fire</span>
-      </button>
-      <button class="key-option" data-slot="3">
-        <span class="key-name">Numpad</span>
-        <span class="key-hint">4: rotate | 6: fire</span>
-      </button>
-    </div>
-    <button class="btn secondary" id="keySelectCancel" style="margin-top: 1rem;">Cancel</button>
-  </div>
-
-  <!-- Local Player Hints (shown during game) -->
-    <!-- Mobile Controls (single-player online) -->
-    <div class="mobile-controls" id="mobileControls">
-    <div class="control-zone control-zone-left" id="control-zone-left">
-      <div class="zone-label">
-        ROTATE
-        <div class="zone-hint">hold to turn | double-tap: dodge</div>
-      </div>
-    </div>
-    <div class="control-zone control-zone-right" id="control-zone-right">
-      <div class="zone-label">
-        FIRE
-        <div class="zone-hint">recoil pushes you back</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Fades out to reveal attract game once it's running -->
-  <div id="attractCover"></div>
-
-  </div><!-- /game-wrapper -->
-
   <!-- Leave Confirmation Modal — OUTSIDE game-wrapper so z-index participates in
        the root stacking context and beats the tutorial overlay (z-500). -->
   <div class="settings-backdrop" id="leaveBackdrop"></div>
@@ -4399,6 +4456,12 @@
 
   <!-- Demo Exit Button — shown after "Start Playing" so player can leave free-play -->
   <button id="demoExitBtn" class="demo-exit-btn hidden">Exit Demo</button>
+
+  <!-- Demo Skip + Settings Buttons — shown during tutorial -->
+  <button id="demoSkipTutorialBtn" class="demo-skip-tutorial-btn hidden">Skip &#187;</button>
+  <button id="demoSettingsBtn" class="demo-settings-btn hidden" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
 
   <!-- Demo Player Intro Overlay — "your ship" spotlight + zoom -->
   <div id="demoPlayerIntroOverlay" class="demo-overlay hidden demo-player-intro-overlay">

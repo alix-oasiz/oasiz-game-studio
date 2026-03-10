@@ -33,6 +33,8 @@ export class DemoOverlayUI {
   private tutorialDialogue: HTMLElement;
   private tutorialSkip: HTMLButtonElement;
   private exitBtn: HTMLButtonElement;
+  private settingsBtn: HTMLButtonElement;
+  private skipTutorialBtn: HTMLButtonElement;
 
   // Spotlight (player-intro overlay) elements
   private spotlightOverlay: HTMLElement;
@@ -81,6 +83,12 @@ export class DemoOverlayUI {
     this.exitBtn = document.getElementById(
       "demoExitBtn",
     ) as HTMLButtonElement;
+    this.settingsBtn = document.getElementById(
+      "demoSettingsBtn",
+    ) as HTMLButtonElement;
+    this.skipTutorialBtn = document.getElementById(
+      "demoSkipTutorialBtn",
+    ) as HTMLButtonElement;
     this.spotlightOverlay = document.getElementById(
       "demoPlayerIntroOverlay",
     )!;
@@ -126,6 +134,35 @@ export class DemoOverlayUI {
     });
   }
 
+  /** Fires the tutorial complete callback immediately — used by the skip button. */
+  triggerTutorialComplete(): void {
+    this.hideAll();
+    this.callbacks?.onTutorialComplete();
+  }
+
+  /** Shows the Skip Tutorial button (top-right, left of settings) during tutorial. */
+  showSkipTutorialButton(onSkip: () => void): void {
+    this.skipTutorialBtn.classList.remove("hidden");
+    const fresh = this.skipTutorialBtn.cloneNode(true) as HTMLButtonElement;
+    this.skipTutorialBtn.parentNode?.replaceChild(fresh, this.skipTutorialBtn);
+    this.skipTutorialBtn = fresh;
+    this.skipTutorialBtn.addEventListener("click", () => {
+      onSkip();
+    });
+  }
+
+  /** Shows the Settings button (top-right) during tutorial. */
+  showSettingsButton(onOpenSettings: () => void): void {
+    this.settingsBtn.classList.remove("hidden");
+    // Clone to remove any prior click listeners
+    const fresh = this.settingsBtn.cloneNode(true) as HTMLButtonElement;
+    this.settingsBtn.parentNode?.replaceChild(fresh, this.settingsBtn);
+    this.settingsBtn = fresh;
+    this.settingsBtn.addEventListener("click", () => {
+      onOpenSettings();
+    });
+  }
+
   /** Waits for the centered tutorial action button to advance the dialog. */
   private waitForNextButton(): Promise<void> {
     return new Promise((resolve) => {
@@ -140,6 +177,8 @@ export class DemoOverlayUI {
     this.tutorialOverlay.classList.add("hidden");
     this.hideTutorialActionButton();
     this.exitBtn.classList.add("hidden");
+    this.settingsBtn.classList.add("hidden");
+    this.skipTutorialBtn.classList.add("hidden");
     this.cancelTypewriter?.();
     AudioManager.stopCue("CAPTAIN_SPEECH");
     this.tutorialRunning = false;
