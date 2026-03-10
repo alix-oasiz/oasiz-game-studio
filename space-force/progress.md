@@ -31,6 +31,19 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-11 - Map picker: all maps available in all modes + rename to "Random"
+
+- Scope:
+  - "The Cache" (map 1) was blocked in endless mode; map 0 was labelled "Classic Rotation". Files: `shared/sim/maps.ts`, `shared/sim/SpaceForceSimulation.ts`, `src/ui/lobby.ts`.
+- Key changes:
+  - `maps.ts`: map 0 name "Classic Rotation" → "Random". Removed `ENDLESS_ALLOWED_MAP_IDS` export and the per-ruleset branch in `isMapAllowedForRuleset` — all maps now allowed for all rulesets.
+  - `SpaceForceSimulation.ts`: `rotateToRandomMap()` rotation pool simplified to `CLASSIC_ROTATION_MAP_IDS` (no endless filter). Removed unused `ENDLESS_ALLOWED_MAP_IDS` import.
+  - `lobby.ts`: `mapBehaviorLabel` for map 0 — round mode: "Rotates each round", endless mode: "Random map for the match" (random picks once at match start; no round transitions in endless).
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - All 5 arena maps selectable in both endless and round modes. Random rotation option labelled "Random".
+
 ## 2026-03-11 - Tutorial: respawn player ship on tutorial start
 
 - Scope:

@@ -732,7 +732,7 @@ export function createLobbyUI(
   function mapBehaviorLabel(mapId: MapId): string {
     if (mapId === 0) {
       return game.getRuleset() === "ENDLESS_RESPAWN"
-        ? "Rotates endless-compatible maps"
+        ? "Random map for the match"
         : "Rotates each round";
     }
     return "Fixed for this match";

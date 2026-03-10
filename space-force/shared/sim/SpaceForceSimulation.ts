@@ -55,7 +55,6 @@ import {
 import {
   getMapDefinition,
   CLASSIC_ROTATION_MAP_IDS,
-  ENDLESS_ALLOWED_MAP_IDS,
   isMapAllowedForContext,
   type MapDefinition,
 } from "./maps.js";
@@ -767,12 +766,7 @@ export class SpaceForceSimulation implements SimState {
 
   rotateToRandomMap(): void {
     const previousMapId = this.mapId;
-    const rotationPool =
-      this.ruleset === "ENDLESS_RESPAWN"
-        ? CLASSIC_ROTATION_MAP_IDS.filter((id) =>
-            ENDLESS_ALLOWED_MAP_IDS.includes(id),
-          )
-        : CLASSIC_ROTATION_MAP_IDS;
+    const rotationPool = CLASSIC_ROTATION_MAP_IDS;
     const otherMaps = rotationPool.filter(
       (id) => id !== previousMapId,
     );

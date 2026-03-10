@@ -69,7 +69,7 @@ const H = ARENA_HEIGHT;
 
 const MAP_0_CLASSIC_ROTATION: MapDefinition = {
   id: 0,
-  name: "Classic Rotation",
+  name: "Random",
   description: "Random map each round",
   yellowBlocks: [],
   centerHoles: [],
@@ -243,7 +243,6 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
 
 export const ALL_MAP_IDS: MapId[] = [0, 1, 2, 3, 4, 5];
 export const CLASSIC_ROTATION_MAP_IDS: MapId[] = [1, 2, 3, 4, 5];
-export const ENDLESS_ALLOWED_MAP_IDS: MapId[] = [0, 2, 3, 4, 5];
 
 export function getMapDefinition(id: MapId): MapDefinition {
   return MAP_DEFINITIONS[id];
@@ -251,11 +250,8 @@ export function getMapDefinition(id: MapId): MapDefinition {
 
 export function isMapAllowedForRuleset(
   mapId: MapId,
-  ruleset: Ruleset,
+  _ruleset: Ruleset,
 ): boolean {
-  if (ruleset === "ENDLESS_RESPAWN") {
-    return ENDLESS_ALLOWED_MAP_IDS.includes(mapId);
-  }
   return ALL_MAP_IDS.includes(mapId);
 }
 export function isMapAllowedForContext(
