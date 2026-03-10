@@ -97,9 +97,14 @@ export default class Level extends Phaser.Scene {
 	private aceStreak: number = 0;
 	private stuckGuardAnchor: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
 	private stuckGuardTimer: number = 0;
+	private launchSettleAnchor: Phaser.Math.Vector2 = new Phaser.Math.Vector2(0, 0);
+	private launchSettleTimer: number = 0;
 	private readonly STUCK_GUARD_MOVE_THRESHOLD = 16;
 	private readonly STUCK_GUARD_SPEED_THRESHOLD = 1.35;
 	private readonly STUCK_GUARD_TRIGGER_MS = 4000;
+	private readonly LAUNCH_SETTLE_SPEED_THRESHOLD = 0.42;
+	private readonly LAUNCH_SETTLE_MOVE_THRESHOLD = 2.5;
+	private readonly LAUNCH_SETTLE_TRIGGER_MS = 180;
 	private readonly DRAG_REDRAW_DISTANCE_SQ = 4;
 	private readonly MIN_SHOT_DRAG_DISTANCE = 12;
 	private readonly MAX_DRAG_DISTANCE = 150;
@@ -157,6 +162,42 @@ export default class Level extends Phaser.Scene {
 		const nextAnchor = anchor ?? this.getBallPos();
 		this.stuckGuardAnchor.set(nextAnchor.x, nextAnchor.y);
 		this.stuckGuardTimer = 0;
+	}
+
+	private resetLaunchSettle(anchor?: { x: number, y: number }): void {
+		const nextAnchor = anchor ?? this.getBallPos();
+		this.launchSettleAnchor.set(nextAnchor.x, nextAnchor.y);
+		this.launchSettleTimer = 0;
+	}
+
+	private settleBallForLaunch(ballPos: { x: number, y: number }, speed: number, delta: number): number {
+		if (!this.ballBodyId || !this.hasFiredShot || this.isGameOver || this.data.get('isWon') || this.isTransitioning) {
+			this.resetLaunchSettle(ballPos);
+			return speed;
+		}
+
+		const displacement = Phaser.Math.Distance.Between(
+			ballPos.x,
+			ballPos.y,
+			this.launchSettleAnchor.x,
+			this.launchSettleAnchor.y
+		);
+
+		if (speed > this.LAUNCH_SETTLE_SPEED_THRESHOLD || displacement > this.LAUNCH_SETTLE_MOVE_THRESHOLD) {
+			this.resetLaunchSettle(ballPos);
+			return speed;
+		}
+
+		this.launchSettleTimer += delta;
+		if (this.launchSettleTimer < this.LAUNCH_SETTLE_TRIGGER_MS) {
+			return speed;
+		}
+
+		b2Body_SetLinearVelocity(this.ballBodyId, new b2Vec2(0, 0));
+		b2Body_SetAngularVelocity(this.ballBodyId, 0);
+		this.ballMoving = false;
+		this.resetLaunchSettle(ballPos);
+		return 0;
 	}
 
 	private handleStuckBall(): void {
@@ -894,6 +935,7 @@ export default class Level extends Phaser.Scene {
 			this.shotsRemaining--;
 			this.hasFiredShot = true;
 			this.resetStuckGuard(ballPos);
+			this.resetLaunchSettle(ballPos);
 			this.hideTutorial();
 			this.updateShotVisuals();
 			this.playSFX('HitBall', 2.5);
@@ -1184,7 +1226,7 @@ export default class Level extends Phaser.Scene {
 		this.drawAimReadyIndicator(delta);
 
 		// Get velocity info
-		const speed = this.getBallSpeed();
+		let speed = this.getBallSpeed();
 
 		// --- Bounce detection via velocity change ---
 		// Don't count impacts inside the hole (walls/floor) — they'd kill every ace
@@ -1244,6 +1286,11 @@ export default class Level extends Phaser.Scene {
 		}
 
 		// Ball is "moving" when velocity is perceptible
+		this.ballMoving = speed > 0.3;
+
+		// Contact jitter can leave the ball visually stuck but still technically moving.
+		// Snap tiny pinned motion to rest quickly so the next drag can start reliably.
+		speed = this.settleBallForLaunch(ballPos, speed, delta);
 		this.ballMoving = speed > 0.3;
 
 		// Force-stop a crawling ball so it becomes interactable for the next shot
@@ -1786,6 +1833,7 @@ export default class Level extends Phaser.Scene {
 		this.oscillationDetected = false;
 		this.prevBallSpeed = 0;
 		this.resetStuckGuard(this.spawnPoint);
+		this.resetLaunchSettle(this.spawnPoint);
 		b2Body_SetLinearDamping(this.ballBodyId, 0.03);
 	}
 

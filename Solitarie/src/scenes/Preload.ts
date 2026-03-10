@@ -4,6 +4,7 @@
 /* START OF COMPILED CODE */
 
 /* START-USER-IMPORTS */
+import { UI_FONT_FAMILY, getUiTextResolution } from "../ui/fonts";
 /* END-USER-IMPORTS */
 
 export default class Preload extends Phaser.Scene {
@@ -19,45 +20,29 @@ export default class Preload extends Phaser.Scene {
 	editorCreate(): void {
 		const w = this.scale.width;
 		const h = this.scale.height;
-		const accentColor = Phaser.Display.Color.HexStringToColor("#00A1E4").color;
+		const accentColor = Phaser.Display.Color.HexStringToColor("#B3131B").color;
 
 		const bg = this.add.image(w * 0.5, h * 0.5, "table_bg");
 		bg.setDisplaySize(w, h);
 
 		this.add.rectangle(0, 0, w, h, 0x03110b, 0.56).setOrigin(0, 0);
 
-		const panelW = Math.min(w - 36, 420);
-		const panelH = 220;
-		const panelY = h * 0.58;
+		const panelY = h * 0.54;
 
-		const panel = this.add.graphics();
-		panel.fillStyle(0x07110d, 0.9);
-		panel.fillRoundedRect(w * 0.5 - panelW / 2, panelY - panelH / 2, panelW, panelH, 28);
-		panel.lineStyle(2, accentColor, 0.95);
-		panel.strokeRoundedRect(w * 0.5 - panelW / 2, panelY - panelH / 2, panelW, panelH, 28);
-
-		const title = this.add.text(w * 0.5, panelY - 62, "SOLITAIRE", {
-			fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-			fontSize: "42px",
-			fontStyle: "900",
-			color: "#FFFFFF",
-			resolution: 2
-		}).setOrigin(0.5);
-
-		const subtitle = this.add.text(w * 0.5, panelY - 18, "Shuffling the deck", {
-			fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-			fontSize: "18px",
+		this.add.text(w * 0.5, panelY - 18, "Shuffling the deck", {
+			fontFamily: UI_FONT_FAMILY,
+			fontSize: "19px",
 			fontStyle: "700",
-			color: "#BFE9FA",
-			resolution: 2
+			color: "#F2EDED",
+			resolution: getUiTextResolution()
 		}).setOrigin(0.5);
 
 		const percentText = this.add.text(w * 0.5, panelY + 26, "0%", {
-			fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-			fontSize: "32px",
+			fontFamily: UI_FONT_FAMILY,
+			fontSize: "34px",
 			fontStyle: "900",
 			color: "#FFFFFF",
-			resolution: 2
+			resolution: getUiTextResolution()
 		}).setOrigin(0.5);
 
 		const dots = [w * 0.5 - 24, w * 0.5, w * 0.5 + 24].map((x) => {
@@ -77,16 +62,6 @@ export default class Preload extends Phaser.Scene {
 			});
 		});
 
-		this.tweens.add({
-			targets: title,
-			scaleX: 1.02,
-			scaleY: 1.02,
-			duration: 1500,
-			yoyo: true,
-			repeat: -1,
-			ease: "Sine.inOut"
-		});
-
 		this.percentText = percentText;
 
 		this.events.emit("scene-awake");
@@ -100,11 +75,11 @@ export default class Preload extends Phaser.Scene {
 		// Use Vite's native bundler glob import to process all cards.
 		// This forces Vite to include them in the bundle mapping with their hashed URLs.
 		// The Oasiz CDN uploader reliably picks these up and rewrites them into CDN paths.
-		const cardImages = import.meta.glob('/public/assets/cards/*.png', { eager: true, query: '?url', import: 'default' });
+		const cardImages = import.meta.glob('/public/assets-mobile-70x100/cards/*.png', { eager: true, query: '?url', import: 'default' });
 
 		for (const path in cardImages) {
 			const url = cardImages[path] as string;
-			// path looks like: "/public/assets/cards/Clover_10.png"
+			// path looks like: "/public/assets-mobile-70x100/cards/Clover_10.png"
 			const filename = path.split('/').pop(); // "Clover_10.png"
 			if (filename) {
 				const parts = filename.replace('.png', '').split('_');
@@ -122,26 +97,30 @@ export default class Preload extends Phaser.Scene {
 		}
 
 		// Process background in the same way with new URL 
-		const bgUrl = new URL('../../public/assets/bg/table-bg.png', import.meta.url).href;
+		const bgUrl = new URL('../../public/assets-mobile-70x100/bg/table-bg.png', import.meta.url).href;
 		this.load.image("table_bg", bgUrl);
 
-		const shuffleUrl = new URL('../../public/assets/audio/shuffle.mp3', import.meta.url).href;
+		const shuffleUrl = new URL('../../assets/audio/shuffle.mp3', import.meta.url).href;
 		this.load.audio("shuffle_draw", shuffleUrl);
-		const cardPickUrl = new URL('../../public/assets/audio/card-pick.mp3', import.meta.url).href;
+		const cardPickUrl = new URL('../../assets/audio/card-pick.mp3', import.meta.url).href;
 		this.load.audio("card_pick", cardPickUrl);
-		const cardDropUrl = new URL('../../public/assets/audio/card-drop.mp3', import.meta.url).href;
+		const cardDropUrl = new URL('../../assets/audio/card-drop.mp3', import.meta.url).href;
 		this.load.audio("card_drop", cardDropUrl);
-		const foundationSuccessUrl = new URL('../../public/assets/audio/foundation-success.mp3', import.meta.url).href;
+		const foundationSuccessUrl = new URL('../../assets/audio/foundation-success.mp3', import.meta.url).href;
 		this.load.audio("foundation_success", foundationSuccessUrl);
-		const uiButtonUrl = new URL('../../public/assets/audio/ui-button.mp3', import.meta.url).href;
+		const uiButtonUrl = new URL('../../assets/audio/ui-button.mp3', import.meta.url).href;
 		this.load.audio("ui_button", uiButtonUrl);
-		const bgTrack1Url = new URL('../../public/assets/audio/bg-track-1.mp3', import.meta.url).href;
+		const scoreCountTickUrl = new URL('../../assets/audio/score-count-tick.mp3', import.meta.url).href;
+		this.load.audio("score_count_tick", scoreCountTickUrl);
+		const victoryFinalUrl = new URL('../../assets/audio/victory-final.mp3', import.meta.url).href;
+		this.load.audio("victory_final", victoryFinalUrl);
+		const bgTrack1Url = new URL('../../assets/audio/bg-track-1.mp3', import.meta.url).href;
 		this.load.audio("bg_track_1", bgTrack1Url);
-		const bgTrack2Url = new URL('../../public/assets/audio/bg-track-2.mp3', import.meta.url).href;
+		const bgTrack2Url = new URL('../../assets/audio/bg-track-2.mp3', import.meta.url).href;
 		this.load.audio("bg_track_2", bgTrack2Url);
 
 		// Load all backgrounds from the Background directory
-		const backgroundImages = import.meta.glob('/public/assets/Background/*.png', { eager: true, query: '?url', import: 'default' });
+		const backgroundImages = import.meta.glob('/public/assets-mobile-70x100/Background/*.png', { eager: true, query: '?url', import: 'default' });
 		for (const path in backgroundImages) {
 			const url = backgroundImages[path] as string;
 			const filename = path.split('/').pop();

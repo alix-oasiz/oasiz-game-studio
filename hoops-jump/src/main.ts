@@ -40,14 +40,13 @@ const CONFIG = {
   HOOP_SWITCH_DURATION: 500,
 
   // Scoring
-  SCORE_TIER_SIZE: 20000,
-  BASE_POINTS: 320,
-  POINTS_PER_TIER: 18,
-  POINTS_PER_TIER_LATE: 10,
+  SCORE_TIER_SIZE: 500,
+  BASE_POINTS: 8,
+  POINTS_PER_TIER: 0.5,
+  POINTS_PER_TIER_LATE: 0.3,
   SWISH_MULTIPLIER: 1.22,
   BANK_MULTIPLIER: 1.1,
   COMBO_WINDOW: 3000,
-  COMBO_SOFT_CAP: 0.82,
 
   // Timer
   GAME_DURATION: 20,
@@ -426,14 +425,8 @@ function getBasePointsForTier(tier: number): number {
   );
 }
 
-function getComboMultiplier(combo: number): number {
-  if (combo <= 1) return 1;
-
-  const streak = combo - 1;
-  const bonus =
-    0.62 * (1 - Math.exp(-streak / 10)) + 0.018 * Math.log1p(streak);
-
-  return 1 + Math.min(CONFIG.COMBO_SOFT_CAP, bonus);
+function getComboBonusPoints(combo: number): number {
+  return Math.max(0, combo - 1);
 }
 
 function getComboBand(combo: number): number {
@@ -631,21 +624,21 @@ function getBgmTargetVolume(): number {
 }
 
 function getRankForScore(value: number): RankTier {
-  if (value >= 300000) return { label: "HALL OF FAME", color: "#00A1E4" };
-  if (value >= 180000) return { label: "LEGEND", color: "#7d5cff" };
-  if (value >= 100000) return { label: "MVP", color: "#ffd700" };
-  if (value >= 60000) return { label: "ALL-STAR", color: "#ffffff" };
-  if (value >= 25000) return { label: "PRO", color: "#ff9f1c" };
+  if (value >= 7500) return { label: "HALL OF FAME", color: "#00A1E4" };
+  if (value >= 4500) return { label: "LEGEND", color: "#7d5cff" };
+  if (value >= 2500) return { label: "MVP", color: "#ffd700" };
+  if (value >= 1500) return { label: "ALL-STAR", color: "#ffffff" };
+  if (value >= 650) return { label: "PRO", color: "#ff9f1c" };
   return { label: "ROOKIE", color: "#a0a0a0" };
 }
 
 function emitPlatformScoreConfig(): void {
   oasizRuntime.emitScoreConfig?.({
     anchors: [
-      { raw: 10000, normalized: 100 },
-      { raw: 50000, normalized: 350 },
-      { raw: 100000, normalized: 650 },
-      { raw: 500000, normalized: 950 },
+      { raw: 250, normalized: 100 },
+      { raw: 1250, normalized: 350 },
+      { raw: 2500, normalized: 650 },
+      { raw: 12500, normalized: 950 },
     ],
   });
 }
@@ -4469,8 +4462,8 @@ function onScore(): void {
     : isBankShot
       ? CONFIG.BANK_MULTIPLIER
       : 1;
-  const comboMultiplier = getComboMultiplier(comboCount);
-  const points = Math.round(basePoints * qualityMultiplier * comboMultiplier);
+  const comboBonusPoints = getComboBonusPoints(comboCount);
+  const points = Math.round(basePoints * qualityMultiplier) + comboBonusPoints;
   score += points;
   const scoreTierAfter = getCurrentScoreTier();
 

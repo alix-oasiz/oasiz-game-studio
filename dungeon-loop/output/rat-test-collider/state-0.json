@@ -1,1 +1,0 @@
-{"scene":"Level","coordinate_system":"origin top-left, x right, y down","player":{"x":1,"y":584,"vx":0,"vy":0,"flipX":false},"rats":[{"x":-65,"y":584,"state":"chase"}],"collectedKeys":[]}

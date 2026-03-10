@@ -1,5 +1,5 @@
 {
-  "title": "Sokoban 2",
+  "title": "Sokoban",
   "description": "Push all boxes onto target spots with the fewest moves, without pulling boxes or pushing them into unrecoverable dead-ends!",
   "category": "puzzle"
 }

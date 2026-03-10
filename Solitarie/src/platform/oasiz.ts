@@ -1,37 +1,27 @@
 import Phaser from "phaser";
-import { oasiz } from "@oasiz/sdk";
+import { leaveGame, onBackButton, onPause, onResume, oasiz, submitScore, triggerHaptic } from "@oasiz/sdk";
 
 type HapticType = "light" | "medium" | "heavy" | "success" | "error";
+type BackButtonHandler = () => void;
 
 let lifecycleBound = false;
 let gameplayActive = false;
+let backButtonBound = false;
+let backButtonHandler: BackButtonHandler | null = null;
+let backButtonBindRaf = 0;
+let backButtonOff: (() => void) | null = null;
 
 export function initOasiz(game: Phaser.Game): void {
     if (lifecycleBound) return;
     lifecycleBound = true;
 
-    console.log("[Platform] Initializing Oasiz SDK");
-
-    if (typeof (oasiz as any).emitScoreConfig === "function") {
-        (oasiz as any).emitScoreConfig({
-            anchors: [
-                { raw: 200, normalized: 100 },
-                { raw: 800, normalized: 300 },
-                { raw: 1800, normalized: 600 },
-                { raw: 3200, normalized: 950 }
-            ]
-        });
-    }
-
     const stopLoop = () => {
-        console.log("[Platform] Blurring Phaser loop");
         game.loop.blur();
     };
 
     const resetInput = () => {
-        const inputManager = game.input as Phaser.Input.InputManager | undefined;
+        const inputManager = game.input as (Phaser.Input.InputManager & { resetPointers?: () => void }) | undefined;
         if (inputManager && typeof inputManager.resetPointers === "function") {
-            console.log("[Platform] Resetting Phaser pointers");
             inputManager.resetPointers();
         }
 
@@ -57,26 +47,63 @@ export function initOasiz(game: Phaser.Game): void {
 
     const startLoop = () => {
         resetInput();
-        console.log("[Platform] Focusing Phaser loop");
         game.loop.focus();
     };
 
-    oasiz.onPause(() => {
-        console.log("[Platform] Pause event");
+    onPause(() => {
         stopLoop();
     });
 
-    oasiz.onResume(() => {
-        console.log("[Platform] Resume event");
+    onResume(() => {
         startLoop();
     });
 
+    const scheduleBackButtonRebind = () => {
+        if (backButtonBindRaf) return;
+        backButtonBindRaf = requestAnimationFrame(() => {
+            backButtonBindRaf = 0;
+            backButtonBound = false;
+            tryBindBackButton();
+        });
+    };
+
+    const tryBindBackButton = () => {
+        if (backButtonBound) return;
+
+        const hasBackOverrideBridge = typeof (window as any).__oasizSetBackOverride === "function";
+        if (!hasBackOverrideBridge) {
+            if (!backButtonBindRaf) {
+                backButtonBindRaf = requestAnimationFrame(() => {
+                    backButtonBindRaf = 0;
+                    tryBindBackButton();
+                });
+            }
+            return;
+        }
+
+        backButtonBound = true;
+        backButtonOff = onBackButton(() => {
+            const handler = backButtonHandler;
+            backButtonOff?.();
+            backButtonOff = null;
+            scheduleBackButtonRebind();
+
+            if (handler) {
+                handler();
+                return;
+            }
+            leaveGame();
+        });
+    };
+
+    tryBindBackButton();
+
     document.addEventListener("visibilitychange", () => {
-        console.log("[Platform] Visibility changed");
         if (document.hidden) {
             stopLoop();
         } else {
             startLoop();
+            tryBindBackButton();
         }
     });
 }
@@ -84,7 +111,6 @@ export function initOasiz(game: Phaser.Game): void {
 export function gameplayStart(): void {
     if (gameplayActive) return;
     gameplayActive = true;
-    console.log("[Platform] Gameplay started");
     if (typeof (oasiz as any).gameplayStart === "function") {
         (oasiz as any).gameplayStart();
     }
@@ -93,7 +119,6 @@ export function gameplayStart(): void {
 export function gameplayStop(): void {
     if (!gameplayActive) return;
     gameplayActive = false;
-    console.log("[Platform] Gameplay stopped");
     if (typeof (oasiz as any).gameplayStop === "function") {
         (oasiz as any).gameplayStop();
     }
@@ -101,11 +126,23 @@ export function gameplayStop(): void {
 
 export function triggerPlatformHaptic(enabled: boolean, type: HapticType): void {
     if (!enabled) return;
-    console.log("[Platform] Trigger haptic");
-    oasiz.triggerHaptic(type);
+    triggerHaptic(type);
 }
 
 export function submitPlatformScore(score: number): void {
-    console.log("[Platform] Submit score");
-    oasiz.submitScore(score);
+    submitScore(score);
+}
+
+export function setBackButtonHandler(handler: BackButtonHandler): void {
+    backButtonHandler = handler;
+}
+
+export function clearBackButtonHandler(handler: BackButtonHandler): void {
+    if (backButtonHandler === handler) {
+        backButtonHandler = null;
+    }
+}
+
+export function leavePlatformGame(): void {
+    leaveGame();
 }

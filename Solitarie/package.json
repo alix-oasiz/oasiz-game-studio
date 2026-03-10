@@ -15,17 +15,24 @@
     "homepage": "https://github.com/phaserjs/template-vite-ts#readme",
     "scripts": {
         "start": "vite --config vite/config.dev.mjs",
-        "build": "vite build --config vite/config.prod.mjs && phaser-asset-pack-hashing -j -r dist"
+        "build": "vite build --config vite/config.prod.mjs && phaser-asset-pack-hashing -j -r dist",
+        "downscale:cards": "bun scripts/downscale-assets.mjs --input assets/cards-59x83 --output public/assets-mobile-70x100/cards --source-card-width 59 --source-card-height 83 --target-card-width 70 --target-card-height 100",
+        "downscale:assets": "bun scripts/downscale-assets.mjs",
+        "downscale:backgrounds": "bun scripts/downscale-assets.mjs --input assets/Background --output public/assets-mobile-70x100/Background --target-card-width 70 --target-card-height 100 --scale-mode uniform-height",
+        "downscale:table-bg": "bun scripts/downscale-assets.mjs --input assets/bg --output public/assets-mobile-70x100/bg --target-card-width 70 --target-card-height 100 --scale-mode uniform-height"
     },
     "devDependencies": {
         "phaser-asset-pack-hashing": "^1.0.6",
+        "sharp": "^0.34.5",
         "terser": "^5.28.1",
         "typescript": "^5.3.3",
         "vite": "^5.1.4"
     },
     "dependencies": {
-        "@oasiz/sdk": "^1.0.1",
+        "@fontsource/cinzel": "^5.2.8",
+        "@oasiz/sdk": "^1.2.0",
         "@phaserjs/editor-scripts-base": "^1.0.0",
-        "phaser": "3.80.1"
+        "phaser": "3.80.1",
+        "webfontloader": "^1.6.28"
     }
 }

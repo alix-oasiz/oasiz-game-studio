@@ -1,6 +1,8 @@
 import Phaser from "phaser";
-import { gameplayStart, gameplayStop, submitPlatformScore, triggerPlatformHaptic } from "../platform/oasiz";
+import { clearBackButtonHandler, gameplayStart, gameplayStop, setBackButtonHandler, submitPlatformScore, triggerPlatformHaptic } from "../platform/oasiz";
 import { syncBackgroundMusic } from "../audio/backgroundMusic";
+import { BUTTON_FONT_FAMILY, UI_FONT_FAMILY, getUiTextResolution } from "../ui/fonts";
+import { hideAllHtmlText, hideHtmlText, showHtmlText } from "../ui/htmlText";
 
 type Suit = "♠" | "♥" | "♦" | "♣";
 type PileType = "stock" | "waste" | "tableau" | "foundation";
@@ -31,9 +33,65 @@ interface SettingsState {
     background: string;
 }
 
+interface HintSuggestion {
+    card: CardGO | null;
+    target: { x: number; y: number };
+    message?: string;
+}
+
+interface EndOverlayConfig {
+    featuredCard?: CardData;
+    featuredMessage?: string;
+    baseScore?: number;
+    timeBonus?: number;
+    moveBonus?: number;
+    finalScore?: number;
+    showVictoryDetails?: boolean;
+}
+
+interface TopButtonControl {
+    setLabel: (label: string) => void;
+    setEnabled: (enabled: boolean) => void;
+}
+
+interface GameplayHtmlLayout {
+    scoreX: number;
+    movesX: number;
+    timeX: number;
+    statsY: number;
+    newButtonX: number;
+    hintButtonX: number;
+    settingsButtonX: number;
+    buttonCenterY: number;
+}
+
 export default class Level extends Phaser.Scene {
-    private cardW = 92;
-    private cardH = 132;
+    private static readonly TARGET_CARD_W = 63;
+    private static readonly TARGET_CARD_H = 89;
+    private static readonly TOP_BUTTON_HEIGHT = 38;
+    private static readonly TOP_BUTTON_GAP_BELOW = 16;
+    private static readonly SCORE_CELEBRATION_MESSAGES = [
+        "Congratulations",
+        "Amazing",
+        "Fantastic",
+        "Brilliant",
+        "Excellent",
+        "Stunning",
+        "Great move",
+        "Superb",
+        "Wonderful",
+        "Outstanding"
+    ];
+    private static readonly SCORE_CELEBRATION_COLORS = [
+        "#F1C40F",
+        "#00A1E4",
+        "#B3131B",
+        "#FFFFFF",
+        "#2ECC71",
+        "#9B59B6"
+    ];
+    private cardW = 59;
+    private cardH = 83;
     private tableauGapX = 112;
     private faceUpOffset = 30;
     private faceDownOffset = 12;
@@ -53,9 +111,20 @@ export default class Level extends Phaser.Scene {
     private dragGroup: CardGO[] = [];
     private dragStart: { x: number; y: number }[] = [];
 
-    private infoText?: Phaser.GameObjects.Text;
-    private settingsOverlay!: Phaser.GameObjects.Container;
+    private scoreText?: Phaser.GameObjects.Text;
+    private movesText?: Phaser.GameObjects.Text;
+    private timeText?: Phaser.GameObjects.Text;
+    private settingsOverlay?: Phaser.GameObjects.Container;
     private endOverlay!: Phaser.GameObjects.Container;
+    private leaveOverlay?: Phaser.GameObjects.Container;
+    private activeHintText?: Phaser.GameObjects.Text;
+    private activeHintHighlight?: Phaser.GameObjects.Graphics;
+    private activeHintTimer?: Phaser.Time.TimerEvent;
+    private hintButton?: TopButtonControl;
+    private gameplayHtmlLayout?: GameplayHtmlLayout;
+    private activeScoreCelebration?: Phaser.GameObjects.Container;
+    private scoreCelebrationMessageIndex = 0;
+    private scoreCelebrationColorIndex = 0;
     private hoveredCard?: CardGO;
     private hoverPointerPos = new Phaser.Math.Vector2();
     private dragPointerPos = new Phaser.Math.Vector2();
@@ -67,12 +136,17 @@ export default class Level extends Phaser.Scene {
     private gameStarted = false;
     private moveCount = 0;
     private elapsedSeconds = 0;
+    private hintsRemaining = 5;
+    private madeProgressThisStockCycle = false;
+    private isShuttingDown = false;
 
     constructor() {
         super("Level");
     }
 
     create() {
+        hideAllHtmlText();
+        this.isShuttingDown = false;
         this.settings = this.loadSettings();
         this.drawCount = this.settings.drawCount;
         this.scale.on("resize", () => {
@@ -87,9 +161,21 @@ export default class Level extends Phaser.Scene {
         this.gameStarted = true;
         gameplayStart();
         syncBackgroundMusic(this, this.settings.music);
+        const handleBackButton = () => this.openLeaveOverlay();
+        setBackButtonHandler(handleBackButton);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.isShuttingDown = true;
             this.hudTimer?.remove(false);
             this.hudTimer = undefined;
+            this.hideGameplayHtml();
+            this.destroySettingsOverlay(false);
+            if (this.leaveOverlay) {
+                this.tweens.killTweensOf(this.leaveOverlay);
+                this.leaveOverlay.destroy();
+                this.leaveOverlay = undefined;
+            }
+            hideAllHtmlText();
+            clearBackButtonHandler(handleBackButton);
         });
     }
 
@@ -122,13 +208,187 @@ export default class Level extends Phaser.Scene {
         triggerPlatformHaptic(this.settings.haptics, type);
     }
 
-    private submitScore() {
+    private calculateBaseScore(): number {
         let score = 0;
-        this.foundations.forEach(pile => {
-            pile.forEach(card => {
-                score += (card.data.rank * 10);
+        this.foundations.forEach((pile) => {
+            pile.forEach((card) => {
+                if (card.data.rank >= 1) {
+                    score += 10;
+                }
             });
         });
+        return score;
+    }
+
+    private calculateTimeBonus(): number {
+        if (this.elapsedSeconds <= 30) return 0;
+        return Math.round(700000 / this.elapsedSeconds);
+    }
+
+    private calculateMoveBonus(): number {
+        return Math.max(0, 1800 - this.moveCount * 12);
+    }
+
+    private calculateFinalScore(): number {
+        return this.calculateBaseScore() + this.calculateTimeBonus() + this.calculateMoveBonus();
+    }
+
+    private formatVictoryBreakdown(baseScore: number, timeBonus: number, moveBonus: number): string {
+        return [
+            `Total score  ${baseScore}`,
+            `Time bonus  +${timeBonus}   Time  ${this.formatElapsedTime(this.elapsedSeconds)}`,
+            `Move bonus  +${moveBonus}   Moves  ${this.moveCount}`
+        ].join("\n");
+    }
+
+    private animateVictoryScore(
+        scoreBreakdown: Phaser.GameObjects.Text,
+        finalScoreText: Phaser.GameObjects.Text,
+        baseScore: number,
+        timeBonus: number,
+        moveBonus: number,
+        finalScore: number
+    ): void {
+        const values = { baseScore: 0, timeBonus: 0, moveBonus: 0 };
+        let lastTickAt = 0;
+        const playCountTick = () => {
+            const now = this.time.now;
+            if (now - lastTickAt < 90) return;
+            lastTickAt = now;
+            this.playLoadedFx("score_count_tick", { volume: 0.22, rate: 1.04 });
+        };
+        scoreBreakdown.setText(this.formatVictoryBreakdown(0, 0, 0));
+        finalScoreText.setScale(0.94);
+        finalScoreText.setText("Final score 0");
+
+        this.time.delayedCall(260, () => {
+            showHtmlText("end-score-breakdown", {
+                text: this.formatVictoryBreakdown(0, 0, 0),
+                x: this.scale.width * 0.5,
+                y: scoreBreakdown.y,
+                fontSize: 18,
+                letterSpacing: 0.2,
+                multicolor: false,
+                color: "#ECF0F1",
+                strokeColor: "#10254A",
+                strokeWidth: 1.2
+            });
+        });
+
+        this.tweens.addCounter({
+            from: 0,
+            to: baseScore,
+            duration: 520,
+            delay: 280,
+            ease: "Cubic.out",
+            onUpdate: (tween) => {
+                const nextValue = Math.round(tween.getValue());
+                if (nextValue !== values.baseScore) playCountTick();
+                values.baseScore = nextValue;
+                const text = this.formatVictoryBreakdown(values.baseScore, values.timeBonus, values.moveBonus);
+                scoreBreakdown.setText(text);
+                showHtmlText("end-score-breakdown", {
+                    text,
+                    x: this.scale.width * 0.5,
+                    y: scoreBreakdown.y,
+                    fontSize: 18,
+                    letterSpacing: 0.2,
+                    multicolor: false,
+                    color: "#ECF0F1",
+                    strokeColor: "#10254A",
+                    strokeWidth: 1.2
+                });
+            }
+        });
+
+        this.tweens.addCounter({
+            from: 0,
+            to: timeBonus,
+            duration: 520,
+            delay: 860,
+            ease: "Cubic.out",
+            onUpdate: (tween) => {
+                const nextValue = Math.round(tween.getValue());
+                if (nextValue !== values.timeBonus) playCountTick();
+                values.timeBonus = nextValue;
+                const text = this.formatVictoryBreakdown(values.baseScore, values.timeBonus, values.moveBonus);
+                scoreBreakdown.setText(text);
+                showHtmlText("end-score-breakdown", {
+                    text,
+                    x: this.scale.width * 0.5,
+                    y: scoreBreakdown.y,
+                    fontSize: 18,
+                    letterSpacing: 0.2,
+                    multicolor: false,
+                    color: "#ECF0F1",
+                    strokeColor: "#10254A",
+                    strokeWidth: 1.2
+                });
+            }
+        });
+
+        this.tweens.addCounter({
+            from: 0,
+            to: moveBonus,
+            duration: 520,
+            delay: 1440,
+            ease: "Cubic.out",
+            onUpdate: (tween) => {
+                const nextValue = Math.round(tween.getValue());
+                if (nextValue !== values.moveBonus) playCountTick();
+                values.moveBonus = nextValue;
+                const text = this.formatVictoryBreakdown(values.baseScore, values.timeBonus, values.moveBonus);
+                scoreBreakdown.setText(text);
+                showHtmlText("end-score-breakdown", {
+                    text,
+                    x: this.scale.width * 0.5,
+                    y: scoreBreakdown.y,
+                    fontSize: 18,
+                    letterSpacing: 0.2,
+                    multicolor: false,
+                    color: "#ECF0F1",
+                    strokeColor: "#10254A",
+                    strokeWidth: 1.2
+                });
+            }
+        });
+
+        this.time.delayedCall(2020, () => {
+            this.tweens.addCounter({
+                from: 0,
+                to: finalScore,
+                duration: 620,
+                ease: "Cubic.out",
+                onUpdate: (tween) => {
+                    playCountTick();
+                    const text = `Final score ${Math.round(tween.getValue())}`;
+                    finalScoreText.setText(text);
+                    showHtmlText("end-final-score", {
+                        text,
+                        x: this.scale.width * 0.5,
+                        y: finalScoreText.y,
+                        fontSize: 28,
+                        letterSpacing: 0.4,
+                        multicolor: false,
+                        color: "#FFFFFF",
+                        strokeColor: "#B3131B",
+                        strokeWidth: 1.6
+                    });
+                },
+                onComplete: () => {
+                    this.playVictoryFinal();
+                    this.tweens.add({
+                        targets: finalScoreText,
+                        scale: 1,
+                        duration: 180,
+                        ease: "Back.easeOut"
+                    });
+                }
+            });
+        });
+    }
+
+    private submitScore(score = this.calculateBaseScore()) {
         submitPlatformScore(score);
     }
 
@@ -142,22 +402,34 @@ export default class Level extends Phaser.Scene {
         const bg = this.add.image(w * 0.5, h * 0.5, this.settings.background);
         bg.setDisplaySize(w, h).setDepth(-1000);
 
-        const topSafe = this.isMobile() ? 120 : 45;
-        const left = mobilePortrait ? 6 : Math.max(18, Math.floor(w * 0.025));
-        const top = topSafe + (mobilePortrait ? 34 : 46);
-        const tableauGap = mobilePortrait ? 2 : 8;
-        const foundationGap = mobilePortrait ? 4 : 8;
-        const centerGap = mobilePortrait ? 4 : 12;
+        const topSafe = this.isMobile() ? 180 : 45;
+        const hudButtonY = Math.max(24, topSafe - 15);
+        const hudBottom = hudButtonY + Level.TOP_BUTTON_HEIGHT + 10;
+        const left = mobilePortrait ? 0 : Math.max(18, Math.floor(w * 0.025));
+        const top = Math.max(topSafe + (mobilePortrait ? 8 : 46), hudBottom + Level.TOP_BUTTON_GAP_BELOW);
+        let tableauGap = mobilePortrait ? -10 : 8;
+        let foundationGap = mobilePortrait ? 0 : 8;
         const availableWidth = w - left * 2;
-        const cardWFromTableau = Math.floor((availableWidth - tableauGap * 6) / 7);
-        const cardWFromTopRow = Math.floor((availableWidth - tableauGap - foundationGap * 3 - centerGap) / 6);
-        const maxCardW = mobilePortrait ? 118 : 128;
-        this.cardW = Phaser.Math.Clamp(Math.min(cardWFromTableau, cardWFromTopRow), 40, maxCardW);
-        this.cardH = Math.floor(this.cardW * 1.42);
+
+        if (mobilePortrait) {
+            this.cardW = Level.TARGET_CARD_W;
+            this.cardH = Level.TARGET_CARD_H;
+
+            // Force a wider visual card on mobile and let columns overlap to fit 7 across.
+            const tableauStep = Math.max(46, Math.floor((availableWidth - this.cardW) / 6));
+            tableauGap = tableauStep - this.cardW;
+
+            // The top row also needs overlap to fit six piles across the phone width.
+            const topRowStep = Math.max(52, Math.floor((availableWidth - this.cardW) / 5));
+            foundationGap = topRowStep - this.cardW;
+        } else {
+            this.cardW = Level.TARGET_CARD_W;
+            this.cardH = Level.TARGET_CARD_H;
+        }
 
         this.tableauGapX = this.cardW + tableauGap;
-        this.faceUpOffset = mobilePortrait ? Math.floor(this.cardH * 0.18) : 24;
-        this.faceDownOffset = mobilePortrait ? Math.floor(this.cardH * 0.07) : 9;
+        this.faceUpOffset = mobilePortrait ? Math.floor(this.cardH * 0.15) : 24;
+        this.faceDownOffset = mobilePortrait ? Math.floor(this.cardH * 0.05) : 9;
 
 
         this.stockPos.set(left, top);
@@ -168,7 +440,7 @@ export default class Level extends Phaser.Scene {
         for (let i = 0; i < 4; i++) this.foundationPos.push(new Phaser.Math.Vector2(foundationStart + i * (this.cardW + foundationGap), top));
 
         this.tableauPos = [];
-        const tableauY = top + this.cardH + (mobilePortrait ? 10 : 20);
+        const tableauY = top + this.cardH + (mobilePortrait ? 6 : 20);
         for (let i = 0; i < 7; i++) this.tableauPos.push(new Phaser.Math.Vector2(left + i * this.tableauGapX, tableauY));
 
         const slot = (x: number, y: number, type: "none" | "stock" | "waste" | "suit", suitIndex = 0) => {
@@ -182,9 +454,9 @@ export default class Level extends Phaser.Scene {
                 const color = (suitIndex === 1 || suitIndex === 2) ? "#E74C3C" : "#BDC3C7";
                 this.add.text(x + this.cardW / 2, y + this.cardH / 2, s, this.uiText(suitFontSize, color, "800")).setOrigin(0.5).setAlpha(0.25);
             } else if (type === "stock") {
-                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "STOCK", this.uiText(slotLabelSize, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
+                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "Stock", this.uiText(slotLabelSize, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
             } else if (type === "waste") {
-                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "WASTE", this.uiText(slotLabelSize, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
+                this.add.text(x + this.cardW / 2, y + this.cardH / 2, "Waste", this.uiText(slotLabelSize, "#d8e4dc", "800")).setOrigin(0.5).setAlpha(0.5);
             }
             return r;
         };
@@ -209,14 +481,15 @@ export default class Level extends Phaser.Scene {
     }
 
     private uiText(size = 20, color = "#ffffff", weight: string = "700", stroke?: string): Phaser.Types.GameObjects.Text.TextStyle {
+        const strokeThickness = !stroke ? 0 : size <= 18 ? 2 : size <= 24 ? 3 : 4;
         return {
             fontSize: `${size}px`,
             color,
             fontStyle: weight as any,
-            fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-            resolution: 2,
+            fontFamily: UI_FONT_FAMILY,
+            resolution: getUiTextResolution(),
             stroke: stroke || undefined,
-            strokeThickness: stroke ? 4 : 0
+            strokeThickness
         };
     }
 
@@ -226,39 +499,95 @@ export default class Level extends Phaser.Scene {
         const w = this.scale.width;
         const mobile = this.isMobile();
         const statsY = Math.max(20, y - (mobile ? 32 : 28));
-        this.infoText = this.add.text(w * 0.5, statsY, "", {
-            ...this.uiText(mobile ? 16 : 18, "#FFFFFF", "900"),
+        const statsGap = mobile ? Math.min(112, w * 0.22) : Math.min(150, w * 0.16);
+        const statsStyle = {
+            ...this.uiText(mobile ? 17 : 19, "#FFFFFF", "900"),
             align: "center"
-        }).setOrigin(0.5).setDepth(2001);
+        };
+        this.scoreText = this.add.text(w * 0.5 - statsGap, statsY, "", statsStyle).setOrigin(0.5).setDepth(2001).setAlpha(0);
+        this.movesText = this.add.text(w * 0.5, statsY, "", statsStyle).setOrigin(0.5).setDepth(2001).setAlpha(0);
+        this.timeText = this.add.text(w * 0.5 + statsGap, statsY, "", statsStyle).setOrigin(0.5).setDepth(2001).setAlpha(0);
 
-        const newBtn = this.makeTopButton(this.scale.width - 334, y, 92, 38, "NEW GAME", () => {
+        const buttonWidth = 104;
+        const buttonHeight = 38;
+        const buttonGap = 10;
+        const rightInset = mobile ? 14 : 18;
+        const settingsX = w - rightInset - buttonWidth;
+        const hintX = settingsX - buttonGap - buttonWidth;
+        const newX = hintX - buttonGap - buttonWidth;
+
+        this.makeTopButton(newX, y, buttonWidth, buttonHeight, "New game", () => {
             this.triggerHaptic("light");
             this.newGame();
-        });
+        }, "red", true);
 
-        const hintBtn = this.makeTopButton(this.scale.width - 234, y, 92, 38, "HINT", () => {
+        const hintBtn = this.makeTopButton(hintX, y, buttonWidth, buttonHeight, this.getHintButtonLabel(), () => {
             this.triggerHaptic("light");
             this.provideHint();
-        });
+        }, "green", true);
 
-        const settingsBtn = this.makeTopButton(this.scale.width - 126, y, 100, 38, "SETTINGS", () => {
+        this.makeTopButton(settingsX, y, buttonWidth, buttonHeight, "Settings", () => {
             this.triggerHaptic("light");
             this.openSettings();
-        });
+        }, "blue", true);
 
-        newBtn.setDepth(2000);
-        hintBtn.setDepth(2000);
-        settingsBtn.setDepth(2000);
+        this.hintButton = hintBtn;
+        this.updateHintButton();
+
+        this.gameplayHtmlLayout = {
+            scoreX: w * 0.5 - statsGap,
+            movesX: w * 0.5,
+            timeX: w * 0.5 + statsGap,
+            statsY,
+            newButtonX: newX + buttonWidth / 2,
+            hintButtonX: hintX + buttonWidth / 2,
+            settingsButtonX: settingsX + buttonWidth / 2,
+            buttonCenterY: y + buttonHeight / 2 - 1
+        };
+        this.showGameplayHtml();
+        this.updateHUD();
     }
 
-    private makeTopButton(x: number, y: number, w: number, h: number, label: string, onClick: () => void) {
+    private makeTopButton(
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        label: string,
+        onClick: () => void,
+        theme: "red" | "green" | "blue" = "red",
+        useHtmlLabel = false
+    ): TopButtonControl {
         const c = this.add.container(x, y);
         const radius = 10;
+        let currentLabel = label;
+        let enabled = true;
+        let pressed = false;
+        let activatedOnDown = false;
 
         const btnGraphics = this.add.graphics();
         const drawBtn = (isPressed: boolean, isHover: boolean) => {
             btnGraphics.clear();
             const yOff = isPressed ? 4 : 0;
+            const palette = theme === "blue"
+                ? {
+                    main: isHover ? 0x355CAA : 0x1F3D7A,
+                    rim: 0x10254A
+                }
+                : theme === "green"
+                    ? {
+                        main: isHover ? 0x35B96A : 0x1E8449,
+                        rim: 0x0E4B28
+                    }
+                    : {
+                        main: isHover ? 0xD72638 : 0xB3131B,
+                        rim: 0x111111
+                    };
+            const mainFill = enabled
+                ? palette.main
+                : 0x444444;
+            const rimFill = enabled ? palette.rim : 0x1f1f1f;
+            const borderAlpha = enabled ? 0.6 : 0.32;
 
             if (!isPressed) {
                 btnGraphics.fillStyle(0x000000, 0.3);
@@ -266,46 +595,90 @@ export default class Level extends Phaser.Scene {
             }
 
             // Bottom Rim
-            btnGraphics.fillStyle(0x1B2631, 1);
+            btnGraphics.fillStyle(rimFill, 1);
             btnGraphics.fillRoundedRect(0, yOff + 4, w, h, radius);
 
             // Main fill
-            btnGraphics.fillStyle(isHover ? 0x34495E : 0x2C3E50, 1);
+            btnGraphics.fillStyle(mainFill, 1);
             btnGraphics.fillRoundedRect(0, yOff, w, h, radius);
 
             // Highlight
             btnGraphics.fillStyle(0xFFFFFF, 0.15);
             btnGraphics.fillRoundedRect(5, yOff + 3, w - 10, h / 4, radius - 5);
 
-            btnGraphics.lineStyle(2, 0xFFFFFF, 0.6);
+            btnGraphics.lineStyle(2, 0xFFFFFF, borderAlpha);
             btnGraphics.strokeRoundedRect(0, yOff, w, h, radius);
         };
         drawBtn(false, false);
 
-        const t = this.add.text(w / 2, h / 2 - 1, label, this.uiText(14, "#FFFFFF", "800")).setOrigin(0.5);
+        const t = this.add.text(w / 2, h / 2 - 1, currentLabel, {
+            ...this.uiText(15, "#FFFFFF", "700"),
+            fontFamily: BUTTON_FONT_FAMILY
+        }).setOrigin(0.5).setAlpha(useHtmlLabel ? 0 : 1);
         const btnHitZone = this.add.zone(w / 2, h / 2, w, h + 8).setInteractive({ useHandCursor: true });
         c.add([btnGraphics, t, btnHitZone]);
+        c.setDepth(2000);
 
         btnHitZone.on("pointerover", () => {
+            if (!enabled) return;
             drawBtn(false, true);
             document.body.style.cursor = "pointer";
         });
         btnHitZone.on("pointerout", () => {
+            if (!enabled) return;
+            pressed = false;
             drawBtn(false, false);
             t.y = h / 2 - 2;
             document.body.style.cursor = "default";
         });
         btnHitZone.on("pointerdown", () => {
+            if (!enabled) return;
+            pressed = true;
+            activatedOnDown = false;
             drawBtn(true, true);
             t.y = h / 2 + 2;
+            if (this.isMobile()) {
+                activatedOnDown = true;
+                this.playButton();
+                onClick();
+            }
         });
         btnHitZone.on("pointerup", () => {
+            if (!enabled) return;
+            const shouldActivate = pressed && !activatedOnDown;
+            pressed = false;
+            activatedOnDown = false;
             document.body.style.cursor = "default";
             drawBtn(false, true);
             t.y = h / 2 - 2;
-            onClick();
+            if (shouldActivate) {
+                this.playButton();
+                onClick();
+            }
         });
-        return c;
+        btnHitZone.on("pointerupoutside", () => {
+            pressed = false;
+            activatedOnDown = false;
+            drawBtn(false, false);
+            t.y = h / 2 - 2;
+            document.body.style.cursor = "default";
+        });
+
+        return {
+            setLabel: (nextLabel: string) => {
+                currentLabel = nextLabel;
+                t.setText(nextLabel);
+            },
+            setEnabled: (nextEnabled: boolean) => {
+                enabled = nextEnabled;
+                btnHitZone.input!.enabled = nextEnabled;
+                t.setAlpha(nextEnabled ? 1 : 0.62);
+                drawBtn(false, false);
+                if (!nextEnabled) {
+                    document.body.style.cursor = "default";
+                }
+            }
+        };
     }
 
     private initInput() {
@@ -350,6 +723,14 @@ export default class Level extends Phaser.Scene {
         this.dragStart = [];
         this.moveCount = 0;
         this.elapsedSeconds = 0;
+        this.hintsRemaining = 5;
+        this.madeProgressThisStockCycle = false;
+        if (this.activeScoreCelebration) {
+            this.tweens.killTweensOf(this.activeScoreCelebration.list);
+            this.tweens.killTweensOf(this.activeScoreCelebration);
+            this.activeScoreCelebration.destroy();
+            this.activeScoreCelebration = undefined;
+        }
         this.hudTimer?.remove(false);
         this.hudTimer = this.time.addEvent({
             delay: 1000,
@@ -377,6 +758,7 @@ export default class Level extends Phaser.Scene {
         }
         this.layoutAll();
         this.endOverlay?.setVisible(false);
+        this.updateHintButton();
         this.updateHUD();
     }
 
@@ -415,6 +797,7 @@ export default class Level extends Phaser.Scene {
         this.refreshCardFace(cardGO);
 
         cardHitZone.on("pointerdown", () => {
+            this.clearActiveHint();
             if (cardGO.source.type === "stock") {
                 this.drawFromStock();
             }
@@ -504,12 +887,21 @@ export default class Level extends Phaser.Scene {
 
     private drawFromStock() {
         if (!this.gameStarted || this.drawAnimating) return;
+        this.clearActiveHint();
         if (this.stock.length === 0) {
+            if (!this.waste.length) return;
+            if (!this.madeProgressThisStockCycle) {
+                this.openEnd("Game over", "No new moves were made in the last pass through the stock.");
+                this.submitScore();
+                this.triggerHaptic("error");
+                return;
+            }
             while (this.waste.length) {
                 const c = this.waste.pop()!;
                 c.data.faceUp = false;
                 this.stock.push(c);
             }
+            this.madeProgressThisStockCycle = false;
             this.layoutStockWaste();
             return;
         }
@@ -648,7 +1040,8 @@ export default class Level extends Phaser.Scene {
         if (foundationHit >= 0 && this.dragGroup.length === 1 && this.canMoveToFoundation(first, foundationHit)) {
             if (!this.removeFromSource(this.dragGroup, source)) return this.restoreDragGroup();
             this.foundations[foundationHit].push(first);
-            this.afterMove(true, this.foundationPos[foundationHit]);
+            const awardedPoints = 10;
+            this.afterMove(true, this.foundationPos[foundationHit], awardedPoints);
             return;
         }
 
@@ -660,7 +1053,7 @@ export default class Level extends Phaser.Scene {
                 : { x: this.tableauPos[tableauHit].x, y: this.tableauPos[tableauHit].y };
             if (!this.removeFromSource(this.dragGroup, source)) return this.restoreDragGroup();
             this.tableau[tableauHit].push(...this.dragGroup);
-            this.afterMove(false, burstTarget);
+            this.afterMove(false, burstTarget, 0);
             return;
         }
 
@@ -684,10 +1077,11 @@ export default class Level extends Phaser.Scene {
         return false;
     }
 
-    private afterMove(toFoundation: boolean, burstTarget: { x: number; y: number }) {
+    private afterMove(toFoundation: boolean, burstTarget: { x: number; y: number }, awardedPoints: number) {
         this.tableau.forEach((col) => {
             if (col.length && !col[col.length - 1].data.faceUp) col[col.length - 1].data.faceUp = true;
         });
+        this.madeProgressThisStockCycle = true;
         this.moveCount += 1;
         this.dragGroup = [];
         this.dragStart = [];
@@ -696,6 +1090,9 @@ export default class Level extends Phaser.Scene {
         if (toFoundation) {
             this.playSuccessDrop();
             this.triggerHaptic("medium");
+            if (awardedPoints > 0) {
+                this.showScoreCelebration(awardedPoints);
+            }
         } else {
             this.playCardDrop();
             this.triggerHaptic("light");
@@ -744,6 +1141,70 @@ export default class Level extends Phaser.Scene {
         emitter.setDepth(2600);
         emitter.explode(bigBurst ? 18 : 8);
         this.time.delayedCall(bigBurst ? 700 : 450, () => emitter.destroy());
+    }
+
+    private showScoreCelebration(points: number): void {
+        if (this.activeScoreCelebration) {
+            this.tweens.killTweensOf(this.activeScoreCelebration.list);
+            this.tweens.killTweensOf(this.activeScoreCelebration);
+            this.activeScoreCelebration.destroy();
+        }
+
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const topOfOpenSpace = this.tableauPos[0].y + this.cardH + this.faceUpOffset * 2;
+        const centerY = topOfOpenSpace + Math.max(110, (h - topOfOpenSpace) * 0.44);
+        const color = Level.SCORE_CELEBRATION_COLORS[this.scoreCelebrationColorIndex % Level.SCORE_CELEBRATION_COLORS.length];
+        const message = Level.SCORE_CELEBRATION_MESSAGES[this.scoreCelebrationMessageIndex % Level.SCORE_CELEBRATION_MESSAGES.length];
+        this.scoreCelebrationColorIndex += 1;
+        this.scoreCelebrationMessageIndex += 1;
+
+        const container = this.add.container(w * 0.5, centerY).setDepth(3100).setScale(0.84).setAlpha(0);
+        const scoreText = this.add.text(0, -22, `+${points}`, {
+            ...this.uiText(this.isMobile() ? 58 : 50, color, "900", color === "#FFFFFF" ? "#10254A" : "#FFFFFF"),
+            fontFamily: BUTTON_FONT_FAMILY
+        }).setOrigin(0.5);
+        const messageText = this.add.text(0, 34, message, {
+            ...this.uiText(this.isMobile() ? 30 : 26, "#FFFFFF", "900", "#10254A"),
+            fontFamily: BUTTON_FONT_FAMILY,
+            align: "center"
+        }).setOrigin(0.5);
+
+        container.add([scoreText, messageText]);
+        this.activeScoreCelebration = container;
+
+        this.tweens.add({
+            targets: container,
+            alpha: 1,
+            scale: 1,
+            y: centerY - 18,
+            duration: 220,
+            ease: "Back.easeOut"
+        });
+
+        this.tweens.add({
+            targets: scoreText,
+            scale: 1.08,
+            duration: 260,
+            yoyo: true,
+            repeat: 1,
+            ease: "Sine.inOut"
+        });
+
+        this.tweens.add({
+            targets: container,
+            alpha: 0,
+            y: centerY - 70,
+            delay: 980,
+            duration: 280,
+            ease: "Sine.in",
+            onComplete: () => {
+                if (this.activeScoreCelebration === container) {
+                    this.activeScoreCelebration = undefined;
+                }
+                container.destroy();
+            }
+        });
     }
 
     private applyCardTilt(card: CardGO, nx: number, ny: number, immediate: boolean) {
@@ -825,18 +1286,17 @@ export default class Level extends Phaser.Scene {
 
     private isMeaningfulTableauMove(card: CardGO, fromColIndex: number, toColIndex: number): boolean {
         const fromCol = this.tableau[fromColIndex];
-        const toCol = this.tableau[toColIndex];
         const idx = fromCol.indexOf(card);
         if (idx < 0) return false;
 
-        const movingStack = fromCol.slice(idx);
         const revealsFaceDown = idx > 0 && !fromCol[idx - 1].data.faceUp;
         const emptiesSource = idx === 0;
-        const movesStack = movingStack.length > 1;
-        const fillsEmptyColumn = toCol.length === 0;
         const createsUsefulEmptyColumn = emptiesSource && this.hasKingMoveForEmptyColumn(fromColIndex, card);
+        const exposesFoundationMove = idx > 0
+            && fromCol[idx - 1].data.faceUp
+            && this.foundationPos.some((_, foundationIndex) => this.canMoveToFoundation(fromCol[idx - 1], foundationIndex));
 
-        return revealsFaceDown || createsUsefulEmptyColumn || movesStack || fillsEmptyColumn;
+        return revealsFaceDown || createsUsefulEmptyColumn || exposesFoundationMove;
     }
 
     private hasKingMoveForEmptyColumn(sourceColIndex: number, movingCard: CardGO): boolean {
@@ -864,13 +1324,45 @@ export default class Level extends Phaser.Scene {
     }
 
     private updateHUD() {
-        let score = 0;
-        this.foundations.forEach(pile => {
-            pile.forEach(card => {
-                score += (card.data.rank * 10);
-            });
+        const score = this.calculateBaseScore();
+        this.scoreText?.setText(`Score: ${score}`);
+        this.movesText?.setText(`Moves: ${this.moveCount}`);
+        this.timeText?.setText(`Time: ${this.formatElapsedTime(this.elapsedSeconds)}`);
+        if (!this.gameplayHtmlLayout) return;
+
+        showHtmlText("hud-score", {
+            text: `Score: ${score}`,
+            x: this.gameplayHtmlLayout.scoreX,
+            y: this.gameplayHtmlLayout.statsY,
+            fontSize: this.isMobile() ? 17 : 19,
+            letterSpacing: 0.5,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#10254A",
+            strokeWidth: 1.5
         });
-        this.infoText?.setText(`Score: ${score}    Moves: ${this.moveCount}    Time: ${this.formatElapsedTime(this.elapsedSeconds)}`);
+        showHtmlText("hud-moves", {
+            text: `Moves: ${this.moveCount}`,
+            x: this.gameplayHtmlLayout.movesX,
+            y: this.gameplayHtmlLayout.statsY,
+            fontSize: this.isMobile() ? 17 : 19,
+            letterSpacing: 0.5,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#10254A",
+            strokeWidth: 1.5
+        });
+        showHtmlText("hud-time", {
+            text: `Time: ${this.formatElapsedTime(this.elapsedSeconds)}`,
+            x: this.gameplayHtmlLayout.timeX,
+            y: this.gameplayHtmlLayout.statsY,
+            fontSize: this.isMobile() ? 17 : 19,
+            letterSpacing: 0.5,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#10254A",
+            strokeWidth: 1.5
+        });
     }
 
     private formatElapsedTime(totalSeconds: number): string {
@@ -891,32 +1383,221 @@ export default class Level extends Phaser.Scene {
         return s === "♥" || s === "♦";
     }
 
+    private getHintButtonLabel(): string {
+        return `Hint ${this.hintsRemaining}`;
+    }
+
+    private showLevelSettingsHtml(panelTop: number, panelBottom: number, rowBaseY: number): void {
+        const labelX = this.scale.width * 0.5 - 58;
+        const valueX = this.scale.width * 0.5 + 124;
+        const rows = [
+            { id: "level-settings-label-music", text: "Music", y: rowBaseY },
+            { id: "level-settings-label-fx", text: "Sound Effects", y: rowBaseY + 62 },
+            { id: "level-settings-label-haptics", text: "Haptics", y: rowBaseY + 124 }
+        ];
+        rows.forEach((row) => {
+            showHtmlText(row.id, {
+                text: row.text,
+                x: labelX,
+                y: row.y,
+                fontSize: 23,
+                letterSpacing: 0.4,
+                multicolor: false,
+                color: "#ECF0F1",
+                strokeColor: "#10254A",
+                strokeWidth: 1.5
+            });
+        });
+        showHtmlText("level-settings-value-music", {
+            text: this.settings.music ? "On" : "Off",
+            x: valueX,
+            y: rowBaseY - 3,
+            fontSize: 18,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+        showHtmlText("level-settings-value-fx", {
+            text: this.settings.fx ? "On" : "Off",
+            x: valueX,
+            y: rowBaseY + 59,
+            fontSize: 18,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+        showHtmlText("level-settings-value-haptics", {
+            text: this.settings.haptics ? "On" : "Off",
+            x: valueX,
+            y: rowBaseY + 121,
+            fontSize: 18,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+        showHtmlText("level-settings-note", {
+            text: "Draw mode can be changed from the home screen.",
+            x: this.scale.width * 0.5,
+            y: panelTop + 334,
+            fontSize: 18,
+            letterSpacing: 0.2,
+            maxWidth: 380,
+            multicolor: false,
+            color: "#BDC3C7",
+            strokeColor: "#10254A",
+            strokeWidth: 1.2
+        });
+        showHtmlText("level-settings-close", {
+            text: "Close",
+            x: this.scale.width * 0.5,
+            y: panelBottom - 42,
+            fontSize: 23,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+    }
+
+    private hideLevelSettingsHtml(): void {
+        [
+            "level-settings-label-music",
+            "level-settings-label-fx",
+            "level-settings-label-haptics",
+            "level-settings-value-music",
+            "level-settings-value-fx",
+            "level-settings-value-haptics",
+            "level-settings-note",
+            "level-settings-close"
+        ].forEach((id) => hideHtmlText(id));
+    }
+
+    private hideEndOverlayHtml(): void {
+        [
+            "end-subtitle",
+            "end-featured-message",
+            "end-score-breakdown",
+            "end-final-score",
+            "end-button-retry",
+            "end-button-menu"
+        ].forEach((id) => hideHtmlText(id));
+    }
+
+    private showGameplayHtml(): void {
+        if (!this.gameplayHtmlLayout) return;
+        showHtmlText("game-btn-new", {
+            text: "New game",
+            x: this.gameplayHtmlLayout.newButtonX,
+            y: this.gameplayHtmlLayout.buttonCenterY,
+            fontSize: 15,
+            letterSpacing: 0.5,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+        showHtmlText("game-btn-settings", {
+            text: "Settings",
+            x: this.gameplayHtmlLayout.settingsButtonX,
+            y: this.gameplayHtmlLayout.buttonCenterY,
+            fontSize: 15,
+            letterSpacing: 0.5,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+    }
+
+    private hideGameplayHtml(): void {
+        hideHtmlText("hud-score");
+        hideHtmlText("hud-moves");
+        hideHtmlText("hud-time");
+        hideHtmlText("game-btn-new");
+        hideHtmlText("game-btn-hint");
+        hideHtmlText("game-btn-settings");
+    }
+
+    private updateHintButton() {
+        this.hintButton?.setLabel(this.getHintButtonLabel());
+        this.hintButton?.setEnabled(this.hintsRemaining > 0);
+        if (!this.gameplayHtmlLayout) return;
+        const enabled = this.hintsRemaining > 0;
+        showHtmlText("game-btn-hint", {
+            text: this.getHintButtonLabel(),
+            x: this.gameplayHtmlLayout.hintButtonX,
+            y: this.gameplayHtmlLayout.buttonCenterY,
+            fontSize: 15,
+            letterSpacing: 0.5,
+            multicolor: false,
+            color: enabled ? "#FFFFFF" : "#B9BDC3",
+            strokeColor: enabled ? "#1A0003" : "#3D4046",
+            strokeWidth: 1.5,
+            opacity: enabled ? 1 : 0.82
+        });
+    }
+
+    private clearActiveHint(): void {
+        this.activeHintTimer?.remove(false);
+        this.activeHintTimer = undefined;
+
+        if (this.activeHintText) {
+            this.tweens.killTweensOf(this.activeHintText);
+            this.activeHintText.destroy();
+            this.activeHintText = undefined;
+        }
+
+        if (this.activeHintHighlight) {
+            this.tweens.killTweensOf(this.activeHintHighlight);
+            this.activeHintHighlight.destroy();
+            this.activeHintHighlight = undefined;
+        }
+    }
+
     private checkGameState() {
         const total = this.foundations.reduce((sum, p) => sum + p.length, 0);
         if (total === 52) {
-            this.triggerWinConfetti();
-            this.openEnd("VICTORY", "Perfect run. All cards are in foundation.");
-            this.submitScore();
-            this.triggerHaptic("success");
+            this.showVictoryAnimation();
             return;
         }
 
         const hasMove = this.hasAnyLegalMove();
-        if (!hasMove && this.stock.length === 0) {
-            this.openEnd("GAME OVER", "No legal moves left.");
-            this.submitScore();
-            this.triggerHaptic("error");
+        if (!hasMove && this.stock.length === 0 && this.waste.length > 0) {
+            this.showStatusMessage("Tap stock to recycle.");
         }
     }
 
     private provideHint() {
         if (!this.gameStarted) return;
+        if (this.hintsRemaining <= 0) {
+            this.showStatusMessage("No hints left this round.");
+            return;
+        }
 
+        const suggestion = this.getHintSuggestion();
+        if (!suggestion) {
+            this.showStatusMessage("No useful hints right now.");
+            return;
+        }
+
+        this.hintsRemaining -= 1;
+        this.updateHintButton();
+        this.showHint(suggestion.card, suggestion.target, suggestion.message);
+    }
+
+    private getHintSuggestion(): HintSuggestion | null {
         // 1. Check Waste to Foundation
         const wasteTop = this.waste[this.waste.length - 1];
         if (wasteTop) {
             const fi = this.foundationPos.findIndex((_, i) => this.canMoveToFoundation(wasteTop, i));
-            if (fi >= 0) return this.showHint(wasteTop, this.foundationPos[fi]);
+            if (fi >= 0) return { card: wasteTop, target: this.foundationPos[fi] };
         }
 
         // 2. Check Tableau to Foundation
@@ -925,7 +1606,7 @@ export default class Level extends Phaser.Scene {
             const top = col[col.length - 1];
             if (top && top.data.faceUp) {
                 const fi = this.foundationPos.findIndex((_, fidx) => this.canMoveToFoundation(top, fidx));
-                if (fi >= 0) return this.showHint(top, this.foundationPos[fi]);
+                if (fi >= 0) return { card: top, target: this.foundationPos[fi] };
             }
         }
 
@@ -945,7 +1626,7 @@ export default class Level extends Phaser.Scene {
                         if (!this.isMeaningfulTableauMove(card, i, ti)) continue;
                         // Don't hint moving a King to an empty spot if it's already at the bottom of its column
                         if (card.data.rank === 13 && j === 0) continue;
-                        return this.showHint(card, this.getTableauHintTarget(ti));
+                        return { card, target: this.getTableauHintTarget(ti) };
                     }
                 }
             }
@@ -954,17 +1635,31 @@ export default class Level extends Phaser.Scene {
         // 4. Check Waste to Tableau
         if (wasteTop) {
             const ti = this.tableauPos.findIndex((_, i) => this.canMoveToTableau(wasteTop, i));
-            if (ti >= 0) return this.showHint(wasteTop, this.getTableauHintTarget(ti));
+            if (ti >= 0) return { card: wasteTop, target: this.getTableauHintTarget(ti) };
         }
 
         // 5. Check if Stock has cards
         if (this.stock.length > 0) {
-            return this.showHint(null, this.stockPos, "DRAW FROM STOCK");
+            return { card: null, target: this.stockPos, message: "Draw from stock" };
         }
 
-        // 6. No moves left and stock empty
-        this.openEnd("GAME OVER", "No legal moves left. Hint found nothing.");
-        this.triggerHaptic("error");
+        return null;
+    }
+
+    private showStatusMessage(message: string) {
+        const text = this.add.text(this.scale.width * 0.5, this.scale.height * 0.14, message, this.uiText(18, "#FFFFFF", "900", "#B3131B"))
+            .setOrigin(0.5)
+            .setDepth(3200)
+            .setAlpha(0);
+        this.tweens.add({
+            targets: text,
+            alpha: 1,
+            y: text.y - 18,
+            duration: 240,
+            yoyo: true,
+            hold: 700,
+            onComplete: () => text.destroy()
+        });
     }
 
     private getTableauHintTarget(colIndex: number): { x: number, y: number } {
@@ -981,51 +1676,64 @@ export default class Level extends Phaser.Scene {
     }
 
     private showHint(card: CardGO | null, target: { x: number, y: number }, message?: string) {
+        this.clearActiveHint();
+
         if (message) {
-            const text = this.add.text(target.x + this.cardW / 2, target.y + this.cardH / 2, message, this.uiText(18, "#F1C40F", "900"))
+            const text = this.add.text(target.x + this.cardW / 2, target.y + this.cardH / 2, message, this.uiText(20, "#FFFFFF", "900", "#00A1E4"))
                 .setOrigin(0.5).setDepth(3000).setAlpha(0);
+            this.activeHintText = text;
             this.tweens.add({
                 targets: text,
                 alpha: 1,
-                y: text.y - 40,
-                duration: 500,
-                yoyo: true,
-                onComplete: () => text.destroy()
+                y: text.y - 22,
+                duration: 260,
+                ease: "Sine.out"
             });
         }
 
         const highlight = this.add.graphics().setDepth(2000);
-        highlight.lineStyle(6, 0xF1C40F, 1);
-        highlight.strokeRoundedRect(target.x - 4, target.y - 4, this.cardW + 8, this.cardH + 8, 12);
+        highlight.lineStyle(8, 0x00A1E4, 1);
+        highlight.strokeRoundedRect(target.x - 6, target.y - 6, this.cardW + 12, this.cardH + 12, 14);
         highlight.setAlpha(0);
+        this.activeHintHighlight = highlight;
 
         this.tweens.add({
             targets: highlight,
             alpha: 1,
-            duration: 300,
+            duration: 220,
+            ease: "Sine.out"
+        });
+
+        this.tweens.add({
+            targets: highlight,
+            alpha: 0.45,
+            duration: 620,
             yoyo: true,
-            repeat: 2,
-            onComplete: () => highlight.destroy()
+            repeat: 6
         });
 
         if (card) {
             this.tweens.add({
                 targets: card.container,
                 scale: 1.05,
-                duration: 200,
+                duration: 240,
                 yoyo: true,
-                repeat: 2
+                repeat: 5
             });
         } else {
             // If it's the stock
             this.tweens.add({
                 targets: this.stockSlot,
                 alpha: 1,
-                duration: 250,
+                duration: 260,
                 yoyo: true,
-                repeat: 2
+                repeat: 5
             });
         }
+
+        this.activeHintTimer = this.time.delayedCall(5000, () => {
+            this.clearActiveHint();
+        });
     }
 
     private hasAnyLegalMove(): boolean {
@@ -1048,7 +1756,143 @@ export default class Level extends Phaser.Scene {
             }
         }
 
-        return this.stock.length > 0;
+        return this.stock.length > 0 || this.waste.length > 0;
+    }
+
+    private showVictoryAnimation(preview = false): void {
+        const featuredCard = this.getRandomCelebrationCard();
+        const baseScore = preview ? Math.max(this.calculateBaseScore(), 3640) : this.calculateBaseScore();
+        const timeBonus = preview ? Math.max(this.calculateTimeBonus(), 2200) : this.calculateTimeBonus();
+        const moveBonus = preview ? Math.max(this.calculateMoveBonus(), 960) : this.calculateMoveBonus();
+        const finalScore = preview ? baseScore + timeBonus + moveBonus : this.calculateFinalScore();
+
+        this.triggerWinConfetti();
+        this.openEnd("Victory", "", {
+            featuredCard,
+            featuredMessage: this.getCelebrationMessage(featuredCard),
+            baseScore,
+            timeBonus,
+            moveBonus,
+            finalScore,
+            showVictoryDetails: true
+        });
+
+        if (!preview) {
+            this.submitScore(finalScore);
+            this.triggerHaptic("success");
+        }
+    }
+
+    private getRandomCelebrationCard(): CardData {
+        const suits: Suit[] = ["♠", "♥", "♦", "♣"];
+        return {
+            id: "celebration-card",
+            suit: Phaser.Utils.Array.GetRandom(suits),
+            rank: Phaser.Math.Between(1, 13),
+            faceUp: true
+        };
+    }
+
+    private getCelebrationMessage(card: CardData): string {
+        const messagesBySuit: Record<Suit, string[]> = {
+            "♠": [
+                "Ace of Spades. You buried the chaos and planted a victory garden.",
+                "Two of Spades. Double trouble for the deck, zero trouble for you.",
+                "Three of Spades. You stabbed confusion three times and called it strategy.",
+                "Four of Spades. The table folded faster than a cheap lawn chair.",
+                "Five of Spades. Sharp moves, sharper finish, zero shovel-related incidents.",
+                "Six of Spades. You dug six layers deep and still found style.",
+                "Seven of Spades. Lucky? Maybe. Menacingly competent? Absolutely.",
+                "Eight of Spades. The deck blinked once and lost custody of the board.",
+                "Nine of Spades. You gave that layout a villain speech and then won anyway.",
+                "Ten of Spades. Ten out of ten, no notes, only dramatic organ music.",
+                "Jack of Spades. That was rogue behavior in a very flattering way.",
+                "Queen of Spades. You ran this table like it owed you rent.",
+                "King of Spades. The deck has accepted you as its slightly terrifying monarch."
+            ],
+            "♥": [
+                "Ace of Hearts. You charmed the whole table into behaving.",
+                "Two of Hearts. A sweet little win with suspiciously elite timing.",
+                "Three of Hearts. The cards caught feelings and started helping you.",
+                "Four of Hearts. Cozy, classy, and just rude enough to beat the odds.",
+                "Five of Hearts. You turned patience into romance and chaos into decor.",
+                "Six of Hearts. That run was smoother than an apology with flowers.",
+                "Seven of Hearts. You flirted with danger and danger folded first.",
+                "Eight of Hearts. Every move said, relax, I have this, and somehow you did.",
+                "Nine of Hearts. The deck wanted drama, but you brought adorable efficiency.",
+                "Ten of Hearts. Perfect score energy with a smile the cards could hear.",
+                "Jack of Hearts. You won like a charming thief at a royal card party.",
+                "Queen of Hearts. Graceful, deadly, and somehow still very cute.",
+                "King of Hearts. The board loved you, and honestly who could blame it."
+            ],
+            "♦": [
+                "Ace of Diamonds. You polished that win until it could see itself.",
+                "Two of Diamonds. Twice the sparkle, half the panic.",
+                "Three of Diamonds. You made the messy bits look aggressively expensive.",
+                "Four of Diamonds. Clean lines, bright choices, and absolutely no financial advice.",
+                "Five of Diamonds. The deck got dazzled and forgot how to resist.",
+                "Six of Diamonds. You played like every move came with premium packaging.",
+                "Seven of Diamonds. Lucky enough to shine, smart enough to cash it in.",
+                "Eight of Diamonds. That victory had showroom-floor confidence.",
+                "Nine of Diamonds. You turned cardboard into luxury behavior.",
+                "Ten of Diamonds. Ten shiny decisions in a trench coat pretending to be destiny.",
+                "Jack of Diamonds. Flashy, funny, and somehow still efficient.",
+                "Queen of Diamonds. Rich aunt energy, but for winning solitaire.",
+                "King of Diamonds. You ruled the table like it came with gold trim."
+            ],
+            "♣": [
+                "Ace of Clubs. You bonked the problem once and it learned respect.",
+                "Two of Clubs. A tidy little double-tap of competence.",
+                "Three of Clubs. You solved this board like a cheerful wrecking ball.",
+                "Four of Clubs. Solid, steady, and just the right amount of smug.",
+                "Five of Clubs. The deck got clobbered by five-star decision making.",
+                "Six of Clubs. You kept swinging until the nonsense packed its bags.",
+                "Seven of Clubs. Pure gremlin discipline. Weirdly inspiring.",
+                "Eight of Clubs. That was eight servings of focus with extra crunch.",
+                "Nine of Clubs. You clubbed the chaos politely, which is somehow worse.",
+                "Ten of Clubs. Ten big thumps of strategy and one very small mercy.",
+                "Jack of Clubs. Mischief, muscle, and excellent table manners.",
+                "Queen of Clubs. You carried a big stick and even bigger confidence.",
+                "King of Clubs. The board got bonked into order by royalty."
+            ]
+        };
+        return messagesBySuit[card.suit][card.rank - 1];
+    }
+
+    private renderModalTitle(container: Phaser.GameObjects.Container, label: string): void {
+        if (document.getElementById("solitaire-modal-title")) {
+            container.setVisible(false);
+            showHtmlText("modal-title", {
+                text: label,
+                x: container.x,
+                y: container.y,
+                fontSize: 42,
+                letterSpacing: 2,
+                variant: "modal"
+            });
+            return;
+        }
+
+        container.setVisible(true);
+        container.removeAll(true);
+        const colors = ["#FFFFFF", "#111111", "#B3131B"];
+        const letters = [...label].map((char, index) => this.add.text(0, 0, char, {
+            fontSize: "42px",
+            color: colors[index % colors.length],
+            fontFamily: UI_FONT_FAMILY,
+            fontStyle: "900",
+            resolution: getUiTextResolution(),
+            stroke: "#FFFFFF",
+            strokeThickness: 2
+        }).setOrigin(0.5));
+        const gap = 4;
+        const totalWidth = letters.reduce((sum, letter, index) => sum + letter.width + (index === letters.length - 1 ? 0 : gap), 0);
+        let cursor = -totalWidth / 2;
+        letters.forEach((letter, index) => {
+            letter.x = cursor + letter.width / 2;
+            cursor += letter.width + (index === letters.length - 1 ? 0 : gap);
+        });
+        container.add(letters);
     }
 
     private playTone(freq: number, type: OscillatorType, dur: number, vol: number, slideFreq?: number) {
@@ -1098,15 +1942,58 @@ export default class Level extends Phaser.Scene {
         if (this.playLoadedFx("foundation_success", { volume: 0.24 })) return;
         this.playTone(580, "sine", 0.12, 0.08, 800);
     }
+    private playVictoryFinal() {
+        if (this.playLoadedFx("victory_final", { volume: 0.82 })) return;
+        this.playSuccessDrop();
+    }
     private playButton() {
         if (this.playLoadedFx("ui_button", { volume: 0.4 })) return;
         this.playTone(520, "sine", 0.05, 0.04);
     }
 
     private openSettings() {
-        if (!this.settingsOverlay) this.createSettingsOverlay();
+        if (this.settingsOverlay?.visible) return;
+        this.hideGameplayHtml();
+        this.destroySettingsOverlay(false);
+        this.createSettingsOverlay();
         gameplayStop();
-        this.settingsOverlay.setVisible(true);
+        const overlay = this.settingsOverlay!;
+        overlay.setVisible(true);
+        overlay.setAlpha(0);
+        this.tweens.add({
+            targets: overlay,
+            alpha: 1,
+            duration: 180
+        });
+    }
+
+    private destroySettingsOverlay(resumeGameplay: boolean) {
+        if (!this.settingsOverlay) {
+            if (!this.isShuttingDown && !this.endOverlay?.visible && !this.leaveOverlay?.visible) {
+                this.hideLevelSettingsHtml();
+                hideHtmlText("modal-title");
+                this.showGameplayHtml();
+                this.updateHUD();
+                this.updateHintButton();
+            }
+            if (!this.isShuttingDown && resumeGameplay && !this.endOverlay?.visible && !this.leaveOverlay?.visible) {
+                gameplayStart();
+            }
+            return;
+        }
+        this.tweens.killTweensOf(this.settingsOverlay);
+        this.settingsOverlay.destroy();
+        this.settingsOverlay = undefined;
+        if (!this.isShuttingDown && !this.endOverlay?.visible && !this.leaveOverlay?.visible) {
+            this.hideLevelSettingsHtml();
+            hideHtmlText("modal-title");
+            this.showGameplayHtml();
+            this.updateHUD();
+            this.updateHintButton();
+        }
+        if (!this.isShuttingDown && resumeGameplay && !this.endOverlay?.visible && !this.leaveOverlay?.visible) {
+            gameplayStart();
+        }
     }
 
     private createSettingsOverlay() {
@@ -1119,44 +2006,42 @@ export default class Level extends Phaser.Scene {
 
         const panel = this.add.graphics();
         const pW = Math.min(480, w - 36);
-        const pH = 450;
+        const pH = 520;
+        const panelTop = h * 0.5 - pH / 2;
+        const panelBottom = h * 0.5 + pH / 2;
+        const rowBaseY = panelTop + 126;
         panel.fillStyle(0x1E272E, 0.95);
         panel.fillRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 24);
-        panel.lineStyle(2, 0x34495E, 0.8);
-        panel.strokeRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 24);
 
-        const title = this.add.text(w * 0.5, h * 0.5 - 170, "SETTINGS", this.uiText(32, "#FFFFFF", "900", "#1A5276")).setOrigin(0.5);
-        title.setShadow(0, 4, "#000000", 6, true);
+        const title = this.add.container(w * 0.5, panelTop + 54);
+        this.renderModalTitle(title, "Settings");
 
         const mkToggle = (label: string, key: "music" | "fx" | "haptics", y: number) => {
             const row = this.add.container(w * 0.5 - 150, h * 0.5 + y);
-            const txt = this.add.text(0, 0, label, this.uiText(22, "#ECF0F1", "800")).setOrigin(0, 0.5);
+            const txt = this.add.text(0, 0, label, this.uiText(23, "#ECF0F1", "800")).setOrigin(0, 0.5).setAlpha(0);
 
             const btnObj = this.add.graphics();
             const drawToggle = (isOn: boolean) => {
                 btnObj.clear();
-                // shadow
                 btnObj.fillStyle(0x000000, 0.3);
-                btnObj.fillRoundedRect(250, -16, 90, 40, 20);
-
-                // bottom rim
-                btnObj.fillStyle(isOn ? 0x1E8449 : 0x922B21, 1);
-                btnObj.fillRoundedRect(250, -18, 90, 40, 20);
-
-                // fill
-                btnObj.fillStyle(isOn ? 0x2ECC71 : 0xE74C3C, 1);
-                btnObj.fillRoundedRect(250, -20, 90, 40, 20);
-
-                btnObj.lineStyle(3, 0xFFFFFF, 0.8);
-                btnObj.strokeRoundedRect(250, -20, 90, 40, 20);
+                btnObj.fillRoundedRect(220, -14, 108, 42, 20);
+                btnObj.fillStyle(isOn ? 0x145A32 : 0x5C0B12, 1);
+                btnObj.fillRoundedRect(220, -18, 108, 42, 20);
+                btnObj.fillStyle(isOn ? 0x2ECC71 : 0xB3131B, 1);
+                btnObj.fillRoundedRect(220, -22, 108, 42, 20);
+                btnObj.fillStyle(0xFFFFFF, 0.16);
+                btnObj.fillRoundedRect(230, -18, 88, 12, 12);
+                btnObj.lineStyle(3, 0xFFFFFF, 0.9);
+                btnObj.strokeRoundedRect(220, -22, 108, 42, 20);
             };
             drawToggle(this.settings[key]);
 
-            const val = this.add.text(295, -2, this.settings[key] ? "ON" : "OFF", {
-                ...this.uiText(18, "#FFFFFF", "900", this.settings[key] ? "#196F3D" : "#943126")
-            }).setOrigin(0.5);
+            const val = this.add.text(274, -3, this.settings[key] ? "On" : "Off", {
+                ...this.uiText(18, "#FFFFFF", "900", "#1A0003"),
+                fontFamily: BUTTON_FONT_FAMILY
+            }).setOrigin(0.5).setAlpha(0);
 
-            const rowHitZone = this.add.zone(275, 0, 90, 40).setInteractive({ useHandCursor: true });
+            const rowHitZone = this.add.zone(274, 0, 108, 42).setInteractive({ useHandCursor: true });
             row.add([txt, btnObj, val, rowHitZone]);
 
             rowHitZone.on("pointerover", () => { document.body.style.cursor = "pointer"; });
@@ -1164,9 +2049,10 @@ export default class Level extends Phaser.Scene {
             rowHitZone.on("pointerdown", () => {
                 this.settings[key] = !this.settings[key];
                 drawToggle(this.settings[key]);
-                val.setText(this.settings[key] ? "ON" : "OFF");
-                val.setStroke(this.settings[key] ? "#196F3D" : "#943126", 4);
+                val.setText(this.settings[key] ? "On" : "Off");
+                this.showLevelSettingsHtml(panelTop, panelBottom, rowBaseY);
                 this.saveSettings();
+                this.playButton();
                 if (key === "music") {
                     syncBackgroundMusic(this, this.settings.music);
                 }
@@ -1175,71 +2061,167 @@ export default class Level extends Phaser.Scene {
             return row;
         };
 
-        const t1 = mkToggle("Music", "music", -82);
-        const t2 = mkToggle("Sound Effects", "fx", -20);
-        const t3 = mkToggle("Haptics", "haptics", 42);
+        const t1 = mkToggle("Music", "music", rowBaseY - h * 0.5);
+        const t2 = mkToggle("Sound Effects", "fx", rowBaseY + 62 - h * 0.5);
+        const t3 = mkToggle("Haptics", "haptics", rowBaseY + 124 - h * 0.5);
 
-        // --- DRAW 1 / DRAW 3 TOGGLE ---
-        const drawRow = this.add.container(w * 0.5 - 150, h * 0.5 + 104);
-        const drawTxt = this.add.text(0, 0, "Draw Count", this.uiText(22, "#ECF0F1", "800")).setOrigin(0, 0.5);
+        const note = this.add.text(w * 0.5, panelTop + 334, "Draw mode can be changed from the home screen.", {
+            ...this.uiText(18, "#BDC3C7", "700"),
+            wordWrap: { width: pW - 56 },
+            align: "center"
+        }).setOrigin(0.5).setAlpha(0);
 
-        const drawBtnObj = this.add.graphics();
-        const drawToggleDraw = () => {
-            drawBtnObj.clear();
-            drawBtnObj.fillStyle(0x000000, 0.3);
-            drawBtnObj.fillRoundedRect(250, -16, 90, 40, 20);
-            drawBtnObj.fillStyle(0x2874A6, 1);
-            drawBtnObj.fillRoundedRect(250, -18, 90, 40, 20);
-            drawBtnObj.fillStyle(0x3498DB, 1);
-            drawBtnObj.fillRoundedRect(250, -20, 90, 40, 20);
-            drawBtnObj.lineStyle(3, 0xFFFFFF, 0.8);
-            drawBtnObj.strokeRoundedRect(250, -20, 90, 40, 20);
-        };
-        drawToggleDraw();
-
-        const drawVal = this.add.text(295, -2, `DRAW ${this.settings.drawCount}`, {
-            ...this.uiText(15, "#FFFFFF", "900", "#154360")
-        }).setOrigin(0.5);
-
-        const drawHitZone = this.add.zone(275, 0, 90, 40).setInteractive({ useHandCursor: true });
-        drawRow.add([drawTxt, drawBtnObj, drawVal, drawHitZone]);
-
-        drawHitZone.on("pointerover", () => { document.body.style.cursor = "pointer"; });
-        drawHitZone.on("pointerout", () => { document.body.style.cursor = "default"; });
-        drawHitZone.on("pointerdown", () => {
-            this.settings.drawCount = this.settings.drawCount === 1 ? 3 : 1;
-            this.drawCount = this.settings.drawCount;
-            drawToggleDraw();
-            drawVal.setText(`DRAW ${this.settings.drawCount}`);
-            this.saveSettings();
-            this.triggerHaptic("light");
-        });
-
-        const close = this.makeCenterButton(w * 0.5, h * 0.5 + 180, "CLOSE", () => {
-            this.settingsOverlay.setVisible(false);
-            gameplayStart();
-        });
-        c.add([dark, panel, title, t1, t2, t3, drawRow, close]);
+        const close = this.makeCenterButton(w * 0.5, panelBottom - 40, "Close", () => {
+            this.destroySettingsOverlay(true);
+        }, "red", 188, 46, true);
+        c.add([dark, panel, title, t1, t2, t3, note, close]);
         c.setVisible(false);
         this.settingsOverlay = c;
+        this.showLevelSettingsHtml(panelTop, panelBottom, rowBaseY);
     }
 
-    private openEnd(title: string, subtitle: string) {
+    private openEnd(title: string, subtitle: string, config?: EndOverlayConfig) {
         if (!this.endOverlay) this.createEndOverlay();
         gameplayStop();
+        this.hideGameplayHtml();
+        this.hideEndOverlayHtml();
         this.hudTimer?.remove(false);
         this.hudTimer = undefined;
-        const [titleObj, subObj] = this.endOverlay.list.filter(o => o.name === "title" || o.name === "subtitle") as Phaser.GameObjects.Text[];
-        titleObj.setText(title);
+        const titleObj = this.endOverlay.getByName("title") as Phaser.GameObjects.Container;
+        const subObj = this.endOverlay.getByName("subtitle") as Phaser.GameObjects.Text;
+        const featuredCard = this.endOverlay.getByName("featured-card") as Phaser.GameObjects.Image;
+        const featuredMessage = this.endOverlay.getByName("featured-message") as Phaser.GameObjects.Text;
+        const scoreBreakdown = this.endOverlay.getByName("score-breakdown") as Phaser.GameObjects.Text;
+        const finalScore = this.endOverlay.getByName("final-score") as Phaser.GameObjects.Text;
+        const retryButton = this.endOverlay.getByName("retry") as Phaser.GameObjects.Container;
+        const menuButton = this.endOverlay.getByName("menu") as Phaser.GameObjects.Container;
+        this.renderModalTitle(titleObj, title);
+        const hasSubtitle = subtitle.trim().length > 0;
         subObj.setText(subtitle);
+        subObj.setVisible(hasSubtitle);
 
-        this.endOverlay.setVisible(true).setAlpha(0).setScale(0.85);
+        const showVictoryDetails = config?.showVictoryDetails === true;
+        featuredCard.setVisible(showVictoryDetails);
+        featuredMessage.setVisible(showVictoryDetails);
+        scoreBreakdown.setVisible(showVictoryDetails);
+        finalScore.setVisible(showVictoryDetails);
+        const panelTop = this.scale.height * 0.5 - 310;
+        const panelBottom = this.scale.height * 0.5 + 310;
+        const detailOffset = showVictoryDetails && !hasSubtitle ? -24 : 0;
+        subObj.y = showVictoryDetails ? panelTop + 122 : panelTop + 154;
+        featuredMessage.y = panelTop + 190 + detailOffset;
+        featuredCard.y = panelTop + 282 + detailOffset;
+        scoreBreakdown.y = panelTop + 392 + detailOffset;
+        finalScore.y = panelTop + 454 + detailOffset;
+        retryButton.y = showVictoryDetails ? panelBottom - 122 : panelBottom - 136;
+        menuButton.y = showVictoryDetails ? panelBottom - 52 : panelBottom - 66;
+
+        if (hasSubtitle) {
+            showHtmlText("end-subtitle", {
+                text: subtitle,
+                x: this.scale.width * 0.5,
+                y: subObj.y,
+                fontSize: 21,
+                maxWidth: 420,
+                letterSpacing: 0.2,
+                multicolor: false,
+                color: "#BDC3C7",
+                strokeColor: "#10254A",
+                strokeWidth: 1.2
+            });
+        } else {
+            hideHtmlText("end-subtitle");
+        }
+        showHtmlText("end-button-retry", {
+            text: "Play again",
+            x: retryButton.x,
+            y: retryButton.y - 2,
+            fontSize: 23,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+        showHtmlText("end-button-menu", {
+            text: "Main menu",
+            x: menuButton.x,
+            y: menuButton.y - 2,
+            fontSize: 23,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+        if (showVictoryDetails && (config?.featuredMessage ?? "").trim().length > 0) {
+            showHtmlText("end-featured-message", {
+                text: config?.featuredMessage ?? "",
+                x: this.scale.width * 0.5,
+                y: featuredMessage.y,
+                fontSize: 19,
+                maxWidth: 430,
+                letterSpacing: 0.15,
+                multicolor: false,
+                color: "#FFFFFF",
+                strokeColor: "#10254A",
+                strokeWidth: 1.2
+            });
+        } else {
+            hideHtmlText("end-featured-message");
+        }
+
+        this.tweens.killTweensOf([featuredCard, featuredMessage, scoreBreakdown, finalScore]);
+        if (
+            showVictoryDetails
+            && config?.featuredCard
+            && config.baseScore !== undefined
+            && config.timeBonus !== undefined
+            && config.moveBonus !== undefined
+            && config.finalScore !== undefined
+        ) {
+            featuredCard.setTexture(this.getCardTextureKey(config.featuredCard.suit, config.featuredCard.rank));
+            featuredCard.setDisplaySize(this.cardW * 1.5, this.cardH * 1.5);
+            featuredCard.setAlpha(0);
+            featuredCard.setScale(0.82);
+            featuredMessage.setText(config.featuredMessage ?? "");
+            featuredMessage.setAlpha(0);
+            scoreBreakdown.setText("");
+            finalScore.setText("");
+            this.tweens.add({
+                targets: featuredCard,
+                alpha: 1,
+                scale: 1,
+                duration: 420,
+                ease: "Back.easeOut",
+                delay: 120
+            });
+            this.animateVictoryScore(
+                scoreBreakdown,
+                finalScore,
+                config.baseScore,
+                config.timeBonus,
+                config.moveBonus,
+                config.finalScore
+            );
+        } else {
+            featuredCard.setAlpha(1);
+            featuredCard.setScale(1);
+            featuredMessage.setAlpha(1);
+            scoreBreakdown.setAlpha(1);
+            finalScore.setAlpha(1);
+            scoreBreakdown.setText("");
+            finalScore.setText("");
+            hideHtmlText("end-score-breakdown");
+            hideHtmlText("end-final-score");
+        }
+
+        this.endOverlay.setVisible(true).setAlpha(0);
         this.tweens.add({
             targets: this.endOverlay,
             alpha: 1,
-            scale: 1,
-            duration: 400,
-            ease: "Back.easeOut"
+            duration: 280,
+            ease: "Sine.out"
         });
     }
 
@@ -1248,22 +2230,22 @@ export default class Level extends Phaser.Scene {
         const emitter = this.add.particles(0, 0, "confetti", {
             x: { min: 0, max: w },
             y: -20,
-            lifespan: 3000,
-            speedY: { min: 200, max: 400 },
-            speedX: { min: -100, max: 100 },
+            lifespan: 3600,
+            speedY: { min: 240, max: 520 },
+            speedX: { min: -180, max: 180 },
             rotate: { min: 0, max: 360 },
-            gravityY: 100,
-            scale: { start: 1, end: 0.5 },
-            quantity: 2,
-            frequency: 50,
+            gravityY: 140,
+            scale: { start: 1.15, end: 0.45 },
+            quantity: 6,
+            frequency: 22,
             tint: [0xF1C40F, 0xE74C3C, 0x3498DB, 0x2ECC71, 0x9B59B6, 0xE67E22]
         });
-        emitter.setDepth(4000);
+        // Keep the confetti above the victory modal so it falls across the panel.
+        emitter.setDepth(4700);
 
-        // Stop after 2 seconds
-        this.time.delayedCall(2500, () => {
+        this.time.delayedCall(3200, () => {
             emitter.stop();
-            this.time.delayedCall(3000, () => emitter.destroy());
+            this.time.delayedCall(3200, () => emitter.destroy());
         });
     }
 
@@ -1275,38 +2257,165 @@ export default class Level extends Phaser.Scene {
 
         const panel = this.add.graphics();
         const pW = Math.min(500, w - 40);
-        const pH = 320;
+        const pH = 620;
+        const panelTop = h * 0.5 - pH / 2;
+        const panelBottom = h * 0.5 + pH / 2;
         panel.fillStyle(0x17202A, 0.95);
         panel.fillRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 24);
-        panel.lineStyle(2, 0xD4AC0D, 0.8);
-        panel.strokeRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 24);
 
-        const title = this.add.text(w * 0.5, h * 0.5 - 80, "GAME OVER", this.uiText(40, "#F1C40F", "900", "#7E5109")).setOrigin(0.5);
+        const title = this.add.container(w * 0.5, panelTop + 56);
         title.name = "title";
-        title.setShadow(0, 4, "#000000", 6, true);
+        this.renderModalTitle(title, "Game over");
 
-        const subtitle = this.add.text(w * 0.5, h * 0.5 - 20, "", this.uiText(20, "#BDC3C7", "800")).setOrigin(0.5);
+        const subtitle = this.add.text(w * 0.5, panelTop + 122, "", {
+            ...this.uiText(21, "#BDC3C7", "800"),
+            wordWrap: { width: pW - 60 }
+        }).setOrigin(0.5).setAlpha(0);
         subtitle.name = "subtitle";
 
-        const retry = this.makeCenterButton(w * 0.5, h * 0.5 + 50, "PLAY AGAIN", () => {
+        const featuredCard = this.add.image(w * 0.5, panelTop + 282, "card_back")
+            .setDisplaySize(this.cardW * 1.5, this.cardH * 1.5)
+            .setVisible(false);
+        featuredCard.name = "featured-card";
+
+        const featuredMessage = this.add.text(w * 0.5, panelTop + 190, "", {
+            ...this.uiText(19, "#FFFFFF", "800"),
+            wordWrap: { width: pW - 70 },
+            align: "center"
+        }).setOrigin(0.5).setVisible(false).setAlpha(0);
+        featuredMessage.name = "featured-message";
+
+        const scoreBreakdown = this.add.text(w * 0.5, panelTop + 392, "", {
+            ...this.uiText(18, "#ECF0F1", "800"),
+            align: "center",
+            lineSpacing: 10
+        })
+            .setOrigin(0.5)
+            .setVisible(false)
+            .setAlpha(0);
+        scoreBreakdown.name = "score-breakdown";
+
+        const finalScore = this.add.text(w * 0.5, panelTop + 454, "", this.uiText(28, "#FFFFFF", "900", "#B3131B"))
+            .setOrigin(0.5)
+            .setVisible(false)
+            .setAlpha(0);
+        finalScore.name = "final-score";
+
+        const retry = this.makeCenterButton(w * 0.5, panelBottom - 122, "Play again", () => {
             this.endOverlay.setVisible(false);
+            this.hideEndOverlayHtml();
+            hideHtmlText("modal-title");
+            this.showGameplayHtml();
             this.newGame();
             this.gameStarted = true;
             gameplayStart();
-        });
-        const menu = this.makeCenterButton(w * 0.5, h * 0.5 + 120, "MAIN MENU", () => {
+        }, "red", 206, 48, true);
+        retry.name = "retry";
+        const menu = this.makeCenterButton(w * 0.5, panelBottom - 52, "Main menu", () => {
             this.endOverlay.setVisible(false);
+            this.hideEndOverlayHtml();
+            hideHtmlText("modal-title");
             gameplayStop();
             this.scene.start("MainMenu");
-        });
+        }, "blue", 206, 48, true);
+        menu.name = "menu";
 
-        c.add([dark, panel, title, subtitle, retry, menu]);
+        c.add([dark, panel, title, subtitle, featuredCard, featuredMessage, scoreBreakdown, finalScore, retry, menu]);
         this.endOverlay = c;
     }
 
-    private makeCenterButton(x: number, y: number, label: string, onClick: () => void) {
+    private openLeaveOverlay() {
+        const overlayAttached = !!this.leaveOverlay && this.children.exists(this.leaveOverlay);
+        if (overlayAttached && this.leaveOverlay?.visible) return;
+        if (this.leaveOverlay) {
+            this.tweens.killTweensOf(this.leaveOverlay);
+            this.leaveOverlay.destroy();
+            this.leaveOverlay = undefined;
+        }
+        this.createLeaveOverlay();
+        gameplayStop();
+        this.hideGameplayHtml();
+        const overlay = this.leaveOverlay!;
+        overlay.setVisible(true);
+        overlay.setAlpha(0);
+        this.tweens.add({
+            targets: overlay,
+            alpha: 1,
+            duration: 200,
+        });
+    }
+
+    private closeLeaveOverlay() {
+        const overlay = this.leaveOverlay;
+        if (!overlay || !this.children.exists(overlay) || !overlay.visible) return;
+        this.tweens.add({
+            targets: overlay,
+            alpha: 0,
+            duration: 180,
+            onComplete: () => {
+                overlay.destroy();
+                this.leaveOverlay = undefined;
+                if (!this.settingsOverlay?.visible && !this.endOverlay?.visible) {
+                    hideHtmlText("modal-title");
+                    this.showGameplayHtml();
+                    this.updateHUD();
+                    this.updateHintButton();
+                    gameplayStart();
+                }
+            }
+        });
+    }
+
+    private createLeaveOverlay() {
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const c = this.add.container(0, 0).setDepth(5400).setVisible(false);
+
+        const dark = this.add.rectangle(0, 0, w, h, 0x000000, 0.78).setOrigin(0, 0);
+        dark.setInteractive();
+
+        const panel = this.add.graphics();
+        const pW = Math.min(440, w - 40);
+        const pH = 292;
+        const panelTop = h * 0.5 - pH / 2;
+        const panelBottom = h * 0.5 + pH / 2;
+        panel.fillStyle(0x1E272E, 0.97);
+        panel.fillRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 24);
+
+        const title = this.add.container(w * 0.5, panelTop + 54);
+        this.renderModalTitle(title, "Return home");
+
+        const subtitle = this.add.text(w * 0.5, panelTop + 118, "Leave this run and go back to the main menu?", {
+            ...this.uiText(19, "#ECF0F1", "800"),
+            wordWrap: { width: pW - 56 },
+            align: "center"
+        }).setOrigin(0.5);
+
+        const stayBtn = this.makeCenterButton(w * 0.5, panelBottom - 108, "Stay", () => {
+            this.closeLeaveOverlay();
+        }, "green", 192, 46);
+        const leaveBtn = this.makeCenterButton(w * 0.5, panelBottom - 42, "Leave", () => {
+            this.isShuttingDown = true;
+            hideHtmlText("modal-title");
+            this.scene.start("MainMenu");
+        }, "red", 192, 46);
+
+        c.add([dark, panel, title, subtitle, stayBtn, leaveBtn]);
+        this.leaveOverlay = c;
+    }
+
+    private makeCenterButton(
+        x: number,
+        y: number,
+        label: string,
+        onClick: () => void,
+        theme: "red" | "green" | "blue" = "red",
+        w = 240,
+        h = 56,
+        useHtmlLabel = false
+    ) {
         const c = this.add.container(x, y);
-        const w = 240, h = 56, radius = 28;
+        const radius = Math.floor(h / 2);
 
         const btnGraphics = this.add.graphics();
         const drawBtn = (isPressed: boolean, isHover: boolean) => {
@@ -1318,12 +2427,21 @@ export default class Level extends Phaser.Scene {
                 btnGraphics.fillRoundedRect(-w / 2, -h / 2 + 10, w, h, radius);
             }
 
-            // Bottom rim (dark yellow)
-            btnGraphics.fillStyle(0xB9770E, 1);
+            const rimFill = theme === "blue"
+                ? 0x10254a
+                : theme === "green"
+                    ? 0x0e4b28
+                    : 0x111111;
+            const mainFill = theme === "blue"
+                ? (isHover ? 0x355caa : 0x1f3d7a)
+                : theme === "green"
+                    ? (isHover ? 0x35b96a : 0x1e8449)
+                    : (isHover ? 0xD72638 : 0xB3131B);
+
+            btnGraphics.fillStyle(rimFill, 1);
             btnGraphics.fillRoundedRect(-w / 2, -h / 2 + yOff + 6, w, h, radius);
 
-            // Main fill
-            btnGraphics.fillStyle(isHover ? 0xF4D03F : 0xF1C40F, 1);
+            btnGraphics.fillStyle(mainFill, 1);
             btnGraphics.fillRoundedRect(-w / 2, -h / 2 + yOff, w, h, radius);
 
             // Highlight
@@ -1335,8 +2453,7 @@ export default class Level extends Phaser.Scene {
         };
         drawBtn(false, false);
 
-        const t = this.add.text(0, -2, label, this.uiText(22, "#FFFFFF", "900", "#9C5700")).setOrigin(0.5);
-        t.setShadow(0, 2, "#9C5700", 2, true);
+        const t = this.add.text(0, -2, label, this.uiText(23, "#FFFFFF", "900", "#1A0003")).setOrigin(0.5).setAlpha(useHtmlLabel ? 0 : 1);
 
         const centerHitZone = this.add.zone(0, 0, w, h + 10).setInteractive({ useHandCursor: true });
         c.add([btnGraphics, t, centerHitZone]);
@@ -1368,7 +2485,10 @@ export default class Level extends Phaser.Scene {
     private rebuildOverlays() {
         this.settingsOverlay?.destroy();
         this.endOverlay?.destroy();
-        this.createSettingsOverlay();
+        this.leaveOverlay?.destroy();
+        this.settingsOverlay = undefined;
         this.createEndOverlay();
+        this.createLeaveOverlay();
+        hideHtmlText("modal-title");
     }
 }

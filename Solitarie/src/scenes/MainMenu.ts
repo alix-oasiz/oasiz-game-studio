@@ -1,6 +1,8 @@
 import Phaser from "phaser";
-import { gameplayStop, triggerPlatformHaptic } from "../platform/oasiz";
+import { clearBackButtonHandler, gameplayStop, leavePlatformGame, setBackButtonHandler, triggerPlatformHaptic } from "../platform/oasiz";
 import { syncBackgroundMusic } from "../audio/backgroundMusic";
+import { UI_FONT_FAMILY, getUiTextResolution } from "../ui/fonts";
+import { hideAllHtmlText, hideHtmlText, showHtmlText } from "../ui/htmlText";
 
 interface SettingsState {
     music: boolean;
@@ -11,10 +13,12 @@ interface SettingsState {
 }
 
 export default class MainMenu extends Phaser.Scene {
-    private settingsOverlay!: Phaser.GameObjects.Container;
-    private bgOverlay!: Phaser.GameObjects.Container;
+    private settingsOverlay?: Phaser.GameObjects.Container;
+    private bgOverlay?: Phaser.GameObjects.Container;
     private settings: SettingsState = { music: true, fx: true, haptics: true, drawCount: 1, background: "table_bg" };
     private mainBg!: Phaser.GameObjects.Image;
+    private bgShade!: Phaser.GameObjects.Rectangle;
+    private decorationCards: Phaser.GameObjects.Image[] = [];
 
     constructor() {
         super("MainMenu");
@@ -22,8 +26,17 @@ export default class MainMenu extends Phaser.Scene {
 
     create() {
         gameplayStop();
+        hideAllHtmlText();
         this.settings = this.loadSettings();
         syncBackgroundMusic(this, this.settings.music);
+        const handleBackButton = () => leavePlatformGame();
+        setBackButtonHandler(handleBackButton);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.destroySettingsOverlay();
+            this.destroyBgOverlay();
+            hideAllHtmlText();
+            clearBackButtonHandler(handleBackButton);
+        });
 
         const w = this.scale.width;
         const h = this.scale.height;
@@ -33,31 +46,11 @@ export default class MainMenu extends Phaser.Scene {
         this.mainBg.setDisplaySize(w, h);
 
         // Decorate with some card assets sprinkled around as background
-        this.addDecorations(w, h);
+        this.decorationCards = this.addDecorations(w, h);
 
-        this.add.rectangle(0, 0, w, h, 0x000000, 0.4).setOrigin(0, 0);
+        this.bgShade = this.add.rectangle(0, 0, w, h, 0x000000, 0.4).setOrigin(0, 0);
 
-        // Title
-        const titleText = this.add.text(w * 0.5, h * 0.25, "SOLITAIRE", {
-            fontSize: "76px",
-            color: "#FFFFFF",
-            fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-            fontStyle: "900",
-            resolution: 2,
-            stroke: "#1D8348",
-            strokeThickness: 10,
-            shadow: { offsetX: 0, offsetY: 8, color: "#000000", blur: 12, fill: true }
-        }).setOrigin(0.5);
-
-        // A gentle floating animation for the title
-        this.tweens.add({
-            targets: titleText,
-            y: titleText.y - 15,
-            duration: 2500,
-            yoyo: true,
-            repeat: -1,
-            ease: "Sine.inOut"
-        });
+        this.showMainTitle();
 
         // Play Button (Chunky Mobile Style)
         const playBtn = this.add.container(w * 0.5, h * 0.45);
@@ -78,11 +71,11 @@ export default class MainMenu extends Phaser.Scene {
             }
 
             // Bottom rim (dark orange)
-            btnGraphics.fillStyle(0xD35400, 1);
+            btnGraphics.fillStyle(0x8c4a08, 1);
             btnGraphics.fillRoundedRect(-btnW / 2, -btnH / 2 + yOff + 8, btnW, btnH, radius);
 
-            // Main fill (orange/yellow)
-            btnGraphics.fillStyle(isHover ? 0xFFC300 : 0xF39C12, 1);
+            // Main fill
+            btnGraphics.fillStyle(isHover ? 0xffb347 : 0xf08c24, 1);
             btnGraphics.fillRoundedRect(-btnW / 2, -btnH / 2 + yOff, btnW, btnH, radius);
 
             // Top highlight (semi-transparent white)
@@ -95,13 +88,12 @@ export default class MainMenu extends Phaser.Scene {
         };
         drawChunkyBtn(false, false);
 
-        const playTxt = this.add.text(0, -2, "PLAY", {
-            fontSize: "36px", color: "#FFFFFF", fontStyle: "900",
-            fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-            resolution: 2,
-            stroke: "#D35400", strokeThickness: 6,
-            shadow: { offsetX: 0, offsetY: 3, color: "#8E44AD", blur: 0, fill: true }
-        }).setOrigin(0.5);
+        const playTxt = this.add.text(0, -2, "Play", {
+            fontSize: "38px", color: "#FFFFFF", fontStyle: "900",
+            fontFamily: UI_FONT_FAMILY,
+            resolution: getUiTextResolution(),
+            stroke: "#1A0003", strokeThickness: 3
+        }).setOrigin(0.5).setAlpha(0);
 
         const playHitZone = this.add.zone(0, 0, btnW, btnH + 12).setInteractive({ useHandCursor: true });
         playBtn.add([btnGraphics, playTxt, playHitZone]);
@@ -140,103 +132,35 @@ export default class MainMenu extends Phaser.Scene {
 
         playHitZone.on("pointerup", () => {
             document.body.style.cursor = "default";
+            this.playButton();
+            hideAllHtmlText();
             this.scene.start("Level");
         });
 
         // --- Background Button ---
-        this.makeStandardButton(w * 0.5, h * 0.58, 240, 60, "BACKGROUNDS", () => {
+        this.makeStandardButton(w * 0.5, h * 0.58, 240, 60, "Backgrounds", () => {
             this.openBgSelector();
-        });
+        }, "blue", true);
 
         // --- Settings Button ---
-        this.makeStandardButton(w * 0.5, h * 0.68, 240, 60, "SETTINGS", () => {
+        this.makeStandardButton(w * 0.5, h * 0.68, 240, 60, "Settings", () => {
             this.openSettings();
-        });
+        }, "blue", true);
 
-        // --- Draw Count Buttons (Main Menu) ---
-        const drawY = h * 0.78;
-        const bW = 110, bH = 55, bRad = 15;
+        this.showMenuButtonLabels();
 
-        const d1Cont = this.add.container(w * 0.5 - 65, drawY);
-        const d3Cont = this.add.container(w * 0.5 + 65, drawY);
-
-        const d1Bg = this.add.graphics();
-        const d3Bg = this.add.graphics();
-
-        const d1Txt = this.add.text(0, -2, "DRAW 1", this.uiText(18, "#FFFFFF", "800")).setOrigin(0.5);
-        const d3Txt = this.add.text(0, -2, "DRAW 3", this.uiText(18, "#FFFFFF", "800")).setOrigin(0.5);
-
-        const drawCountBtn = (gfx: Phaser.GameObjects.Graphics, txtObj: Phaser.GameObjects.Text, val: number, isPressed: boolean, isHover: boolean) => {
-            const isActive = this.settings.drawCount === val;
-            gfx.clear();
-            const yOff = isPressed ? 4 : 0;
-
-            if (!isPressed) {
-                gfx.fillStyle(0x000000, 0.4);
-                gfx.fillRoundedRect(-bW / 2, -bH / 2 + 6, bW, bH, bRad);
-            }
-
-            if (isActive) {
-                gfx.fillStyle(0x1B4F72, 1);
-                gfx.fillRoundedRect(-bW / 2, -bH / 2 + yOff + 4, bW, bH, bRad);
-                gfx.fillStyle(isHover ? 0x2E86C1 : 0x2874A6, 1);
-                gfx.fillRoundedRect(-bW / 2, -bH / 2 + yOff, bW, bH, bRad);
-                gfx.lineStyle(3, 0xFFFFFF, 0.9);
-                txtObj.setColor("#FFFFFF");
-                txtObj.setShadow(0, 2, "#000", 2, true);
-            } else {
-                gfx.fillStyle(0x424949, 1);
-                gfx.fillRoundedRect(-bW / 2, -bH / 2 + yOff + 4, bW, bH, bRad);
-                gfx.fillStyle(isHover ? 0x7F8C8D : 0x707B7C, 1);
-                gfx.fillRoundedRect(-bW / 2, -bH / 2 + yOff, bW, bH, bRad);
-                gfx.lineStyle(2, 0xBDC3C7, 0.5);
-                txtObj.setColor("#D5D8DC");
-                txtObj.setShadow();
-            }
-            gfx.strokeRoundedRect(-bW / 2, -bH / 2 + yOff, bW, bH, bRad);
-        };
-
-        const renderDrawBtns = (p1 = false, h1 = false, p3 = false, h3 = false) => {
-            drawCountBtn(d1Bg, d1Txt, 1, p1, h1);
-            drawCountBtn(d3Bg, d3Txt, 3, p3, h3);
-        };
-        renderDrawBtns();
-
-        const d1Hit = this.add.zone(0, 0, bW, bH + 8).setInteractive({ useHandCursor: true });
-        const d3Hit = this.add.zone(0, 0, bW, bH + 8).setInteractive({ useHandCursor: true });
-
-        d1Cont.add([d1Bg, d1Txt, d1Hit]);
-        d3Cont.add([d3Bg, d3Txt, d3Hit]);
-
-        const updateDrawCount = (val: number, h1: boolean, h3: boolean) => {
-            if (this.settings.drawCount !== val) {
-                this.settings.drawCount = val;
-                this.saveSettings();
-                this.triggerHaptic("light");
-            }
-            renderDrawBtns(false, h1, false, h3);
-        };
-
-        d1Hit.on("pointerover", () => { document.body.style.cursor = "pointer"; renderDrawBtns(false, true, false, false); });
-        d1Hit.on("pointerout", () => { document.body.style.cursor = "default"; renderDrawBtns(); d1Txt.y = -2; });
-        d1Hit.on("pointerdown", () => { renderDrawBtns(true, true, false, false); d1Txt.y = 2; });
-        d1Hit.on("pointerup", () => {
-            document.body.style.cursor = "default";
-            d1Txt.y = -2;
-            updateDrawCount(1, true, false);
-        });
-
-        d3Hit.on("pointerover", () => { document.body.style.cursor = "pointer"; renderDrawBtns(false, false, false, true); });
-        d3Hit.on("pointerout", () => { document.body.style.cursor = "default"; renderDrawBtns(); d3Txt.y = -2; });
-        d3Hit.on("pointerdown", () => { renderDrawBtns(false, false, true, true); d3Txt.y = 2; });
-        d3Hit.on("pointerup", () => {
-            document.body.style.cursor = "default";
-            d3Txt.y = -2;
-            updateDrawCount(3, false, true);
-        });
     }
 
-    private makeStandardButton(x: number, y: number, w: number, h: number, label: string, onClick: () => void) {
+    private makeStandardButton(
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        label: string,
+        onClick: () => void,
+        theme: "blue" | "red" = "blue",
+        useHtmlLabel = false
+    ) {
         const c = this.add.container(x, y);
         const radius = 30;
 
@@ -244,13 +168,17 @@ export default class MainMenu extends Phaser.Scene {
         const draw = (isPressed: boolean, isHover: boolean) => {
             gfx.clear();
             const yOff = isPressed ? 6 : 0;
+            const rimFill = theme === "blue" ? 0x0f2147 : 0x111111;
+            const mainFill = theme === "blue"
+                ? (isHover ? 0x355caa : 0x1f3d7a)
+                : (isHover ? 0xD72638 : 0xB3131B);
             if (!isPressed) {
                 gfx.fillStyle(0x000000, 0.4);
                 gfx.fillRoundedRect(-w / 2, -h / 2 + 10, w, h, radius);
             }
-            gfx.fillStyle(0x1B2631, 1);
+            gfx.fillStyle(rimFill, 1);
             gfx.fillRoundedRect(-w / 2, -h / 2 + yOff + 6, w, h, radius);
-            gfx.fillStyle(isHover ? 0x5D6D7E : 0x34495E, 1);
+            gfx.fillStyle(mainFill, 1);
             gfx.fillRoundedRect(-w / 2, -h / 2 + yOff, w, h, radius);
             gfx.fillStyle(0xFFFFFF, 0.15);
             gfx.fillRoundedRect(-w / 2 + 15, -h / 2 + yOff + 5, w - 30, h / 3, radius - 15);
@@ -260,10 +188,12 @@ export default class MainMenu extends Phaser.Scene {
         draw(false, false);
 
         const txt = this.add.text(0, -2, label, {
-            fontSize: "24px", color: "#FFFFFF", fontStyle: "900",
-            fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-            shadow: { offsetX: 0, offsetY: 2, color: "#000000", blur: 0, fill: true }
-        }).setOrigin(0.5);
+            fontSize: "25px", color: "#FFFFFF", fontStyle: "900",
+            fontFamily: UI_FONT_FAMILY,
+            resolution: getUiTextResolution(),
+            stroke: "#1A0003",
+            strokeThickness: 2
+        }).setOrigin(0.5).setAlpha(useHtmlLabel ? 0 : 1);
 
         const hit = this.add.zone(0, 0, w, h + 10).setInteractive({ useHandCursor: true });
         c.add([gfx, txt, hit]);
@@ -275,19 +205,127 @@ export default class MainMenu extends Phaser.Scene {
             document.body.style.cursor = "default";
             draw(false, true);
             txt.y = -2;
+            this.playButton();
             onClick();
         });
         return c;
     }
 
     private uiText(size = 20, color = "#ffffff", weight: string = "700", stroke?: string): Phaser.Types.GameObjects.Text.TextStyle {
+        const strokeThickness = !stroke ? 0 : size <= 18 ? 2 : size <= 24 ? 3 : 4;
         return {
             fontSize: `${size}px`, color, fontStyle: weight as any,
-            fontFamily: "'Nunito', 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif",
-            resolution: 2,
+            fontFamily: UI_FONT_FAMILY,
+            resolution: getUiTextResolution(),
             stroke: stroke || undefined,
-            strokeThickness: stroke ? 4 : 0
+            strokeThickness
         };
+    }
+
+    private renderModalTitle(container: Phaser.GameObjects.Container, label: string): void {
+        if (document.getElementById("solitaire-modal-title")) {
+            container.setVisible(false);
+            showHtmlText("modal-title", {
+                text: label,
+                x: container.x,
+                y: container.y,
+                fontSize: 32,
+                letterSpacing: 2,
+                variant: "modal"
+            });
+            return;
+        }
+
+        container.setVisible(true);
+        container.removeAll(true);
+        const colors = ["#FFFFFF", "#111111", "#B3131B"];
+        const letters = [...label].map((char, index) => this.add.text(0, 0, char, {
+            fontSize: "32px",
+            color: colors[index % colors.length],
+            fontFamily: UI_FONT_FAMILY,
+            fontStyle: "900",
+            resolution: getUiTextResolution(),
+            stroke: "#FFFFFF",
+            strokeThickness: 2
+        }).setOrigin(0.5));
+        const gap = 3;
+        const totalWidth = letters.reduce((sum, letter, index) => sum + letter.width + (index === letters.length - 1 ? 0 : gap), 0);
+        let cursor = -totalWidth / 2;
+        letters.forEach((letter, index) => {
+            letter.x = cursor + letter.width / 2;
+            cursor += letter.width + (index === letters.length - 1 ? 0 : gap);
+        });
+        container.add(letters);
+    }
+
+    private showMainTitle(): void {
+        showHtmlText("main-title", {
+            text: "Solitaire",
+            x: this.scale.width * 0.5,
+            y: this.scale.height * 0.23,
+            fontSize: this.scale.height > this.scale.width ? 62 : 58,
+            letterSpacing: 5,
+            maxWidth: this.scale.width - 48,
+            variant: "menu"
+        });
+    }
+
+    private showMenuButtonLabels(): void {
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const buttonColor = "#FFFFFF";
+        const strokeColor = "#1A0003";
+        showHtmlText("menu-play-label", {
+            text: "Play",
+            x: w * 0.5,
+            y: h * 0.45 - 2,
+            fontSize: 38,
+            letterSpacing: 1,
+            multicolor: false,
+            color: buttonColor,
+            strokeColor,
+            strokeWidth: 2.5
+        });
+        showHtmlText("menu-backgrounds-label", {
+            text: "Backgrounds",
+            x: w * 0.5,
+            y: h * 0.58 - 2,
+            fontSize: 25,
+            letterSpacing: 1,
+            multicolor: false,
+            color: buttonColor,
+            strokeColor,
+            strokeWidth: 2
+        });
+        showHtmlText("menu-settings-label", {
+            text: "Settings",
+            x: w * 0.5,
+            y: h * 0.68 - 2,
+            fontSize: 25,
+            letterSpacing: 1,
+            multicolor: false,
+            color: buttonColor,
+            strokeColor,
+            strokeWidth: 2
+        });
+    }
+
+    private hideMenuButtonLabels(): void {
+        hideHtmlText("menu-play-label");
+        hideHtmlText("menu-backgrounds-label");
+        hideHtmlText("menu-settings-label");
+    }
+
+    private syncMainTitleVisibility(): void {
+        const overlayVisible = !!this.settingsOverlay?.visible || !!this.bgOverlay?.visible;
+        if (overlayVisible) {
+            hideHtmlText("main-title");
+            this.hideMenuButtonLabels();
+            return;
+        }
+        hideHtmlText("modal-title");
+        this.showMainTitle();
+        this.showMenuButtonLabels();
     }
 
     private loadSettings(): SettingsState {
@@ -315,18 +353,134 @@ export default class MainMenu extends Phaser.Scene {
         triggerPlatformHaptic(this.settings.haptics, type);
     }
 
+    private playTone(freq: number, type: OscillatorType, dur: number, vol: number, slideFreq?: number) {
+        if (!this.settings.fx) return;
+        const ctx = (this.sound as any).context as AudioContext;
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (slideFreq) osc.frequency.exponentialRampToValueAtTime(slideFreq, now + dur);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(vol, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + dur + 0.05);
+    }
+
+    private playButton() {
+        if (this.settings.fx && this.cache.audio.exists("ui_button")) {
+            this.sound.play("ui_button", { volume: 0.4 });
+            return;
+        }
+        this.playTone(520, "sine", 0.05, 0.04);
+    }
+
     private openSettings() {
-        if (!this.settingsOverlay) this.createSettingsOverlay();
-        this.settingsOverlay.setVisible(true);
-        this.settingsOverlay.setAlpha(0);
-        this.tweens.add({ targets: this.settingsOverlay, alpha: 1, duration: 250 });
+        if (this.settingsOverlay?.visible) return;
+        hideHtmlText("main-title");
+        this.hideMenuButtonLabels();
+        this.destroySettingsOverlay(true);
+        this.createSettingsOverlay();
+        const overlay = this.settingsOverlay!;
+        overlay.setVisible(true);
+        overlay.setAlpha(0);
+        this.tweens.add({ targets: overlay, alpha: 1, duration: 250 });
     }
 
     private openBgSelector() {
-        if (!this.bgOverlay) this.createBgOverlay();
-        this.bgOverlay.setVisible(true);
-        this.bgOverlay.setAlpha(0);
-        this.tweens.add({ targets: this.bgOverlay, alpha: 1, duration: 250 });
+        if (this.bgOverlay?.visible) return;
+        hideHtmlText("main-title");
+        this.hideMenuButtonLabels();
+        this.destroyBgOverlay(true);
+        this.createBgOverlay();
+        this.setStartScreenBlur(true);
+        const overlay = this.bgOverlay!;
+        overlay.setVisible(true);
+        overlay.setAlpha(0);
+        this.tweens.add({ targets: overlay, alpha: 1, duration: 250 });
+    }
+
+    private closeBgSelector() {
+        const overlay = this.bgOverlay;
+        if (!overlay) return;
+        this.tweens.killTweensOf(overlay);
+        this.tweens.add({
+            targets: overlay,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => {
+                if (this.bgOverlay === overlay) {
+                    this.destroyBgOverlay();
+                }
+                this.setStartScreenBlur(false);
+                this.syncMainTitleVisibility();
+            }
+        });
+    }
+
+    private closeSettingsOverlay() {
+        const overlay = this.settingsOverlay;
+        if (!overlay) return;
+        this.tweens.killTweensOf(overlay);
+        this.tweens.add({
+            targets: overlay,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => {
+                if (this.settingsOverlay === overlay) {
+                    this.destroySettingsOverlay();
+                }
+                this.syncMainTitleVisibility();
+            }
+        });
+    }
+
+    private destroySettingsOverlay(suppressTitleSync = false) {
+        if (!this.settingsOverlay) {
+            if (!suppressTitleSync) {
+                this.syncMainTitleVisibility();
+            }
+            return;
+        }
+        this.tweens.killTweensOf(this.settingsOverlay);
+        this.settingsOverlay.destroy();
+        this.settingsOverlay = undefined;
+        this.hideMainMenuSettingsHtml();
+        hideHtmlText("modal-title");
+        if (!suppressTitleSync) {
+            this.syncMainTitleVisibility();
+        }
+    }
+
+    private destroyBgOverlay(suppressTitleSync = false) {
+        if (!this.bgOverlay) {
+            if (!suppressTitleSync) {
+                this.syncMainTitleVisibility();
+            }
+            return;
+        }
+        this.tweens.killTweensOf(this.bgOverlay);
+        this.bgOverlay.destroy();
+        this.bgOverlay = undefined;
+        hideHtmlText("modal-title");
+        if (!suppressTitleSync) {
+            this.syncMainTitleVisibility();
+        }
+    }
+
+    private setStartScreenBlur(enabled: boolean) {
+        const targets = [this.mainBg, this.bgShade, ...this.decorationCards];
+        targets.forEach((target) => {
+            if (!target.postFX) return;
+            target.postFX.clear();
+            if (enabled) {
+                target.postFX.addBlur(2, 3, 3, 1.2, 0xffffff, 4);
+            }
+        });
     }
 
     private createBgOverlay() {
@@ -334,30 +488,26 @@ export default class MainMenu extends Phaser.Scene {
         const h = this.scale.height;
         const c = this.add.container(0, 0).setDepth(5000);
 
-        const dark = this.add.rectangle(0, 0, w, h, 0x000000, 0.85).setOrigin(0, 0);
-        dark.setInteractive();
+        const blocker = this.add.rectangle(0, 0, w, h, 0x000000, 0.76).setOrigin(0, 0);
+        blocker.setInteractive();
 
-        const pW = Math.min(650, w - 40);
-        const pH = Math.min(580, h - 40);
-
-        // Glow effect
-        const glow = this.add.graphics();
-        glow.fillStyle(0x3498DB, 0.15);
-        glow.fillRoundedRect(w * 0.5 - pW / 2 - 10, h * 0.5 - pH / 2 - 10, pW + 20, pH + 20, 30);
+        const topInset = this.scale.height > this.scale.width ? 132 : 54;
+        const bottomInset = this.scale.height > this.scale.width ? 70 : 40;
+        const pW = Math.min(650, w - 28);
+        const pH = Math.min(500, h - topInset - bottomInset);
+        const panelX = w * 0.5 - pW / 2;
+        const panelY = topInset;
 
         const panel = this.add.graphics();
-        panel.fillStyle(0x1B1F23, 0.98);
-        panel.fillRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 28);
-        panel.lineStyle(2, 0x2C3E50, 1);
-        panel.strokeRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 28);
+        panel.fillStyle(0x000000, 0.94);
+        panel.fillRoundedRect(panelX, panelY, pW, pH, 28);
 
-        const title = this.add.text(w * 0.5, h * 0.5 - pH / 2 + 55, "SELECT THEME", {
-            ...this.uiText(36, "#FFFFFF", "900", "#2980B9")
-        }).setOrigin(0.5);
+        const title = this.add.container(w * 0.5, panelY + 42);
+        this.renderModalTitle(title, "Select theme");
 
         const viewportPaddingX = 24;
-        const viewportTop = h * 0.5 - pH / 2 + 105;
-        const viewportBottom = h * 0.5 + pH / 2 - 96;
+        const viewportTop = panelY + 92;
+        const viewportBottom = panelY + pH - 82;
         const viewportW = pW - viewportPaddingX * 2;
         const viewportH = Math.max(160, viewportBottom - viewportTop);
         const viewportX = w * 0.5 - viewportW / 2;
@@ -370,18 +520,22 @@ export default class MainMenu extends Phaser.Scene {
             "game_bg_modern_04", "game_bg_modern_05", "game_bg_modern_06"
         ];
 
-        const gap = 16;
-        const minThumbW = 110;
-        const cols = Math.min(3, Math.max(1, Math.floor((viewportW + gap) / (minThumbW + gap))));
-        const thumbW = Math.min(180, Math.floor((viewportW - gap * (cols - 1)) / cols));
+        const gap = 0;
+        const cols = 1;
+        const thumbW = Math.min(152, Math.floor(viewportW - 16));
         const thumbH = Math.floor(thumbW * 0.75);
-        const rowGap = 20;
+        const rowGap = 14;
         const contentHeight = Math.ceil(backgrounds.length / cols) * thumbH + Math.max(0, Math.ceil(backgrounds.length / cols) - 1) * rowGap;
+        const contentWidth = thumbW;
+        const gridOffsetX = Math.floor((viewportW - contentWidth) / 2);
         const minScrollY = Math.min(0, viewportH - contentHeight);
         let scrollY = 0;
         let dragStartY = 0;
         let dragScrollY = 0;
         let dragging = false;
+        let scrollGestureMoved = false;
+        let activePointerId: number | null = null;
+        const scrollThreshold = 12;
 
         const viewportMaskGraphics = this.make.graphics({});
         viewportMaskGraphics.fillStyle(0xffffff);
@@ -402,17 +556,17 @@ export default class MainMenu extends Phaser.Scene {
         backgrounds.forEach((bgKey, i) => {
             const ix = i % cols;
             const iy = Math.floor(i / cols);
-            const x = ix * (thumbW + gap) + thumbW / 2;
+            const x = gridOffsetX + ix * (thumbW + gap) + thumbW / 2;
             const y = iy * (thumbH + rowGap) + thumbH / 2;
 
             const item = this.add.container(x, y);
-            const clip = this.add.graphics();
-            clip.fillStyle(0xffffff);
-            clip.fillRoundedRect(-thumbW / 2, -thumbH / 2, thumbW, thumbH, 12);
+            const cardBg = this.add.graphics();
+            cardBg.fillStyle(0x0b161c, 0.96);
+            cardBg.fillRoundedRect(-thumbW / 2, -thumbH / 2, thumbW, thumbH, 12);
 
-            const img = this.add.image(0, 0, bgKey.startsWith("game") ? bgKey.replace("game_bg", "s_bg") : bgKey);
-            img.setDisplaySize(thumbW, thumbH);
-            img.setMask(clip.createGeometryMask());
+            const previewKey = bgKey.startsWith("game") ? bgKey.replace("game_bg", "s_bg") : bgKey;
+            const img = this.add.image(0, 0, this.textures.exists(previewKey) ? previewKey : bgKey);
+            img.setDisplaySize(thumbW - 8, thumbH - 8);
 
             const frame = this.add.graphics();
 
@@ -423,10 +577,10 @@ export default class MainMenu extends Phaser.Scene {
                 item.setScale(scale);
 
                 if (isSelected) {
-                    frame.lineStyle(6, 0x2ECC71, 1);
+                    frame.lineStyle(4, 0xFFFFFF, 1);
                     frame.strokeRoundedRect(-thumbW / 2 - 4, -thumbH / 2 - 4, thumbW + 8, thumbH + 8, 14);
                 } else if (hover) {
-                    frame.lineStyle(4, 0x3498DB, 0.8);
+                    frame.lineStyle(3, 0xFFFFFF, 0.85);
                     frame.strokeRoundedRect(-thumbW / 2 - 2, -thumbH / 2 - 2, thumbW + 4, thumbH + 4, 14);
                 } else {
                     frame.lineStyle(2, 0xFFFFFF, 0.2);
@@ -441,60 +595,76 @@ export default class MainMenu extends Phaser.Scene {
             hit.on("pointerover", () => { drawFrame(true, false); });
             hit.on("pointerout", () => { drawFrame(false, false); });
             hit.on("pointerdown", () => { drawFrame(true, true); });
-            hit.on("pointerup", () => {
+            hit.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+                const movedDistance = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.x, pointer.y);
+                if (scrollGestureMoved || movedDistance > scrollThreshold) {
+                    drawFrame(false, false);
+                    return;
+                }
                 this.settings.background = bgKey;
                 this.mainBg.setTexture(bgKey);
                 this.mainBg.setDisplaySize(w, h);
                 this.saveSettings();
+                this.playButton();
                 this.triggerHaptic("medium");
                 refreshThumbs.forEach((refresh) => refresh());
-
-                // Smooth close
-                this.tweens.add({
-                    targets: this.bgOverlay,
-                    alpha: 0,
-                    duration: 300,
-                    onComplete: () => { this.bgOverlay.setVisible(false); }
-                });
+                this.closeBgSelector();
             });
 
-            item.add([clip, img, frame, hit]);
+            item.add([cardBg, img, frame, hit]);
             grid.add(item);
         });
 
-        this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        const onPointerDown = (pointer: Phaser.Input.Pointer) => {
             if (!this.bgOverlay?.visible || minScrollY === 0 || !pointerInViewport(pointer)) return;
             dragging = true;
+            scrollGestureMoved = false;
+            activePointerId = pointer.id;
             dragStartY = pointer.y;
             dragScrollY = scrollY;
-        });
+        };
 
-        this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-            if (!dragging || !pointer.isDown) return;
+        const onPointerMove = (pointer: Phaser.Input.Pointer) => {
+            if (!dragging || !pointer.isDown || activePointerId !== pointer.id) return;
+            if (Math.abs(pointer.y - dragStartY) > scrollThreshold) {
+                scrollGestureMoved = true;
+            }
             clampScroll(dragScrollY + (pointer.y - dragStartY));
-        });
+        };
 
-        this.input.on("pointerup", () => {
+        const onPointerUp = (pointer: Phaser.Input.Pointer) => {
+            if (activePointerId !== pointer.id) return;
             dragging = false;
-        });
+            activePointerId = null;
+            this.time.delayedCall(0, () => {
+                scrollGestureMoved = false;
+            });
+        };
 
-        this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
+        const onWheel = (_pointer: Phaser.Input.Pointer, _gos: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
             if (!this.bgOverlay?.visible || minScrollY === 0 || !pointerInViewport(_pointer)) return;
             clampScroll(scrollY - dy * 0.6);
-        });
+        };
+
+        this.input.on("pointerdown", onPointerDown);
+        this.input.on("pointermove", onPointerMove);
+        this.input.on("pointerup", onPointerUp);
+        this.input.on("wheel", onWheel);
 
         // Close button
-        const closeBtn = this.makeStandardButton(w * 0.5, h * 0.5 + pH / 2 - 50, 180, 46, "CLOSE", () => {
-            this.tweens.add({
-                targets: this.bgOverlay,
-                alpha: 0,
-                duration: 200,
-                onComplete: () => { this.bgOverlay.setVisible(false); }
-            });
+        const closeBtn = this.makeStandardButton(w * 0.5, panelY + pH - 42, 180, 46, "Close", () => {
+            this.closeBgSelector();
         });
 
-        c.add([dark, glow, panel, title, grid, closeBtn]);
+        c.add([blocker, panel, title, grid, closeBtn]);
         c.setVisible(false);
+        c.once(Phaser.GameObjects.Events.DESTROY, () => {
+            this.input.off("pointerdown", onPointerDown);
+            this.input.off("pointermove", onPointerMove);
+            this.input.off("pointerup", onPointerUp);
+            this.input.off("wheel", onWheel);
+            viewportMaskGraphics.destroy();
+        });
         this.bgOverlay = c;
     }
 
@@ -508,38 +678,39 @@ export default class MainMenu extends Phaser.Scene {
 
         const panel = this.add.graphics();
         const pW = Math.min(480, w - 36);
-        const pH = 430;
+        const pH = 520;
+        const panelTop = h * 0.5 - pH / 2;
+        const panelBottom = h * 0.5 + pH / 2;
+        const rowBaseY = panelTop + 126;
         panel.fillStyle(0x1E272E, 0.95);
         panel.fillRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 24);
-        panel.lineStyle(2, 0x34495E, 0.8);
-        panel.strokeRoundedRect(w * 0.5 - pW / 2, h * 0.5 - pH / 2, pW, pH, 24);
 
-        const title = this.add.text(w * 0.5, h * 0.5 - 160, "SETTINGS", this.uiText(32, "#FFFFFF", "900", "#1A5276")).setOrigin(0.5);
-        title.setShadow(0, 4, "#000000", 6, true);
+        const title = this.add.container(w * 0.5, panelTop + 54);
+        this.renderModalTitle(title, "Settings");
 
         const mkToggle = (label: string, key: "music" | "fx" | "haptics", y: number) => {
             const row = this.add.container(w * 0.5 - 150, h * 0.5 + y);
-            const txt = this.add.text(0, 0, label, this.uiText(22, "#ECF0F1", "800")).setOrigin(0, 0.5);
+            const txt = this.add.text(0, 0, label, this.uiText(22, "#ECF0F1", "800")).setOrigin(0, 0.5).setAlpha(0);
 
             const btnObj = this.add.graphics();
             const drawToggle = (isOn: boolean) => {
                 btnObj.clear();
                 btnObj.fillStyle(0x000000, 0.3);
-                btnObj.fillRoundedRect(250, -16, 90, 40, 20);
+                btnObj.fillRoundedRect(226, -16, 90, 40, 20);
                 btnObj.fillStyle(isOn ? 0x1E8449 : 0x922B21, 1);
-                btnObj.fillRoundedRect(250, -18, 90, 40, 20);
+                btnObj.fillRoundedRect(226, -18, 90, 40, 20);
                 btnObj.fillStyle(isOn ? 0x2ECC71 : 0xE74C3C, 1);
-                btnObj.fillRoundedRect(250, -20, 90, 40, 20);
+                btnObj.fillRoundedRect(226, -20, 90, 40, 20);
                 btnObj.lineStyle(3, 0xFFFFFF, 0.8);
-                btnObj.strokeRoundedRect(250, -20, 90, 40, 20);
+                btnObj.strokeRoundedRect(226, -20, 90, 40, 20);
             };
             drawToggle(this.settings[key]);
 
-            const val = this.add.text(295, -2, this.settings[key] ? "ON" : "OFF", {
+            const val = this.add.text(271, -2, this.settings[key] ? "On" : "Off", {
                 ...this.uiText(18, "#FFFFFF", "900", this.settings[key] ? "#196F3D" : "#943126")
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setAlpha(0);
 
-            const rowHitZone = this.add.zone(275, 0, 90, 40).setInteractive({ useHandCursor: true });
+            const rowHitZone = this.add.zone(251, 0, 90, 40).setInteractive({ useHandCursor: true });
             row.add([txt, btnObj, val, rowHitZone]);
 
             rowHitZone.on("pointerover", () => { document.body.style.cursor = "pointer"; });
@@ -547,9 +718,11 @@ export default class MainMenu extends Phaser.Scene {
             rowHitZone.on("pointerdown", () => {
                 this.settings[key] = !this.settings[key];
                 drawToggle(this.settings[key]);
-                val.setText(this.settings[key] ? "ON" : "OFF");
+                val.setText(this.settings[key] ? "On" : "Off");
                 val.setStroke(this.settings[key] ? "#196F3D" : "#943126", 4);
+                this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
                 this.saveSettings();
+                this.playButton();
                 if (key === "music") {
                     syncBackgroundMusic(this, this.settings.music);
                 }
@@ -558,23 +731,148 @@ export default class MainMenu extends Phaser.Scene {
             return row;
         };
 
-        const t1 = mkToggle("Music", "music", -80);
-        const t2 = mkToggle("Sound Effects", "fx", -24);
-        const t3 = mkToggle("Haptics", "haptics", 32);
+        const t1 = mkToggle("Music", "music", rowBaseY - h * 0.5);
+        const t2 = mkToggle("Sound Effects", "fx", rowBaseY + 62 - h * 0.5);
+        const t3 = mkToggle("Haptics", "haptics", rowBaseY + 124 - h * 0.5);
+
+        const drawRow = this.add.container(w * 0.5 - 150, panelTop + 312);
+        const drawTxt = this.add.text(0, 0, "Draw mode", this.uiText(22, "#ECF0F1", "800")).setOrigin(0, 0.5).setAlpha(0);
+        const drawBtnObj = this.add.graphics();
+        const drawToggle = () => {
+            drawBtnObj.clear();
+            drawBtnObj.fillStyle(0x000000, 0.3);
+            drawBtnObj.fillRoundedRect(226, -16, 90, 40, 20);
+            drawBtnObj.fillStyle(0x5C0B12, 1);
+            drawBtnObj.fillRoundedRect(226, -18, 90, 40, 20);
+            drawBtnObj.fillStyle(0xB3131B, 1);
+            drawBtnObj.fillRoundedRect(226, -20, 90, 40, 20);
+            drawBtnObj.lineStyle(3, 0xFFFFFF, 0.8);
+            drawBtnObj.strokeRoundedRect(226, -20, 90, 40, 20);
+        };
+        drawToggle();
+
+        const drawVal = this.add.text(271, -2, `Draw ${this.settings.drawCount}`, {
+            ...this.uiText(18, "#FFFFFF", "900", "#1A0003")
+        }).setOrigin(0.5).setAlpha(0);
+
+        const drawHitZone = this.add.zone(251, 0, 90, 40).setInteractive({ useHandCursor: true });
+        drawRow.add([drawTxt, drawBtnObj, drawVal, drawHitZone]);
+
+        drawHitZone.on("pointerover", () => { document.body.style.cursor = "pointer"; });
+        drawHitZone.on("pointerout", () => { document.body.style.cursor = "default"; });
+        drawHitZone.on("pointerdown", () => {
+            this.settings.drawCount = this.settings.drawCount === 1 ? 3 : 1;
+            drawVal.setText(`Draw ${this.settings.drawCount}`);
+            this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
+            this.saveSettings();
+            this.playButton();
+            this.triggerHaptic("light");
+        });
 
         // Close button
-        const closeBtn = this.makeStandardButton(w * 0.5, h * 0.5 + 150, 180, 46, "CLOSE", () => {
-            this.tweens.add({
-                targets: this.settingsOverlay,
-                alpha: 0,
-                duration: 200,
-                onComplete: () => { this.settingsOverlay.setVisible(false); }
+        const closeBtn = this.makeStandardButton(w * 0.5, panelBottom - 42, 180, 46, "Close", () => {
+            this.closeSettingsOverlay();
+        }, "blue", true);
+
+        c.add([dark, panel, title, t1, t2, t3, drawRow, closeBtn]);
+        c.setVisible(false);
+        this.settingsOverlay = c;
+        this.showMainMenuSettingsHtml(panelTop, panelBottom, rowBaseY);
+    }
+
+    private showMainMenuSettingsHtml(panelTop: number, panelBottom: number, rowBaseY: number): void {
+        const labelX = this.scale.width * 0.5 - 66;
+        const valueX = this.scale.width * 0.5 + 121;
+        const settingsRows = [
+            { id: "menu-settings-label-music", text: "Music", y: rowBaseY, color: "#ECF0F1", size: 22 },
+            { id: "menu-settings-label-fx", text: "Sound Effects", y: rowBaseY + 62, color: "#ECF0F1", size: 22 },
+            { id: "menu-settings-label-haptics", text: "Haptics", y: rowBaseY + 124, color: "#ECF0F1", size: 22 },
+            { id: "menu-settings-label-draw", text: "Draw mode", y: panelTop + 312, color: "#ECF0F1", size: 22 }
+        ];
+
+        settingsRows.forEach((row) => {
+            showHtmlText(row.id, {
+                text: row.text,
+                x: labelX,
+                y: row.y,
+                fontSize: row.size,
+                letterSpacing: 0.4,
+                multicolor: false,
+                color: row.color,
+                strokeColor: "#10254A",
+                strokeWidth: 1.5
             });
         });
 
-        c.add([dark, panel, title, t1, t2, t3, closeBtn]);
-        c.setVisible(false);
-        this.settingsOverlay = c;
+        showHtmlText("menu-settings-value-music", {
+            text: this.settings.music ? "On" : "Off",
+            x: valueX,
+            y: rowBaseY - 2,
+            fontSize: 18,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: this.settings.music ? "#196F3D" : "#943126",
+            strokeWidth: 1.5
+        });
+        showHtmlText("menu-settings-value-fx", {
+            text: this.settings.fx ? "On" : "Off",
+            x: valueX,
+            y: rowBaseY + 60,
+            fontSize: 18,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: this.settings.fx ? "#196F3D" : "#943126",
+            strokeWidth: 1.5
+        });
+        showHtmlText("menu-settings-value-haptics", {
+            text: this.settings.haptics ? "On" : "Off",
+            x: valueX,
+            y: rowBaseY + 122,
+            fontSize: 18,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: this.settings.haptics ? "#196F3D" : "#943126",
+            strokeWidth: 1.5
+        });
+        showHtmlText("menu-settings-value-draw", {
+            text: `Draw ${this.settings.drawCount}`,
+            x: valueX,
+            y: panelTop + 310,
+            fontSize: 18,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+        showHtmlText("menu-settings-close", {
+            text: "Close",
+            x: this.scale.width * 0.5,
+            y: panelBottom - 44,
+            fontSize: 23,
+            letterSpacing: 0.4,
+            multicolor: false,
+            color: "#FFFFFF",
+            strokeColor: "#1A0003",
+            strokeWidth: 1.5
+        });
+    }
+
+    private hideMainMenuSettingsHtml(): void {
+        [
+            "menu-settings-label-music",
+            "menu-settings-label-fx",
+            "menu-settings-label-haptics",
+            "menu-settings-label-draw",
+            "menu-settings-value-music",
+            "menu-settings-value-fx",
+            "menu-settings-value-haptics",
+            "menu-settings-value-draw",
+            "menu-settings-close"
+        ].forEach((id) => hideHtmlText(id));
     }
 
     private addDecorations(w: number, h: number) {
@@ -597,5 +895,7 @@ export default class MainMenu extends Phaser.Scene {
                 delay: i * 400
             });
         });
+
+        return cards;
     }
 }
