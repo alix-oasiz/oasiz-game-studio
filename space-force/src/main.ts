@@ -923,7 +923,7 @@ async function init(): Promise<void> {
     if (!isPlatform) {
       demoOverlay.showExitButton(() => leaveModal.openLeaveModal("TUTORIAL_LEAVE"));
     }
-    demoOverlay.showSkipTutorialButton(() => demoOverlay?.triggerTutorialComplete());
+    demoOverlay.showSkipTutorialButton();
     demoOverlay.showSettingsButton(() => settingsUI.openSettingsModal());
   }
 

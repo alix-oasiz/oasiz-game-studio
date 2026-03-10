@@ -134,20 +134,14 @@ export class DemoOverlayUI {
     });
   }
 
-  /** Fires the tutorial complete callback immediately — used by the skip button. */
-  triggerTutorialComplete(): void {
-    this.hideAll();
-    this.callbacks?.onTutorialComplete();
-  }
-
   /** Shows the Skip Tutorial button (top-right, left of settings) during tutorial. */
-  showSkipTutorialButton(onSkip: () => void): void {
+  showSkipTutorialButton(): void {
     this.skipTutorialBtn.classList.remove("hidden");
     const fresh = this.skipTutorialBtn.cloneNode(true) as HTMLButtonElement;
     this.skipTutorialBtn.parentNode?.replaceChild(fresh, this.skipTutorialBtn);
     this.skipTutorialBtn = fresh;
     this.skipTutorialBtn.addEventListener("click", () => {
-      onSkip();
+      this.completeTutorial();
     });
   }
 
@@ -478,12 +472,40 @@ export class DemoOverlayUI {
     this.tutorialSkip.classList.remove("hidden");
     this.tutorialSkip.addEventListener("click", (e) => {
       if (!this.guardStateTap(e)) return;
-      // Bloom the spotlight outward from the ship, then promote to live match
-      this.fadeOutSpotlightFromShip();
-      this.callbacks?.setZoom(null);
-      this.tutorialOverlay.classList.add("hidden");
-      this.callbacks?.onTutorialComplete();
+      this.completeTutorial();
     });
+  }
+
+  /**
+   * Shared completion path for both "Start Playing" and the skip button.
+   * Cancels any in-flight tween, blooms the spotlight, clears all tutorial
+   * state, and promotes the player to the live match.
+   */
+  private completeTutorial(): void {
+    // Guard against double-execution (e.g. skip + start playing both visible)
+    if (!this.tutorialRunning && !this.spotlightActive) return;
+
+    this.tutorialRunning = false;
+    this.cancelTypewriter?.();
+    this.cancelTypewriter = null;
+    this.pendingDialogAdvance = null;
+    AudioManager.stopCue("CAPTAIN_SPEECH");
+    this.clearActiveMobileHighlight?.();
+    this.clearActiveMobileHighlight = null;
+    this.callbacks?.setDemoInputBlock({ fire: false, dash: false });
+    // Ensure the sim isn't stuck paused regardless of which step we interrupted
+    this.callbacks?.onResumeGame();
+
+    this.hideTutorialActionButton();
+    this.exitBtn.classList.add("hidden");
+    this.settingsBtn.classList.add("hidden");
+    this.skipTutorialBtn.classList.add("hidden");
+    this.tutorialOverlay.style.pointerEvents = "";
+
+    this.fadeOutSpotlightFromShip();
+    this.callbacks?.setZoom(null);
+    this.tutorialOverlay.classList.add("hidden");
+    this.callbacks?.onTutorialComplete();
   }
 
   private showTutorialNextButton(): void {
@@ -603,6 +625,10 @@ export class DemoOverlayUI {
     return new Promise((resolve) => {
       const startMs = performance.now();
       const tick = (): void => {
+        if (!this.tutorialRunning) {
+          resolve();
+          return;
+        }
         const elapsed = performance.now() - startMs;
         const t = Math.min(elapsed / durationMs, 1);
         // Ease-out cubic

@@ -132,6 +132,22 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Outcome:
   - "Skip »" visible at any tutorial stage; click immediately enters gameplay. Disappears on skip, complete, or leave.
 
+## 2026-03-11 - Tutorial: skip button proper state reset
+
+- Scope:
+  - Skip button didn't properly restore game state: zoom stayed pinned to ship after skip mid-tween, spotlight stopped abruptly instead of blooming, sim could be left paused. Files: `src/demo/DemoOverlayUI.ts`, `src/main.ts`.
+- Root cause:
+  - `triggerTutorialComplete()` called `hideAll()` which: (a) used `stopSpotlight()` not `fadeOutSpotlightFromShip()`, (b) set `tutorialRunning = false` but the pending `tweenZoom()` rAF had no `tutorialRunning` check so kept writing `setZoom()` after null was set, (c) made no `onResumeGame()` call so sim remained paused if skip was pressed during a dialog step.
+- Key changes:
+  - `DemoOverlayUI`: removed `triggerTutorialComplete()`. Extracted private `completeTutorial()` used by both "Start Playing" and skip button — sets `tutorialRunning = false`, cancels typewriter/audio, clears mobile highlights + input blocks, calls `onResumeGame()` to un-pause sim regardless of step, then calls `fadeOutSpotlightFromShip()` + `setZoom(null)` + hide overlay + `onTutorialComplete()`. Guard at top prevents double-execution.
+  - `tweenZoom()`: rAF tick now checks `!this.tutorialRunning` and resolves immediately on cancel, preventing stale `setZoom()` writes.
+  - `showSkipTutorialButton()`: no longer accepts a callback — always calls `completeTutorial()` directly.
+  - `main.ts`: `showSkipTutorialButton()` call no longer passes callback.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Skipping at any tutorial stage: zoom resets correctly, spotlight blooms out smoothly, sim is running when gameplay starts. No code duplication between skip and "Start Playing" paths.
+
 ## 2026-03-09 - Tutorial leave modal layering + back button fix
 
 - Scope:
