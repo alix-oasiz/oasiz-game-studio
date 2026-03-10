@@ -5,10 +5,15 @@ import {
   DashPreset,
   GameMode,
   ModePreset,
+  Ruleset,
   SpeedPreset,
 } from "../types";
 import { elements } from "./elements";
 import { createUIFeedback } from "../feedback/uiFeedback";
+import {
+  ENDLESS_TIME_LIMIT_OPTIONS,
+  ENDLESS_KILL_LIMIT_OPTIONS,
+} from "../../shared/sim/constants";
 
 type SettingsTab = "elements" | "physics";
 
@@ -40,6 +45,17 @@ function labelDash(value: DashPreset): string {
   if (value === "LOW") return "Low";
   if (value === "HIGH") return "High";
   return "Normal";
+}
+
+function labelTimeLimit(value: number | null): string {
+  if (value === null) return "Off";
+  if (value < 60) return `${value}s`;
+  return `${value / 60} min`;
+}
+
+function labelKillLimit(value: number | null): string {
+  if (value === null) return "Off";
+  return `${value} kills`;
 }
 
 type PresetLabelKey =
@@ -131,8 +147,16 @@ export function createAdvancedSettingsUI(game: Game): AdvancedSettingsUI {
     elements.advancedSettingsBackdrop.classList.remove("active");
   }
 
+  function updateRulesetRows(ruleset: Ruleset): void {
+    const isEndless = ruleset === "ENDLESS_RESPAWN";
+    elements.roundsRow.classList.toggle("hidden", isEndless);
+    elements.endlessTimeLimitRow.classList.toggle("hidden", !isEndless);
+    elements.endlessKillLimitRow.classList.toggle("hidden", !isEndless);
+  }
+
   function updateAdvancedSettingsUI(settings?: AdvancedSettings): void {
     const current = settings ?? game.getAdvancedSettings();
+    updateRulesetRows(game.getRuleset());
     elements.asteroidsCycle.textContent = labelAsteroids(
       current.asteroidDensity,
     );
@@ -144,6 +168,12 @@ export function createAdvancedSettingsUI(game: Game): AdvancedSettingsUI {
       current.startPowerups,
     );
     elements.roundsCycle.textContent = String(current.roundsToWin);
+    elements.endlessTimeLimitCycle.textContent = labelTimeLimit(
+      current.endlessTimeLimitSeconds,
+    );
+    elements.endlessKillLimitCycle.textContent = labelKillLimit(
+      current.endlessKillLimit,
+    );
     elements.shipSpeedCycle.textContent = labelSpeed(current.shipSpeed);
     elements.dashPowerCycle.textContent = labelDash(current.dashPower);
     elements.rotationPresetCycle.textContent = labelPreset(
@@ -241,6 +271,22 @@ export function createAdvancedSettingsUI(game: Game): AdvancedSettingsUI {
     const current = game.getAdvancedSettings().roundsToWin;
     const next = current >= 6 ? 3 : current + 1;
     applySettings({ roundsToWin: next });
+  });
+
+  bindTap(elements.endlessTimeLimitCycle, () => {
+    feedback.button();
+    const current = game.getAdvancedSettings().endlessTimeLimitSeconds;
+    applySettings({
+      endlessTimeLimitSeconds: nextInCycle(ENDLESS_TIME_LIMIT_OPTIONS, current),
+    });
+  });
+
+  bindTap(elements.endlessKillLimitCycle, () => {
+    feedback.button();
+    const current = game.getAdvancedSettings().endlessKillLimit;
+    applySettings({
+      endlessKillLimit: nextInCycle(ENDLESS_KILL_LIMIT_OPTIONS, current),
+    });
   });
 
   bindTap(elements.shipSpeedCycle, () => {

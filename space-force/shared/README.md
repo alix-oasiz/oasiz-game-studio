@@ -23,6 +23,7 @@ This is the source of truth for deterministic simulation behavior so multiplayer
 
 - Keep updates deterministic and platform-agnostic (avoid browser-only or Node-only APIs here).
 - Keep shared player metadata contract aligned across sim/server/client; `PlayerListMeta` includes `shipSkinId` and is the authoritative cross-client skin field.
+- `AdvancedSettings` (in `shared/sim/types.ts`) is the shared settings contract between client UI, network sync, and sim. Current fields: asteroids density, start powerups, rounds-to-win (round mode), endless time limit (`endlessTimeLimitSeconds`: null | number), endless kill limit (`endlessKillLimit`: null | number), and physics presets. When adding new settings, update the type, `DEFAULT_ADVANCED_SETTINGS` in `constants.ts`, `sanitizeAdvancedSettings` in `simulationSettings.ts`, and the corresponding cycle options constant (`ENDLESS_TIME_LIMIT_OPTIONS`, `ENDLESS_KILL_LIMIT_OPTIONS`, etc.).
 - If you update entity SVG inputs in `shared/assets/entities`, regenerate geometry payloads:
   - `cd space-force && bun run generate:entities`
 - If you change simulation behavior, validate both runtimes:

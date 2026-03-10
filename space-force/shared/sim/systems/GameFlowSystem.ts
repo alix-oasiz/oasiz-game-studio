@@ -329,6 +329,32 @@ export function updateEndlessRespawns(sim: SimState): void {
   }
 }
 
+export function checkEndlessWinConditions(sim: SimState): void {
+  if (sim.phase !== "PLAYING") return;
+  if (sim.ruleset !== "ENDLESS_RESPAWN") return;
+  if (sim.experienceContext !== "LIVE_MATCH") return;
+
+  const { endlessTimeLimitSeconds, endlessKillLimit } = sim.settings;
+
+  if (endlessTimeLimitSeconds !== null && sim.playingStartAtMs !== null) {
+    const elapsedMs = sim.nowMs - sim.playingStartAtMs;
+    if (elapsedMs >= endlessTimeLimitSeconds * 1000) {
+      endMatchByScore(sim);
+      return;
+    }
+  }
+
+  if (endlessKillLimit !== null) {
+    for (const playerId of sim.playerOrder) {
+      const player = sim.players.get(playerId);
+      if (player && player.kills >= endlessKillLimit) {
+        endMatchByScore(sim);
+        return;
+      }
+    }
+  }
+}
+
 export function updateCombatComboTimeouts(sim: SimState): void {
   const combo = getCombatComboRules();
   if (!combo.enabled) return;
@@ -527,6 +553,7 @@ export function beginPlaying(sim: SimState): void {
     return;
   }
   sim.phase = "PLAYING";
+  sim.playingStartAtMs = sim.nowMs;
   clearRoundEntities(sim);
   spawnAllShips(sim);
   sim.spawnMapFeatures();

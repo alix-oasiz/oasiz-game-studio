@@ -39,6 +39,8 @@ export interface AdvancedSettings {
   asteroidDensity: AsteroidDensity;
   startPowerups: boolean;
   roundsToWin: number;
+  endlessTimeLimitSeconds: number | null;
+  endlessKillLimit: number | null;
   shipSpeed: SpeedPreset;
   dashPower: DashPreset;
   rotationPreset: ModePreset;
@@ -522,6 +524,7 @@ export interface SimState {
   screenShakeDuration: number;
   pendingEliminationCheckAtMs: number | null;
   nextAsteroidSpawnAtMs: number | null;
+  playingStartAtMs: number | null;
   tickDurationMs: number;
   roomCode: string;
   leaderPlayerId: string | null;

@@ -1198,6 +1198,7 @@ async function init(): Promise<void> {
       if (demoController?.isDemoActive()) return;
       lobbyUI.setRulesetUI(ruleset, "remote");
       lobbyUI.updateMapSelector();
+      advancedSettingsUI.updateAdvancedSettingsUI();
     },
     onRoundResult: () => {
       if (demoController?.isDemoActive()) return;

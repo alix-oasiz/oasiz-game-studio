@@ -1958,6 +1958,10 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
+    .advanced-row.hidden {
+      display: none;
+    }
+
     .advanced-label {
       color: rgba(255, 255, 255, 0.8);
       font-size: 0.85rem;
@@ -4367,9 +4371,17 @@
           <span class="advanced-label">Start Powerups</span>
           <button class="toggle-pill" id="startPowerupsToggle">Off</button>
         </div>
-        <div class="advanced-row">
+        <div class="advanced-row" id="roundsRow">
           <span class="advanced-label">Rounds To Win</span>
           <button class="cycle-btn" id="roundsCycle">3</button>
+        </div>
+        <div class="advanced-row hidden" id="endlessTimeLimitRow">
+          <span class="advanced-label">Time Limit</span>
+          <button class="cycle-btn" id="endlessTimeLimitCycle">5 min</button>
+        </div>
+        <div class="advanced-row hidden" id="endlessKillLimitRow">
+          <span class="advanced-label">Kill Limit</span>
+          <button class="cycle-btn" id="endlessKillLimitCycle">Off</button>
         </div>
       </div>
       <div class="advanced-panel" id="advancedPanelPhysics">

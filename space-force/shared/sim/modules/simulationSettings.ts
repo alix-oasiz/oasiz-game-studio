@@ -5,7 +5,11 @@ import type {
   DebugPhysicsGlobals,
   DebugPhysicsMaterials,
 } from "../types.js";
-import { DEFAULT_ADVANCED_SETTINGS } from "../constants.js";
+import {
+  DEFAULT_ADVANCED_SETTINGS,
+  ENDLESS_TIME_LIMIT_OPTIONS,
+  ENDLESS_KILL_LIMIT_OPTIONS,
+} from "../constants.js";
 import { clamp } from "../utils.js";
 
 const MODE_PRESETS = ["STANDARD", "SANE", "CHAOTIC"] as const;
@@ -93,6 +97,19 @@ export function sanitizeAdvancedSettings(
     settings.roundsToWin = DEFAULT_ADVANCED_SETTINGS.roundsToWin;
   } else {
     settings.roundsToWin = clamp(Math.round(settings.roundsToWin), 3, 6);
+  }
+  if (
+    settings.endlessTimeLimitSeconds !== null &&
+    !ENDLESS_TIME_LIMIT_OPTIONS.includes(settings.endlessTimeLimitSeconds)
+  ) {
+    settings.endlessTimeLimitSeconds =
+      DEFAULT_ADVANCED_SETTINGS.endlessTimeLimitSeconds;
+  }
+  if (
+    settings.endlessKillLimit !== null &&
+    !ENDLESS_KILL_LIMIT_OPTIONS.includes(settings.endlessKillLimit)
+  ) {
+    settings.endlessKillLimit = DEFAULT_ADVANCED_SETTINGS.endlessKillLimit;
   }
 
   if (!isInList(settings.shipSpeed, SPEED_PRESETS)) {

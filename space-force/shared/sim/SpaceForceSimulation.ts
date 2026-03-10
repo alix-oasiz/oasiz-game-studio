@@ -158,6 +158,7 @@ import {
   killPilot as flowKillPilot,
   respawnFromPilot as flowRespawnFromPilot,
   updateEndlessRespawns,
+  checkEndlessWinConditions,
   updateCombatComboTimeouts,
   updatePendingEliminationChecks,
   checkEliminationWin,
@@ -215,6 +216,7 @@ export class SpaceForceSimulation implements SimState {
   screenShakeDuration = 0;
   pendingEliminationCheckAtMs: number | null = null;
   nextAsteroidSpawnAtMs: number | null = null;
+  playingStartAtMs: number | null = null;
   leaderPlayerId: string | null = null;
   roundEndMs = 0;
   demoFrozenPlayerIds: Set<string> | null = null;
@@ -1153,6 +1155,7 @@ export class SpaceForceSimulation implements SimState {
     this.applyMapFeatureKinematics(dtSec);
     cleanupExpiredEntities(this);
     updateEndlessRespawns(this);
+    checkEndlessWinConditions(this);
     updateCombatComboTimeouts(this);
     updatePendingEliminationChecks(this);
     if (this.pendingEliminationCheckAtMs === null) {

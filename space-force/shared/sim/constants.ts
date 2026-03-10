@@ -281,10 +281,29 @@ export const WALL_RESTITUTION_BY_PRESET: Record<AdvancedSettings["wallRestitutio
 
 // ============= DEFAULT SETTINGS =============
 
+/** Endless mode time-limit options in seconds. null = no limit. */
+export const ENDLESS_TIME_LIMIT_OPTIONS: (number | null)[] = [
+  null,
+  120,
+  300,
+  600,
+  1200,
+];
+
+/** Endless mode kill-limit options. null = no limit. */
+export const ENDLESS_KILL_LIMIT_OPTIONS: (number | null)[] = [
+  null,
+  10,
+  20,
+  30,
+];
+
 export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
   asteroidDensity: "SOME",
   startPowerups: false,
   roundsToWin: 3,
+  endlessTimeLimitSeconds: 300,
+  endlessKillLimit: null,
   shipSpeed: "NORMAL",
   dashPower: "NORMAL",
   rotationPreset: "STANDARD",

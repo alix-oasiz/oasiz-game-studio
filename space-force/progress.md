@@ -45,6 +45,26 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 - Outcome:
   - Desktop/iPad: "Invite" button visible directly in empty card slots (online+platform). Phone: tapping empty card opens modal with "Add Bot" + "Invite". Both host and non-host can invite as long as slots are open.
 
+## 2026-03-11 - Endless mode: time limit + kill limit win conditions
+
+- Scope:
+  - Endless respawn mode had no automatic win condition — match could only end manually via leader. Added independent time-limit and kill-limit controls. Files: `shared/sim/types.ts`, `shared/sim/constants.ts`, `shared/sim/modules/simulationSettings.ts`, `shared/sim/systems/GameFlowSystem.ts`, `shared/sim/SpaceForceSimulation.ts`, `index.html`, `src/ui/elements.ts`, `src/ui/advancedSettings.ts`, `src/main.ts`, `.tools/docs/GAME_MODES.md`, `shared/README.md`.
+- Key changes:
+  - `types.ts`: added `endlessTimeLimitSeconds: number | null` and `endlessKillLimit: number | null` to `AdvancedSettings`; added `playingStartAtMs: number | null` to `SimState`.
+  - `constants.ts`: added `ENDLESS_TIME_LIMIT_OPTIONS` ([null, 120, 300, 600, 1200] seconds) and `ENDLESS_KILL_LIMIT_OPTIONS` ([null, 10, 20, 30]); defaults in `DEFAULT_ADVANCED_SETTINGS`: `endlessTimeLimitSeconds: 300` (5 min), `endlessKillLimit: null`.
+  - `simulationSettings.ts`: sanitizes new fields against option arrays (invalid values fall back to defaults).
+  - `GameFlowSystem.ts`: `beginPlaying()` sets `sim.playingStartAtMs = sim.nowMs`. Added `checkEndlessWinConditions()` — checks time elapsed vs `endlessTimeLimitSeconds` and each player's kills vs `endlessKillLimit`; calls `endMatchByScore()` on first trigger.
+  - `SpaceForceSimulation.ts`: initializes `playingStartAtMs: null`; calls `checkEndlessWinConditions(this)` in PLAYING tick alongside `updateEndlessRespawns`.
+  - `index.html`: added `roundsRow` id to rounds row, added `endlessTimeLimitRow` and `endlessKillLimitRow` divs (hidden by default); added `.advanced-row.hidden { display: none }` CSS rule.
+  - `elements.ts`: registered `roundsRow`, `endlessTimeLimitRow`, `endlessTimeLimitCycle`, `endlessKillLimitRow`, `endlessKillLimitCycle`.
+  - `advancedSettings.ts`: `updateRulesetRows()` shows/hides rounds vs endless rows based on active ruleset. `updateAdvancedSettingsUI()` calls `updateRulesetRows()` and updates new cycle labels. Cycle handlers for `endlessTimeLimitCycle` and `endlessKillLimitCycle` using `nextInCycle` with central option arrays.
+  - `main.ts`: `onRulesetChange` callback now also calls `advancedSettingsUI.updateAdvancedSettingsUI()` to refresh row visibility on ruleset switch.
+- Validation:
+  - `bun run typecheck`: clean.
+  - `cd server && npm run typecheck`: clean.
+- Outcome:
+  - Endless mode advanced settings show "Time Limit" (default 5 min) and "Kill Limit" (default Off) instead of "Rounds To Win". Both are independent — either or both can be null. Whichever fires first ends the match via `endMatchByScore()`.
+
 ## 2026-03-11 - Map picker: all maps available in all modes + rename to "Random"
 
 - Scope:

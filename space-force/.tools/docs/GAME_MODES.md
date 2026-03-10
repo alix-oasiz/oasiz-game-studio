@@ -72,11 +72,19 @@ Core behavior:
   - `START -> LOBBY -> COUNTDOWN -> PLAYING_CONTINUOUS`
 - No elimination-driven `ROUND_END`/`GAME_END` transitions.
 - Players respawn after death and continue scoring.
-- Session is effectively open-ended until room/session lifecycle ends.
+- Session ends via: (a) room leader manually ending the match, or (b) automatic time-limit expiry when `endlessTimeLimitSeconds` is set.
 
 Winner semantics:
 - Winner is ranking-by-score at session end snapshot.
+- Tiebreaker chain: score → round wins → kills.
 - Session-end snapshot triggers must be explicit in implementation design.
+
+Win conditions (endless-specific, independent — either or both may be active):
+- **Time limit** (`endlessTimeLimitSeconds: number | null`): automatically ends the match after N seconds of PLAYING time. null = no time limit. Timer tracks elapsed sim time only (pausing the sim pauses the timer). On expiry calls `endMatchByScore()`.
+- **Kill limit** (`endlessKillLimit: number | null`): automatically ends the match when any player's kill count reaches N. null = no kill limit. On trigger calls `endMatchByScore()`.
+- Both conditions are checked independently each sim tick; whichever fires first ends the match.
+- Allowed values and defaults are defined centrally in `constants.ts` (`ENDLESS_TIME_LIMIT_OPTIONS`, `ENDLESS_KILL_LIMIT_OPTIONS`) so they can be tuned without touching sim/UI logic.
+- Lobby advanced settings shows both cycle controls for endless and hides the rounds-to-win control.
 
 Map support policy:
 - All maps are available in endless mode (no per-ruleset exclusions).
