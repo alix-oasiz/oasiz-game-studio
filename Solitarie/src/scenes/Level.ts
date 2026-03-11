@@ -1590,18 +1590,16 @@ export default class Level extends Phaser.Scene {
         if (now - this.lastUndoRequestAt < 350) return;
         this.lastUndoRequestAt = now;
         if (this.reversesRemaining <= 0) {
-            this.showStatusMessage("No reverses left this round.");
+            this.updateUndoButton();
             return;
         }
         const snapshot = this.undoHistory.pop();
         if (!snapshot) {
-            this.showStatusMessage("Nothing to reverse right now.");
             this.updateUndoButton();
             return;
         }
         this.reversesRemaining -= 1;
         this.restoreUndoSnapshot(snapshot);
-        this.showStatusMessage(`Reverse ${this.reversesRemaining} left.`);
     }
 
     private showLevelSettingsHtml(panelTop: number, panelBottom: number, rowBaseY: number): void {
@@ -1853,8 +1851,8 @@ export default class Level extends Phaser.Scene {
             maxWidth: 390,
             letterSpacing: 0.1,
             multicolor: false,
-            color: "#111111",
-            strokeColor: "#111111",
+            color: "#FFFFFF",
+            strokeColor: "#FFFFFF",
             strokeWidth: 0
         });
         showHtmlText("level-howto-page-indicator", {

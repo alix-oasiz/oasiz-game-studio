@@ -669,8 +669,8 @@ export default class MainMenu extends Phaser.Scene {
             maxWidth: 390,
             letterSpacing: 0.1,
             multicolor: false,
-            color: "#111111",
-            strokeColor: "#111111",
+            color: "#FFFFFF",
+            strokeColor: "#FFFFFF",
             strokeWidth: 0
         });
         showHtmlText("howto-page-indicator", {

@@ -64,6 +64,9 @@ const API_URL = process.env.OASIZ_API_URL || DEFAULT_API_URL;
 const API_TOKEN = process.env.OASIZ_UPLOAD_TOKEN;
 const CREATOR_EMAIL = process.env.OASIZ_EMAIL;
 
+// Unity games live under this subfolder of the repo root
+const UNITY_DIR = "Unity";
+
 // Types
 interface PublishConfig {
   title: string;
@@ -638,6 +641,186 @@ function inlineAssetsInJs(
   return result;
 }
 
+// ─── Unity helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Returns true when a game folder lives inside the Unity/ directory.
+ */
+function isUnityGame(gamePath: string): boolean {
+  const rootDir = resolve(import.meta.dir, "..");
+  const unityDir = join(rootDir, UNITY_DIR);
+  return gamePath.startsWith(unityDir + "/") || gamePath === unityDir;
+}
+
+/**
+ * Resolve a game name to its absolute path.
+ * Checks the repo root first (normal games), then the Unity/ subdirectory.
+ * Returns { gamePath, isUnity }.
+ */
+function resolveGamePath(gameFolder: string): { gamePath: string; isUnity: boolean } {
+  const rootDir = resolve(import.meta.dir, "..");
+
+  // Allow an explicit "Unity/GameName" path passed by the user
+  if (gameFolder.startsWith(`${UNITY_DIR}/`) || gameFolder.startsWith(`${UNITY_DIR}\\`)) {
+    const gamePath = join(rootDir, gameFolder);
+    if (!existsSync(gamePath)) {
+      logError(`Unity game folder not found: ${gameFolder}`);
+      process.exit(1);
+    }
+    return { gamePath, isUnity: true };
+  }
+
+  // Normal game at repo root
+  const rootPath = join(rootDir, gameFolder);
+  if (existsSync(rootPath)) {
+    return { gamePath: rootPath, isUnity: false };
+  }
+
+  // Auto-detect: look inside Unity/
+  const unityPath = join(rootDir, UNITY_DIR, gameFolder);
+  if (existsSync(unityPath)) {
+    logInfo(`Detected Unity game at Unity/${gameFolder}`);
+    return { gamePath: unityPath, isUnity: true };
+  }
+
+  logError(`Game folder not found: ${gameFolder}`);
+  console.log("");
+  console.log("Available game folders:");
+  const folders = getGameFolders();
+  folders.forEach((f) => console.log(`  - ${f}`));
+  process.exit(1);
+}
+
+/**
+ * Read the main HTML for a Unity WebGL build and prepare it for CDN delivery.
+ *
+ * Normal (Phaser/Vite) games have asset paths as literal HTML attributes like
+ * src="./assets/index-xxx.js" — the backend finds those strings and rewrites
+ * them to absolute CDN URLs before serving.
+ *
+ * Unity's template buries all asset paths inside JavaScript string concatenations:
+ *   var buildUrl = "Build";
+ *   config.dataUrl = buildUrl + "/Build.data";   ← backend can't find "Build/Build.data"
+ *
+ * Fix: expand every concatenation to a literal string, and convert the dynamic
+ * <script> injection into a static <script src="Build/Build.loader.js"> HTML
+ * attribute.  After that the backend's standard CDN rewriter sees identical
+ * patterns to Phaser games and rewrites them the same way.
+ */
+async function readUnityBundleHtml(gamePath: string): Promise<string> {
+  const buildDir = join(gamePath, "Build");
+  const htmlPath = join(buildDir, "index.html");
+
+  if (!existsSync(htmlPath)) {
+    logError(`Unity build HTML not found at Build/index.html`);
+    logError(`Make sure you have exported a WebGL build from Unity into: ${buildDir}`);
+    process.exit(1);
+  }
+
+  let html = await Bun.file(htmlPath).text();
+
+  // ── 1. Expand buildUrl string concatenations to literal asset paths ──────────
+  //
+  // Replace the entire block:
+  //   var buildUrl = "Build";
+  //   var loaderUrl = buildUrl + "/Build.loader.js";
+  //   var config = { dataUrl: buildUrl + "/Build.data", ... };
+  //
+  // With literal values the backend CDN rewriter can find and replace:
+  //   var config = { dataUrl: "Build/Build.data", ... };
+  html = html
+    .replace(/var buildUrl\s*=\s*["']Build["'];?\s*/g, "")
+    .replace(/buildUrl\s*\+\s*["']\/Build\.loader\.js["']/g, '"Build/Build.loader.js"')
+    .replace(/buildUrl\s*\+\s*["']\/Build\.data["']/g, '"Build/Build.data"')
+    .replace(/buildUrl\s*\+\s*["']\/Build\.framework\.js["']/g, '"Build/Build.framework.js"')
+    .replace(/buildUrl\s*\+\s*["']\/Build\.wasm["']/g, '"Build/Build.wasm"');
+
+  logInfo("  Expanded JS path concatenations to literal strings");
+
+  // ── 2. Replace dynamic <script> injection with a static <script src="..."> ───
+  //
+  // Original:
+  //   var script = document.createElement("script");
+  //   script.src = loaderUrl;
+  //   script.onload = () => { createUnityInstance(...).then(...).catch(...) };
+  //   document.body.appendChild(script);
+  //
+  // Replaced with a static HTML tag (so the CDN rewriter sees a literal src="...")
+  // followed by a direct createUnityInstance() call (loader is synchronously
+  // blocking — the next <script> block won't run until it has fully loaded).
+  const dynamicLoaderPattern =
+    /var script\s*=\s*document\.createElement\("script"\);[\s\S]*?document\.body\.appendChild\(script\);/;
+
+  const staticLoaderBlock = `/* loader injected as static tag — see <script src="Build/Build.loader.js"> above */
+      createUnityInstance(canvas, config, function (progress) {
+        document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
+      }).then(function (unityInstance) {
+        document.querySelector("#unity-loading-bar").style.display = "none";
+        document.querySelector("#unity-fullscreen-button").onclick = function () {
+          unityInstance.SetFullscreen(1);
+        };
+      }).catch(function (message) {
+        alert(message);
+      });`;
+
+  if (dynamicLoaderPattern.test(html)) {
+    html = html.replace(dynamicLoaderPattern, staticLoaderBlock);
+    // Insert the static loader <script> tag right before the existing inline <script> block
+    html = html.replace(
+      /<script>\s*\n\s*var canvas\s*=/,
+      `<script src="Build/Build.loader.js"></script>\n    <script>\n      var canvas =`
+    );
+    logInfo("  Converted dynamic loader injection to static <script src=\"Build/Build.loader.js\">");
+  } else {
+    logInfo("  Warning: could not find dynamic script-loading block — HTML may not load correctly");
+  }
+
+  // ── 3. Remove var loaderUrl (no longer used) ─────────────────────────────────
+  html = html.replace(/\s*var loaderUrl\s*=\s*[^;]+;\s*/g, "\n      ");
+
+  return html;
+}
+
+/**
+ * Collect all Unity build assets (everything under Build/ except index.html).
+ * The backend stores each file on R2/CDN and rewrites the matching literal paths
+ * in bundleHtml to absolute CDN URLs — the same mechanism used for Phaser games.
+ */
+async function collectUnityAssets(gamePath: string): Promise<Record<string, string>> {
+  const buildDir = join(gamePath, "Build");
+  const assets: Record<string, string> = {};
+
+  if (!existsSync(buildDir)) {
+    logError("Unity Build folder not found");
+    return assets;
+  }
+
+  const allFiles = getAllFiles(buildDir);
+
+  for (const filePath of allFiles) {
+    const relativePath = relative(buildDir, filePath).replace(/\\/g, "/");
+
+    if (relativePath === "index.html") continue;
+
+    const file = Bun.file(filePath);
+    const fileSize = file.size;
+
+    if (fileSize > 50 * 1024 * 1024) {
+      logInfo(`  Skipping very large file: ${relativePath} (${(fileSize / 1024 / 1024).toFixed(1)} MB > 50 MB limit)`);
+      continue;
+    }
+
+    logInfo(`  Collecting: ${relativePath} (${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+    const buffer = await file.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    assets[relativePath] = base64;
+  }
+
+  return assets;
+}
+
+// ─── End Unity helpers ────────────────────────────────────────────────────────
+
 /**
  * Read the built HTML without inlining assets
  * Assets will be uploaded separately and URLs rewritten by the backend
@@ -733,14 +916,33 @@ async function main(): Promise<void> {
 
   // Handle --list flag
   if (args.includes("--list") || args.includes("-l")) {
-    console.log("Available games:");
+    const rootDir = resolve(import.meta.dir, "..");
+
+    console.log("Available games (TypeScript/Vite):");
     const folders = getGameFolders();
     folders.forEach((f) => {
-      const hasPublish = existsSync(
-        join(resolve(import.meta.dir, ".."), f, "publish.json")
-      );
+      const hasPublish = existsSync(join(rootDir, f, "publish.json"));
       console.log(`  ${hasPublish ? "✓" : "○"} ${f}`);
     });
+
+    console.log("");
+    console.log("Available games (Unity WebGL):");
+    const unityDir = join(rootDir, UNITY_DIR);
+    if (existsSync(unityDir)) {
+      const { readdirSync: rds } = await import("fs");
+      const unityGames = rds(unityDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name);
+      unityGames.forEach((f) => {
+        const hasPublish = existsSync(join(unityDir, f, "publish.json"));
+        const hasBuild = existsSync(join(unityDir, f, "Build", "index.html"));
+        console.log(`  ${hasPublish ? "✓" : "○"} ${f}${hasBuild ? "" : "  ⚠ no Build/index.html"}`);
+      });
+      if (unityGames.length === 0) console.log("  (none)");
+    } else {
+      console.log("  (Unity/ folder not found)");
+    }
+
     console.log("");
     console.log("✓ = has publish.json, ○ = needs publish.json");
     process.exit(0);
@@ -763,11 +965,18 @@ async function main(): Promise<void> {
     console.log("By default, assets are uploaded separately for CDN delivery.");
     console.log("Use --inline for games that need all assets in the HTML.");
     console.log("");
+    console.log("Unity WebGL games:");
+    console.log("  Place Unity WebGL exports under Unity/<game-name>/Build/");
+    console.log("  The script auto-detects them — no build step is run.");
+    console.log("  Both 'ThreadTangle' and 'Unity/ThreadTangle' are accepted.");
+    console.log("");
     console.log("Examples:");
     console.log("  bun run upload block-blast");
     console.log("  bun run upload block-blast horizontal");
     console.log("  bun run upload two-dots --skip-build");
     console.log("  bun run upload endless-hexagon --inline");
+    console.log("  bun run upload ThreadTangle            # Unity game (auto-detected)");
+    console.log("  bun run upload Unity/ThreadTangle      # Unity game (explicit)");
     console.log("  bun run upload --list");
     console.log("");
     console.log("Environment:");
@@ -793,9 +1002,11 @@ async function main(): Promise<void> {
     await validateEnvironment();
   }
 
-  // Validate and resolve game path
-  const gamePath = validateGameFolder(gameFolder);
-  logInfo(`Processing game: ${gameFolder}`);
+  // Resolve game path — auto-detects Unity/ games
+  const { gamePath, isUnity } = resolveGamePath(gameFolder);
+  // Canonical slug is always just the bare game name (strip leading Unity/ prefix)
+  const gameSlug = gameFolder.replace(/^Unity\//, "");
+  logInfo(`Processing game: ${gameSlug}${isUnity ? " (Unity WebGL)" : ""}`);
 
   // Read publish config
   const publishConfig = await readPublishConfig(gamePath);
@@ -805,25 +1016,39 @@ async function main(): Promise<void> {
     logInfo("Uploading as NEW game (ignoring existing gameId)");
   }
 
-  // Build the game
-  if (!skipBuild) {
-    await buildGame(gamePath);
-  } else {
-    logInfo("Skipping build (--skip-build)");
-  }
-
-  // Read the built HTML bundle
-  const bundleHtml = await readBundleHtml(gamePath, useInlining);
-  logSuccess(`Read bundle: ${(bundleHtml.length / 1024).toFixed(1)} KB`);
-
-  // Collect assets for separate upload (unless using inline mode)
+  let bundleHtml: string;
   let assets: Record<string, string> | undefined;
-  if (!useInlining) {
-    logInfo("Collecting assets for CDN upload...");
-    assets = await collectAssets(gamePath);
+
+  if (isUnity) {
+    // ── Unity WebGL upload path ──────────────────────────────────────────────
+    logInfo("Unity game — skipping build step (pre-built WebGL export expected)");
+
+    bundleHtml = await readUnityBundleHtml(gamePath);
+    logSuccess(`Read Unity bundle: ${(bundleHtml.length / 1024).toFixed(1)} KB`);
+
+    logInfo("Collecting Unity build assets for CDN upload...");
+    assets = await collectUnityAssets(gamePath);
     const assetCount = Object.keys(assets).length;
     const totalSize = Object.values(assets).reduce((sum, b64) => sum + b64.length * 0.75, 0);
-    logSuccess(`Collected ${assetCount} assets (${(totalSize / 1024 / 1024).toFixed(1)} MB total)`);
+    logSuccess(`Collected ${assetCount} Unity assets (${(totalSize / 1024 / 1024).toFixed(1)} MB total)`);
+  } else {
+    // ── Normal (TypeScript/Vite) upload path ─────────────────────────────────
+    if (!skipBuild) {
+      await buildGame(gamePath);
+    } else {
+      logInfo("Skipping build (--skip-build)");
+    }
+
+    bundleHtml = await readBundleHtml(gamePath, useInlining);
+    logSuccess(`Read bundle: ${(bundleHtml.length / 1024).toFixed(1)} KB`);
+
+    if (!useInlining) {
+      logInfo("Collecting assets for CDN upload...");
+      assets = await collectAssets(gamePath);
+      const assetCount = Object.keys(assets).length;
+      const totalSize = Object.values(assets).reduce((sum, b64) => sum + b64.length * 0.75, 0);
+      logSuccess(`Collected ${assetCount} assets (${(totalSize / 1024 / 1024).toFixed(1)} MB total)`);
+    }
   }
 
   // Read thumbnail if available
@@ -832,7 +1057,7 @@ async function main(): Promise<void> {
   // Prepare payload
   const payload: UploadPayload = {
     title: publishConfig.title,
-    slug: gameFolder,
+    slug: gameSlug,
     description: publishConfig.description,
     category: publishConfig.category,
     email: CREATOR_EMAIL!,
@@ -857,7 +1082,7 @@ async function main(): Promise<void> {
     console.log(`  Has Thumbnail: ${!!payload.thumbnailBase64}`);
     console.log(`  Vertical Only: ${payload.verticalOnly ?? true} (default: true)`);
     console.log(`  Bundle Size: ${(payload.bundleHtml.length / 1024).toFixed(1)} KB`);
-    console.log(`  Mode: ${useInlining ? 'Inline (legacy)' : 'CDN Assets'}`);
+    console.log(`  Type: ${isUnity ? "Unity WebGL" : useInlining ? "Inline (legacy)" : "CDN Assets"}`);
     if (assets) {
       console.log(`  Assets: ${Object.keys(assets).length} files`);
     }
