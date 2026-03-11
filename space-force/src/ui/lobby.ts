@@ -29,6 +29,9 @@ export interface LobbyUI {
   setMapUI: (mapId: MapId, source?: "local" | "remote") => void;
   updateMapSelector: () => void;
   closeMapPicker: () => void;
+  onLobbyShown: (seq?: number) => void;
+  onLobbyHidden: () => void;
+  getLobbyEnterSeq: () => number;
 }
 
 export function createLobbyUI(
@@ -298,6 +301,47 @@ export function createLobbyUI(
     }
   }
 
+  let lobbyVisible = false;
+  let lobbyEnterSeq = 0; // increments each time we leave lobby, invalidates pending onLobbyShown
+
+  function triggerCardEnter(el: HTMLElement, delayMs: number): void {
+    el.classList.remove("pcard--entering", "pcard--pre-enter");
+    void el.offsetWidth; // force reflow — card is now opacity:0 from animation `from` state
+    el.style.setProperty("--card-enter-delay", `${delayMs}ms`);
+    el.classList.add("pcard--entering");
+    el.addEventListener("animationend", () => {
+      el.classList.remove("pcard--entering");
+      el.style.removeProperty("--card-enter-delay");
+    }, { once: true });
+  }
+
+  function onLobbyShown(seq?: number): void {
+    // If seq was captured before a hide, discard stale call
+    if (seq !== undefined && seq !== lobbyEnterSeq) return;
+    if (lobbyVisible) return;
+    lobbyVisible = true;
+    const slots = ensureCardSlots();
+    const filled = slots.filter(el => el.classList.contains("pcard--filled"));
+    filled.forEach((el, i) => triggerCardEnter(el, i * 80));
+  }
+
+  function getLobbyEnterSeq(): number {
+    return lobbyEnterSeq;
+  }
+
+  function onLobbyHidden(): void {
+    lobbyEnterSeq++;
+    lobbyVisible = false;
+    // Pre-hide filled cards so they start invisible on next lobby show — no blink
+    if (cardSlotEls) {
+      cardSlotEls.forEach(el => {
+        if (el.classList.contains("pcard--filled")) {
+          el.classList.add("pcard--pre-enter");
+        }
+      });
+    }
+  }
+
   function ensureCardSlots(): HTMLElement[] {
     if (cardSlotEls) return cardSlotEls;
     cardSlotEls = [];
@@ -444,6 +488,7 @@ export function createLobbyUI(
     applyPreferredSkinToSelf();
 
     const cards = ensureCardSlots();
+    const newlyFilledIndices: number[] = [];
     for (let i = 0; i < 4; i++) {
       const card = cards[i];
       if (i < players.length) {
@@ -467,16 +512,23 @@ export function createLobbyUI(
 
         const prevPlayerId = card.dataset.slotPlayerId ?? "";
         if (prevPlayerId !== player.id) {
-          // New player in slot (empty→filled or player swap): full redraw for this card
+          // New player in slot (empty→filled or player swap): full redraw for this card.
+          // Pre-hide immediately so the card is never painted visible before animation.
           card.dataset.slotPlayerId = player.id;
           card.dataset.emptySlotKey = "";
-          card.className = "pcard pcard--filled";
+          card.className = "pcard pcard--filled pcard--pre-enter";
           card.innerHTML = buildFilledCardHTML(
             player, i, type, isSelf, isLeaderPlayer, canAct, botType, color,
           );
+          newlyFilledIndices.push(i);
         } else {
-          // Same player: targeted updates — ship animation continues uninterrupted
+          // Same player: targeted updates — ship animation continues uninterrupted.
+          // Preserve in-flight animation classes before resetting className.
+          const wasEntering = card.classList.contains("pcard--entering");
+          const wasPreEnter = card.classList.contains("pcard--pre-enter");
           card.className = "pcard pcard--filled";
+          if (wasEntering) card.classList.add("pcard--entering");
+          if (wasPreEnter) card.classList.add("pcard--pre-enter");
 
           // Ship skin: only patches the wrap's innerHTML if skin changed
           patchCardShipSkin(card, player.id, color);
@@ -605,6 +657,12 @@ export function createLobbyUI(
     updateRoomCodeVisibility();
     setRulesetUI(game.getRuleset(), "remote");
     updateMapSelector();
+
+    if (lobbyVisible && newlyFilledIndices.length > 0) {
+      newlyFilledIndices.forEach((slotIdx, i) => {
+        triggerCardEnter(cards[slotIdx], i * 80);
+      });
+    }
   }
 
   // Add-player dialog (phone coarse only)
@@ -1096,5 +1154,8 @@ export function createLobbyUI(
     updateMapSelector,
     updateRoomCode,
     closeMapPicker,
+    onLobbyShown,
+    onLobbyHidden,
+    getLobbyEnterSeq,
   };
 }

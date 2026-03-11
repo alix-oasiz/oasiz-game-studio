@@ -31,6 +31,19 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-11 - Lobby: staggered card enter animation
+
+- Scope:
+  - Player cards in lobby had no entrance animation — they appeared instantly. Added upward stagger animation for all filled cards when: host enters lobby, non-host joins a populated lobby, bot/player added mid-lobby. Files: `index.html`, `src/ui/lobby.ts`, `src/main.ts`.
+- Key changes:
+  - `index.html`: added `@keyframes lb-card-enter` (opacity:0 + translateY(1.375rem) → full), `.pcard--pre-enter` (instant hide at opacity:0 + translateY), `.pcard--entering` (animation using `--card-enter-delay` CSS var, 0.7s spring easing, `both` fill).
+  - `lobby.ts`: added `triggerCardEnter(el, delayMs)` — removes old animation classes, forces reflow, sets delay var, adds `pcard--entering`, self-cleans on `animationend`. Added `lobbyVisible` / `lobbyEnterSeq` state. `onLobbyHidden()` increments seq, pre-hides all filled cards with `pcard--pre-enter`. `onLobbyShown(seq)` validates seq + visibility guard, staggers all filled cards at 80ms intervals. `updateLobbyUI` collects `newlyFilledIndices`; new filled cards always built with `pcard--pre-enter` (no `lobbyVisible` condition); same-player branch preserves `pcard--entering` and `pcard--pre-enter` before className reset. Stagger for new mid-lobby cards fires immediately when `lobbyVisible`.
+  - `main.ts`: `onLobbyHidden()` called on LOBBY phase entry when previous phase wasn't LOBBY. `onLobbyShown()` called inside `pollSettle` callback (START path, after `lobby-settled` fires) or via `setTimeout(..., 320)` (else path) — both capture seq at call time so stale calls are no-ops.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - All lobby card appearances animate: smooth upward rise with 80ms stagger, no blink, no snap. Works for host self-card, joining a populated lobby, and adding bots mid-lobby.
+
 ## 2026-03-11 - Online lobby: platform invite wiring
 
 - Scope:

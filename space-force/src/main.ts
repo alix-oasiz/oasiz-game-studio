@@ -1086,6 +1086,9 @@ async function init(): Promise<void> {
         }
         break;
       case "LOBBY":
+        if (previousPhase !== "LOBBY") {
+          lobbyUI.onLobbyHidden(); // reset visibility flag before re-entering
+        }
         if (previousPhase === "START") {
           void AudioManager.playLobbyEnterTransitionCue();
           setTimeout(() => {
@@ -1112,6 +1115,7 @@ async function init(): Promise<void> {
                 lobbySettleRafId = 0;
                 elements.lobbyScreen.classList.remove("lobby-rising");
                 elements.lobbyScreen.classList.add("lobby-settled");
+                lobbyUI.onLobbyShown(); // fire after lobby is fully visible
                 return;
               }
               lobbySettleRafId = requestAnimationFrame(pollSettle);
@@ -1125,6 +1129,9 @@ async function init(): Promise<void> {
           lobbyUI.updateMapSelector();
           mapPreviewUI.updateMapPreview();
           screenController.resetEndScreenButtons();
+          // Delay past the 0.3s overlay opacity fade-in before animating cards
+          const enterSeq = lobbyUI.getLobbyEnterSeq();
+          setTimeout(() => lobbyUI.onLobbyShown(enterSeq), 320);
         }
         break;
       case "MATCH_INTRO":
