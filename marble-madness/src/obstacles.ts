@@ -274,6 +274,7 @@ export interface FallingPlatformObstacle extends ObstacleBase {
 }
 
 export interface ObstacleAnimationHost {
+  world: RAPIER.World | null;
   fixedStep: number;
   runTimeSeconds: number;
   rotatorObstacles: RotatorXObstacle[];
@@ -517,7 +518,7 @@ export function createRunObstacleOrder(
     "pinball_bouncer",
     "bouncy_pad",
     "swinging_hammer",
-    "falling_platform",
+    // "falling_platform", // Disabled - use falling_tiles platform type instead
   ];
   for (let i = order.length - 1; i > 0; i -= 1) {
     const j = Math.floor(randomFn() * (i + 1));
@@ -2147,6 +2148,10 @@ export function updateWaveObstacleAnimation(host: ObstacleAnimationHost): void {
       if (warningProgress >= 1) {
         platform.state = "falling";
         platform.fallStartTime = host.runTimeSeconds;
+        // Reset mesh position before starting fall animation
+        if (mesh) {
+          mesh.position.y = platform.y;
+        }
       } else {
         // Shake effect
         const shakeOffset = Math.sin(host.runTimeSeconds * 28) * FALLING_PLATFORM_SHAKE_AMPLITUDE;
@@ -2176,10 +2181,11 @@ export function updateWaveObstacleAnimation(host: ObstacleAnimationHost): void {
       if (fallT >= 1) {
         platform.state = "fallen";
         // Remove physics body
-        if (body && host.obstacleBodyById.has(platform.id)) {
-          const world = body.world();
-          if (world) {
-            world.removeRigidBody(body);
+        if (body && host.world && host.obstacleBodyById.has(platform.id)) {
+          try {
+            host.world.removeRigidBody(body);
+          } catch (e) {
+            console.error("[FallingPlatform] Error removing body:", e);
           }
           host.obstacleBodyById.delete(platform.id);
         }

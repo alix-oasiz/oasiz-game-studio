@@ -9,6 +9,7 @@ export type PlatformType =
   | "detour_right_short"
   | "bottleneck"
   | "jump"
+  | "falling_tiles"
   | "end";
 
 export interface PlatformSection {
@@ -162,6 +163,7 @@ export function getPlatformTypeLabel(type: PlatformType): string {
   if (type === "detour_right_short") return "Detour Right";
   if (type === "bottleneck") return "Bottleneck";
   if (type === "jump") return "Jump";
+  if (type === "falling_tiles") return "Falling Tiles";
   if (type === "end") return "End";
   return type;
 }
@@ -181,23 +183,26 @@ export function isDownwardSlopeType(type: PlatformType): boolean {
 function pickMiddlePlatformType(previousType: PlatformType): PlatformType {
   const forbidDownward = isDownwardSlopeType(previousType);
   const roll = Math.random();
-  if (roll < 0.14) {
+  if (roll < 0.12) {
     return "jump";
   }
-  if (!forbidDownward && roll < 0.23) {
+  if (!forbidDownward && roll < 0.2) {
     return "slope_down_soft";
   }
-  if (!forbidDownward && roll < 0.32) {
+  if (!forbidDownward && roll < 0.28) {
     return "slope_down_steep";
   }
-  if (!forbidDownward && roll < 0.42) {
+  if (!forbidDownward && roll < 0.36) {
     return Math.random() < 0.5 ? "spiral_down_left" : "spiral_down_right";
   }
-  if (roll < 0.58) {
+  if (roll < 0.48) {
     return "bottleneck";
   }
-  if (roll < 0.8) {
+  if (roll < 0.68) {
     return Math.random() < 0.5 ? "detour_left_short" : "detour_right_short";
+  }
+  if (roll < 0.78) {
+    return "falling_tiles";
   }
   return "flat";
 }
@@ -303,6 +308,22 @@ function createPlatformSection(
     };
   }
   if (type === "jump") {
+    return {
+      type,
+      zStart,
+      zEnd,
+      slope: 0,
+      width: settings.trackWidth,
+      hasFloor: true,
+      detourDirection: 1,
+      detourMagnitude: 0,
+      lateralOffsetStart: 0,
+      lateralOffsetEnd: 0,
+      spiralEntryLength: 0,
+      spiralExitLength: 0,
+    };
+  }
+  if (type === "falling_tiles") {
     return {
       type,
       zStart,

@@ -60,7 +60,7 @@ import {
   type LandingSoundDebugInfo,
 } from "./sound-manager";
 
-const BUILD_VERSION = "0.5.215";
+const BUILD_VERSION = "0.5.222";
 
 type GameState = "start" | "playing" | "gameOver";
 type HapticType = "light" | "medium" | "heavy" | "success" | "error";
@@ -92,6 +92,22 @@ interface HorizontalBlocker {
   height: number;
   depth: number;
   tilt: number;
+}
+
+type FallingTileState = "stable" | "warning" | "falling" | "fallen";
+
+interface FallingTile {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  width: number;
+  depth: number;
+  state: FallingTileState;
+  playerStandingStartTime: number;
+  fallStartTime: number;
+  currentYOffset: number;
+  sectionIndex: number;
 }
 
 class MarbleMadnessStarter {
@@ -200,10 +216,16 @@ class MarbleMadnessStarter {
   private readonly swingingHammerSweepSpeedBase = 2.8;
   private readonly swingingHammerKnockbackImpulse = 15;
   private readonly fallingPlatformLength = 4.5;
-  private readonly fallingPlatformWidth = 16.5;
+  private readonly fallingPlatformWidth = 5.5;
   private readonly fallingPlatformFallDelay = 2.0;
   private readonly fallingPlatformFallDuration = 1.5;
   private readonly fallingPlatformFallDistance = 20;
+  private readonly fallingTileWidth = 2.8;
+  private readonly fallingTileDepth = 2.8;
+  private readonly fallingTileFallDelay = 0.8;
+  private readonly fallingTileFallDuration = 1.5;
+  private readonly fallingTileFallDistance = 20;
+  private readonly fallingTileShakeAmplitude = 0.08;
   private readonly platformUvScaleV = 0.035;
   private readonly endlessMode = true;
   private readonly trackSamples: TrackSample[] = [];
@@ -238,6 +260,7 @@ class MarbleMadnessStarter {
     "detour_right_short",
     "bottleneck",
     "jump",
+    "falling_tiles",
   ];
   private horizontalBlockers: HorizontalBlocker[] = [];
   private runObstacleOrder: ObstacleKind[] = [];
@@ -246,6 +269,9 @@ class MarbleMadnessStarter {
   private bouncyPads: BouncyPadObstacle[] = [];
   private swingingHammers: SwingingHammerObstacle[] = [];
   private fallingPlatforms: FallingPlatformObstacle[] = [];
+  private fallingTiles: FallingTile[] = [];
+  private tileMeshById = new Map<string, THREE.Mesh>();
+  private tileBodyById = new Map<string, RAPIER.RigidBody>();
   private obstacleMeshById = new Map<string, THREE.Object3D>();
   private bouncyPadPaddleById = new Map<string, THREE.Object3D>();
   private bouncerCapById = new Map<string, THREE.Mesh>();
@@ -1144,6 +1170,7 @@ class MarbleMadnessStarter {
     this.addLevelObject(sunLight);
 
     this.addPlatformRunMeshes();
+    this.addFallingTilesMeshes();
     this.addSpiralSupportColumns();
     this.addHorizontalBlockerMeshes();
     addWaveObstacleMeshesData({
@@ -1574,7 +1601,10 @@ class MarbleMadnessStarter {
     const runs: TrackSample[][] = [];
     let current: TrackSample[] = [];
     for (const sample of this.trackSamples) {
-      if (sample.hasFloor) {
+      const section = this.levelConfig.sections[sample.sectionIndex];
+      const isFallingTilesSection = section?.type === "falling_tiles";
+
+      if (sample.hasFloor && !isFallingTilesSection) {
         current.push(sample);
       } else if (current.length > 1) {
         runs.push(current);
@@ -1896,6 +1926,88 @@ class MarbleMadnessStarter {
     );
   }
 
+  private addFallingTilesMeshes(): void {
+    this.fallingTiles = [];
+    this.tileMeshById.clear();
+
+    const fallingSections = this.levelConfig.sections.filter(
+      (section) => section.type === "falling_tiles",
+    );
+
+    if (fallingSections.length === 0) {
+      return;
+    }
+
+    const tileMaterial = new THREE.MeshPhysicalMaterial({
+      color: "#6b4e3d",
+      roughness: 0.72,
+      metalness: 0.15,
+      clearcoat: 0.1,
+      clearcoatRoughness: 0.5,
+      emissive: "#1a0f08",
+      emissiveIntensity: 0.12,
+    });
+
+    for (const section of fallingSections) {
+      const sectionLength = Math.abs(section.zStart - section.zEnd);
+      const tilesAlongZ = Math.ceil(sectionLength / this.fallingTileDepth);
+      const tilesAcrossX = Math.floor(section.width / this.fallingTileWidth);
+
+      for (let zIndex = 0; zIndex < tilesAlongZ; zIndex += 1) {
+        const tileZ =
+          section.zStart - (zIndex + 0.5) * (sectionLength / tilesAlongZ);
+
+        const trackX = this.sampleTrackX(tileZ);
+
+        const surfaceY = this.getTrackSurfaceYAtPosition(trackX, tileZ);
+
+        const startOffsetX = -(tilesAcrossX * this.fallingTileWidth) * 0.5;
+
+        for (let xIndex = 0; xIndex < tilesAcrossX; xIndex += 1) {
+          const tileX =
+            trackX + startOffsetX + (xIndex + 0.5) * this.fallingTileWidth;
+
+          const tileId = `tile_${this.obstacleIdCounter++}`;
+
+          const tile: FallingTile = {
+            id: tileId,
+            x: tileX,
+            y: surfaceY,
+            z: tileZ,
+            width: this.fallingTileWidth,
+            depth: this.fallingTileDepth,
+            state: "stable",
+            playerStandingStartTime: 0,
+            fallStartTime: 0,
+            currentYOffset: 0,
+            sectionIndex: this.levelConfig.sections.indexOf(section),
+          };
+
+          this.fallingTiles.push(tile);
+
+          const geometry = new THREE.BoxGeometry(
+            this.fallingTileWidth * 0.95,
+            this.trackThickness,
+            this.fallingTileDepth * 0.95,
+          );
+
+          const mesh = new THREE.Mesh(geometry, tileMaterial);
+          mesh.position.set(tileX, surfaceY - this.trackThickness * 0.5, tileZ);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+
+          this.tileMeshById.set(tileId, mesh);
+          this.addLevelObject(mesh);
+        }
+      }
+    }
+
+    console.log(
+      "[AddFallingTilesMeshes]",
+      `Created ${this.fallingTiles.length} falling tiles`,
+    );
+  }
+
   private addSpiralSupportColumns(): void {
     const spiralSections = this.levelConfig.sections.filter((section) =>
       this.isSpiralType(section.type),
@@ -2112,7 +2224,129 @@ class MarbleMadnessStarter {
       getHalfPipeHeightAtOffset: (xOffsetAbs, width) =>
         this.getHalfPipeHeightAtOffset(xOffsetAbs, width),
     });
+    this.createFallingTilesPhysics();
     console.log("[CreateTrackPhysics]", "Track colliders created");
+  }
+
+  private createFallingTilesPhysics(): void {
+    if (!this.world) {
+      return;
+    }
+
+    this.tileBodyById.clear();
+
+    for (const tile of this.fallingTiles) {
+      const bodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(
+        tile.x,
+        tile.y - this.trackThickness * 0.5,
+        tile.z,
+      );
+      const body = this.world.createRigidBody(bodyDesc);
+
+      const halfWidth = tile.width * 0.5;
+      const halfHeight = this.trackThickness * 0.5;
+      const halfDepth = tile.depth * 0.5;
+      const colliderDesc = RAPIER.ColliderDesc.cuboid(
+        halfWidth,
+        halfHeight,
+        halfDepth,
+      );
+      this.world.createCollider(colliderDesc, body);
+
+      this.tileBodyById.set(tile.id, body);
+    }
+
+    console.log(
+      "[CreateFallingTilesPhysics]",
+      `Created ${this.fallingTiles.length} tile physics bodies`,
+    );
+  }
+
+  private updateFallingTiles(): void {
+    if (!this.marbleBody || !this.world) {
+      return;
+    }
+
+    const marblePos = this.marbleBody.translation();
+    const marbleVel = this.marbleBody.linvel();
+
+    for (const tile of this.fallingTiles) {
+      const mesh = this.tileMeshById.get(tile.id);
+      const body = this.tileBodyById.get(tile.id);
+
+      if (tile.state === "stable") {
+        const dx = Math.abs(marblePos.x - tile.x);
+        const dz = Math.abs(marblePos.z - tile.z);
+        const dy = marblePos.y - tile.y;
+
+        // Check if marble is horizontally within tile bounds
+        const withinTileBounds = dx < tile.width * 0.5 && dz < tile.depth * 0.5;
+
+        // Check if marble is close enough vertically (sitting on or near tile surface)
+        // When sitting on tile, marble center is ~1 radius above surface
+        const closeToTile = dy > 0 && dy < this.marbleRadius * 2.5;
+
+        // Not falling fast
+        const notFallingFast = marbleVel.y > -3;
+
+        if (withinTileBounds && closeToTile && notFallingFast) {
+          tile.state = "warning";
+          tile.playerStandingStartTime = this.runTimeSeconds;
+          console.log("[FallingTile] Triggered:", tile.id, "dy:", dy.toFixed(2));
+        }
+      } else if (tile.state === "warning") {
+        const elapsed = this.runTimeSeconds - tile.playerStandingStartTime;
+        const warningProgress = elapsed / this.fallingTileFallDelay;
+
+        if (warningProgress >= 1) {
+          tile.state = "falling";
+          tile.fallStartTime = this.runTimeSeconds;
+          if (mesh) {
+            mesh.position.y = tile.y - this.trackThickness * 0.5;
+          }
+        } else {
+          const shakeOffset =
+            Math.sin(this.runTimeSeconds * 28) * this.fallingTileShakeAmplitude;
+          if (mesh) {
+            mesh.position.y = tile.y - this.trackThickness * 0.5 + shakeOffset;
+          }
+
+          const flickerIntensity = 0.12 + warningProgress * 0.18;
+          const material = mesh?.material;
+          if (material && "emissiveIntensity" in material) {
+            material.emissiveIntensity = flickerIntensity;
+          }
+        }
+      } else if (tile.state === "falling") {
+        const elapsed = this.runTimeSeconds - tile.fallStartTime;
+        const fallT = Math.min(1, elapsed / this.fallingTileFallDuration);
+
+        const easeT = fallT * fallT * (3 - 2 * fallT);
+        tile.currentYOffset = -easeT * this.fallingTileFallDistance;
+
+        if (mesh) {
+          mesh.position.y =
+            tile.y - this.trackThickness * 0.5 + tile.currentYOffset;
+        }
+
+        if (fallT >= 1) {
+          tile.state = "fallen";
+
+          if (body && this.world) {
+            try {
+              this.world.removeRigidBody(body);
+            } catch (e) {
+              console.error("[FallingTile] Error removing body:", e);
+            }
+            this.tileBodyById.delete(tile.id);
+          }
+
+          if (mesh) {
+            mesh.visible = false;
+          }
+        }
+      }
+    }
   }
 
   private createMarblePhysics(): void {
@@ -2238,7 +2472,9 @@ class MarbleMadnessStarter {
         value === "horizontal_blocker" ||
         value === "rotator_x" ||
         value === "pinball_bouncer" ||
-        value === "bouncy_pad"
+        value === "bouncy_pad" ||
+        value === "swinging_hammer" ||
+        value === "falling_platform"
       ) {
         this.designerObstacleFocus = value;
       }
@@ -3523,6 +3759,8 @@ class MarbleMadnessStarter {
       bouncerCapById: this.bouncerCapById,
       bouncerPulseById: this.bouncerPulseById,
     });
+    this.tileMeshById.clear();
+    this.fallingTiles = [];
   }
 
   private clearTrackPhysics(): void {
@@ -3532,6 +3770,17 @@ class MarbleMadnessStarter {
       this.obstacleBodyById,
       this.bouncyPadJointById,
     );
+
+    if (this.world) {
+      for (const body of this.tileBodyById.values()) {
+        try {
+          this.world.removeRigidBody(body);
+        } catch (e) {
+          console.error("[ClearTrackPhysics] Error removing tile body:", e);
+        }
+      }
+    }
+    this.tileBodyById.clear();
   }
 
   private advanceToNextRandomLevel(): void {
@@ -3856,6 +4105,7 @@ class MarbleMadnessStarter {
             },
           });
           updateWaveObstacleAnimationData({
+            world: this.world,
             fixedStep: this.fixedStep,
             runTimeSeconds: this.runTimeSeconds,
             rotatorObstacles: this.rotatorObstacles,
@@ -3870,6 +4120,7 @@ class MarbleMadnessStarter {
             obstacleBodyById: this.obstacleBodyById,
             bouncyPadJointById: this.bouncyPadJointById,
           });
+          this.updateFallingTiles();
         }
         this.accumulator -= this.fixedStep;
       }
