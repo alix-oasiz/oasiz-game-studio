@@ -1194,6 +1194,13 @@ async function init(): Promise<void> {
 
       screenController.updateControlHints();
       screenController.updateComboHud();
+
+      // Sync single-layout touch icons to own player's phase
+      const myId = game.getMyPlayerId();
+      if (myId) {
+        const me = players.find((p) => p.id === myId);
+        if (me) game.updateSingleLayoutIcons(me.state);
+      }
     },
 
     onCountdownUpdate: (count: number) => {

@@ -90,6 +90,10 @@ export class MultiInputManager {
     return this.touchZones.getCurrentLayout();
   }
 
+  updateSingleLayoutIcons(playerState: import("../../../shared/sim/types").PlayerState): void {
+    this.touchZones.updateSingleLayoutIcons(playerState);
+  }
+
   // ============= INPUT CAPTURE =============
 
   // Capture input for a specific slot

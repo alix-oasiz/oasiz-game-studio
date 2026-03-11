@@ -5,6 +5,29 @@ import {
   triggerInputDashFeedback,
   triggerInputPressFeedback,
 } from "../../feedback/inputFeedback";
+import type { PlayerState } from "../../../shared/sim/types";
+
+// SVG icons for single-layout touch zones (pointer-events:none applied via CSS)
+const ICON_ROTATE_SHIP =
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="touch-zone-icon">` +
+  `<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>` +
+  `<path d="M21 3v5h-5"/>` +
+  `</svg>`;
+
+const ICON_ROTATE_PILOT =
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="touch-zone-icon">` +
+  `<line x1="12" y1="19" x2="12" y2="5"/>` +
+  `<polyline points="5 12 12 5 19 12"/>` +
+  `</svg>`;
+
+const ICON_FIRE =
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="touch-zone-icon">` +
+  `<circle cx="12" cy="12" r="9"/>` +
+  `<line x1="22" y1="12" x2="17" y2="12"/>` +
+  `<line x1="7" y1="12" x2="2" y2="12"/>` +
+  `<line x1="12" y1="7" x2="12" y2="2"/>` +
+  `<line x1="12" y1="22" x2="12" y2="17"/>` +
+  `</svg>`;
 
 // Corner assignments for 3-4 player layout.
 // Keep this in the same order as shared/sim getSpawnPoints():
@@ -127,6 +150,26 @@ export class TouchZoneManager {
     return this.currentLayout;
   }
 
+  /**
+   * Swap icons on the single-layout triangle zones based on player phase.
+   * No-ops when not in single layout or container is unavailable.
+   */
+  updateSingleLayoutIcons(playerState: PlayerState): void {
+    if (this.currentLayout !== "single" || !this.touchZoneContainer) return;
+    const isPilot = playerState === "EJECTED";
+
+    for (const zone of this.touchZoneElements) {
+      const action = zone.dataset.action;
+      if (!action) continue;
+      const wrap = zone.querySelector(".touch-zone-icon-wrap");
+      if (!wrap) continue;
+      if (action === "rotate") {
+        wrap.innerHTML = isPilot ? ICON_ROTATE_PILOT : ICON_ROTATE_SHIP;
+      }
+      // fire icon is the same for both phases — no change needed
+    }
+  }
+
   reset(): void {
     this.forceReleaseAllTouches();
   }
@@ -152,12 +195,12 @@ export class TouchZoneManager {
     this.createTouchZone({
       slot,
       button: "A",
-      label: "ROTATE",
-      sublabel: "2× dodge",
+      iconHtml: ICON_ROTATE_SHIP,
       color,
       bgAlpha: "22",
       clipPath: "polygon(0% 100%, 0% 0%, 100% 100%)",
       extraClass: "corner-tri-left",
+      dataAction: "rotate",
       style: {
         position: "fixed",
         left: "0",
@@ -171,12 +214,12 @@ export class TouchZoneManager {
     this.createTouchZone({
       slot,
       button: "B",
-      label: "FIRE",
-      sublabel: "recoil pushes back",
+      iconHtml: ICON_FIRE,
       color,
       bgAlpha: "14",
       clipPath: "polygon(100% 0%, 0% 100%, 100% 100%)",
       extraClass: "corner-tri-right",
+      dataAction: "fire",
       style: {
         position: "fixed",
         right: "0",
@@ -394,13 +437,15 @@ export class TouchZoneManager {
   private createTouchZone(config: {
     slot: number;
     button: ButtonType;
-    label: string;
-    sublabel: string;
+    label?: string;
+    sublabel?: string;
+    iconHtml?: string;
     color: string;
     style: Record<string, string>;
     clipPath?: string;
     extraClass?: string;
     bgAlpha?: string;
+    dataAction?: string;
   }): void {
     if (!this.touchZoneContainer) return;
 
@@ -409,6 +454,7 @@ export class TouchZoneManager {
     if (config.extraClass) zone.classList.add(config.extraClass);
     zone.dataset.slot = String(config.slot);
     zone.dataset.button = config.button;
+    if (config.dataAction) zone.dataset.action = config.dataAction;
 
     // Apply positioning
     Object.assign(zone.style, config.style);
@@ -419,17 +465,24 @@ export class TouchZoneManager {
     zone.style.color = config.color;
     zone.style.background = config.color + (config.bgAlpha ?? "10");
 
-    // Label
-    const label = document.createElement("div");
-    label.className = "touch-zone-label";
-    label.textContent = config.label;
-    zone.appendChild(label);
+    // Icon or text label
+    if (config.iconHtml) {
+      const iconWrapper = document.createElement("div");
+      iconWrapper.className = "touch-zone-icon-wrap";
+      iconWrapper.innerHTML = config.iconHtml;
+      zone.appendChild(iconWrapper);
+    } else {
+      const label = document.createElement("div");
+      label.className = "touch-zone-label";
+      label.textContent = config.label ?? "";
+      zone.appendChild(label);
 
-    if (config.sublabel) {
-      const sub = document.createElement("div");
-      sub.className = "touch-zone-sublabel";
-      sub.textContent = config.sublabel;
-      zone.appendChild(sub);
+      if (config.sublabel) {
+        const sub = document.createElement("div");
+        sub.className = "touch-zone-sublabel";
+        sub.textContent = config.sublabel;
+        zone.appendChild(sub);
+      }
     }
     this.managedSlotButtons.push({ slot: config.slot, button: config.button });
 

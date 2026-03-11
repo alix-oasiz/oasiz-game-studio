@@ -31,6 +31,19 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-11 - HUD polish: net stats trim, triangle inset shadow, touch zone icons
+
+- Scope:
+  - Three improvements from `.tools/docs/hud-polish-plan.md`. Files: `index.html`, `src/ui/screens.ts`, `src/systems/input/touchZones.ts`, `src/systems/input/MultiInputManager.ts`, `src/Game.ts`, `src/main.ts`.
+- Key changes:
+  - **Net stats trim**: `updateNetworkStats()` now shows only `RTT Nms` (single number, no label prefix) and gates display on `game.getSessionMode() !== "local"` — hidden entirely for local sessions. `.net-stats` CSS moved to `position: fixed; top: calc(var(--safe-top, 0px) + 48px); right: 12px` — clears notch and platform top bar. Background panel, padding, and border-radius removed. Color reduced to `rgba(255,255,255,0.35)`.
+  - **Triangle inset shadow**: `box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18)` added to `.corner-tri-left, .corner-tri-right` — `clip-path` clips it to the triangle shape, giving all three edges a faint 1px outline without glow.
+  - **Touch zone icons**: Added `ICON_ROTATE_SHIP`, `ICON_ROTATE_PILOT`, `ICON_FIRE` SVG constants in `touchZones.ts`. `createSingleLayout` now passes `iconHtml` + `dataAction` ("rotate"/"fire") to `createTouchZone`. `createTouchZone` renders icon wrapper instead of text label when `iconHtml` provided; label/sublabel remain for other layouts. `updateSingleLayoutIcons(playerState)` swaps rotate icon between ship (circular arrow) and pilot (up arrow) based on `EJECTED` vs `ACTIVE`. Pass-through added through `MultiInputManager` → `Game.updateSingleLayoutIcons()`. `main.ts` `onPlayersUpdate` calls it for the local player's current state.
+- Validation:
+  - `bun run typecheck`: clean. `bun run build`: clean.
+- Outcome:
+  - Net stats shows ping only, invisible in local play, safe from notch in online play. Triangle zones have subtle 1px definition. Touch icons reflect ship vs pilot phase mid-game with no DOM reconstruction or input disruption.
+
 ## 2026-03-11 - Touch: triangle corner controls for single-player
 
 - Scope:

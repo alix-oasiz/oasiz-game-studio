@@ -1599,6 +1599,10 @@ export class Game {
     return this.network.getMyPlayerId();
   }
 
+  updateSingleLayoutIcons(playerState: import("../shared/sim/types").PlayerState): void {
+    this.multiInput?.updateSingleLayoutIcons(playerState);
+  }
+
   getPlayerCount(): number {
     return this.network.getPlayerCount();
   }

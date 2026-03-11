@@ -202,7 +202,7 @@ export function createScreenController(
       elements.mobileControls.classList.toggle("active", screen === "game");
     }
 
-    elements.netStats.style.display = screen === "game" ? "block" : "none";
+    if (screen !== "game") elements.netStats.style.display = "none";
 
     if (screen === "game") {
       if (!starfieldInitialized) {
@@ -224,23 +224,14 @@ export function createScreenController(
   }
 
   function updateNetworkStats(): void {
-    if (activeScreen !== "game") {
-      elements.netStats.textContent = "";
+    if (activeScreen !== "game" || game.getSessionMode() === "local") {
+      elements.netStats.style.display = "none";
       return;
     }
 
+    elements.netStats.style.display = "block";
     const stats = game.getNetworkTelemetry();
-    const latency = Math.round(stats.latencyMs);
-    const jitter = Math.round(stats.jitterMs);
-    const age = Math.round(stats.snapshotAgeMs);
-    const interval = Math.round(stats.snapshotIntervalMs);
-    const transport = stats.webrtcConnected ? "RTC" : "WS";
-
-    const line1 =
-      "RTT " + latency + "ms | Jit " + jitter + "ms | Age " + age + "ms";
-    const line2 = "Tick " + interval + "ms | " + transport;
-
-    elements.netStats.textContent = line1 + "\n" + line2;
+    elements.netStats.textContent = Math.round(stats.latencyMs) + "ms";
   }
 
   function updateRoundResultOverlay(): void {
