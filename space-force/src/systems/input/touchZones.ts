@@ -132,45 +132,57 @@ export class TouchZoneManager {
   }
 
   /**
-   * Layout A: Single player - two buttons at bottom of screen
+   * Layout A: Single player - corner triangles at bottom-left (rotate) and bottom-right (fire).
+   * Uses position:fixed so they anchor to physical screen corners regardless of safe-area offsets.
    */
   private createSingleLayout(
     localSlotOrder: number[],
     slotToColor: Map<number, string>,
   ): void {
     const slot = localSlotOrder[0] ?? 0;
-    const fallbackColor = PLAYER_COLORS[0].primary;
-    const color = slotToColor.get(slot) ?? fallbackColor;
+    const color = slotToColor.get(slot) ?? PLAYER_COLORS[0].primary;
 
-    // Left button (rotate) - bottom left
+    // Size against viewport (zones are position:fixed, not relative to game box)
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const triH = Math.round(Math.min(vh * 0.44, 300));
+    const triW = Math.round(Math.min(vw * 0.5, triH * 2.6));
+
+    // Bottom-left triangle: rotate (A) — hypotenuse top-left → bottom-right
     this.createTouchZone({
       slot,
       button: "A",
       label: "ROTATE",
-      sublabel: "double-tap: dodge",
+      sublabel: "2× dodge",
       color,
+      bgAlpha: "22",
+      clipPath: "polygon(0% 100%, 0% 0%, 100% 100%)",
+      extraClass: "corner-tri-left",
       style: {
-        left: "20px",
-        bottom: "20px",
-        width: "38%",
-        height: "120px",
-        borderRadius: "12px",
+        position: "fixed",
+        left: "0",
+        bottom: "0",
+        width: `${triW}px`,
+        height: `${triH}px`,
       },
     });
 
-    // Right button (fire) - bottom right
+    // Bottom-right triangle: fire (B) — hypotenuse top-right → bottom-left
     this.createTouchZone({
       slot,
       button: "B",
       label: "FIRE",
       sublabel: "recoil pushes back",
       color,
+      bgAlpha: "14",
+      clipPath: "polygon(100% 0%, 0% 100%, 100% 100%)",
+      extraClass: "corner-tri-right",
       style: {
-        right: "20px",
-        bottom: "20px",
-        width: "38%",
-        height: "120px",
-        borderRadius: "12px",
+        position: "fixed",
+        right: "0",
+        bottom: "0",
+        width: `${triW}px`,
+        height: `${triH}px`,
       },
     });
   }
@@ -386,21 +398,26 @@ export class TouchZoneManager {
     sublabel: string;
     color: string;
     style: Record<string, string>;
+    clipPath?: string;
+    extraClass?: string;
+    bgAlpha?: string;
   }): void {
     if (!this.touchZoneContainer) return;
 
     const zone = document.createElement("div");
     zone.className = "touch-zone";
+    if (config.extraClass) zone.classList.add(config.extraClass);
     zone.dataset.slot = String(config.slot);
     zone.dataset.button = config.button;
 
     // Apply positioning
     Object.assign(zone.style, config.style);
+    if (config.clipPath) zone.style.clipPath = config.clipPath;
 
     // Apply color tint
     zone.style.borderColor = config.color;
     zone.style.color = config.color;
-    zone.style.background = config.color + "10";
+    zone.style.background = config.color + (config.bgAlpha ?? "10");
 
     // Label
     const label = document.createElement("div");

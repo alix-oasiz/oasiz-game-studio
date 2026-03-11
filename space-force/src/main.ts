@@ -1141,6 +1141,8 @@ async function init(): Promise<void> {
         screenController.showScreen("game");
         screenController.setRoundResultVisible(false);
         screenController.updateControlHints();
+        screenController.updateComboHud();
+        screenController.updateEndlessTimer();
         break;
       case "ROUND_END":
         revealAttractCover();
@@ -1148,6 +1150,7 @@ async function init(): Promise<void> {
         screenController.updateRoundResultOverlay();
         screenController.setRoundResultVisible(true);
         screenController.updateControlHints();
+        screenController.updateComboHud();
         break;
       case "GAME_END":
         revealAttractCover();
@@ -1157,6 +1160,8 @@ async function init(): Promise<void> {
           playGameEndFeedback();
         }
         screenController.updateControlHints();
+        screenController.updateComboHud();
+        screenController.updateEndlessTimer();
         break;
     }
   };
@@ -1188,6 +1193,7 @@ async function init(): Promise<void> {
       }
 
       screenController.updateControlHints();
+      screenController.updateComboHud();
     },
 
     onCountdownUpdate: (count: number) => {
@@ -1298,6 +1304,7 @@ async function init(): Promise<void> {
   game.start();
 
   setInterval(screenController.updateNetworkStats, 250);
+  setInterval(screenController.updateEndlessTimer, 500);
 
   const injectedRoomCode = getPlatformRoomCode()?.toUpperCase() ?? "";
   if (injectedRoomCode.length > 0) {

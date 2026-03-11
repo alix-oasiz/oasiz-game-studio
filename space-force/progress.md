@@ -31,6 +31,35 @@ Condensed on 2026-03-04 to reduce milestone noise and restore high-signal scanni
 
 - None currently open. Add one thread when a planned prompt starts; remove it after milestone capture.
 
+## 2026-03-11 - Touch: triangle corner controls for single-player
+
+- Scope:
+  - Replaced single-player mobile touch zones (two bottom rectangles) with corner-anchored triangles. Files: `src/systems/input/touchZones.ts`, `index.html`.
+- Key changes:
+  - `touchZones.ts`: `createSingleLayout()` now creates two right-triangle zones using `clip-path` instead of rounded rects. Zones use `position: fixed` so they reference the viewport directly — bypassing game-box safe-area offsets that caused gaps. Size computed from `window.innerWidth/Height`: height = `min(44% vh, 300px)`, width = `min(50% vw, height × 2.6)` — aspect cap keeps hypotenuse angle consistent (~60–66°) across phone and iPad. Added `bgAlpha` field to `createTouchZone` config so per-zone fill alpha can be specified. Rotate (A): `bgAlpha "22"` (~13% fill), fire (B): `bgAlpha "14"` (~8% fill) — visually distinct while sharing player color. Added `clipPath` + `extraClass` applied inline.
+  - `index.html`: `.corner-tri-left` / `.corner-tri-right` CSS — opacity 0.42 base / 0.72 pressed, no border/border-radius, label anchored to bottom corner via `align-items: flex-end` + padding.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Triangles flush to physical screen corners on all devices. Rotate (left, lighter) and fire (right, darker) are visually distinct. Hit area matches triangle shape via clip-path pointer-event clipping. Responsive across iPhone SE → iPad Pro landscape.
+
+## 2026-03-11 - HUD: combo widget + endless timer + kill count in scoreboard
+
+- Scope:
+  - Removed the combo display from desktop-only control hints. Added three in-game HUD improvements available on all devices: (1) a combo HUD widget showing own player's active combo, (2) an endless-mode countdown timer, (3) kills column in the endless scoreboard. Files: `src/Game.ts`, `src/ui/screens.ts`, `src/ui/elements.ts`, `index.html`, `src/main.ts`.
+- Key changes:
+  - `Game.ts`: added `matchPlayingStartAtMs: number | null` field. Wrapped `flowMgr.onPhaseChange` registration in `setUICallbacks` to stamp on PLAYING transition and clear on LOBBY/MATCH_INTRO — covers both sim-authority (local host) and non-authority paths. Added `getPlayingStartAtMs(): number | null` getter.
+  - `screens.ts`: stripped combo markup from `updateControlHints` (key hints only remain). Added `updateComboHud()` — shows own player's combo multiplier + 6-pip drain bar with player-color glow; schedules refresh at next pip drop via `scheduleComboHintRefresh`. Added `updateEndlessTimer()` — shows MM:SS countdown when endless + time limit set; warning (≤60s) and urgent (≤15s) color states with pulse animation; no-ops when phase is non-game or time limit is null. Updated `updateScoreTrack()` — endless mode now shows `PTS score` + `K kills` (with `/limit` when kill limit is set) side by side.
+  - `elements.ts`: registered `endlessTimer` and `comboHud`.
+  - `index.html`: added `#endlessTimer` and `#comboHud` elements inside `#hud`. CSS: `.hud-timer` (top-left, Orbitron, warning/urgent states + pulse keyframe), `.hud-combo` (top-right, player-color border + glow via CSS var, header row, pip row, `hudComboPunch` keyframe on increment). `.score-kills` and `.score-row-stats` for endless kills display.
+  - `main.ts`: phase transitions (`PLAYING`, `ROUND_END`, `GAME_END`) now also call `updateComboHud()` and `updateEndlessTimer()`. Added `setInterval(screenController.updateEndlessTimer, 500)`.
+- Validation:
+  - `bun run typecheck`: clean.
+- Outcome:
+  - Combo widget: top-right HUD, opaque dark panel, player color glow, multiplier + pip drain bar. Active on all devices. Self-player only. Animates multiplier bump.
+  - Endless timer: top-left HUD, matching scoreboard aesthetic. Countdown MM:SS. Orange at ≤60s, red + pulsing at ≤15s. Hidden when no time limit set or not endless.
+  - Scoreboard: endless mode shows `PTS N` + `K N` (or `K N/limit` when kill limit enabled) per player row.
+
 ## 2026-03-11 - Lobby: staggered card enter animation
 
 - Scope:

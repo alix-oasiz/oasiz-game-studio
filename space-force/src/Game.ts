@@ -124,6 +124,7 @@ export class Game {
   private debugToolsEnabledForRoom = false;
   private debugSessionTainted = false;
   private isDemoSession = false;
+  private matchPlayingStartAtMs: number | null = null;
   private simulationPaused = false;
   private devKeyInputRequestedByUI = false;
   private advancedSettings: AdvancedSettings = {
@@ -207,7 +208,15 @@ export class Game {
     onMapChange?: (mapId: MapId) => void;
     onLocalInputAction?: (action: "rotate" | "fire" | "dash") => void;
   }): void {
-    this.flowMgr.onPhaseChange = callbacks.onPhaseChange;
+    this.flowMgr.onPhaseChange = (phase: GamePhase) => {
+      // flowMgr.phase is already updated when this fires, so check the new phase directly
+      if (phase === "PLAYING") {
+        this.matchPlayingStartAtMs = this.getHostSimTimeMs();
+      } else if (phase === "LOBBY" || phase === "MATCH_INTRO") {
+        this.matchPlayingStartAtMs = null;
+      }
+      callbacks.onPhaseChange(phase);
+    };
     this.flowMgr.onCountdownUpdate = callbacks.onCountdownUpdate;
     this._onPlayersUpdate = callbacks.onPlayersUpdate;
     this._onGameModeChange = callbacks.onGameModeChange ?? null;
@@ -850,6 +859,10 @@ export class Game {
 
   getHostSimTimeMs(): number {
     return this.networkSync.hostSimTimeMs;
+  }
+
+  getPlayingStartAtMs(): number | null {
+    return this.matchPlayingStartAtMs;
   }
 
   setNextRngSeed(seed: number | null): void {

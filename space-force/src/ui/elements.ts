@@ -43,6 +43,8 @@ export const elements = {
   // HUD
   hud: getElement<HTMLElement>("hud"),
   scoreTrack: getElement<HTMLElement>("scoreTrack"),
+  endlessTimer: getElement<HTMLElement>("endlessTimer"),
+  comboHud: getElement<HTMLElement>("comboHud"),
   leaveGameBtn: getElement<HTMLButtonElement>("leaveGameBtn"),
   endMatchBtn: getElement<HTMLButtonElement>("endMatchBtn"),
   settingsCenterHotspot: getElement<HTMLButtonElement>("settingsCenterHotspot"),

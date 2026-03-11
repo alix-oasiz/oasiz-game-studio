@@ -1191,11 +1191,18 @@
       display: block;
     }
 
-    .score-track {
+    .hud-top-row {
       position: absolute;
       top: 0;
       left: 50%;
       transform: translateX(-50%);
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .score-track {
       background: rgba(10, 10, 18, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
@@ -1292,6 +1299,25 @@
       color: rgba(255, 255, 255, 0.88);
     }
 
+    .score-kills {
+      min-width: 44px;
+      text-align: right;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .score-kills-limit {
+      opacity: 0.5;
+    }
+
+    .score-row-stats {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
     @media (pointer: coarse) {
       .score-track {
         background: rgba(10, 10, 18, 0.5);
@@ -1300,6 +1326,109 @@
       .score-player-name {
         width: 74px;
       }
+    }
+
+    /* ── Endless timer (left of scoreboard) ───────────────────────── */
+    .hud-timer {
+      background: rgba(10, 10, 18, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 7px 14px 8px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: rgba(255, 255, 255, 0.88);
+      pointer-events: none;
+      display: none;
+    }
+
+    .hud-timer.active {
+      display: block;
+    }
+
+    .hud-timer.warning {
+      color: #ffa040;
+      border-color: rgba(255, 160, 64, 0.3);
+    }
+
+    .hud-timer.urgent {
+      color: #ff4444;
+      border-color: rgba(255, 68, 68, 0.4);
+      animation: timerUrgentPulse 0.9s ease-in-out infinite;
+    }
+
+    @keyframes timerUrgentPulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.55; }
+    }
+
+    /* ── Combo HUD (right of scoreboard) ─────────────────────────── */
+    .hud-combo {
+      --combo-color: rgba(255, 255, 255, 0.75);
+      width: 108px;
+      background: rgba(6, 6, 15, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 7px 11px 8px;
+      pointer-events: none;
+      display: none;
+    }
+
+    .hud-combo.active {
+      display: block;
+    }
+
+    .hud-combo-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+
+    .hud-combo-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.5rem;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--combo-color);
+      opacity: 0.75;
+    }
+
+    .hud-combo-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.0rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .hud-combo-value.punch {
+      animation: hudComboPunch 280ms cubic-bezier(0.14, 0.95, 0.35, 1);
+    }
+
+    @keyframes hudComboPunch {
+      0%   { transform: scale(0.68) translateY(2px); }
+      55%  { transform: scale(1.25) translateY(-1px); }
+      100% { transform: scale(1)    translateY(0); }
+    }
+
+    .hud-combo-pips {
+      display: flex;
+      gap: 3px;
+    }
+
+    .hud-combo-pip {
+      flex: 1;
+      height: 3px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .hud-combo-pip.live {
+      background: var(--combo-color);
+      box-shadow: 0 0 5px var(--combo-color);
     }
 
     .round-result {
@@ -2391,6 +2520,31 @@
       opacity: 0.6;
       margin-top: 0.2rem;
       pointer-events: none;
+    }
+
+    /* Corner triangle single-player zones — flush to screen corners, label near thick base */
+    .touch-zone.corner-tri-left,
+    .touch-zone.corner-tri-right {
+      opacity: 0.42;
+      border-radius: 0;
+      border: none;
+    }
+
+    .touch-zone.corner-tri-left.pressed,
+    .touch-zone.corner-tri-right.pressed {
+      opacity: 0.72;
+    }
+
+    .touch-zone.corner-tri-left {
+      align-items: flex-end;
+      justify-content: flex-start;
+      padding: 0 0 22px 22px;
+    }
+
+    .touch-zone.corner-tri-right {
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 0 22px 22px 0;
     }
 
     /* ============= 3D STARFIELD BACKGROUND ============= */
@@ -4243,7 +4397,11 @@
 
   <!-- HUD -->
   <div class="hud" id="hud">
-    <div class="score-track" id="scoreTrack"></div>
+    <div class="hud-top-row">
+      <div class="hud-timer" id="endlessTimer"></div>
+      <div class="score-track" id="scoreTrack"></div>
+      <div class="hud-combo" id="comboHud"></div>
+    </div>
     <button class="leave-btn" id="leaveGameBtn" aria-label="Leave Match" title="Leave Match">
       <svg viewBox="0 0 24 24"><path d="M15.5 5.5L9 12l6.5 6.5-1.5 1.5L6 12l8-8 1.5 1.5z"/></svg>
     </button>

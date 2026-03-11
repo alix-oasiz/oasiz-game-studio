@@ -283,6 +283,28 @@ Durable implementation learnings to avoid repeating known mistakes.
   - `progress.md`
   - `src/main.ts`
 
+## 2026-03-11 - Session discipline: context bootstrap and progress close-out must be automatic
+
+- Context:
+  - Repeated across multiple sessions: progress.md not updated after task completion, Agents.md / .agents/learning.md / ARCHITECTURE.md not loaded before implementation, only typecheck run instead of full validation matrix.
+- Wrong assumption:
+  - These are reminders that the user will provide when needed. They are optional hygiene.
+- Detection signal:
+  - User having to say "progress md?" or "why do I have to keep telling you every time?" more than once.
+  - Agents.md exists in the working directory root and was never read despite CLAUDE.md explicitly pointing to it.
+- Corrected approach:
+  - At session start: read `Agents.md`, `ARCHITECTURE.md`, `.agents/learning.md` before any implementation.
+  - After every completed task (no exceptions, no matter how small): update `progress.md` milestone journal.
+  - For runtime-impacting changes: run BOTH `bun run typecheck` AND `bun run build`, not just typecheck.
+  - Do not wait for user to ask for progress update. It is a hard close-out requirement per Agents.md §Progress Log Contract.
+- Guardrail:
+  - Treat "update progress.md" as the final step of every task, same weight as typecheck. If skipped, the task is not done.
+  - Treat reading `Agents.md` + `.agents/learning.md` as the first step of every session, not optional context.
+- Related files:
+  - `Agents.md`
+  - `.agents/learning.md`
+  - `progress.md`
+
 ## 2026-03-06 - Contract changes require a docs impact matrix, not progress-only logging
 
 - Context:
