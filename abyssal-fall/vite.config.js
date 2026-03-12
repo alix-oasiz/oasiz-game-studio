@@ -1,65 +1,61 @@
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
-import fs from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-function hitboxCollidersApi() {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const HITBOX_FILE_PATH = path.resolve(__dirname, "public/hitbox-colliders.json");
+
+function hitboxProjectSavePlugin() {
   return {
-    name: "hitbox-colliders-api",
+    name: "hitbox-project-save",
     configureServer(server) {
-      const collidersPath = path.resolve(process.cwd(), "public", "hitbox-colliders.json");
-      server.middlewares.use("/__hitbox-colliders", async (req, res) => {
-        try {
-          if (req.method === "GET") {
-            let payload = "{}";
-            try {
-              payload = await fs.readFile(collidersPath, "utf8");
-            } catch {}
-            res.statusCode = 200;
-            res.setHeader("Content-Type", "application/json; charset=utf-8");
-            res.end(payload);
-            return;
-          }
-
-          if (req.method === "POST") {
-            let body = "";
-            req.on("data", (chunk) => {
-              body += chunk.toString();
-            });
-            req.on("end", async () => {
-              try {
-                const parsed = JSON.parse(body || "{}");
-                if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-                  res.statusCode = 400;
-                  res.end("Invalid payload: expected object");
-                  return;
-                }
-                await fs.writeFile(collidersPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-                res.statusCode = 200;
-                res.setHeader("Content-Type", "application/json; charset=utf-8");
-                res.end(JSON.stringify({ ok: true }));
-              } catch (err) {
-                res.statusCode = 400;
-                res.end(`Invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
-              }
-            });
-            return;
-          }
-
-          res.statusCode = 405;
-          res.end("Method Not Allowed");
-        } catch (err) {
-          res.statusCode = 500;
-          res.end(`Server error: ${err instanceof Error ? err.message : String(err)}`);
+      server.middlewares.use("/__hitbox/save", async (req, res, next) => {
+        if (req.method !== "POST") {
+          next();
+          return;
         }
+
+        let body = "";
+        req.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        req.on("end", async () => {
+          try {
+            const parsed = JSON.parse(body);
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+              res.statusCode = 400;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ ok: false, error: "Payload must be an object" }));
+              return;
+            }
+
+            const serialized = JSON.stringify(parsed, null, 2) + "\n";
+            await writeFile(HITBOX_FILE_PATH, serialized, "utf8");
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ ok: true, path: "public/hitbox-colliders.json" }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ ok: false, error: String(err) }));
+          }
+        });
       });
     },
   };
 }
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command }) => {
+  const plugins = [];
+  if (command === "build") plugins.push(viteSingleFile());
+  if (command === "serve") plugins.push(hitboxProjectSavePlugin());
+
+  return {
   // Single-file packaging is only needed for production builds.
-  plugins: command === "build" ? [viteSingleFile()] : [hitboxCollidersApi()],
+  plugins,
   server: {
     // WSL-mounted Windows paths (/mnt/c/...) can miss FS events without polling.
     watch: {
@@ -81,5 +77,6 @@ export default defineConfig(({ command }) => ({
   },
   // Suppress warnings during build
   logLevel: "warn",
-}));
+  };
+});
 

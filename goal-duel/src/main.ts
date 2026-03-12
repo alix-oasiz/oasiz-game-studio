@@ -262,6 +262,12 @@ class AudioManager {
   private musicBuffer: AudioBuffer | null = null;
   private musicSource: AudioBufferSourceNode | null = null;
   private musicLoading: Promise<void> | null = null;
+  private boostBuffer: AudioBuffer | null = null;
+  private carBallHitBuffer: AudioBuffer | null = null;
+  private carWallHitBuffer: AudioBuffer | null = null;
+  private goalScoredBuffer: AudioBuffer | null = null;
+  private goalConcededBuffer: AudioBuffer | null = null;
+  private goalExplosionBuffer: AudioBuffer | null = null;
   private bumpBuffer: AudioBuffer | null = null;
   private screechBuffer: AudioBuffer | null = null;
   private crowdBuffer: AudioBuffer | null = null;
@@ -524,36 +530,27 @@ class AudioManager {
   }
 
   boost(): void {
-    this.noiseWhoosh(0.12, 0.08);
+    this.playOneShot(this.boostBuffer, 0.8, "AudioManager.boost");
   }
 
   kick(): void {
-    this.beep(220, 0.04, 0.07);
-    this.beep(160, 0.05, 0.06);
+    this.playOneShot(this.carBallHitBuffer, 0.85, "AudioManager.kick");
   }
 
   thud(): void {
-    this.beep(90, 0.06, 0.09);
+    this.playOneShot(this.carWallHitBuffer, 0.85, "AudioManager.thud");
   }
 
   goal(isPlayer: boolean): void {
-    if (isPlayer) {
-      this.beep(660, 0.12, 0.12);
-      this.beep(880, 0.14, 0.10);
-    } else {
-      this.beep(220, 0.16, 0.14);
-      this.beep(180, 0.14, 0.12);
-    }
+    this.playOneShot(
+      isPlayer ? this.goalScoredBuffer : this.goalConcededBuffer,
+      0.95,
+      "AudioManager.goal",
+    );
   }
 
   explosiveGoal(): void {
-    // Explosive sound effect
-    this.noiseWhoosh(0.15, 0.3);
-    this.beep(440, 0.08, 0.05);
-    this.beep(550, 0.1, 0.06);
-    this.beep(660, 0.12, 0.08);
-    // Deep rumble
-    this.beep(110, 0.2, 0.15);
+    this.playOneShot(this.goalExplosionBuffer, 0.9, "AudioManager.explosiveGoal");
   }
 
   private beep(freq: number, dur: number, vol: number): void {
@@ -613,21 +610,129 @@ class AudioManager {
     src.stop(t0 + dur + 0.02);
   }
 
+  private playOneShot(buffer: AudioBuffer | null, volume: number, context: string): void {
+    this.ensure();
+    if (!this.ctx || !this.fx) return;
+    if (!this.settings.fx) return;
+    if (!buffer) {
+      console.warn("[" + context + "] Buffer not loaded yet");
+      return;
+    }
+
+    if (this.ctx.state === "suspended") {
+      this.ctx.resume().catch((e) => {
+        console.warn("[" + context + "] Failed to resume AudioContext:", e);
+      });
+    }
+
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = buffer;
+
+      const g = this.ctx.createGain();
+      g.gain.value = volume;
+
+      src.connect(g);
+      g.connect(this.fx);
+      src.start(0);
+    } catch (e) {
+      console.warn("[" + context + "] Failed:", e);
+    }
+  }
+
   async loadSFX(): Promise<void> {
     this.ensure();
     if (!this.ctx) return;
 
     try {
-      // Load bump.wav
-      const bumpUrl = new URL("../assets/sfx/bump.wav", import.meta.url);
+      // Load boost.mp3
+      const boostUrl = new URL("../assets/sfx/boost.mp3", import.meta.url);
+      const boostRes = await fetch(boostUrl);
+      if (boostRes.ok) {
+        const boostBuf = await boostRes.arrayBuffer();
+        this.boostBuffer = await this.ctx.decodeAudioData(boostBuf);
+        console.log("[AudioManager] Loaded boost.mp3");
+      }
+    } catch (e) {
+      console.warn("[AudioManager] Failed to load boost.mp3:", e);
+    }
+
+    try {
+      // Load car-ball-hit.mp3
+      const carBallHitUrl = new URL("../assets/sfx/car-ball-hit.mp3", import.meta.url);
+      const carBallHitRes = await fetch(carBallHitUrl);
+      if (carBallHitRes.ok) {
+        const carBallHitBuf = await carBallHitRes.arrayBuffer();
+        this.carBallHitBuffer = await this.ctx.decodeAudioData(carBallHitBuf);
+        console.log("[AudioManager] Loaded car-ball-hit.mp3");
+      }
+    } catch (e) {
+      console.warn("[AudioManager] Failed to load car-ball-hit.mp3:", e);
+    }
+
+    try {
+      // Load car-wall-hit.mp3
+      const carWallHitUrl = new URL("../assets/sfx/car-wall-hit.mp3", import.meta.url);
+      const carWallHitRes = await fetch(carWallHitUrl);
+      if (carWallHitRes.ok) {
+        const carWallHitBuf = await carWallHitRes.arrayBuffer();
+        this.carWallHitBuffer = await this.ctx.decodeAudioData(carWallHitBuf);
+        console.log("[AudioManager] Loaded car-wall-hit.mp3");
+      }
+    } catch (e) {
+      console.warn("[AudioManager] Failed to load car-wall-hit.mp3:", e);
+    }
+
+    try {
+      // Load goal-scored.mp3
+      const goalScoredUrl = new URL("../assets/sfx/goal-scored.mp3", import.meta.url);
+      const goalScoredRes = await fetch(goalScoredUrl);
+      if (goalScoredRes.ok) {
+        const goalScoredBuf = await goalScoredRes.arrayBuffer();
+        this.goalScoredBuffer = await this.ctx.decodeAudioData(goalScoredBuf);
+        console.log("[AudioManager] Loaded goal-scored.mp3");
+      }
+    } catch (e) {
+      console.warn("[AudioManager] Failed to load goal-scored.mp3:", e);
+    }
+
+    try {
+      // Load goal-conceded.mp3
+      const goalConcededUrl = new URL("../assets/sfx/goal-conceded.mp3", import.meta.url);
+      const goalConcededRes = await fetch(goalConcededUrl);
+      if (goalConcededRes.ok) {
+        const goalConcededBuf = await goalConcededRes.arrayBuffer();
+        this.goalConcededBuffer = await this.ctx.decodeAudioData(goalConcededBuf);
+        console.log("[AudioManager] Loaded goal-conceded.mp3");
+      }
+    } catch (e) {
+      console.warn("[AudioManager] Failed to load goal-conceded.mp3:", e);
+    }
+
+    try {
+      // Load goal-explosion.mp3
+      const goalExplosionUrl = new URL("../assets/sfx/goal-explosion.mp3", import.meta.url);
+      const goalExplosionRes = await fetch(goalExplosionUrl);
+      if (goalExplosionRes.ok) {
+        const goalExplosionBuf = await goalExplosionRes.arrayBuffer();
+        this.goalExplosionBuffer = await this.ctx.decodeAudioData(goalExplosionBuf);
+        console.log("[AudioManager] Loaded goal-explosion.mp3");
+      }
+    } catch (e) {
+      console.warn("[AudioManager] Failed to load goal-explosion.mp3:", e);
+    }
+
+    try {
+      // Load bump.mp3
+      const bumpUrl = new URL("../assets/sfx/bump.mp3", import.meta.url);
       const bumpRes = await fetch(bumpUrl);
       if (bumpRes.ok) {
         const bumpBuf = await bumpRes.arrayBuffer();
         this.bumpBuffer = await this.ctx.decodeAudioData(bumpBuf);
-        console.log("[AudioManager] Loaded bump.wav");
+        console.log("[AudioManager] Loaded bump.mp3");
       }
     } catch (e) {
-      console.warn("[AudioManager] Failed to load bump.wav:", e);
+      console.warn("[AudioManager] Failed to load bump.mp3:", e);
     }
 
     try {
@@ -657,29 +762,29 @@ class AudioManager {
     }
 
     try {
-      // Load 321.wav
-      const countdown321Url = new URL("../assets/sfx/321.wav", import.meta.url);
+      // Load 321.mp3
+      const countdown321Url = new URL("../assets/sfx/321.mp3", import.meta.url);
       const countdown321Res = await fetch(countdown321Url);
       if (countdown321Res.ok) {
         const countdown321Buf = await countdown321Res.arrayBuffer();
         this.countdown321Buffer = await this.ctx.decodeAudioData(countdown321Buf);
-        console.log("[AudioManager] Loaded 321.wav");
+        console.log("[AudioManager] Loaded 321.mp3");
       }
     } catch (e) {
-      console.warn("[AudioManager] Failed to load 321.wav:", e);
+      console.warn("[AudioManager] Failed to load 321.mp3:", e);
     }
 
     try {
-      // Load rev.wav
-      const revUrl = new URL("../assets/sfx/rev.wav", import.meta.url);
+      // Load rev.mp3
+      const revUrl = new URL("../assets/sfx/rev.mp3", import.meta.url);
       const revRes = await fetch(revUrl);
       if (revRes.ok) {
         const revBuf = await revRes.arrayBuffer();
         this.revBuffer = await this.ctx.decodeAudioData(revBuf);
-        console.log("[AudioManager] Loaded rev.wav");
+        console.log("[AudioManager] Loaded rev.mp3");
       }
     } catch (e) {
-      console.warn("[AudioManager] Failed to load rev.wav:", e);
+      console.warn("[AudioManager] Failed to load rev.mp3:", e);
     }
   }
 
@@ -920,6 +1025,22 @@ class GoalDuelGame {
   private get goalH(): number {
     return this.settings.goalHeight;
   }
+  private get arenaCornerRadius(): number {
+    const maxFromGoalOpening = Math.max(64, this.fieldW * 0.5 - this.goalW * 0.5 - 24);
+    return clamp(this.fieldW * 0.1, 72, Math.min(150, maxFromGoalOpening));
+  }
+  private get arenaRightInset(): number {
+    return 10;
+  }
+  private get arenaLeftInnerX(): number {
+    return -this.fieldW * 0.5;
+  }
+  private get arenaRightInnerX(): number {
+    return this.fieldW * 0.5 - this.arenaRightInset;
+  }
+  private get goalCenterX(): number {
+    return -26;
+  }
 
   private playerCar!: Matter.Body;
   private botCar!: Matter.Body;
@@ -968,6 +1089,8 @@ class GoalDuelGame {
   private tireTraces: TireTracePath[] = [];
   private lastTireTraceTime = 0;
   private lastBoostCloudTime = 0; // Throttle boost cloud spawning
+  private lastDriftSfxTimePlayer = 0;
+  private lastDriftSfxTimeBot = 0;
   private searchingScrollInterval: number | null = null;
   private searchingEaseInterval: number | null = null;
 
@@ -975,6 +1098,18 @@ class GoalDuelGame {
   private stadiumBg = new Image();
   private goalImage = new Image();
   private ballTrail: Array<{ x: number; y: number; life: number; maxLife: number }> = [];
+  private ballPop = {
+    active: false,
+    time: 0,
+    duration: 0.62,
+    baseX: 0,
+    baseY: 0,
+    scale: 1,
+    biasX: 0,
+    biasY: 0,
+    lastTriggerMs: -99999,
+    cooldownMs: 650,
+  };
   
   // Goal animation state
   private goalAnimation = {
@@ -1201,34 +1336,6 @@ class GoalDuelGame {
     });
     this.resize();
     window.addEventListener("resize", () => this.resize());
-    
-    // Lock orientation to landscape on mobile devices (for iOS app embedding)
-    if (this._isMobile) {
-      // Try to lock orientation to landscape
-      if (screen.orientation && (screen.orientation as any).lock) {
-        (screen.orientation as any).lock('landscape').catch((err: any) => {
-          console.log('[Game] Could not lock orientation:', err);
-        });
-      } else if ((screen as any).lockOrientation) {
-        (screen as any).lockOrientation('landscape');
-      } else if ((screen as any).mozLockOrientation) {
-        (screen as any).mozLockOrientation('landscape');
-      } else if ((screen as any).msLockOrientation) {
-        (screen as any).msLockOrientation('landscape');
-      }
-      
-      // The HTML script handles viewport rotation, we just need to ensure resize is called
-      const handleOrientationChange = () => {
-        setTimeout(() => {
-          this.resize();
-        }, 100);
-      };
-      
-      window.addEventListener('orientationchange', handleOrientationChange);
-      window.addEventListener('resize', () => {
-        this.resize();
-      });
-    }
 
     this.setState("MENU", true);
 
@@ -1317,7 +1424,7 @@ class GoalDuelGame {
       carMaxSpeedBoost: 25,
       carForce: 0.0099,
       carForceBoost: 0.01,
-      carTurnRate: 0.08,
+      carTurnRate: 0.24,
       carFriction: 0.01,
       carFrictionAir: 0.02,
       carRestitution: 0.4,
@@ -1984,7 +2091,7 @@ class GoalDuelGame {
       { key: "carMaxSpeedBoost", label: "Car Max Speed (Boost)", desc: "Boost max speed", min: 6, max: 25, step: 0.1, format: (v: number) => v.toFixed(1) },
       { key: "carForce", label: "Car Force", desc: "Normal acceleration", min: 0.001, max: 0.01, step: 0.0001, format: (v: number) => v.toFixed(4) },
       { key: "carForceBoost", label: "Car Force (Boost)", desc: "Boost acceleration", min: 0.001, max: 0.01, step: 0.0001, format: (v: number) => v.toFixed(4) },
-      { key: "carTurnRate", label: "Car Turn Rate", desc: "Steering responsiveness", min: 0.01, max: 0.2, step: 0.01, format: (v: number) => v.toFixed(2) },
+      { key: "carTurnRate", label: "Car Turn Rate", desc: "Steering responsiveness", min: 0.01, max: 0.45, step: 0.01, format: (v: number) => v.toFixed(2) },
       { key: "carFriction", label: "Car Friction", desc: "Ground friction", min: 0, max: 0.1, step: 0.001, format: (v: number) => v.toFixed(3) },
       { key: "carFrictionAir", label: "Car Air Friction", desc: "Air resistance", min: 0, max: 0.5, step: 0.01, format: (v: number) => v.toFixed(2) },
       { key: "carRestitution", label: "Car Restitution", desc: "Bounce factor", min: 0, max: 1, step: 0.01, format: (v: number) => v.toFixed(2) },
@@ -2565,10 +2672,14 @@ class GoalDuelGame {
 
     // Player 2 joystick (for LOCAL_2P mode)
     const updateJoystickP2 = (dx: number, dy: number) => {
-      const distance = Math.hypot(dx, dy);
+      // Top joystick wrapper is rotated in local-2P portrait.
+      // Remap raw screen deltas so dragging up/right matches stick visual up/right.
+      const localDx = -dy;
+      const localDy = dx;
+      const distance = Math.hypot(localDx, localDy);
       const scale = distance > maxRadius ? maxRadius / distance : 1;
-      const px = dx * scale;
-      const py = dy * scale;
+      const px = localDx * scale;
+      const py = localDy * scale;
       
       if (this.elJoyStickP2) {
         this.elJoyStickP2.style.transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`;
@@ -2577,21 +2688,10 @@ class GoalDuelGame {
       let normalizedX = clamp(px / maxRadius, -1, 1);
       let normalizedY = clamp(py / maxRadius, -1, 1);
       
-      // In portrait mode, rotate joystick input 90° clockwise to match rotated game
-      // Game is rotated 90° clockwise, so input needs to be rotated 90° clockwise
-      // BUT: skip rotation in LOCAL_2P mode (normal landscape layout)
-      const isPortrait = window.matchMedia('(orientation: portrait)').matches;
-      if (isPortrait && this.matchMode !== "LOCAL_2P") {
-        // Rotate 90° clockwise: (x, y) -> (y, -x)
-        const rotatedX = normalizedY;
-        const rotatedY = -normalizedX;
-        normalizedX = rotatedX;
-        normalizedY = rotatedY;
-      }
-      
-      // Calculate the desired direction angle from joystick input
-      // Reverse Y to fix direction mapping (down=up), keep X normal (left=left, right=right)
-      const desiredAngle = Math.atan2(normalizedY, normalizedX);
+      // The P2 stick wrapper is rotated for portrait local-2P.
+      // We keep the visual remap above, then rotate the steering vector back by -90deg
+      // so car movement matches the on-screen stick direction.
+      const desiredAngle = Math.atan2(normalizedY, normalizedX) - (Math.PI / 2);
       const joystickMagnitude = Math.hypot(normalizedX, normalizedY);
       
       // Only apply input if joystick is moved significantly
@@ -2792,7 +2892,14 @@ class GoalDuelGame {
     const w = this.fieldW;
     const h = this.fieldH;
     const goalHalf = this.goalW * 0.5;
+    const goalCenterX = this.goalCenterX;
+    const goalLeftX = goalCenterX - goalHalf;
+    const goalRightX = goalCenterX + goalHalf;
+    const goalDepth = this.settings.goalDepth;
     const wallT = 28;
+    const cornerR = this.arenaCornerRadius;
+    const leftInnerX = this.arenaLeftInnerX;
+    const rightInnerX = this.arenaRightInnerX;
 
     const wallOpts = {
       isStatic: true,
@@ -2805,46 +2912,92 @@ class GoalDuelGame {
       },
     };
 
-    // Left/right walls (full height)
-    const left = Bodies.rectangle(-w * 0.5 - wallT * 0.5, 0, wallT, h + 400, wallOpts);
-    const right = Bodies.rectangle(w * 0.5 + wallT * 0.5, 0, wallT, h + 400, wallOpts);
+    // Left/right walls (shortened so rounded corner walls can take over near the ends)
+    const sideWallHeight = Math.max(180, h - cornerR * 2);
+    const left = Bodies.rectangle(leftInnerX - wallT * 0.5, 0, wallT, sideWallHeight, wallOpts);
+    const right = Bodies.rectangle(rightInnerX + wallT * 0.5, 0, wallT, sideWallHeight, wallOpts);
 
-    // Top wall segments (goal opening in middle)
+    // Top wall segments (goal opening in middle, shortened for rounded corners)
+    const topLeftStartX = leftInnerX + cornerR;
+    const topLeftEndX = goalLeftX;
+    const topLeftSpan = Math.max(40, topLeftEndX - topLeftStartX);
     const topLeft = Bodies.rectangle(
-      -goalHalf - (w * 0.5 - goalHalf) * 0.5,
+      (topLeftStartX + topLeftEndX) * 0.5,
       -h * 0.5 - wallT * 0.5,
-      w * 0.5 - goalHalf,
+      topLeftSpan,
       wallT,
       wallOpts,
     );
+    const topRightStartX = goalRightX;
+    const topRightEndX = rightInnerX - cornerR;
+    const topRightSpan = Math.max(40, topRightEndX - topRightStartX);
     const topRight = Bodies.rectangle(
-      goalHalf + (w * 0.5 - goalHalf) * 0.5,
+      (topRightStartX + topRightEndX) * 0.5,
       -h * 0.5 - wallT * 0.5,
-      w * 0.5 - goalHalf,
+      topRightSpan,
       wallT,
       wallOpts,
     );
 
-    // Bottom wall segments
+    // Bottom wall segments (goal opening in middle, shortened for rounded corners)
+    const bottomLeftStartX = leftInnerX + cornerR;
+    const bottomLeftEndX = goalLeftX;
+    const bottomLeftSpan = Math.max(40, bottomLeftEndX - bottomLeftStartX);
     const botLeft = Bodies.rectangle(
-      -goalHalf - (w * 0.5 - goalHalf) * 0.5,
+      (bottomLeftStartX + bottomLeftEndX) * 0.5,
       h * 0.5 + wallT * 0.5,
-      w * 0.5 - goalHalf,
+      bottomLeftSpan,
       wallT,
       wallOpts,
     );
+    const bottomRightStartX = goalRightX;
+    const bottomRightEndX = rightInnerX - cornerR;
+    const bottomRightSpan = Math.max(40, bottomRightEndX - bottomRightStartX);
     const botRight = Bodies.rectangle(
-      goalHalf + (w * 0.5 - goalHalf) * 0.5,
+      (bottomRightStartX + bottomRightEndX) * 0.5,
       h * 0.5 + wallT * 0.5,
-      w * 0.5 - goalHalf,
+      bottomRightSpan,
       wallT,
       wallOpts,
     );
+
+    const buildCornerArc = (
+      cx: number,
+      cy: number,
+      startAngle: number,
+      endAngle: number,
+    ): Matter.Body[] => {
+      const bodies: Matter.Body[] = [];
+      const segmentCount = 7;
+      const centerlineRadius = cornerR + wallT * 0.5;
+      const delta = (endAngle - startAngle) / segmentCount;
+      for (let i = 0; i < segmentCount; i++) {
+        const a0 = startAngle + delta * i;
+        const a1 = a0 + delta;
+        const am = (a0 + a1) * 0.5;
+        const segLen = Math.max(14, centerlineRadius * Math.abs(delta) + 2);
+        const x = cx + Math.cos(am) * centerlineRadius;
+        const y = cy + Math.sin(am) * centerlineRadius;
+        bodies.push(
+          Bodies.rectangle(x, y, segLen, wallT, {
+            ...wallOpts,
+            angle: am + Math.PI * 0.5,
+          }),
+        );
+      }
+      return bodies;
+    };
+
+    const cornerArcWalls: Matter.Body[] = [
+      ...buildCornerArc(leftInnerX + cornerR, -h * 0.5 + cornerR, Math.PI, Math.PI * 1.5),
+      ...buildCornerArc(rightInnerX - cornerR, -h * 0.5 + cornerR, Math.PI * 1.5, Math.PI * 2),
+      ...buildCornerArc(rightInnerX - cornerR, h * 0.5 - cornerR, 0, Math.PI * 0.5),
+      ...buildCornerArc(leftInnerX + cornerR, h * 0.5 - cornerR, Math.PI * 0.5, Math.PI),
+    ];
 
     // Goal "back walls"
-    const goalDepth = this.settings.goalDepth;
-    const topBack = Bodies.rectangle(0, -h * 0.5 - goalDepth, this.goalW, wallT, wallOpts);
-    const bottomBack = Bodies.rectangle(0, h * 0.5 + goalDepth, this.goalW, wallT, wallOpts);
+    const topBack = Bodies.rectangle(goalCenterX, -h * 0.5 - goalDepth, this.goalW, wallT, wallOpts);
+    const bottomBack = Bodies.rectangle(goalCenterX, h * 0.5 + goalDepth, this.goalW, wallT, wallOpts);
 
     // Goal boundary walls (block cars but allow ball through)
     // These are invisible walls at the goal opening that only cars collide with
@@ -2861,7 +3014,7 @@ class GoalDuelGame {
     
     // Top goal boundary (at the goal opening)
     const topGoalBoundary = Bodies.rectangle(
-      0,
+      goalCenterX,
       -h * 0.5,
       this.goalW,
       wallT,
@@ -2870,7 +3023,7 @@ class GoalDuelGame {
     
     // Bottom goal boundary (at the goal opening)
     const bottomGoalBoundary = Bodies.rectangle(
-      0,
+      goalCenterX,
       h * 0.5,
       this.goalW,
       wallT,
@@ -2879,14 +3032,14 @@ class GoalDuelGame {
 
     // Goal sensors (top is opponent's goal, bottom is player's goal)
     this.topGoalSensor = Bodies.rectangle(
-      0,
+      goalCenterX,
       -h * 0.5 - goalDepth * 0.5,
       this.goalW - 10,
       goalDepth,
       { isStatic: true, isSensor: true, label: "goalTop" },
     );
     this.bottomGoalSensor = Bodies.rectangle(
-      0,
+      goalCenterX,
       h * 0.5 + goalDepth * 0.5,
       this.goalW - 10,
       goalDepth,
@@ -2964,6 +3117,7 @@ class GoalDuelGame {
       topRight,
       botLeft,
       botRight,
+      ...cornerArcWalls,
       topBack,
       bottomBack,
       topGoalBoundary,
@@ -3064,6 +3218,8 @@ class GoalDuelGame {
     }
     
     this.pendingMode = mode;
+    this.elCountryStage.classList.add("hidden");
+    this.elCarStage.classList.add("hidden");
     this.elSearchingResult.classList.add("hidden");
     
     // Build scroller items first
@@ -3223,23 +3379,24 @@ class GoalDuelGame {
           easeFinished = true;
           this.searchingEaseInterval = null;
 
-          // Show result
+          // Show player's selected loadout in the bottom result section
           this.elSearchingResult.classList.remove("hidden");
           const flagImg = document.createElement("img");
-          const preloadedFlag = this.flagImages.get(this.botCountry);
+          const preloadedFlag = this.flagImages.get(this.selectedCountry);
           if (preloadedFlag && preloadedFlag.complete && preloadedFlag.naturalWidth > 0) {
             flagImg.src = preloadedFlag.src;
           } else {
-            flagImg.src = `https://hatscripts.github.io/circle-flags/flags/${this.botCountry}.svg`;
+            flagImg.src = `https://hatscripts.github.io/circle-flags/flags/${this.selectedCountry}.svg`;
           }
-          flagImg.alt = botCountry.name;
+          const selectedCountryName = this.countries.find((country) => country.code === this.selectedCountry)?.name ?? "Selected country";
+          flagImg.alt = selectedCountryName;
           this.elResultFlag.innerHTML = "";
           this.elResultFlag.appendChild(flagImg);
 
           const carImg = document.createElement("img");
-          const botCarImg = this.carImages.get(this.botCarName);
-          if (botCarImg && botCarImg.naturalWidth > 0) {
-            carImg.src = botCarImg.src;
+          const playerCarImg = this.carImages.get(this.playerCarName);
+          if (playerCarImg && playerCarImg.naturalWidth > 0) {
+            carImg.src = playerCarImg.src;
           }
           this.elResultCar.innerHTML = "";
           this.elResultCar.appendChild(carImg);
@@ -3414,11 +3571,9 @@ class GoalDuelGame {
       // This prevents the frustrating "kicked to menu on first try" issue
       this._matchEnded = true;
       this._matchStarting = false;
-      // Try to reset state but don't force menu transition
+      // Reset UI state fully so no stale gameplay controls remain on top of menu/search overlays
       try {
-        if (this.state !== "MENU" && this.state !== "SEARCHING") {
-          this.state = "MENU";
-        }
+        this.setState("MENU", true);
       } catch (stateErr) {
         console.error("[Game] Failed to reset state:", stateErr);
       }
@@ -3526,9 +3681,40 @@ class GoalDuelGame {
     this._matchEnded = true;   // Prevent any lingering endMatch calls
     this._matchStarting = false; // Allow a fresh match to start from the menu
     this._goalFired = false;   // Reset goal guard
+    this.clearTransientGameplayUI();
     this.fadeScene(() => {
       this.setState("MENU");
     });
+  }
+
+  private clearTransientGameplayUI(): void {
+    // Hard reset transient gameplay overlays so stale UI never leaks onto menu.
+    this.elBtnSkipReplay.classList.add("hidden");
+    this.elCountdownOverlay.classList.add("hidden");
+    if (this.elCountdownText) {
+      this.elCountdownText.classList.remove("countdownPulse");
+      this.elCountdownText.textContent = "3";
+    }
+
+    this.isReplayMode = false;
+    this.recordingReplay = false;
+    this.replayData = [];
+    this.replayIndex = 0;
+    this._replayHead = 0;
+    this.replayScoringPlayer = null;
+
+    this.goalAnimation.active = false;
+    this.goalAnimation.time = 0;
+    this.goalAnimation.alpha = 0;
+    this.goalAnimation.scale = 0;
+    this.goalAnimation.rotation = 0;
+
+    this.ballPop.active = false;
+    this.ballPop.scale = 1;
+    if (this.ball) {
+      this.ball.isSensor = false;
+      this.ball.collisionFilter.mask = CATEGORY_CAR | CATEGORY_WALL;
+    }
   }
 
   private onGoal(isPlayerScored: boolean): void {
@@ -3755,6 +3941,7 @@ class GoalDuelGame {
   private setState(s: GameState, instant?: boolean): void {
     this.state = s;
     if (s === "MENU") {
+      this.clearTransientGameplayUI();
       this.elStart.classList.remove("hidden");
       this.elEnd.classList.add("hidden");
       this.elHudRoot.classList.add("hidden");
@@ -3770,6 +3957,9 @@ class GoalDuelGame {
         (settingsCard as HTMLElement).style.display = "none";
       }
       this.elSearchingOverlay.classList.add("hidden");
+      this.elSearchingResult.classList.add("hidden");
+      this.elCountryStage.classList.add("hidden");
+      this.elCarStage.classList.add("hidden");
       // Music is already playing; just ensure AudioContext is alive
       if (!instant) {
         this.audio.ensure();
@@ -3781,7 +3971,10 @@ class GoalDuelGame {
       this.elHudPills.classList.add("hidden");
       this.elGameplayBg.classList.add("hidden");
       this.elMobileControls.classList.add("hidden");
+      this.elCountryStage.classList.add("hidden");
+      this.elCarStage.classList.add("hidden");
       this.elSearchingOverlay.classList.remove("hidden");
+      this.elSearchingResult.classList.add("hidden");
       // Music continues playing
     } else if (s === "PLAYING" || s === "GOAL") {
       this.elStart.classList.add("hidden");
@@ -3790,6 +3983,9 @@ class GoalDuelGame {
       this.elHudPills.classList.remove("hidden");
       this.elGameplayBg.classList.remove("hidden");
       this.elSearchingOverlay.classList.add("hidden");
+      this.elSearchingResult.classList.add("hidden");
+      this.elCountryStage.classList.add("hidden");
+      this.elCarStage.classList.add("hidden");
       // Show mobile controls when playing (same logic as settings - always show if playing)
       this.elMobileControls.classList.remove("hidden");
       // Update mobile controls visibility to show/hide player 2 controls based on match mode
@@ -3801,6 +3997,10 @@ class GoalDuelGame {
       this.elHudPills.classList.add("hidden");
       this.elGameplayBg.classList.add("hidden");
       this.elMobileControls.classList.add("hidden");
+      this.elSearchingOverlay.classList.add("hidden");
+      this.elSearchingResult.classList.add("hidden");
+      this.elCountryStage.classList.add("hidden");
+      this.elCarStage.classList.add("hidden");
       this.elPhysicsPanel?.classList.add("hidden");
       this.elUIPanel?.classList.add("hidden");
       const youWon = this.playerScore > this.botScore;
@@ -3995,15 +4195,6 @@ class GoalDuelGame {
     // Use normalized values for input
     let normalizedX = finalVx;
     let normalizedY = finalVy;
-    
-    // In portrait mode, rotate joystick input 90° clockwise to match rotated game
-    const isPortrait = window.matchMedia('(orientation: portrait)').matches;
-    if (isPortrait && this.matchMode !== "LOCAL_2P") {
-      const rotatedX = normalizedY;
-      const rotatedY = -normalizedX;
-      normalizedX = rotatedX;
-      normalizedY = rotatedY;
-    }
     
     // Calculate the desired direction angle from joystick input
     const desiredAngle = Math.atan2(normalizedY, normalizedX);
@@ -4323,7 +4514,8 @@ class GoalDuelGame {
     }
 
     const steer = clamp(input.steer, -1, 1);
-    Body.setAngularVelocity(body, lerp(body.angularVelocity, steer * turnRate, clamp(dt * 10, 0, 1)));
+    const steerResponse = 30;
+    Body.setAngularVelocity(body, lerp(body.angularVelocity, steer * turnRate, clamp(dt * steerResponse, 0, 1)));
 
     // Clamp speed (cache calculations)
     if (speed > maxSpeed) {
@@ -4331,10 +4523,36 @@ class GoalDuelGame {
       Body.setVelocity(body, { x: vel.x * scale, y: vel.y * scale });
     }
 
-    // Small sideways damping for "car feel"
     const right = { x: -fwd.y, y: fwd.x };
+    // Pivot assist: when steering hard, bleed speed quickly so the car can "turn on a dime".
+    if (Math.abs(steer) > 0.55 && Math.abs(thr) > 0.15 && speed > 1.2) {
+      const pivotStrength = clamp((Math.abs(steer) - 0.55) / 0.45, 0, 1);
+      const forwardSpeed = body.velocity.x * fwd.x + body.velocity.y * fwd.y;
+      const sideSpeedRaw = body.velocity.x * right.x + body.velocity.y * right.y;
+
+      const forwardDamping = 1 - pivotStrength * 0.6;
+      const sideDamping = 1 - pivotStrength * 0.85;
+      const nextForward = forwardSpeed * forwardDamping;
+      const nextSide = sideSpeedRaw * sideDamping;
+
+      Body.setVelocity(body, {
+        x: fwd.x * nextForward + right.x * nextSide,
+        y: fwd.y * nextForward + right.y * nextSide,
+      });
+
+      // Extra reverse impulse while hard-turning at speed to enable quick direction flips.
+      if (forwardSpeed > 0.6 && Math.abs(steer) > 0.8) {
+        const reverseAssistForce = forceMag * 0.9 * pivotStrength;
+        Body.applyForce(body, body.position, {
+          x: -fwd.x * reverseAssistForce,
+          y: -fwd.y * reverseAssistForce,
+        });
+      }
+    }
+
+    // Stronger sideways damping for tighter, less arc-heavy handling
     const sideSpeed = body.velocity.x * right.x + body.velocity.y * right.y;
-    const damp = 0.22;
+    const damp = 0.58;
     const vx = body.velocity.x - right.x * sideSpeed * damp;
     const vy = body.velocity.y - right.y * sideSpeed * damp;
     Body.setVelocity(body, { x: vx, y: vy });
@@ -4368,15 +4586,39 @@ class GoalDuelGame {
       if (!input.boost && acceleration > 0.5 && speed > 3 && thr > 0.3) {
         // Play rev sound for acceleration
         this.audio.playRev(Math.min(0.6, acceleration * 0.1));
-        // Play screech sound for acceleration
-        this.audio.playScreech(Math.min(0.25, acceleration * 0.05));
       }
       
       // Drift particles (when turning sharply while moving)
       if (this.settings.vfxDrifting && Math.abs(steer) > 0.25 && speed > 3) {
         this.spawnDriftParticle(body.position.x, body.position.y, right, sideSpeed, isPlayer, speed);
-        // Play screech sound when drifting
-        this.audio.playScreech(0.2);
+      }
+
+      // Drift screech should be a rare "hard slide" cue, not a constant driving loop.
+      const isHumanControlled = isPlayer || this.matchMode === "LOCAL_2P";
+      const hardTurn = Math.abs(steer) > 0.45;
+      const hardMomentumChange = Math.abs(acceleration) > 0.9;
+      const heavyLateralSlide = Math.abs(sideSpeed) > 3.2;
+      const shouldPlayDriftScreech =
+        isHumanControlled &&
+        this.settings.vfxDrifting &&
+        speed > 4.5 &&
+        hardTurn &&
+        (hardMomentumChange || heavyLateralSlide);
+
+      if (shouldPlayDriftScreech) {
+        const now = Date.now();
+        const cooldownMs = 750;
+        const lastSfxTime = isPlayer ? this.lastDriftSfxTimePlayer : this.lastDriftSfxTimeBot;
+        if (now - lastSfxTime > cooldownMs) {
+          const screechVolume = clamp(
+            0.16 + Math.abs(sideSpeed) * 0.015 + Math.abs(acceleration) * 0.02,
+            0.16,
+            0.42,
+          );
+          this.audio.playScreech(screechVolume);
+          if (isPlayer) this.lastDriftSfxTimePlayer = now;
+          else this.lastDriftSfxTimeBot = now;
+        }
       }
     }
 
@@ -4529,6 +4771,143 @@ class GoalDuelGame {
         dirX: Math.cos(angle),
         dirY: Math.sin(angle),
       });
+    }
+  }
+
+  private triggerBallPop(biasX: number, biasY: number): void {
+    if (!this.ball || this.ballPop.active || this.state !== "PLAYING") return;
+    const now = performance.now();
+    if (now - this.ballPop.lastTriggerMs < this.ballPop.cooldownMs) return;
+
+    this.ballPop.active = true;
+    this.ballPop.time = 0;
+    this.ballPop.baseX = this.ball.position.x;
+    this.ballPop.baseY = this.ball.position.y;
+    this.ballPop.scale = 1;
+    this.ballPop.biasX = biasX;
+    this.ballPop.biasY = biasY;
+    this.ballPop.lastTriggerMs = now;
+
+    // While airborne, ignore cars but keep wall collisions so it cannot escape the arena.
+    this.ball.isSensor = false;
+    this.ball.collisionFilter.mask = CATEGORY_WALL;
+
+    // Launch immediately in a randomized direction (biased by squeeze/wall direction).
+    const randomX = (Math.random() - 0.5) * 0.9;
+    const randomY = (Math.random() - 0.5) * 0.9;
+    let launchX = biasX * 1.15 + randomX;
+    let launchY = biasY * 1.15 + randomY;
+    const launchLen = Math.hypot(launchX, launchY);
+    if (launchLen < 0.001) {
+      const a = Math.random() * Math.PI * 2;
+      launchX = Math.cos(a);
+      launchY = Math.sin(a);
+    } else {
+      launchX /= launchLen;
+      launchY /= launchLen;
+    }
+
+    const launchSpeed = 13 + Math.random() * 5;
+    Body.setVelocity(this.ball, { x: launchX * launchSpeed, y: launchY * launchSpeed });
+    Body.setAngularVelocity(this.ball, (Math.random() - 0.5) * 0.7);
+
+    console.log("[BallPop]", "Triggered pop-up launch");
+  }
+
+  private updateBallPop(dt: number): void {
+    if (!this.ballPop.active || !this.ball) return;
+
+    this.ballPop.time += dt;
+    const p = clamp(this.ballPop.time / this.ballPop.duration, 0, 1);
+    const arc = Math.sin(Math.PI * p);
+    this.ballPop.scale = 1 + arc * 1.25;
+
+    if (p < 1) return;
+
+    this.ballPop.active = false;
+    this.ballPop.scale = 1;
+
+    // Restore normal collisions.
+    this.ball.isSensor = false;
+    this.ball.collisionFilter.mask = CATEGORY_CAR | CATEGORY_WALL;
+    console.log("[BallPop]", "Pop-up ended");
+  }
+
+  private detectBallPopCandidates(): void {
+    if (!this.ball || !this.playerCar || !this.botCar) return;
+    if (this.state !== "PLAYING" || this.ballPop.active) return;
+
+    const ballPos = this.ball.position;
+    const p1 = this.playerCar.position;
+    const p2 = this.botCar.position;
+    const carRadius = Math.max(this.settings.carWidth * this.settings.carBoundsWidth, this.settings.carHeight * this.settings.carBoundsHeight) * 0.5;
+    const ballRadius = this.settings.ballRadius * this.settings.ballBoundsScale;
+    const squeezeDist = carRadius + ballRadius + 28;
+
+    const toBall1x = ballPos.x - p1.x;
+    const toBall1y = ballPos.y - p1.y;
+    const toBall2x = ballPos.x - p2.x;
+    const toBall2y = ballPos.y - p2.y;
+    const d1 = Math.hypot(toBall1x, toBall1y);
+    const d2 = Math.hypot(toBall2x, toBall2y);
+    const nearBothCars = d1 < squeezeDist && d2 < squeezeDist;
+    if (nearBothCars && d1 > 0.001 && d2 > 0.001) {
+      const n1x = toBall1x / d1;
+      const n1y = toBall1y / d1;
+      const n2x = toBall2x / d2;
+      const n2y = toBall2y / d2;
+      const oppositeSides = (n1x * n2x + n1y * n2y) < -0.45;
+      const p1TowardBall = this.playerCar.velocity.x * n1x + this.playerCar.velocity.y * n1y;
+      const p2TowardBall = this.botCar.velocity.x * n2x + this.botCar.velocity.y * n2y;
+      if (oppositeSides && p1TowardBall > 1.1 && p2TowardBall > 1.1) {
+        const centerDiffX = p2.x - p1.x;
+        const centerDiffY = p2.y - p1.y;
+        const len = Math.hypot(centerDiffX, centerDiffY);
+        const perpX = len > 0.001 ? -centerDiffY / len : (Math.random() - 0.5);
+        const perpY = len > 0.001 ? centerDiffX / len : (Math.random() - 0.5);
+        this.triggerBallPop(perpX, perpY);
+        return;
+      }
+    }
+
+    // Wall squeeze: car pushes ball into a boundary.
+    const leftBound = this.arenaLeftInnerX + ballRadius;
+    const rightBound = this.arenaRightInnerX - ballRadius;
+    const topBound = -this.fieldH * 0.5 + ballRadius;
+    const bottomBound = this.fieldH * 0.5 - ballRadius;
+    const wallThreshold = 10;
+
+    let wallNX = 0;
+    let wallNY = 0;
+    if (ballPos.x < leftBound + wallThreshold) {
+      wallNX = 1;
+    } else if (ballPos.x > rightBound - wallThreshold) {
+      wallNX = -1;
+    } else if (ballPos.y < topBound + wallThreshold) {
+      wallNY = 1;
+    } else if (ballPos.y > bottomBound - wallThreshold) {
+      wallNY = -1;
+    }
+
+    if (wallNX === 0 && wallNY === 0) return;
+
+    const evaluateWallPush = (car: Matter.Body): boolean => {
+      const dx = ballPos.x - car.position.x;
+      const dy = ballPos.y - car.position.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > squeezeDist + 12 || dist < 0.001) return false;
+      const towardBallX = dx / dist;
+      const towardBallY = dy / dist;
+      const towardBallSpeed = car.velocity.x * towardBallX + car.velocity.y * towardBallY;
+      const pushIntoWall = car.velocity.x * wallNX + car.velocity.y * wallNY < -0.9;
+      return towardBallSpeed > 0.9 && pushIntoWall;
+    };
+
+    if (evaluateWallPush(this.playerCar) || evaluateWallPush(this.botCar)) {
+      const tangentX = -wallNY;
+      const tangentY = wallNX;
+      const tangentKick = (Math.random() - 0.5) * 0.8;
+      this.triggerBallPop(wallNX + tangentX * tangentKick, wallNY + tangentY * tangentKick);
     }
   }
 
@@ -4810,8 +5189,17 @@ class GoalDuelGame {
 
       if (this.state === "PLAYING") {
         try {
+          this.updateBallPop(dt);
+          if (!this.ballPop.active) {
+            this.detectBallPopCandidates();
+          }
+        } catch (err) {
+          console.error("[Game.update] Ball pop logic error:", err);
+        }
+
+        try {
           // Prevent ball from getting stuck in corners
-          this.preventBallStuckInCorner();
+          if (!this.ballPop.active) this.preventBallStuckInCorner();
         } catch (err) {
           console.error("[Game.update] preventBallStuckInCorner error:", err);
         }
@@ -4824,67 +5212,64 @@ class GoalDuelGame {
         }
         
         try {
-          this.keepBallMoving(); // Ensure ball never stops
+          if (!this.ballPop.active) this.keepBallMoving(); // Ensure ball never stops
         } catch (err) {
           console.error("[Game.update] keepBallMoving error:", err);
         }
       }
 
-    // Dynamic camera zoom and follow
+    // Dynamic framing camera:
+    // keep both cars + ball visible by fitting their world-space bounds into the viewport.
     const fixedFieldW = 720;
     const fixedFieldH = 1200;
 
-    // Calculate dynamic zoom adjustments based on speed and ball distance
-    const playerSpeed = Vector.magnitude(this.playerCar.velocity);
-    const maxSpeed = this.settings.carMaxSpeedBoost;
-    const speedRatio = Math.min(playerSpeed / maxSpeed, 1.0);
+    const pad = this._isMobile ? 4 : 26;
+    const topUI = this._isMobile ? 4 : 120;
+    const availW = this._isMobile ? this._viewW - 8 : this._viewW - pad * 2;
+    const availH = this._isMobile ? this._viewH - 8 : Math.max(200, this._viewH - topUI - 80 - pad);
+    const safeAvailW = Math.max(1, availW);
+    const safeAvailH = Math.max(1, availH);
 
-    // Base zoom - higher on mobile for closer view
-    let baseZoom = this._isMobile ? 1.50 : 1.20; // Increased from 1.20 to 1.50 on mobile
+    const baseScaleAtZoomOne = Math.min(safeAvailW / fixedFieldW, safeAvailH / fixedFieldH);
+    const baseVisibleW = safeAvailW / baseScaleAtZoomOne;
+    const baseVisibleH = safeAvailH / baseScaleAtZoomOne;
 
-    // In BOT mode: intense zoom when accelerating (subtract from zoom to zoom IN)
-    if (this.matchMode === "BOT") {
-      // Intense zoom: subtract from base zoom to zoom IN dramatically
-      // Higher speed = more zoom in (lower zoom value = closer view)
-      const intenseZoomAmount = speedRatio * 0.45; // 45% zoom in at max speed (very dramatic)
-      baseZoom = baseZoom - intenseZoomAmount; // Subtract to zoom IN
-      // Clamp to prevent zooming too close
-      baseZoom = Math.max(0.75, baseZoom); // Don't zoom closer than 0.75
-    } else {
-      // LOCAL_2P mode: normal zoom behavior (add small adjustments)
-      const baseZoomFactor = this.settings.cameraZoomSpeedFactor;
-      const speedZoomAdjust = speedRatio * baseZoomFactor;
-    
-    // Zoom based on ball distance (closer ball = zoom in more) - small adjustment
-    const ballDist = Vector.magnitude(Vector.sub(this.ball.position, this.playerCar.position));
-    const maxDist = Math.sqrt(fixedFieldW * fixedFieldW + fixedFieldH * fixedFieldH);
-    const distRatio = Math.min(ballDist / maxDist, 1.0);
-    const ballZoomAdjust = (1.0 - distRatio) * this.settings.cameraZoomBallFactor;
-    
-      // Add adjustments (but these are small, so effect is minimal)
-      baseZoom = baseZoom + speedZoomAdjust + ballZoomAdjust;
-    }
-    
-    this.targetZoom = baseZoom;
-    
+    const carRadius = Math.max(this.settings.carSpriteWidth, this.settings.carSpriteHeight) * 0.55;
+    const ballRadius = this.settings.ballSpriteSize * 0.5;
+    const framingPadding = this._isMobile ? 90 : 110;
+
+    const p1 = this.playerCar.position;
+    const p2 = this.botCar.position;
+    const ball = this.ball.position;
+
+    const minX = Math.min(p1.x - carRadius, p2.x - carRadius, ball.x - ballRadius) - framingPadding;
+    const maxX = Math.max(p1.x + carRadius, p2.x + carRadius, ball.x + ballRadius) + framingPadding;
+    const minY = Math.min(p1.y - carRadius, p2.y - carRadius, ball.y - ballRadius) - framingPadding;
+    const maxY = Math.max(p1.y + carRadius, p2.y + carRadius, ball.y + ballRadius) + framingPadding;
+
+    const spanW = Math.max(1, maxX - minX);
+    const spanH = Math.max(1, maxY - minY);
+
+    const requiredZoomX = spanW / baseVisibleW;
+    const requiredZoomY = spanH / baseVisibleH;
+    const requiredZoom = Math.max(requiredZoomX, requiredZoomY);
+
+    // Keep the familiar baseline view and only zoom out beyond it when needed.
+    const baselineZoom = this._isMobile ? 1.5 : 1.2;
+    const minZoom = baselineZoom;
+    const maxZoom = this._isMobile ? 2.6 : 2.2;
+    this.targetZoom = clamp(Math.max(requiredZoom, baselineZoom), minZoom, maxZoom);
+
     // Smooth zoom transition
     const zoomSmooth = this.settings.cameraZoomSmoothness;
     const zoomA = 1 - Math.exp(-zoomSmooth * dt);
     this.currentZoom = lerp(this.currentZoom, this.targetZoom, zoomA);
-    
-    const viewW = fixedFieldW * this.currentZoom;
-    const viewH = fixedFieldH * this.currentZoom;
 
-    const px = this.playerCar.position.x;
-    const py = this.playerCar.position.y;
-    const bx = this.ball.position.x;
-    const by2 = this.ball.position.y;
+    const targetX = (minX + maxX) * 0.5;
+    const targetY = (minY + maxY) * 0.5;
 
-    const targetX = lerp(px, bx, 0.18);
-    const targetY = lerp(py, by2, 0.28);
-
-    // Allow camera to follow the car across the larger stadium (no clamping)
-    const k = 14; // responsiveness
+    // Smooth camera follow toward framed center
+    const k = 14;
     const a = 1 - Math.exp(-k * dt);
     this.camX = lerp(this.camX, targetX, a);
     this.camY = lerp(this.camY, targetY, a);
@@ -5049,10 +5434,12 @@ class GoalDuelGame {
     const fieldH = this.fieldH;
     const cornerThreshold = 60; // Distance from corner to consider "stuck"
     const minSpeed = 2; // Minimum speed to consider ball moving
+    const leftInnerX = this.arenaLeftInnerX;
+    const rightInnerX = this.arenaRightInnerX;
     
     // Check if ball is near a corner (close to both X and Y boundaries)
-    const nearLeftWall = ballPos.x < -fieldW * 0.5 + cornerThreshold;
-    const nearRightWall = ballPos.x > fieldW * 0.5 - cornerThreshold;
+    const nearLeftWall = ballPos.x < leftInnerX + cornerThreshold;
+    const nearRightWall = ballPos.x > rightInnerX - cornerThreshold;
     const nearTopWall = ballPos.y < -fieldH * 0.5 + cornerThreshold;
     const nearBottomWall = ballPos.y > fieldH * 0.5 - cornerThreshold;
     
@@ -5122,10 +5509,13 @@ class GoalDuelGame {
     const fieldW = this.fieldW;
     const fieldH = this.fieldH;
     const goalW = this.goalW;
+    const goalCenterX = this.goalCenterX;
+    const leftInnerX = this.arenaLeftInnerX;
+    const rightInnerX = this.arenaRightInnerX;
     
     // Early exit: only check if ball is actually out of bounds (performance optimization)
-    const leftBound = -fieldW * 0.5 + ballRadius;
-    const rightBound = fieldW * 0.5 - ballRadius;
+    const leftBound = leftInnerX + ballRadius;
+    const rightBound = rightInnerX - ballRadius;
     const topBound = -fieldH * 0.5 + ballRadius;
     const bottomBound = fieldH * 0.5 - ballRadius;
     
@@ -5137,6 +5527,8 @@ class GoalDuelGame {
     
     // Goal openings (middle of top and bottom walls)
     const goalHalf = goalW * 0.5;
+    const cornerR = this.arenaCornerRadius;
+    const cornerReach = Math.max(8, cornerR - ballRadius);
     
     let newX = ballPos.x;
     let newY = ballPos.y;
@@ -5168,7 +5560,7 @@ class GoalDuelGame {
     // Check Y bounds (top/bottom walls, but allow through goal openings)
     if (ballPos.y < topBound) {
       // Check if ball is within goal opening horizontally
-      if (Math.abs(ballPos.x) < goalHalf) {
+      if (Math.abs(ballPos.x - goalCenterX) < goalHalf) {
         // Ball is in goal opening, allow it to go through (but limit depth)
         const maxGoalY = topBound - this.settings.goalDepth;
         if (ballPos.y < maxGoalY) {
@@ -5189,7 +5581,7 @@ class GoalDuelGame {
       }
     } else if (ballPos.y > bottomBound) {
       // Check if ball is within goal opening horizontally
-      if (Math.abs(ballPos.x) < goalHalf) {
+      if (Math.abs(ballPos.x - goalCenterX) < goalHalf) {
         // Ball is in goal opening, allow it to go through (but limit depth)
         const maxGoalY = bottomBound + this.settings.goalDepth;
         if (ballPos.y > maxGoalY) {
@@ -5208,6 +5600,43 @@ class GoalDuelGame {
         newVelX = newVelX * 0.85 + (Math.random() - 0.5) * 0.3; // Keep X velocity with randomness
         needsVelocityChange = true;
       }
+    }
+
+    // Rounded-corner correction: keep ball center inside quarter-arc field corners.
+    const projectFromRoundedCorner = (cx: number, cy: number): void => {
+      const dx = newX - cx;
+      const dy = newY - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= cornerReach || dist < 0.0001) return;
+
+      const invDist = 1 / dist;
+      const nx = dx * invDist;
+      const ny = dy * invDist;
+      newX = cx + nx * cornerReach;
+      newY = cy + ny * cornerReach;
+
+      // Remove outward velocity so the ball glides back into the field instead of sticking.
+      const outwardSpeed = newVelX * nx + newVelY * ny;
+      if (outwardSpeed > 0) {
+        newVelX -= nx * outwardSpeed * 1.2;
+        newVelY -= ny * outwardSpeed * 1.2;
+        needsVelocityChange = true;
+      }
+    };
+
+    const topCornerY = -fieldH * 0.5 + cornerR;
+    const bottomCornerY = fieldH * 0.5 - cornerR;
+    const leftCornerX = leftInnerX + cornerR;
+    const rightCornerX = rightInnerX - cornerR;
+
+    if (newX < leftCornerX && newY < topCornerY) {
+      projectFromRoundedCorner(leftCornerX, topCornerY);
+    } else if (newX > rightCornerX && newY < topCornerY) {
+      projectFromRoundedCorner(rightCornerX, topCornerY);
+    } else if (newX > rightCornerX && newY > bottomCornerY) {
+      projectFromRoundedCorner(rightCornerX, bottomCornerY);
+    } else if (newX < leftCornerX && newY > bottomCornerY) {
+      projectFromRoundedCorner(leftCornerX, bottomCornerY);
     }
     
     // Apply all changes at once (single physics update to avoid stuttering)
@@ -5307,12 +5736,14 @@ class GoalDuelGame {
     const fieldW = this.fieldW;
     const fieldH = this.fieldH;
     const margin = 50;
+    const leftInnerX = this.arenaLeftInnerX;
+    const rightInnerX = this.arenaRightInnerX;
     
     // Player car wall collision
-    if (Math.abs(playerPos.x) > fieldW * 0.5 - margin || Math.abs(playerPos.y) > fieldH * 0.5 - margin) {
+    if (playerPos.x < leftInnerX + margin || playerPos.x > rightInnerX - margin || Math.abs(playerPos.y) > fieldH * 0.5 - margin) {
       const velChange = Vector.magnitude(Vector.sub(playerVel, this.prevPlayerVel));
       if (velChange > 3) {
-        const normal = { x: Math.abs(playerPos.x) > fieldW * 0.5 - margin ? (playerPos.x > 0 ? -1 : 1) : 0,
+        const normal = { x: playerPos.x < leftInnerX + margin ? 1 : (playerPos.x > rightInnerX - margin ? -1 : 0),
                         y: Math.abs(playerPos.y) > fieldH * 0.5 - margin ? (playerPos.y > 0 ? -1 : 0) : 0 };
         if (normal.x !== 0 || normal.y !== 0) {
           this.spawnBumpParticle(playerPos.x, playerPos.y, normal, velChange);
@@ -5323,10 +5754,10 @@ class GoalDuelGame {
     }
     
     // Bot car wall collision
-    if (Math.abs(botPos.x) > fieldW * 0.5 - margin || Math.abs(botPos.y) > fieldH * 0.5 - margin) {
+    if (botPos.x < leftInnerX + margin || botPos.x > rightInnerX - margin || Math.abs(botPos.y) > fieldH * 0.5 - margin) {
       const velChange = Vector.magnitude(Vector.sub(botVel, this.prevBotVel));
       if (velChange > 3) {
-        const normal = { x: Math.abs(botPos.x) > fieldW * 0.5 - margin ? (botPos.x > 0 ? -1 : 1) : 0,
+        const normal = { x: botPos.x < leftInnerX + margin ? 1 : (botPos.x > rightInnerX - margin ? -1 : 0),
                         y: Math.abs(botPos.y) > fieldH * 0.5 - margin ? (botPos.y > 0 ? -1 : 0) : 0 };
         if (normal.x !== 0 || normal.y !== 0) {
           this.spawnBumpParticle(botPos.x, botPos.y, normal, velChange);
@@ -5405,12 +5836,6 @@ class GoalDuelGame {
           this.drawStadiumBG(ctx);
         } catch (err) {
           console.error("[Game.render] drawStadiumBG error:", err);
-        }
-        
-        try {
-          this.drawStadiumBounds(ctx);
-        } catch (err) {
-          console.error("[Game.render] drawStadiumBounds error:", err);
         }
         
         try {
@@ -5539,7 +5964,13 @@ class GoalDuelGame {
     const w = this.fieldW;
     const h = this.fieldH;
     const goalHalf = this.goalW * 0.5;
+    const goalCenterX = this.goalCenterX;
+    const goalLeftX = goalCenterX - goalHalf;
+    const goalRightX = goalCenterX + goalHalf;
     const goalDepth = this.settings.goalDepth;
+    const cornerR = this.arenaCornerRadius;
+    const leftInnerX = this.arenaLeftInnerX;
+    const rightInnerX = this.arenaRightInnerX;
 
     ctx.save();
     ctx.strokeStyle = "rgba(183, 255, 74, 0.6)";
@@ -5548,22 +5979,33 @@ class GoalDuelGame {
 
     // Field boundaries
     ctx.beginPath();
-    // Left wall
-    ctx.moveTo(-w * 0.5, -h * 0.5);
-    ctx.lineTo(-w * 0.5, h * 0.5);
-    // Right wall
-    ctx.moveTo(w * 0.5, -h * 0.5);
-    ctx.lineTo(w * 0.5, h * 0.5);
-    // Top wall (with goal opening)
-    ctx.moveTo(-w * 0.5, -h * 0.5);
-    ctx.lineTo(-goalHalf, -h * 0.5);
-    ctx.moveTo(goalHalf, -h * 0.5);
-    ctx.lineTo(w * 0.5, -h * 0.5);
-    // Bottom wall (with goal opening)
-    ctx.moveTo(-w * 0.5, h * 0.5);
-    ctx.lineTo(-goalHalf, h * 0.5);
-    ctx.moveTo(goalHalf, h * 0.5);
-    ctx.lineTo(w * 0.5, h * 0.5);
+    // Left/right walls (rounded corners omitted)
+    ctx.moveTo(leftInnerX, -h * 0.5 + cornerR);
+    ctx.lineTo(leftInnerX, h * 0.5 - cornerR);
+    ctx.moveTo(rightInnerX, -h * 0.5 + cornerR);
+    ctx.lineTo(rightInnerX, h * 0.5 - cornerR);
+
+    // Top wall (with goal opening and rounded outer corners)
+    ctx.moveTo(leftInnerX + cornerR, -h * 0.5);
+    ctx.lineTo(goalLeftX, -h * 0.5);
+    ctx.moveTo(goalRightX, -h * 0.5);
+    ctx.lineTo(rightInnerX - cornerR, -h * 0.5);
+
+    // Bottom wall (with goal opening and rounded outer corners)
+    ctx.moveTo(leftInnerX + cornerR, h * 0.5);
+    ctx.lineTo(goalLeftX, h * 0.5);
+    ctx.moveTo(goalRightX, h * 0.5);
+    ctx.lineTo(rightInnerX - cornerR, h * 0.5);
+
+    // Rounded corner arcs
+    ctx.moveTo(leftInnerX, -h * 0.5 + cornerR);
+    ctx.arc(leftInnerX + cornerR, -h * 0.5 + cornerR, cornerR, Math.PI, Math.PI * 1.5);
+    ctx.moveTo(rightInnerX - cornerR, -h * 0.5);
+    ctx.arc(rightInnerX - cornerR, -h * 0.5 + cornerR, cornerR, Math.PI * 1.5, Math.PI * 2);
+    ctx.moveTo(rightInnerX, h * 0.5 - cornerR);
+    ctx.arc(rightInnerX - cornerR, h * 0.5 - cornerR, cornerR, 0, Math.PI * 0.5);
+    ctx.moveTo(leftInnerX + cornerR, h * 0.5);
+    ctx.arc(leftInnerX + cornerR, h * 0.5 - cornerR, cornerR, Math.PI * 0.5, Math.PI);
     ctx.stroke();
 
     // Goal posts and depth
@@ -5574,31 +6016,31 @@ class GoalDuelGame {
     // Top goal
     ctx.beginPath();
     // Goal opening
-    ctx.moveTo(-goalHalf, -h * 0.5);
-    ctx.lineTo(goalHalf, -h * 0.5);
+    ctx.moveTo(goalLeftX, -h * 0.5);
+    ctx.lineTo(goalRightX, -h * 0.5);
     // Goal depth lines
-    ctx.moveTo(-goalHalf, -h * 0.5);
-    ctx.lineTo(-goalHalf, -h * 0.5 - goalDepth);
-    ctx.moveTo(goalHalf, -h * 0.5);
-    ctx.lineTo(goalHalf, -h * 0.5 - goalDepth);
+    ctx.moveTo(goalLeftX, -h * 0.5);
+    ctx.lineTo(goalLeftX, -h * 0.5 - goalDepth);
+    ctx.moveTo(goalRightX, -h * 0.5);
+    ctx.lineTo(goalRightX, -h * 0.5 - goalDepth);
     // Back wall
-    ctx.moveTo(-goalHalf, -h * 0.5 - goalDepth);
-    ctx.lineTo(goalHalf, -h * 0.5 - goalDepth);
+    ctx.moveTo(goalLeftX, -h * 0.5 - goalDepth);
+    ctx.lineTo(goalRightX, -h * 0.5 - goalDepth);
     ctx.stroke();
 
     // Bottom goal
     ctx.beginPath();
     // Goal opening
-    ctx.moveTo(-goalHalf, h * 0.5);
-    ctx.lineTo(goalHalf, h * 0.5);
+    ctx.moveTo(goalLeftX, h * 0.5);
+    ctx.lineTo(goalRightX, h * 0.5);
     // Goal depth lines
-    ctx.moveTo(-goalHalf, h * 0.5);
-    ctx.lineTo(-goalHalf, h * 0.5 + goalDepth);
-    ctx.moveTo(goalHalf, h * 0.5);
-    ctx.lineTo(goalHalf, h * 0.5 + goalDepth);
+    ctx.moveTo(goalLeftX, h * 0.5);
+    ctx.lineTo(goalLeftX, h * 0.5 + goalDepth);
+    ctx.moveTo(goalRightX, h * 0.5);
+    ctx.lineTo(goalRightX, h * 0.5 + goalDepth);
     // Back wall
-    ctx.moveTo(-goalHalf, h * 0.5 + goalDepth);
-    ctx.lineTo(goalHalf, h * 0.5 + goalDepth);
+    ctx.moveTo(goalLeftX, h * 0.5 + goalDepth);
+    ctx.lineTo(goalRightX, h * 0.5 + goalDepth);
     ctx.stroke();
 
     ctx.restore();
@@ -5734,7 +6176,7 @@ class GoalDuelGame {
     
     // Ball — use solid color instead of radial gradient every frame
     const b = this.ball;
-    const spriteSize = this.settings.ballSpriteSize;
+    const spriteSize = this.settings.ballSpriteSize * this.ballPop.scale;
     ctx.fillStyle = "rgba(255,200,150,0.92)";
     ctx.beginPath();
     ctx.arc(b.position.x, b.position.y, spriteSize, 0, Math.PI * 2);
@@ -5977,4 +6419,3 @@ class GoalDuelGame {
 }
 
 new GoalDuelGame();
-

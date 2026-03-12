@@ -919,9 +919,9 @@ export class EnemyFactory {
     const depthMeters = Math.floor((chunkIndex * CONFIG.CHUNK_HEIGHT) / 10);
     const types: EnemyType[] = ["HORIZONTAL"];
 
-    if (depthMeters >= 100) types.push("PUFFER");
-    if (depthMeters >= 200) types.push("STATIC");
-    if (depthMeters >= 300) types.push("EXPLODER");
+    if (depthMeters >= 300)  types.push("PUFFER");
+    if (depthMeters >= 500)  types.push("STATIC");
+    if (depthMeters >= 1000) types.push("EXPLODER");
 
     return types;
   }

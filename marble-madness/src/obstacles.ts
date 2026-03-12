@@ -274,6 +274,7 @@ export interface FallingPlatformObstacle extends ObstacleBase {
 }
 
 export interface ObstacleAnimationHost {
+  world: RAPIER.World | null;
   fixedStep: number;
   runTimeSeconds: number;
   rotatorObstacles: RotatorXObstacle[];
@@ -517,7 +518,7 @@ export function createRunObstacleOrder(
     "pinball_bouncer",
     "bouncy_pad",
     "swinging_hammer",
-    "falling_platform",
+    // "falling_platform", // Disabled - use falling_tiles platform type instead
   ];
   for (let i = order.length - 1; i > 0; i -= 1) {
     const j = Math.floor(randomFn() * (i + 1));
@@ -1174,10 +1175,10 @@ export function addWaveObstacleMeshes(host: WaveObstacleMeshHost): void {
     );
     arm.position.set(0, -armLength * 0.5, 0);
 
-    // Hammer head - at the bottom of the arm
+    // Hammer head - at the bottom of the arm (wider for better hits)
     const headSize = hammer.hammerLength * 0.3;
     const head = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, headSize, 0.35),
+      new THREE.BoxGeometry(0.45, headSize, 1.2),
       hammerMaterial,
     );
     head.position.set(0, -(armLength + headSize * 0.5), 0);
@@ -1576,9 +1577,9 @@ export function applyObstacleInteractions(host: ObstacleInteractionHost): void {
         tempPoint,
         tempCenter,
         tempRotation,
-        0.1,
+        0.225,
         hammer.hammerLength * 0.5,
-        0.1,
+        0.6,
         host.marbleRadius + OBSTACLE_THUD_PADDING,
       );
 
@@ -1605,12 +1606,21 @@ export function applyObstacleInteractions(host: ObstacleInteractionHost): void {
         .applyQuaternion(tempRotation)
         .normalize();
 
+      // Convert any downward force into horizontal force
+      // Project onto horizontal plane and add strong upward impulse
       const knockbackMagnitude = hammer.knockbackImpulse;
+      const horizontalX = hammerFaceNormal.x;
+      const horizontalZ = hammerFaceNormal.z;
+
+      // If hammer has downward component, add that energy to horizontal
+      const downwardComponent = Math.min(0, hammerFaceNormal.y);
+      const extraHorizontalScale = 1 + Math.abs(downwardComponent);
+
       host.marbleBody.applyImpulse(
         {
-          x: hammerFaceNormal.x * knockbackMagnitude,
-          y: 2.5,
-          z: hammerFaceNormal.z * knockbackMagnitude,
+          x: horizontalX * knockbackMagnitude * extraHorizontalScale,
+          y: 4.0,
+          z: horizontalZ * knockbackMagnitude * extraHorizontalScale,
         },
         true,
       );
@@ -2138,6 +2148,10 @@ export function updateWaveObstacleAnimation(host: ObstacleAnimationHost): void {
       if (warningProgress >= 1) {
         platform.state = "falling";
         platform.fallStartTime = host.runTimeSeconds;
+        // Reset mesh position before starting fall animation
+        if (mesh) {
+          mesh.position.y = platform.y;
+        }
       } else {
         // Shake effect
         const shakeOffset = Math.sin(host.runTimeSeconds * 28) * FALLING_PLATFORM_SHAKE_AMPLITUDE;
@@ -2167,10 +2181,11 @@ export function updateWaveObstacleAnimation(host: ObstacleAnimationHost): void {
       if (fallT >= 1) {
         platform.state = "fallen";
         // Remove physics body
-        if (body && host.obstacleBodyById.has(platform.id)) {
-          const world = body.world();
-          if (world) {
-            world.removeRigidBody(body);
+        if (body && host.world && host.obstacleBodyById.has(platform.id)) {
+          try {
+            host.world.removeRigidBody(body);
+          } catch (e) {
+            console.error("[FallingPlatform] Error removing body:", e);
           }
           host.obstacleBodyById.delete(platform.id);
         }

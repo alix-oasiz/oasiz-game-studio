@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/style.css">
+    <title>Rider</title>
+</head>
+<body>
+    <div id="app">
+        <div id="game-container"></div>
+
+        <div id="ui-layer" style="display: none;">
+
+            <div class="title-area">
+                <div class="game-title">RIDER</div>
+            </div>
+
+            <div class="moto-area">
+                <img src="/assets/motorcycle.png" class="moto-hero" alt="" />
+            </div>
+
+            <div class="bottom-area">
+                <div id="score-display" class="score-display hidden">
+                    <div class="score-label">SCORE</div>
+                    <div id="hud-score" class="score-value">0</div>
+                </div>
+                <div id="play-btn" class="play-btn">
+                    <span id="play-btn-text">PLAY</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <!-- SETTINGS GEAR — always visible, fixed, outside ui-layer -->
+    <div id="settings-btn">&#9881;</div>
+
+    <!-- SETTINGS OVERLAY + MODAL -->
+    <div id="settings-overlay"></div>
+    <div id="settings-modal">
+        <div class="settings-title">Settings</div>
+        <div class="settings-divider"></div>
+
+        <div class="settings-row">
+            <div class="settings-label">Music</div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-music" checked>
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+
+        <div class="settings-row">
+            <div class="settings-label">FX</div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-fx" checked>
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+
+        <div class="settings-row">
+            <div class="settings-label">Haptics</div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-haptics" checked>
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+
+        <div class="settings-close-row">
+            <button id="settings-close" class="settings-close-btn">Close</button>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

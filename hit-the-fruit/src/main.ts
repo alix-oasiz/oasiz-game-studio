@@ -19,9 +19,12 @@
  * - Modify MIN_ANGULAR_SPACING for minimum gap between embedded knives
  */
 
+import { oasiz } from "@oasiz/sdk";
+
 // Import assets
 import background1Url from "../Assets/Backgrounds/Back 1.png";
 import background2Url from "../Assets/Backgrounds/Back 2.png";
+import background3Url from "../Assets/Backgrounds/Back 3.png";
 import avocadoUrl from "../Assets/Targets/Fruit/Normal Fruit/avocado.png";
 import orangeUrl from "../Assets/Targets/Fruit/Normal Fruit/orange.png";
 import grapeUrl from "../Assets/Targets/Fruit/Normal Fruit/grape.png";
@@ -38,17 +41,19 @@ import brokenKunai1Url from "../Assets/Weapons/broken_kunai1.png";
 import brokenKunai2Url from "../Assets/Weapons/broken_kunai2.png";
 import brokenPen1Url from "../Assets/Weapons/broken_pen1.png";
 import brokenPen2Url from "../Assets/Weapons/broken_pen2.png";
+import brokenPencil1Url from "../Assets/Weapons/broken_pencil1.png";
+import brokenPencil2Url from "../Assets/Weapons/broken_pencil2.png";
 import knifeIconUrl from "../Assets/Weapons/icon.png";
 import kunaiIconUrl from "../Assets/Weapons/kunai_icon.png";
 import penIconUrl from "../Assets/Weapons/pen_icon.png";
 import pencilIconUrl from "../Assets/Weapons/Pencil.png";
 
 // Import sound effects
-import wooshUrl from "../sfx/woosh.wav";
 import stabUrl from "../sfx/stab.wav";
 import brokeUrl from "../sfx/broke.wav";
 import dullUrl from "../sfx/dull.wav";
 import successUrl from "../sfx/success.wav";
+import pencilBreakUrl from "../sfx/pencil_break.mp3";
 import uiTapUrl from "../sfx/ui_tap.mp3";
 import uiConfirmUrl from "../sfx/ui_confirm.mp3";
 import timeoutUrl from "../sfx/timeout.mp3";
@@ -71,13 +76,13 @@ const CONFIG = {
   MIN_ANGULAR_SPACING: 15, // Minimum degrees between embedded knives
   
   // Level Generation
-  TOTAL_LEVELS: 100,
+  TOTAL_LEVELS: 150,
   MIN_EMBEDDED_KNIVES: 4, // Increased from 2 to make early levels harder
   MAX_EMBEDDED_KNIVES: 12,
   MIN_ROTATION_SPEED: 60, // Increased from 30 to make early levels faster
   MAX_ROTATION_SPEED: 180,
   MIN_KNIVES_TO_THROW: 5, // Increased from 3 to make early levels harder
-  MAX_KNIVES_TO_THROW: 8,
+  MAX_KNIVES_TO_THROW: 16,
   
   // Visual
   FRUIT_RINGS: 3,
@@ -137,7 +142,8 @@ type RotationPatternType =
   | "alternating"
   | "breathing"
   | "staged"
-  | "chaotic";
+  | "chaotic"
+  | "stutter";
 
 interface Knife {
   angle: number; // Angle when embedded (0-360)
@@ -346,6 +352,17 @@ const ROTATION_PATTERNS: Record<RotationPatternType, RotationPattern> = {
     const dirMultiplier = Math.sin(t * 0.4) > 0 ? 1 : -1;
     return baseSpeed * direction * multiplier * dirMultiplier;
   },
+
+  // Stutter: spins fast then near-stops briefly — a psychological trap
+  stutter: (t, baseSpeed, direction) => {
+    const cycle = 1.5; // 1.5s cycle: 1.1s fast, 0.4s near-stop
+    const phase = t % cycle;
+    if (phase < 1.1) {
+      return baseSpeed * direction * 1.35; // 135% speed during fast phase
+    }
+    // Near-stop: crawls at 4% speed — looks like a safe throw window
+    return baseSpeed * direction * 0.04;
+  },
 };
 
 // Smooth acceleration limiter
@@ -372,60 +389,111 @@ class LevelGenerator {
   }
 
   generateLevel(levelIndex: number): LevelConfig {
-    // Difficulty ramps gradually
-    const progress = levelIndex / (CONFIG.TOTAL_LEVELS - 1); // 0 to 1
-    
-    // Fruit radius (slightly smaller as difficulty increases)
-    const fruitRadius = CONFIG.MIN_FRUIT_RADIUS + 
-      (CONFIG.MAX_FRUIT_RADIUS - CONFIG.MIN_FRUIT_RADIUS) * (1 - progress * 0.3);
-    
-    // Embedded knives (knives already on the fruit when the round starts)
-    // Levels 1-9: 3, Levels 10-29: 4, then +1 every 15 levels after 30, max 5
+    // Two distinct difficulty bands: levels 0-99 (original) and 100-149 (new)
+    const isAdvanced = levelIndex >= 100;
+
+    // progress within each band (0 to 1)
+    const progress = isAdvanced
+      ? (levelIndex - 100) / 49 // 0→1 across levels 100-149
+      : levelIndex / 99; // 0→1 across levels 0-99
+
+    // ── Fruit radius ──────────────────────────────────────────────────────────
+    // Levels 0-99: subtle shrink from MAX down to ~85% of range
+    // Levels 100-149: locked at the radius level 99 had — no further shrink
+    let fruitRadius: number;
+    if (!isAdvanced) {
+      fruitRadius =
+        CONFIG.MIN_FRUIT_RADIUS +
+        (CONFIG.MAX_FRUIT_RADIUS - CONFIG.MIN_FRUIT_RADIUS) * (1 - progress * 0.3);
+    } else {
+      // Radius at level 99
+      fruitRadius =
+        CONFIG.MIN_FRUIT_RADIUS +
+        (CONFIG.MAX_FRUIT_RADIUS - CONFIG.MIN_FRUIT_RADIUS) * (1 - 0.3);
+    }
+
+    // ── Embedded knives ───────────────────────────────────────────────────────
+    // Levels 0-99:   3 → 5 (hard cap 5 per original design)
+    // Levels 100-149: continue from 5, ramp to hard cap of 7
     let numEmbedded: number;
     if (levelIndex < 10) {
       numEmbedded = 3;
     } else if (levelIndex < 30) {
       numEmbedded = 4;
-    } else {
+    } else if (levelIndex < 100) {
       numEmbedded = Math.min(5, 5 + Math.floor((levelIndex - 30) / 15));
+    } else {
+      // Levels 100-149: ramp 5 → 7 (one extra knife every ~17 levels)
+      numEmbedded = Math.min(7, 5 + Math.floor((levelIndex - 100) / 17));
     }
-    const embeddedKnives = this.generateEmbeddedKnives(numEmbedded, fruitRadius);
-    
-    // Rotation speed (faster as difficulty increases, steeper curve for early levels)
-    // Use a curve that starts higher and ramps faster
-    const speedProgress = Math.pow(progress, 0.7); // Steeper curve
-    const rotationSpeed = (CONFIG.MIN_ROTATION_SPEED + 
-      (CONFIG.MAX_ROTATION_SPEED - CONFIG.MIN_ROTATION_SPEED) * speedProgress) * 1.5;
-    
-    // Rotation direction
+
+    // Use cluster placement for advanced levels, even distribution otherwise
+    const embeddedKnives = isAdvanced
+      ? this.generateClusteredKnives(numEmbedded, fruitRadius)
+      : this.generateEmbeddedKnives(numEmbedded, fruitRadius);
+
+    // ── Rotation speed ────────────────────────────────────────────────────────
+    // Levels 0-99:   original ramp (×1.5 multiplier, power 0.7 curve)
+    // Levels 100-149: continue ramping above level-99 speed, up to ×1.9
+    let rotationSpeed: number;
+    if (!isAdvanced) {
+      const speedProgress = Math.pow(progress, 0.7);
+      rotationSpeed =
+        (CONFIG.MIN_ROTATION_SPEED +
+          (CONFIG.MAX_ROTATION_SPEED - CONFIG.MIN_ROTATION_SPEED) * speedProgress) *
+        1.5;
+    } else {
+      // Speed at level 99 (speedProgress ≈ 0.965 with power 0.7)
+      const baseSpeed99 =
+        (CONFIG.MIN_ROTATION_SPEED +
+          (CONFIG.MAX_ROTATION_SPEED - CONFIG.MIN_ROTATION_SPEED) *
+            Math.pow(99 / 99, 0.7)) *
+        1.5;
+      // Ramp multiplier from 1.0 → 1.27 over the 50 advanced levels
+      const advMultiplier = 1.0 + progress * 0.27;
+      rotationSpeed = baseSpeed99 * advMultiplier;
+    }
+
+    // ── Rotation direction ────────────────────────────────────────────────────
     const rotationDirection = this.rng.next() < 0.5 ? -1 : 1;
-    
-    // Rotation patterns available at this level (all are used, switching randomly):
-    // Levels 1-14:  constant only
-    // Levels 15-29: speed-variation patterns unlocked (no reverse)
-    // Levels 30+:   reverse-rotation patterns also unlocked
+
+    // ── Rotation patterns ─────────────────────────────────────────────────────
+    // Levels 1-14:   constant only
+    // Levels 15-29:  speed-variation patterns
+    // Levels 30-49:  + alternating, reverse_smooth
+    // Levels 50-69:  + staged
+    // Levels 70-99:  + chaotic
+    // Levels 100-119: all of the above
+    // Levels 120+:   + stutter (psychological trap)
     let rotationPatterns: RotationPatternType[];
-    
+
     if (levelIndex < 15) {
       rotationPatterns = ["constant"];
     } else if (levelIndex < 30) {
       rotationPatterns = ["constant", "ramp_up_down", "pulse", "breathing"];
     } else {
-      rotationPatterns = ["constant", "ramp_up_down", "pulse", "breathing", "alternating", "reverse_smooth"];
-      if (levelIndex >= 50) {
-        rotationPatterns.push("staged");
-      }
-      if (levelIndex >= 70) {
-        rotationPatterns.push("chaotic");
-      }
+      rotationPatterns = [
+        "constant",
+        "ramp_up_down",
+        "pulse",
+        "breathing",
+        "alternating",
+        "reverse_smooth",
+      ];
+      if (levelIndex >= 50) rotationPatterns.push("staged");
+      if (levelIndex >= 70) rotationPatterns.push("chaotic");
+      if (levelIndex >= 120) rotationPatterns.push("stutter");
     }
-    
-    const knivesToThrow = 5 + Math.floor(levelIndex / 10);
-    
-    // Generate coins (ensure they don't overlap with knives)
+
+    // ── Knives to throw ───────────────────────────────────────────────────────
+    // Original: 5 + floor(level / 10), no cap
+    // Advanced: ramp but hard-cap at 15
+    const knivesToThrow = Math.min(15, 5 + Math.floor(levelIndex / 10));
+
+    // ── Coins ─────────────────────────────────────────────────────────────────
     const coinCount = Math.max(1, Math.floor(2 + progress * 3)); // 2-5 coins
     const coins = this.generateCoins(coinCount, embeddedKnives, fruitRadius);
-    
+
     return {
       fruitRadius: Math.round(fruitRadius),
       embeddedKnives,
@@ -437,26 +505,54 @@ class LevelGenerator {
     };
   }
 
-  private generateEmbeddedKnives(count: number, fruitRadius: number): number[] {
+  private generateEmbeddedKnives(count: number, _fruitRadius: number): number[] {
     // Evenly distribute knives around the circumference
     const angles: number[] = [];
-    
-    if (count === 0) {
-      return angles;
-    }
-    
-    // Calculate equal spacing: 360 degrees divided by number of knives
+
+    if (count === 0) return angles;
+
     const spacing = 360 / count;
-    
-    // Start at a random offset to add variety, then space evenly
     const startOffset = this.rng.nextFloat(0, 360);
-    
+
     for (let i = 0; i < count; i++) {
-      // Evenly space each knife around the circle
-      const angle = normalizeAngle(startOffset + (i * spacing));
-      angles.push(angle);
+      angles.push(normalizeAngle(startOffset + i * spacing));
     }
-    
+
+    return angles.sort((a, b) => a - b);
+  }
+
+  private generateClusteredKnives(count: number, _fruitRadius: number): number[] {
+    // "Cluster" layout: group knives into 2 tight bundles, leaving wide safe arcs
+    // that trick the player into thinking there are more openings than there are.
+    const angles: number[] = [];
+
+    if (count === 0) return angles;
+
+    const minGap = 22; // degrees between knives inside a cluster
+
+    if (count <= 3) {
+      // Small counts: one cluster + one solo knife on the opposite side
+      const clusterStart = this.rng.nextFloat(0, 360);
+      const clusterSize = Math.min(count - 1, 2);
+      for (let i = 0; i < clusterSize; i++) {
+        angles.push(normalizeAngle(clusterStart + i * minGap));
+      }
+      // Solo knife ~160-200° away
+      angles.push(normalizeAngle(clusterStart + 170 + this.rng.nextFloat(0, 30)));
+    } else {
+      // Split into two clusters of roughly equal size on opposite sides
+      const half = Math.ceil(count / 2);
+      const clusterA = this.rng.nextFloat(0, 180);
+      const clusterB = normalizeAngle(clusterA + 180 + this.rng.nextFloat(-15, 15));
+
+      for (let i = 0; i < half; i++) {
+        angles.push(normalizeAngle(clusterA + i * minGap));
+      }
+      for (let i = 0; i < count - half; i++) {
+        angles.push(normalizeAngle(clusterB + i * minGap));
+      }
+    }
+
     return angles.sort((a, b) => a - b);
   }
 
@@ -689,6 +785,8 @@ class KnifeHitGame {
   // Assets
   private background1Image: HTMLImageElement | null = null;
   private background2Image: HTMLImageElement | null = null;
+  private background3Image: HTMLImageElement | null = null;
+  private selectedBackground: number = 0;
   private avocadoImage: HTMLImageElement | null = null;
   private orangeImage: HTMLImageElement | null = null;
   private grapeImage: HTMLImageElement | null = null;
@@ -702,6 +800,8 @@ class KnifeHitGame {
   private brokenKunai2Image: HTMLImageElement | null = null;
   private brokenPen1Image: HTMLImageElement | null = null;
   private brokenPen2Image: HTMLImageElement | null = null;
+  private brokenPencil1Image: HTMLImageElement | null = null;
+  private brokenPencil2Image: HTMLImageElement | null = null;
   private knifeIconImage: HTMLImageElement | null = null;
   private kunaiIconImage: HTMLImageElement | null = null;
   private penIconImage: HTMLImageElement | null = null;
@@ -715,21 +815,23 @@ class KnifeHitGame {
   };
   private assetsLoaded: boolean = false;
   
-  // Audio
-  private bgmTracks: HTMLAudioElement[] = [];
+  // Audio — all sounds decoded to AudioBuffer; BGM tracked via a live BufferSourceNode
+  private sharedAudioContext: AudioContext | null = null;
+  private bgmGainNode: GainNode | null = null;
+  private bgmBuffers: AudioBuffer[] = [];
   private bgmIndex: number = 0;
-  private uiTapSound: HTMLAudioElement | null = null;
-  private uiConfirmSound: HTMLAudioElement | null = null;
-  private timeoutSound: HTMLAudioElement | null = null;
-  private wooshSound: HTMLAudioElement | null = null;
-  private stabPool: HTMLAudioElement[] = [];
-  private stabPoolIndex: number = 0;
-  private brokeSound: HTMLAudioElement | null = null;
-  private dullSound: HTMLAudioElement | null = null;
-  private successSound: HTMLAudioElement | null = null;
-  private transitionSound: HTMLAudioElement | null = null;
-  private spawnSound: HTMLAudioElement | null = null;
-  private plingSound: HTMLAudioElement | null = null;
+  private bgmSource: AudioBufferSourceNode | null = null;
+  private sfxBufUiTap: AudioBuffer | null = null;
+  private sfxBufUiConfirm: AudioBuffer | null = null;
+  private sfxBufTimeout: AudioBuffer | null = null;
+  private sfxBufStab: AudioBuffer | null = null;
+  private sfxBufBroke: AudioBuffer | null = null;
+  private sfxBufDull: AudioBuffer | null = null;
+  private sfxBufPencilBreak: AudioBuffer | null = null;
+  private sfxBufSuccess: AudioBuffer | null = null;
+  private sfxBufTransition: AudioBuffer | null = null;
+  private sfxBufSpawn: AudioBuffer | null = null;
+  private sfxBufPling: AudioBuffer | null = null;
   
   // UI Elements
   private hud: HTMLElement;
@@ -760,6 +862,12 @@ class KnifeHitGame {
   private coinSaveDirty: boolean = false;
   // Cached isMobile value (only changes on resize)
   private isMobile: boolean = false;
+  // Cached gradients — rebuilt in resizeCanvas() to avoid per-frame allocations
+  private cachedVignetteGradient: CanvasGradient | null = null;
+  private cachedRingGlowGradient: CanvasGradient | null = null;
+  private cachedLevelSelectVignetteGradient: CanvasGradient | null = null;
+  private cachedTimeoutTextGradient: CanvasGradient | null = null;
+  // Pre-rendered coin sprite (drawn once, reused every frame)
   private debugPanel: HTMLElement;
   private debugContent: HTMLElement;
   private settingsIconBtn: HTMLElement;
@@ -768,6 +876,8 @@ class KnifeHitGame {
   constructor() {
     this.canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
     this.ctx = this.canvas.getContext("2d")!;
+    this.ctx.imageSmoothingEnabled = true;
+    (this.ctx as any).imageSmoothingQuality = "high";
     
     // Initialize UI
     this.hud = document.getElementById("hud")!;
@@ -813,7 +923,30 @@ class KnifeHitGame {
 
     // Pre-create bottom knife icons to avoid DOM churn during throws
     this.initKnifeIconStrip();
-    
+
+    // Pre-warm particle pool to avoid GC spikes on first explosion
+    for (let i = 0; i < 100; i++) {
+      this.particlePool.push({} as Particle);
+    }
+
+    // Platform lifecycle hooks
+    oasiz.onPause(() => {
+      if (this.state === "PLAYING") this.pause();
+      this.stopBgm();
+      this.flushCoinSave();
+      this.saveGameStateAll(true);
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        this.flushCoinSave();
+        this.saveGameStateAll(true);
+      }
+    });
+    oasiz.onResume(() => {
+      if (this.settings.music) this.startBgm();
+    });
+
     // Start game loop
     this.gameLoop(0);
   }
@@ -836,7 +969,7 @@ class KnifeHitGame {
 
   private loadAssets(): void {
     let loadedCount = 0;
-    const totalAssets = 20; // + kunai/pen icons
+    const totalAssets = 23; // backgrounds(3) + weapons + broken sprites + icons
     
     const checkAllLoaded = () => {
       loadedCount++;
@@ -863,6 +996,15 @@ class KnifeHitGame {
     this.background2Image.onload = checkAllLoaded;
     this.background2Image.onerror = () => {
       console.warn("[KnifeHitGame] Failed to load background2");
+      checkAllLoaded();
+    };
+
+    // Load background 3
+    this.background3Image = new Image();
+    this.background3Image.src = background3Url;
+    this.background3Image.onload = checkAllLoaded;
+    this.background3Image.onerror = () => {
+      console.warn("[KnifeHitGame] Failed to load background3");
       checkAllLoaded();
     };
     
@@ -1006,6 +1148,22 @@ class KnifeHitGame {
       checkAllLoaded();
     };
 
+    this.brokenPencil1Image = new Image();
+    this.brokenPencil1Image.src = brokenPencil1Url;
+    this.brokenPencil1Image.onload = checkAllLoaded;
+    this.brokenPencil1Image.onerror = () => {
+      console.warn("[KnifeHitGame] Failed to load broken pencil 1");
+      checkAllLoaded();
+    };
+
+    this.brokenPencil2Image = new Image();
+    this.brokenPencil2Image.src = brokenPencil2Url;
+    this.brokenPencil2Image.onload = checkAllLoaded;
+    this.brokenPencil2Image.onerror = () => {
+      console.warn("[KnifeHitGame] Failed to load broken pen 2");
+      checkAllLoaded();
+    };
+
     // Load knife icon
     this.knifeIconImage = new Image();
     this.knifeIconImage.src = knifeIconUrl;
@@ -1041,180 +1199,208 @@ class KnifeHitGame {
       checkAllLoaded();
     };
     
-    // Load audio files
-    this.uiTapSound = new Audio(uiTapUrl);
-    this.uiTapSound.preload = "auto";
-    this.uiTapSound.volume = 1.0;
-
-    this.uiConfirmSound = new Audio(uiConfirmUrl);
-    this.uiConfirmSound.preload = "auto";
-    this.uiConfirmSound.volume = 1.0;
-
-    this.timeoutSound = new Audio(timeoutUrl);
-    this.timeoutSound.preload = "auto";
-    this.timeoutSound.volume = 1.0;
-
-    this.wooshSound = new Audio(wooshUrl);
-    this.wooshSound.preload = "auto";
-    this.wooshSound.volume = 0.5; // 50% volume
-    
-    for (let i = 0; i < 4; i++) {
-      const s = new Audio(stabUrl);
-      s.preload = "auto";
-      s.volume = 1.0;
-      this.stabPool.push(s);
-    }
-    
-    this.brokeSound = new Audio(brokeUrl);
-    this.brokeSound.preload = "auto";
-    this.brokeSound.volume = 1.0;
-    
-    this.dullSound = new Audio(dullUrl);
-    this.dullSound.preload = "auto";
-    this.dullSound.volume = 1.0;
-    
-    this.successSound = new Audio(successUrl);
-    this.successSound.preload = "auto";
-    this.successSound.volume = 1.0;
-    
-    // Background music tracks (alternate between them)
-    for (const url of [bgm1Url, bgm2Url]) {
-      const track = new Audio(url);
-      track.preload = "auto";
-      track.volume = 0.22;
-      track.loop = false;
-      track.addEventListener("ended", () => this.playNextBgm());
-      this.bgmTracks.push(track);
+    // Initialise single shared AudioContext for all audio
+    try {
+      this.sharedAudioContext = new (AudioContext || (window as any).webkitAudioContext)();
+      // Dedicated gain node for BGM so we can mute music independently
+      this.bgmGainNode = this.sharedAudioContext.createGain();
+      this.bgmGainNode.gain.value = 0.22;
+      this.bgmGainNode.connect(this.sharedAudioContext.destination);
+    } catch (e) {
+      console.warn("[KnifeHitGame] Failed to create AudioContext:", e);
     }
 
-    // Create transition and spawn sounds using Web Audio API
-    this.transitionSound = this.createTransitionSound();
-    this.spawnSound = this.createSpawnSound();
-    this.plingSound = this.createPlingSound();
+    // Helper: fetch a URL and decode to AudioBuffer (non-blocking, best-effort)
+    const decodeUrl = async (url: string): Promise<AudioBuffer | null> => {
+      if (!this.sharedAudioContext) return null;
+      try {
+        const resp = await fetch(url);
+        const arrayBuf = await resp.arrayBuffer();
+        return await this.sharedAudioContext.decodeAudioData(arrayBuf);
+      } catch (e) {
+        console.warn("[KnifeHitGame] Failed to decode audio:", url, e);
+        return null;
+      }
+    };
+
+    // Decode all file-based SFX in parallel (fire and forget — game is playable before they arrive)
+    Promise.all([
+      decodeUrl(uiTapUrl),
+      decodeUrl(uiConfirmUrl),
+      decodeUrl(timeoutUrl),
+      decodeUrl(stabUrl),
+      decodeUrl(brokeUrl),
+      decodeUrl(dullUrl),
+      decodeUrl(successUrl),
+      decodeUrl(pencilBreakUrl),
+      decodeUrl(bgm1Url),
+      decodeUrl(bgm2Url),
+    ]).then(([uiTap, uiConfirm, timeout, stab, broke, dull, success, pencilBreak, bgm1, bgm2]) => {
+      this.sfxBufUiTap = uiTap;
+      this.sfxBufUiConfirm = uiConfirm;
+      this.sfxBufTimeout = timeout;
+      this.sfxBufStab = stab;
+      this.sfxBufBroke = broke;
+      this.sfxBufDull = dull;
+      this.sfxBufSuccess = success;
+      this.sfxBufPencilBreak = pencilBreak;
+      if (bgm1) this.bgmBuffers.push(bgm1);
+      if (bgm2) this.bgmBuffers.push(bgm2);
+      console.log("[KnifeHitGame] All audio decoded");
+      // Start BGM now that buffers are ready (ctx.resume handles autoplay policy)
+      if (this.settings.music) this.startBgm();
+    });
+
+    // Fallback: if the AudioContext is still suspended after first user interaction
+    // (autoplay policy), resume and start BGM then
+    const onFirstInteraction = () => {
+      const ctx = this.sharedAudioContext;
+      if (!ctx) return;
+      if (ctx.state === "suspended") {
+        ctx.resume().then(() => {
+          if (this.settings.music && !this.bgmSource && this.bgmBuffers.length > 0) {
+            this.startBgm();
+          }
+        });
+      }
+      document.removeEventListener("click", onFirstInteraction);
+      document.removeEventListener("touchstart", onFirstInteraction);
+      document.removeEventListener("keydown", onFirstInteraction);
+    };
+    document.addEventListener("click", onFirstInteraction);
+    document.addEventListener("touchstart", onFirstInteraction);
+    document.addEventListener("keydown", onFirstInteraction);
+
+    // Build procedural sound buffers synchronously (no fetch needed)
+    this.sfxBufTransition = this.buildTransitionBuffer();
+    this.sfxBufSpawn = this.buildSpawnBuffer();
+    this.sfxBufPling = this.buildPlingBuffer();
+
   }
   
+  // ─── unified Web Audio playback helper ───────────────────────────────────
+  private playBuffer(buffer: AudioBuffer | null, volume = 1.0): void {
+    const ctx = this.sharedAudioContext;
+    if (!ctx || !buffer) return;
+    try {
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      source.buffer = buffer;
+      gain.gain.value = volume;
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+    } catch (e) {
+      console.warn("[KnifeHitGame] playBuffer error:", e);
+    }
+  }
+
+  // ─── BGM ─────────────────────────────────────────────────────────────────
   private playNextBgm(): void {
-    this.bgmIndex = (this.bgmIndex + 1) % this.bgmTracks.length;
+    if (this.bgmBuffers.length === 0) return;
+    this.bgmIndex = (this.bgmIndex + 1) % this.bgmBuffers.length;
     this.startBgm();
   }
 
   private startBgm(): void {
-    if (!this.settings.music) return;
-    const track = this.bgmTracks[this.bgmIndex];
-    if (!track) return;
-    track.currentTime = 0;
-    track.play().catch(() => {});
-  }
+    const ctx = this.sharedAudioContext;
+    if (!this.settings.music || !ctx || !this.bgmGainNode) return;
+    if (this.bgmBuffers.length === 0) return;
+    this.stopBgm();
+    const buffer = this.bgmBuffers[this.bgmIndex];
+    if (!buffer) return;
 
-  private stopBgm(): void {
-    for (const track of this.bgmTracks) {
-      track.pause();
-      track.currentTime = 0;
+    const doPlay = () => {
+      try {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = false;
+        source.connect(this.bgmGainNode!);
+        source.onended = () => {
+          if (this.bgmSource === source) this.playNextBgm();
+        };
+        source.start();
+        this.bgmSource = source;
+      } catch (e) {
+        console.warn("[KnifeHitGame] startBgm error:", e);
+      }
+    };
+
+    // Resume suspended context (browser autoplay policy) then play
+    if (ctx.state === "suspended") {
+      ctx.resume().then(doPlay).catch((e) => console.warn("[KnifeHitGame] ctx.resume error:", e));
+    } else {
+      doPlay();
     }
   }
 
-  private createTransitionSound(): HTMLAudioElement {
-    // Create a simple transition sound using a data URL
-    // This is a placeholder - in production, you'd use a generated audio file
-    const audio = new Audio();
-    // Use a simple approach: create audio programmatically
+  private stopBgm(): void {
+    if (this.bgmSource) {
+      try { this.bgmSource.onended = null; this.bgmSource.stop(); } catch (_) {}
+      this.bgmSource = null;
+    }
+  }
+
+  private buildTransitionBuffer(): AudioBuffer | null {
+    const ctx = this.sharedAudioContext;
+    if (!ctx) return null;
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const duration = 0.5;
-      const buffer = audioContext.createBuffer(1, audioContext.sampleRate * duration, audioContext.sampleRate);
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
       const data = buffer.getChannelData(0);
-      
       for (let i = 0; i < buffer.length; i++) {
-        const t = i / audioContext.sampleRate;
+        const t = i / ctx.sampleRate;
         const fadeIn = Math.min(1, t / 0.1);
         const fadeOut = Math.min(1, (duration - t) / 0.1);
         const envelope = fadeIn * fadeOut;
         const freq = 400 + (200 * (1 - t / duration));
         data[i] = Math.sin(2 * Math.PI * freq * t) * envelope * 0.3;
       }
-      
-      // Store buffer for later playback
-      (audio as any).audioBuffer = buffer;
-      (audio as any).audioContext = audioContext;
+      return buffer;
     } catch (e) {
-      console.warn("[KnifeHitGame] Failed to create transition sound:", e);
+      console.warn("[KnifeHitGame] Failed to build transition buffer:", e);
+      return null;
     }
-    
-    audio.volume = 1.0;
-    return audio;
   }
-  
-  private createSpawnSound(): HTMLAudioElement {
-    // Create a simple spawn sound using a data URL
-    const audio = new Audio();
+
+  private buildSpawnBuffer(): AudioBuffer | null {
+    const ctx = this.sharedAudioContext;
+    if (!ctx) return null;
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const duration = 0.3;
-      const buffer = audioContext.createBuffer(1, audioContext.sampleRate * duration, audioContext.sampleRate);
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
       const data = buffer.getChannelData(0);
-      
       for (let i = 0; i < buffer.length; i++) {
-        const t = i / audioContext.sampleRate;
+        const t = i / ctx.sampleRate;
         const envelope = Math.exp(-t * 15) * (1 - t / duration);
         const freq = 600 + (300 * (1 - t / duration));
         data[i] = Math.sin(2 * Math.PI * freq * t) * envelope * 0.4;
       }
-      
-      // Store buffer for later playback
-      (audio as any).audioBuffer = buffer;
-      (audio as any).audioContext = audioContext;
+      return buffer;
     } catch (e) {
-      console.warn("[KnifeHitGame] Failed to create spawn sound:", e);
-    }
-    
-    audio.volume = 1.0;
-    return audio;
-  }
-  
-  private playGeneratedSound(sound: HTMLAudioElement): void {
-    if (!sound || !this.settings.fx) return;
-    
-    try {
-      const audioContext = (sound as any).audioContext;
-      const buffer = (sound as any).audioBuffer;
-      
-      if (audioContext && buffer) {
-        const source = audioContext.createBufferSource();
-        const gainNode = audioContext.createGain();
-        source.buffer = buffer;
-        gainNode.gain.value = 1.0;
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        source.start();
-      }
-    } catch (e) {
-      console.warn("[KnifeHitGame] Failed to play generated sound:", e);
+      console.warn("[KnifeHitGame] Failed to build spawn buffer:", e);
+      return null;
     }
   }
-  
-  private createPlingSound(): HTMLAudioElement {
-    const audio = new Audio();
+
+  private buildPlingBuffer(): AudioBuffer | null {
+    const ctx = this.sharedAudioContext;
+    if (!ctx) return null;
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const duration = 0.2;
-      const buffer = audioContext.createBuffer(1, audioContext.sampleRate * duration, audioContext.sampleRate);
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
       const data = buffer.getChannelData(0);
-      
       for (let i = 0; i < buffer.length; i++) {
-        const t = i / audioContext.sampleRate;
+        const t = i / ctx.sampleRate;
         const envelope = Math.exp(-t * 20) * (1 - t / duration);
-        // Higher frequency for a "pling" sound
         const freq = 800 + (400 * (1 - t / duration));
         data[i] = Math.sin(2 * Math.PI * freq * t) * envelope * 0.5;
       }
-      
-      (audio as any).audioBuffer = buffer;
-      (audio as any).audioContext = audioContext;
+      return buffer;
     } catch (e) {
-      console.warn("[KnifeHitGame] Failed to create pling sound:", e);
+      console.warn("[KnifeHitGame] Failed to build pling buffer:", e);
+      return null;
     }
-    audio.volume = 1.0;
-    return audio;
   }
 
   private setupEventListeners(): void {
@@ -1483,6 +1669,7 @@ class KnifeHitGame {
   
   private saveWeapon(): void {
     this.safeStorageSet("knifeHitWeapon", this.currentWeapon);
+    this.saveGameStateAll();
   }
 
   private loadTotalCoins(): number {
@@ -1495,6 +1682,7 @@ class KnifeHitGame {
 
   private saveTotalCoins(): void {
     this.safeStorageSet("knifeHitCoins", String(this.coinBank));
+    this.saveGameStateAll();
   }
 
   private loadHighestLevel(): number {
@@ -1505,30 +1693,82 @@ class KnifeHitGame {
     }
   }
 
+  private saveGameStateAll(flush = false): void {
+    const state = {
+      coinBank: this.coinBank,
+      currentWeapon: this.currentWeapon,
+      weaponUnlocks: {
+        pen: this.weaponUnlocks.pen,
+        kunai: this.weaponUnlocks.kunai,
+        pencil: this.weaponUnlocks.pencil,
+      },
+      highestUnlockedLevel: this.highestUnlockedLevel,
+    };
+    oasiz.saveGameState(state);
+    if (flush) oasiz.flushGameState();
+  }
+
   private saveHighestLevel(): void {
     this.safeStorageSet("knifeHitHighestLevel", String(this.highestUnlockedLevel));
+    this.saveGameStateAll(true);
   }
 
   private loadProgression(): void {
-    this.coinBank = this.loadTotalCoins();
-    this.highestUnlockedLevel = this.loadHighestLevel();
+    // Load from oasiz.loadGameState() (cross-device), falling back to localStorage
+    const cloudState = oasiz.loadGameState() as {
+      coinBank?: number;
+      currentWeapon?: WeaponType;
+      weaponUnlocks?: Partial<Record<WeaponType, boolean>>;
+      highestUnlockedLevel?: number;
+    };
 
-    // Load unlocks
-    const rawUnlocks = this.safeStorageGet(ECONOMY.UNLOCKS_STORAGE_KEY);
-    if (rawUnlocks) {
-      try {
-        const obj = JSON.parse(rawUnlocks) as Partial<Record<WeaponType, boolean>>;
-        this.weaponUnlocks = {
-          knife: true,
-          kunai: Boolean(obj.kunai),
-          pen: Boolean(obj.pen),
-          pencil: Boolean(obj.pencil),
-        };
-      } catch {
-        this.weaponUnlocks = { knife: true, kunai: false, pen: false, pencil: false };
+    const hasCloudState = Object.keys(cloudState).length > 0;
+
+    if (hasCloudState) {
+      // Always read localStorage too — it's written synchronously on this device
+      // and may be newer than the platform's cached snapshot of loadGameState()
+      const localCoins = this.loadTotalCoins();
+      const localLevel = this.loadHighestLevel();
+
+      const cloudCoins = typeof cloudState.coinBank === "number" ? cloudState.coinBank : 0;
+      const cloudLevel = typeof cloudState.highestUnlockedLevel === "number" ? cloudState.highestUnlockedLevel : 0;
+
+      // Take the higher of cloud vs local — they should match, but local wins if cloud is stale
+      this.coinBank = Math.max(0, cloudCoins, localCoins);
+      this.highestUnlockedLevel = Math.max(0, cloudLevel, localLevel);
+
+      const unlocks = cloudState.weaponUnlocks ?? {};
+      this.weaponUnlocks = {
+        knife: true,
+        kunai: Boolean(unlocks.kunai),
+        pen: Boolean(unlocks.pen),
+        pencil: Boolean(unlocks.pencil),
+      };
+      const validWeapons: WeaponType[] = ["knife", "kunai", "pen", "pencil"];
+      if (cloudState.currentWeapon && validWeapons.includes(cloudState.currentWeapon)) {
+        this.currentWeapon = cloudState.currentWeapon;
       }
     } else {
-      this.weaponUnlocks = { knife: true, kunai: false, pen: false, pencil: false };
+      // Fallback: read legacy localStorage values
+      this.coinBank = this.loadTotalCoins();
+      this.highestUnlockedLevel = this.loadHighestLevel();
+
+      const rawUnlocks = this.safeStorageGet(ECONOMY.UNLOCKS_STORAGE_KEY);
+      if (rawUnlocks) {
+        try {
+          const obj = JSON.parse(rawUnlocks) as Partial<Record<WeaponType, boolean>>;
+          this.weaponUnlocks = {
+            knife: true,
+            kunai: Boolean(obj.kunai),
+            pen: Boolean(obj.pen),
+            pencil: Boolean(obj.pencil),
+          };
+        } catch {
+          this.weaponUnlocks = { knife: true, kunai: false, pen: false, pencil: false };
+        }
+      } else {
+        this.weaponUnlocks = { knife: true, kunai: false, pen: false, pencil: false };
+      }
     }
 
     // If the saved weapon is locked, force fallback to knife
@@ -1544,6 +1784,7 @@ class KnifeHitGame {
       ECONOMY.UNLOCKS_STORAGE_KEY,
       JSON.stringify({ kunai: this.weaponUnlocks.kunai, pen: this.weaponUnlocks.pen, pencil: this.weaponUnlocks.pencil })
     );
+    this.saveGameStateAll();
   }
 
   private addCoins(amount: number): void {
@@ -1680,6 +1921,39 @@ class KnifeHitGame {
     this.isMobile = window.matchMedia("(pointer: coarse)").matches;
     // Mark coin display rect as stale after resize
     this.coinDisplayRectDirty = true;
+
+    // Apply DPR transform once here so render() doesn't have to each frame
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+    // Rebuild cached gradients now that w/h are known
+    const w = cssW;
+    const h = cssH;
+    const cx = w * 0.5;
+    const cy = h * 0.52;
+    const minWH = Math.min(w, h);
+
+    this.cachedVignetteGradient = this.ctx.createRadialGradient(cx, cy, minWH * 0.2, cx, cy, minWH * 0.8);
+    this.cachedVignetteGradient.addColorStop(0, "rgba(0,0,0,0)");
+    this.cachedVignetteGradient.addColorStop(1, "rgba(0,0,0,0.35)");
+
+    const ringR = minWH * 0.22;
+    this.cachedRingGlowGradient = this.ctx.createRadialGradient(cx, cy, ringR * 0.55, cx, cy, ringR * 1.15);
+    this.cachedRingGlowGradient.addColorStop(0, "rgba(255,255,255,0)");
+    this.cachedRingGlowGradient.addColorStop(0.55, "rgba(255,255,255,0.08)");
+    this.cachedRingGlowGradient.addColorStop(1, "rgba(255,255,255,0)");
+
+    const lsCx = w * 0.5;
+    const lsCy = h * 0.5;
+    const lsMin = Math.min(w, h);
+    this.cachedLevelSelectVignetteGradient = this.ctx.createRadialGradient(lsCx, lsCy, lsMin * 0.15, lsCx, lsCy, lsMin * 0.85);
+    this.cachedLevelSelectVignetteGradient.addColorStop(0, "rgba(0,0,0,0)");
+    this.cachedLevelSelectVignetteGradient.addColorStop(1, "rgba(0,0,0,0.4)");
+
+    const fontSize = Math.min(w * 0.14, 80);
+    this.cachedTimeoutTextGradient = this.ctx.createLinearGradient(0, -fontSize / 2, 0, fontSize / 2);
+    this.cachedTimeoutTextGradient.addColorStop(0, "#ff6644");
+    this.cachedTimeoutTextGradient.addColorStop(0.5, "#ff2211");
+    this.cachedTimeoutTextGradient.addColorStop(1, "#cc0000");
   }
 
   private handleInput(e: MouseEvent | TouchEvent): void {
@@ -1798,8 +2072,13 @@ class KnifeHitGame {
       }
 
       const isHorizontal = aspectRatio > 1;
-      flyStartRot = isHorizontal ? 0 : Math.PI / 2;
-      flyEndRot = Math.atan2(fruitCenterY - canvasY, fruitCenterX - canvasX) + Math.PI / 2;
+      // Wide sprites (knife/kunai): -90° so blade points up, matching the vertical preview
+      // Narrow sprites (pen/pencil): 0° already points up in natural orientation
+      flyStartRot = isHorizontal ? -Math.PI / 2 : 0;
+      // Wide sprites: rotate so blade faces the fruit (atan2 gives the direction to target)
+      // Narrow sprites: same formula + 90° offset because their "forward" axis is the image's vertical
+      const dirAngle = Math.atan2(fruitCenterY - canvasY, fruitCenterX - canvasX);
+      flyEndRot = isHorizontal ? dirAngle : dirAngle + Math.PI / 2;
     }
     
     const knife: Knife = {
@@ -1816,7 +2095,7 @@ class KnifeHitGame {
       flyEndRot,
       stickBounce: 0,
       throwScale: 1.0, // No scale animation
-      throwRotation: flyStartRot || 0,
+      throwRotation: flyStartRot ?? -Math.PI / 2,
       isColliding: false,
     };
     
@@ -1844,11 +2123,22 @@ class KnifeHitGame {
 
   private enterLevelSelect(): void {
     this.state = "LEVEL_SELECT";
-    this.levelSelectScroll = 0;
     this.levelSelectBtnRects = [];
     this.levelSelectBackRect = null;
     this.levelSelectTouchDragged = false;
     this.levelSelectTime = 0;
+
+    // Scroll so the highest unlocked level row is visible
+    const w = this.viewW;
+    const isMobile = this.isMobile;
+    const cols = isMobile ? 5 : 10;
+    const gridPadX = w * 0.04;
+    const gap = Math.min(w * 0.02, 8);
+    const availW = w - gridPadX * 2;
+    const cellSize = Math.min((availW - gap * (cols - 1)) / cols, isMobile ? 60 : 56);
+    const targetRow = Math.floor(this.highestUnlockedLevel / cols);
+    // Place the target row roughly in the upper third of the visible area
+    this.levelSelectScroll = Math.max(0, targetRow * (cellSize + gap) - (cellSize + gap));
   }
 
   private startGame(): void {
@@ -1975,7 +2265,7 @@ class KnifeHitGame {
     };
   }
 
-  private loadLevel(levelIndex: number): void {
+  private loadLevel(levelIndex: number, changeBackground = true): void {
     if (levelIndex >= this.levels.length) {
       // Game complete!
       this.state = "GAME_OVER";
@@ -1984,7 +2274,17 @@ class KnifeHitGame {
     
     const level = this.levels[levelIndex];
     this.currentLevel = levelIndex;
-    
+
+    // Pick a random background only when advancing to a new round (not on retry)
+    if (changeBackground) {
+      const bgCount = 3;
+      let nextBg = Math.floor(Math.random() * bgCount);
+      if (nextBg === this.selectedBackground && bgCount > 1) {
+        nextBg = (nextBg + 1) % bgCount;
+      }
+      this.selectedBackground = nextBg;
+    }
+
     // Create fruit (cycle through available fruit images)
     const fruitImages = [
       this.avocadoImage,
@@ -2138,6 +2438,7 @@ class KnifeHitGame {
     } else {
       // Game complete
       this.state = "GAME_OVER";
+      this.saveGameStateAll(true);
       this.gameOverScreen.classList.remove("hidden");
     }
   }
@@ -2159,7 +2460,7 @@ class KnifeHitGame {
     }
     this.particles = [];
     
-    this.loadLevel(this.currentLevel);
+    this.loadLevel(this.currentLevel, false); // retry — keep same background
     this.state = "PLAYING";
     this.gameOverScreen.classList.add("hidden");
     this.winScreen.classList.add("hidden");
@@ -2332,6 +2633,8 @@ class KnifeHitGame {
           let height: number;
 
           if (aspectRatio > 1) {
+            // Wide weapon (knife, kunai) shown vertically — size as if horizontal then rotate -90
+            // so visual height = original image width direction, visual width = image height direction
             width = Math.min(maxKnifeWidth, maxKnifeHeight * aspectRatio);
             height = width / aspectRatio;
           } else {
@@ -2346,7 +2649,9 @@ class KnifeHitGame {
           this.knifePreviewImage.src = this.knifeImage.src;
           this.knifePreviewImage.style.width = `${width}px`;
           this.knifePreviewImage.style.height = `${height}px`;
-          const rotationDeg = aspectRatio > 1 ? 0 : 90;
+          // Wide weapons: -90° makes the tip point upward (vertical)
+          // Narrow weapons (pen/pencil): already naturally vertical, no rotation needed
+          const rotationDeg = aspectRatio > 1 ? -90 : 0;
           this.knifePreviewImage.style.transform = `rotate(${rotationDeg}deg)`;
         }
         this.knifePreviewImage.style.display = "block";
@@ -2407,21 +2712,19 @@ class KnifeHitGame {
   }
 
   private triggerHaptic(type: "light" | "medium" | "heavy" | "success" | "error"): void {
-    if (this.settings.haptics && typeof (window as any).triggerHaptic === "function") {
-      setTimeout(() => (window as any).triggerHaptic(type), 0);
+    if (this.settings.haptics) {
+      oasiz.triggerHaptic(type);
     }
   }
 
   private playUiTap(): void {
-    if (!this.settings.fx || !this.uiTapSound) return;
-    this.uiTapSound.currentTime = 0;
-    this.uiTapSound.play().catch(() => {});
+    if (!this.settings.fx) return;
+    this.playBuffer(this.sfxBufUiTap);
   }
 
   private playUiConfirm(): void {
-    if (!this.settings.fx || !this.uiConfirmSound) return;
-    this.uiConfirmSound.currentTime = 0;
-    this.uiConfirmSound.play().catch(() => {});
+    if (!this.settings.fx) return;
+    this.playBuffer(this.sfxBufUiConfirm);
   }
 
   private update(dt: number): void {
@@ -2454,16 +2757,14 @@ class KnifeHitGame {
         this.roundTimerActive = false;
         this.updateTimerDisplay();
         this.flushCoinSave();
+        this.saveGameStateAll(true);
         this.gameOverActive = true;
         this.gameOverTimeout = true;
         this.state = "GAME_OVER";
         this.pauseBtn.classList.add("hidden");
         this.backgroundOverlay.target = -0.5;
         this.triggerHaptic("error");
-        if (this.settings.fx && this.timeoutSound) {
-          this.timeoutSound.currentTime = 0;
-          this.timeoutSound.play().catch(() => {});
-        }
+        if (this.settings.fx) this.playBuffer(this.sfxBufTimeout);
         requestAnimationFrame(() => {
           this.updateLevelDisplay();
           this.refreshWeaponShopUI();
@@ -2588,8 +2889,8 @@ class KnifeHitGame {
         // Smoothly rotate from a flat start orientation to pointing toward the fruit
         const rotationProgress = Math.min(1, progress * 1.2);
         const easedT = 1 - Math.pow(1 - rotationProgress, 3);
-        const startRot = knife.flyStartRot ?? 0;
-        const endRot = knife.flyEndRot ?? (Math.atan2(dy, dx) + Math.PI / 2);
+        const startRot = knife.flyStartRot ?? -Math.PI / 2;
+        const endRot = knife.flyEndRot ?? Math.atan2(dy, dx);
         let diff = endRot - startRot;
         // shortest path wrap
         if (diff > Math.PI) diff -= Math.PI * 2;
@@ -2726,21 +3027,14 @@ class KnifeHitGame {
             const knifeX = knife.flyX;
             const knifeY = knife.flyY;
             
-            // Play broke sound, then dull sound
+            // Play broke sound — pen/pencil use the pencil_break sound, others use the metal broke sound
             if (this.settings.fx) {
-              if (this.brokeSound) {
-                this.brokeSound.currentTime = 0;
-                this.brokeSound.play().catch(() => {});
-              }
-              // Play dull sound immediately after broke
-              if (this.dullSound) {
-                this.dullSound.currentTime = 0;
-                // Small delay to play after broke starts
-                setTimeout(() => {
-                  if (this.settings.fx && this.dullSound) {
-                    this.dullSound.play().catch(() => {});
-                  }
-                }, 50);
+              const isPenLike = this.currentWeapon === "pen" || this.currentWeapon === "pencil";
+              if (isPenLike) {
+                this.playBuffer(this.sfxBufPencilBreak);
+              } else {
+                this.playBuffer(this.sfxBufBroke);
+                setTimeout(() => { if (this.settings.fx) this.playBuffer(this.sfxBufDull); }, 50);
               }
             }
             
@@ -2768,6 +3062,7 @@ class KnifeHitGame {
             }
             
             this.flushCoinSave();
+            this.saveGameStateAll(true);
             this.gameOverActive = true;
             this.state = "GAME_OVER";
             this.roundTimerActive = false;
@@ -2790,13 +3085,8 @@ class KnifeHitGame {
             knife.isFlying = false;
             knife.stickBounce = 1;
             
-            if (this.settings.fx && this.stabPool.length > 0) {
-              const snd = this.stabPool[this.stabPoolIndex];
-              this.stabPoolIndex = (this.stabPoolIndex + 1) % this.stabPool.length;
-              snd.currentTime = 0;
-              snd.play().catch(() => {});
-            }
-            
+            if (this.settings.fx) this.playBuffer(this.sfxBufStab);
+
             // Fruit distortion effect
             if (this.fruit) {
               this.fruit.hitDistortion = 1.0; // Start at full distortion
@@ -2851,13 +3141,17 @@ class KnifeHitGame {
               this.triggerHaptic("success");
               
               // Play success sound when clearing level
-              if (this.settings.fx && this.successSound) {
-                this.successSound.currentTime = 0;
-                this.successSound.play().catch(() => {});
-              }
+              if (this.settings.fx) this.playBuffer(this.sfxBufSuccess);
               
-              if (this.currentLevel >= this.highestUnlockedLevel && typeof (window as any).submitScore === "function") {
-                (window as any).submitScore(this.currentLevel + 1);
+              // Unlock the next level immediately on win (not deferred to Next tap)
+              // so that exiting the game on the win screen still saves progress
+              const nextLevelIndex = this.currentLevel + 1;
+              if (nextLevelIndex > this.highestUnlockedLevel) {
+                this.highestUnlockedLevel = nextLevelIndex;
+                this.saveHighestLevel(); // flushes immediately
+              }
+              if (this.currentLevel >= this.highestUnlockedLevel - 1) {
+                oasiz.submitScore(this.currentLevel + 1);
               }
             }
           }
@@ -2958,12 +3252,7 @@ class KnifeHitGame {
             this.screenFlash.time = 0;
             this.screenFlash.duration = 0.08;
 
-            if (this.settings.fx && this.stabPool.length > 0) {
-              const snd = this.stabPool[this.stabPoolIndex];
-              this.stabPoolIndex = (this.stabPoolIndex + 1) % this.stabPool.length;
-              snd.currentTime = 0;
-              snd.play().catch(() => {});
-            }
+            if (this.settings.fx) this.playBuffer(this.sfxBufStab);
             this.triggerHaptic("medium");
 
             // Hold briefly so the player sees the splashes + wiggle before we start checking completion
@@ -3099,9 +3388,7 @@ class KnifeHitGame {
       
       // Play transition sound at the start
       if (this.transitionTime === 0 || this.transitionTime < dt) {
-        if (this.transitionSound) {
-          this.playGeneratedSound(this.transitionSound);
-        }
+        if (this.settings.fx) this.playBuffer(this.sfxBufTransition);
       }
       
       if (progress >= 1) {
@@ -3119,9 +3406,7 @@ class KnifeHitGame {
       
       // Play spawn sound when fruit starts zooming
       if (this.transitionTime === 0 || this.transitionTime < dt) {
-        if (this.spawnSound) {
-          this.playGeneratedSound(this.spawnSound);
-        }
+        if (this.settings.fx) this.playBuffer(this.sfxBufSpawn);
       }
       
       if (progress >= 1) {
@@ -3147,9 +3432,7 @@ class KnifeHitGame {
       
       // Play spawn sound when knives start zooming
       if (this.transitionTime === 0 || this.transitionTime < dt) {
-        if (this.spawnSound) {
-          this.playGeneratedSound(this.spawnSound);
-        }
+        if (this.settings.fx) this.playBuffer(this.sfxBufSpawn);
       }
       
       // Apply zoom scale to all embedded knives
@@ -3364,12 +3647,6 @@ class KnifeHitGame {
     const w = this.viewW;
     const h = this.viewH;
 
-    // Render at devicePixelRatio but keep coordinates in CSS pixels
-    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.ctx.imageSmoothingEnabled = true;
-    // Some WebViews only support this via "any"
-    (this.ctx as any).imageSmoothingQuality = "high";
-    
     // Apply camera zoom and position
     const fruitCenterX = w * CONFIG.FRUIT_CENTER_X;
     const fruitCenterY = h * CONFIG.FRUIT_CENTER_Y;
@@ -3386,7 +3663,8 @@ class KnifeHitGame {
     this.ctx.translate(shakeX, shakeY);
     
     // Draw background with slide animation during transition
-    const bgImage = this.currentLevel % 2 === 0 ? this.background1Image : this.background2Image;
+    const bgImages = [this.background1Image, this.background2Image, this.background3Image];
+    const bgImage = bgImages[this.selectedBackground] ?? this.background1Image;
     if (bgImage && this.assetsLoaded) {
       if (this.transitionActive && this.transitionPhase === "bg_slide") {
         // Draw background with offset during slide
@@ -3621,16 +3899,15 @@ class KnifeHitGame {
     this.ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
     this.ctx.fillRect(0, 0, w, h);
     // Subtle vignette for depth
-    const vg = this.ctx.createRadialGradient(w * 0.5, h * 0.52, Math.min(w, h) * 0.2, w * 0.5, h * 0.52, Math.min(w, h) * 0.8);
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(0,0,0,0.35)");
-    this.ctx.fillStyle = vg;
-    this.ctx.fillRect(0, 0, w, h);
+    if (this.cachedVignetteGradient) {
+      this.ctx.fillStyle = this.cachedVignetteGradient;
+      this.ctx.fillRect(0, 0, w, h);
+    }
     this.ctx.restore();
 
     const cx = w * 0.5;
     const cy = h * 0.52;
-    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+    const isMobile = this.isMobile;
 
     // Global scale/alpha for zoom-out
     this.ctx.save();
@@ -3661,16 +3938,14 @@ class KnifeHitGame {
     const fruitRadius = fruitSize * 0.46;
 
     // Soft ring glow
-    this.ctx.save();
-    const ringGrad = this.ctx.createRadialGradient(cx, cy, ringR * 0.55, cx, cy, ringR * 1.15);
-    ringGrad.addColorStop(0, "rgba(255,255,255,0)");
-    ringGrad.addColorStop(0.55, "rgba(255,255,255,0.08)");
-    ringGrad.addColorStop(1, "rgba(255,255,255,0)");
-    this.ctx.fillStyle = ringGrad;
-    this.ctx.beginPath();
-    this.ctx.arc(cx, cy, ringR * 1.15, 0, Math.PI * 2);
-    this.ctx.fill();
-    this.ctx.restore();
+    if (this.cachedRingGlowGradient) {
+      this.ctx.save();
+      this.ctx.fillStyle = this.cachedRingGlowGradient;
+      this.ctx.beginPath();
+      this.ctx.arc(cx, cy, ringR * 1.15, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    }
 
     // Knife intro (all knives from center at once), drawn BEHIND fruits for a "stab" look
     if (this.startIntroState === "knives") {
@@ -3746,7 +4021,7 @@ class KnifeHitGame {
     this.ctx.lineWidth = 5;
     this.ctx.textAlign = "center";
     this.ctx.textBaseline = "middle";
-    const label = window.matchMedia("(pointer: coarse)").matches ? "Tap to Start" : "Click to Start";
+    const label = this.isMobile ? "Tap to Start" : "Click to Start";
     this.ctx.strokeText(label, cx, cy);
     this.ctx.fillText(label, cx, cy);
     this.ctx.restore();
@@ -3818,17 +4093,16 @@ class KnifeHitGame {
 
   private drawLevelSelect(w: number, h: number): void {
     const ctx = this.ctx;
-    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+    const isMobile = this.isMobile;
 
     // Dark background + vignette (same as start menu)
     ctx.save();
     ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
     ctx.fillRect(0, 0, w, h);
-    const vg = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.min(w, h) * 0.15, w * 0.5, h * 0.5, Math.min(w, h) * 0.85);
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(0,0,0,0.4)");
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, w, h);
+    if (this.cachedLevelSelectVignetteGradient) {
+      ctx.fillStyle = this.cachedLevelSelectVignetteGradient;
+      ctx.fillRect(0, 0, w, h);
+    }
     ctx.restore();
 
     // Layout constants
@@ -4052,12 +4326,7 @@ class KnifeHitGame {
       ctx.translate(cx + shake, cy);
       ctx.scale(pulse, pulse);
 
-      // Fill gradient
-      const grad = ctx.createLinearGradient(0, -fontSize / 2, 0, fontSize / 2);
-      grad.addColorStop(0, "#ff6644");
-      grad.addColorStop(0.5, "#ff2211");
-      grad.addColorStop(1, "#cc0000");
-      ctx.fillStyle = grad;
+      ctx.fillStyle = this.cachedTimeoutTextGradient ?? "#ff2211";
       ctx.fillText("TIMEOUT", 0, 0);
 
       ctx.restore();
@@ -4293,70 +4562,51 @@ class KnifeHitGame {
   }
   
   private drawParticles(): void {
+    if (this.particles.length === 0) return;
+
+    // Splash pass — one save/restore for the entire group
+    this.ctx.save();
     for (const p of this.particles) {
-      const alpha = p.life / p.maxLife;
-      this.ctx.save();
-      this.ctx.globalAlpha = alpha;
-      
-      if (p.type === "drop") {
-        // Draw teardrop shape for juice drops
-        this.drawJuiceDrop(p.x, p.y, p.size, p.vy, p.color);
-      } else {
-        // Draw splash particles as slightly elongated ovals for liquid effect
-        this.drawJuiceSplash(p.x, p.y, p.size, p.vx, p.vy, p.color);
-      }
-      
-      this.ctx.restore();
+      if (p.type !== "splash") continue;
+      this.ctx.globalAlpha = p.life / p.maxLife;
+      this.drawJuiceSplash(p.x, p.y, p.size, p.vx, p.vy, p.color);
     }
+    this.ctx.restore();
+
+    // Drop pass — one save/restore for the entire group
+    this.ctx.save();
+    for (const p of this.particles) {
+      if (p.type !== "drop") continue;
+      this.ctx.globalAlpha = p.life / p.maxLife;
+      this.drawJuiceDrop(p.x, p.y, p.size, p.vy, p.color);
+    }
+    this.ctx.restore();
   }
-  
+
   private drawJuiceDrop(x: number, y: number, size: number, vy: number, color: string): void {
-    // Draw a teardrop shape pointing downward
+    const dropLength = size * 1.5;
+    const direction = vy > 0 ? 1 : -1;
     this.ctx.fillStyle = color;
     this.ctx.beginPath();
-    
-    // Teardrop shape: circle on top, point on bottom
-    const dropLength = size * 1.5; // Make drops slightly elongated
-    const direction = vy > 0 ? 1 : -1; // Point in direction of movement
-    
-    // Top circle part
     this.ctx.arc(x, y - dropLength * 0.3 * direction, size, 0, Math.PI * 2);
-    
-    // Bottom point
     this.ctx.moveTo(x, y + dropLength * 0.7 * direction);
     this.ctx.lineTo(x - size * 0.6, y + dropLength * 0.2 * direction);
     this.ctx.lineTo(x + size * 0.6, y + dropLength * 0.2 * direction);
     this.ctx.closePath();
     this.ctx.fill();
-    
-    // Add a highlight for 3D effect
-    this.ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-    this.ctx.beginPath();
-    this.ctx.arc(x - size * 0.3, y - dropLength * 0.4 * direction, size * 0.4, 0, Math.PI * 2);
-    this.ctx.fill();
   }
-  
+
   private drawJuiceSplash(x: number, y: number, size: number, vx: number, vy: number, color: string): void {
-    // Draw elongated oval in direction of movement for liquid splash effect
-    this.ctx.fillStyle = color;
-    
-    // Calculate angle of movement
     const angle = Math.atan2(vy, vx);
-    const elongation = 1.3; // Make splashes slightly elongated
-    
-    this.ctx.save();
+    const elongation = 1.3;
+    this.ctx.fillStyle = color;
     this.ctx.translate(x, y);
     this.ctx.rotate(angle);
     this.ctx.beginPath();
     this.ctx.ellipse(0, 0, size * elongation, size / elongation, 0, 0, Math.PI * 2);
     this.ctx.fill();
-    
-    // Add a highlight for 3D liquid effect
-    this.ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
-    this.ctx.beginPath();
-    this.ctx.ellipse(-size * 0.3, -size * 0.3, size * 0.5 * elongation, size * 0.5 / elongation, 0, 0, Math.PI * 2);
-    this.ctx.fill();
-    this.ctx.restore();
+    this.ctx.rotate(-angle);
+    this.ctx.translate(-x, -y);
   }
   
   private createBrokenKnifePieces(x: number, y: number, rotation: number): void {
@@ -4374,8 +4624,8 @@ class KnifeHitGame {
       sprite1 = this.brokenPen1Image;
       sprite2 = this.brokenPen2Image;
     } else if (this.currentWeapon === "pencil") {
-      sprite1 = this.brokenPen1Image;
-      sprite2 = this.brokenPen2Image;
+      sprite1 = this.brokenPencil1Image;
+      sprite2 = this.brokenPencil2Image;
     }
 
     if (!sprite1 || !sprite2) return;
@@ -4505,10 +4755,9 @@ class KnifeHitGame {
     this.ctx.translate(x, y);
     this.ctx.scale(scale, scale);
     this.ctx.translate(-x, -y);
-    
-    // Draw coin as a golden circle
+
     const coinSize = 20;
-    
+
     // Outer glow
     const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, coinSize);
     gradient.addColorStop(0, "rgba(255, 215, 0, 0.8)");
@@ -4518,27 +4767,27 @@ class KnifeHitGame {
     this.ctx.beginPath();
     this.ctx.arc(x, y, coinSize, 0, Math.PI * 2);
     this.ctx.fill();
-    
+
     // Coin body (golden)
     this.ctx.fillStyle = "#FFD700";
     this.ctx.beginPath();
     this.ctx.arc(x, y, coinSize * 0.7, 0, Math.PI * 2);
     this.ctx.fill();
-    
+
     // Coin border
     this.ctx.strokeStyle = "#FFA500";
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
     this.ctx.arc(x, y, coinSize * 0.7, 0, Math.PI * 2);
     this.ctx.stroke();
-    
+
     // Coin symbol ($)
     this.ctx.fillStyle = "#FFA500";
     this.ctx.font = "bold 16px Orbitron";
     this.ctx.textAlign = "center";
     this.ctx.textBaseline = "middle";
     this.ctx.fillText("$", x, y);
-    
+
     this.ctx.restore();
   }
 

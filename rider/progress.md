@@ -1,0 +1,117 @@
+Original prompt: titremeler var motor yola yapışmıyor zıplıyor sekiyor bazen neden olabinlir
+
+- 2026-03-04: İnceleme başladı. Proje Phaser 3 + Matter fizik.
+- İlk bulgular: Zemin çok sayıda statik parça ile üretiliyor; oyuncu gövdesine update() içinde güçlü hız/rotasyon müdahalesi yapılıyor.
+- 2026-03-04: `Game.ts` fizik stabilizasyon patchi uygulandı.
+  - `collisionend` ile tek-kare temas kaybı sıfırlaması kaldırıldı (grounded flicker azaltıldı).
+  - Sürüşte aşağı kuvvet (downforce) eklendi; hızla sınırlı artıyor.
+  - Yerde/boşta açısal ve lineer damping yumuşatıldı; agresif `vy` bastırma kaldırıldı.
+  - Maks açısal hız sınırı düşürüldü.
+  - Oyuncu `frictionAir` değeri eklendi.
+  - Zemin segment collider üretimi `fromVertices` trapezlerden, overlap+chamfer'lı eğimli rectangle segmentlere alındı.
+- 2026-03-04: `render_game_to_text` hook'u `Game` ve `Menu` sahnelerine eklendi.
+- Test notları:
+  - `npx vite build --config vite/config.prod.mjs` başarılı.
+  - `npm run build` hash aracında mevcut izin sorunu nedeniyle (önceden var) son adımda hata verdi.
+  - Playwright çalıştırıldı; bu ortamda screenshot'lar tamamen siyah (WebGL capture sorunu), bu yüzden state JSON çıktılarıyla doğrulama yapıldı.
+  - Uzun gaz testinde state çıktılarında temas/ivme bilgileri üretildi; sahne geçişleri ve crash akışı da gözlendi.
+- TODO:
+  - `phaser-asset-pack-hashing` binary izin bitini düzeltip tam `npm run build` akışını temizlemek.
+  - WebGL screenshot siyahlığı için capture fallback stratejisini gözden geçirmek (gerekirse page-level capture ya da Canvas renderer test profili).
+- 2026-03-04: Kullanıcı geri bildirimi sonrası ikinci stabilite patch'i (test çalıştırılmadı).
+  - Grounded tespiti sadece wheel-ground aktif çiftlerine indirildi.
+  - 3-frame contact grace eklendi (`groundContactGraceFrames`) ile tek-frame drop jitter azaltıldı.
+  - Drive kuvvetinin dikey bileşeni ciddi düşürüldü (zıplatma azaltımı).
+  - Downforce arttırıldı ve hıza bağlı üst limit yükseltildi.
+  - Ground segment overlap/chamfer/slop artırıldı (seam geçişi yumuşatma).
+  - Grounded iken sadece yukarı yönlü ani pop hızına damping eklendi.
+- 2026-03-04: Kullanıcı isteğiyle motor mekaniği yeniden kuruldu (test koşulmadı).
+  - Ground normal, aktif wheel-ground temaslarından hesaplanıyor ve frame-to-frame yumuşatılıyor.
+  - Sürüş kuvveti artık zeminin tangent yönünde uygulanıyor (road-follow).
+  - Grounded iken downforce, temas ayrışma hızı damping'i ve slope-align açısal stabilizasyonu eklendi.
+  - Air control: basılı tutunca saat yönünde (pozitif) takla hızı hedefleniyor.
+  - Hız/açısal hız için güvenlik clamp'leri korundu.
+- 2026-03-04: Kullanıcı şikayeti (çok hızlı + hala zıplıyor) sonrası üçüncü fizik revizyonu, testsiz.
+  - Grounded sürüş kuvvet tabanlı model kaldırıldı; hedef tangential hız kontrollü modele geçildi.
+  - Ground normal + tangent üzerinden hız yeniden bileşenleniyor; normalde aktif "ground glue" ile sıçrama bastırılıyor.
+  - Chassis fizik çarpışması kapatıldı (`isSensor: true`), sadece temas olayı için kaldı.
+  - Ground slop düşürüldü, max hızlar aşağı çekildi (`maxGroundSpeed=6.2`, global cap=11).
+- 2026-03-05: Hava/yol fizik ayrımı için patch uygulandı.
+  - Grounded mod kinematik stick olarak korundu; havaya çıkınca body `ignoreGravity=false` ile gerçek Matter fiziğine geçti.
+  - Havadan zemine dönüş artık yalnızca iki tekerin de yüzeyin üstüne güvenli toleransla basması halinde oluyor.
+  - Güvenli iniş toleransları eklendi (eğim, normal darbe hızı, açısal hız); kötü inişte crash tetikleniyor.
+  - Düşüş ölümü eşiği 3000'den 1650'ye çekildi.
+- 2026-03-05: Kullanıcı geri bildirimi sonrası iniş toleransı + kesik yol + gravity ayarı güncellendi.
+  - Düz inişte ölmemesi için iniş crash mantığı yumuşatıldı: küçük eğimde (`~21.6°` altı) crash kapatıldı; crash için artık belirgin eğim + sert darbe/spin gerekiyor.
+  - Havadan yeniden yapışma hesabında tekerlekler artık body part konumlarından okunuyor (yaklaşık trig yerine gerçek wheel pozisyonu).
+  - `getTerrainSurfaceAt` artık segmentleri min/max x ile okuyor; ters yönlü spline segmentlerde oluşan sahte boşluklar engellendi.
+  - Global yerçekimi 2'den 1.3333'e indirildi (yaklaşık 1.5x daha hafif).
+- 2026-03-05 test:
+  - `npx tsc --noEmit` başarılı.
+  - Playwright client ile otomatik uzun sürüş senaryosu çalıştırıldı (`output/web-game-airtest-3/state-*.json`).
+  - Screenshot çıktıları bu ortamda siyah (bilinen capture problemi); doğrulama state JSON üzerinden yapıldı.
+- 2026-03-06: Kullanıcı isteğiyle kapsamlı ses sistemi eklendi.
+  - Yeni `src/audio.ts` modülü ile prosedürel ses altyapısı kuruldu (WebAudio):
+    - Arka plan müziği (menu/game pattern), motor sesi (hız + gaz + yerde/havada durumuna göre dinamik),
+    - rüzgar/air sesi,
+    - çarpma, crash, iniş, gem toplama, flip ve UI click efektleri.
+  - `settings.ts` içine canlı ayar event yayınları eklendi:
+    - `SETTINGS_CHANGED_EVENT` ile `music/fx` değişiklikleri anında sese yansıyor.
+    - `UI_SOUND_EVENT` ile settings UI etkileşimleri ses tetikliyor.
+  - `Menu.ts` güncellendi:
+    - Menü müziği başlatma, oyun geçişinde UI click sesi,
+    - menüde motor sesinin kapalı tutulması.
+  - `Game.ts` güncellendi:
+    - Oyun müziği başlatma, pointer etkileşiminde ses context unlock,
+    - her frame motor sesi güncellemesi,
+    - inişte land/collision sesi, crash anında crash sesi,
+    - gem toplamada gem sesi, flip artışında flip sesi,
+    - pause/resume/shutdown lifecycle'ına motor sesi yönetimi.
+- 2026-03-06 test:
+  - `npx tsc --noEmit` başarılı.
+  - `npx vite build --config vite/config.prod.mjs` başarılı.
+  - Playwright client testleri çalıştırıldı:
+    - Headless: `output/web-game-audio/`
+    - Headed: `output/web-game-audio-headed/`
+  - Her iki modda da screenshotlar bu ortamda siyah kaldı (bilinen WebGL capture sorunu), state JSON çıktılarıyla oyun akışı doğrulandı.
+- 2026-03-06: Kullanıcı geri bildirimi ile motor sesi yumuşatma patch'i.
+  - `src/audio.ts` içinde motor synth timbre değiştirildi (`sawtooth` -> `triangle/sine`).
+  - Gaz bırakma ani kesilmesini azaltmak için throttle smoothing eklendi (`engineThrottle`, attack/release farklı).
+  - Engine gain/frequency/filter/noise ramp süreleri uzatıldı; release daha yavaş yapıldı.
+  - Motor noise seviyesi düşürüldü ve dinamik kontrol edilebilir hale getirildi (`engineNoiseGain` field).
+- 2026-03-06 retest:
+  - `npx tsc --noEmit` başarılı.
+  - `npx vite build --config vite/config.prod.mjs` başarılı.
+  - Playwright run: `output/web-game-audio-tune-1/` (state akışı normal).
+- 2026-03-06: Kullanıcı isteğiyle neon trail + menu polish patch.
+  - `Game.ts`:
+    - Motosiklete bağlı neon particle trail eklendi (`trailEmitter`).
+    - Trail emission hız/gaz durumuna göre dinamik güncelleniyor.
+    - Pause / shutdown / game over anında trail güvenli şekilde durduruluyor.
+  - `Menu.ts`:
+    - Menü açıldığında `menu-live` efekt modu aktif ediliyor, kapanışta temizleniyor.
+    - Pointer hareketine bağlı hafif parallax (`--mx`, `--my`) eklendi.
+  - `public/style.css`:
+    - Menü için animated neon glow + grid atmosfer katmanları eklendi.
+    - Title panel, subtitle, hero bike aura ve play butonuna canlı neon animasyonlar eklendi.
+    - Stil korunarak daha dinamik bir ana menü görünümü oluşturuldu.
+- 2026-03-06 test:
+  - `npx tsc --noEmit` başarılı.
+  - `npx vite build --config vite/config.prod.mjs` başarılı.
+  - Playwright client run: `output/web-game-menu-trail/` (state JSON akışı normal).
+  - Screenshotlar bu ortamda yine siyah (bilinen capture sorunu), doğrulama state çıktıları ile yapıldı.
+- 2026-03-06: Kullanıcı geri bildirimi sonrası düzeltme (flip + menu yoğunluğu).
+  - `Game.ts`:
+    - Flip sayacı yeniden yazıldı: artık sadece havadayken açısal dönüş biriktiriliyor, inişte tam tur sayısı hesaplanıp skora ekleniyor.
+    - `Phaser.Math.Angle.Wrap` tabanlı delta kullanıldığı için ±PI sınırı geçişinden kaynaklı sahte flip artışları engellendi.
+    - Eski global `totalRotation` yaklaşımı kaldırıldı.
+  - `public/style.css`:
+    - Menü efektleri sadeleştirildi (glow/grid/star opaklıkları düşürüldü, sürekli animasyonların çoğu kaldırıldı, parallax etkisi zayıflatıldı).
+    - Başlık ve Play butonu daha sakin neon görünümde bırakıldı.
+- 2026-03-06 retest:
+  - `npx tsc --noEmit` başarılı.
+  - `npx vite build --config vite/config.prod.mjs` başarılı.
+  - Playwright run:
+    - `output/web-game-fix-flip-menu/`
+    - `output/web-game-fix-flip-menu-long/`
+  - State JSON akışları normal; flips değeri stabilize (test senaryosunda sahte artış gözlenmedi).

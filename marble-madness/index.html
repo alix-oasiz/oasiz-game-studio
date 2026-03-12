@@ -534,12 +534,12 @@
       <div id="settings-modal" class="overlay settings-modal hidden">
         <div class="settings-card">
           <h2 class="settings-title">Settings</h2>
-          <div class="settings-tabs desktop-only">
+          <div class="settings-tabs">
             <button id="settings-tab-audio" class="settings-tab-btn" data-active="true">Audio</button>
-            <button id="settings-tab-designer" class="settings-tab-btn" data-active="false">Level Designer</button>
-            <button id="settings-tab-repeat" class="settings-tab-btn" data-active="false">Repeat Type</button>
+            <button id="settings-tab-designer" class="settings-tab-btn" data-active="false">Designer</button>
+            <button id="settings-tab-repeat" class="settings-tab-btn" data-active="false">Repeat</button>
             <button id="settings-tab-obstacles" class="settings-tab-btn" data-active="false">Obstacles</button>
-            <button id="settings-tab-debug" class="settings-tab-btn" data-active="false">Debug</button>
+            <button id="settings-tab-debug" class="settings-tab-btn desktop-only" data-active="false">Debug</button>
           </div>
 
           <div id="settings-pane-audio" class="settings-pane">
@@ -557,7 +557,7 @@
             </div>
           </div>
 
-          <div id="settings-pane-designer" class="settings-pane hidden desktop-only">
+          <div id="settings-pane-designer" class="settings-pane hidden">
             <p class="designer-intro">
               Choose the middle platforms for the next run, then spawn directly into that layout.
             </p>
@@ -568,7 +568,7 @@
             </div>
           </div>
 
-          <div id="settings-pane-repeat" class="settings-pane hidden desktop-only">
+          <div id="settings-pane-repeat" class="settings-pane hidden">
             <p class="designer-intro">
               Pick one platform type and spawn a debug run with 3 repeated middle platforms.
             </p>
@@ -582,7 +582,7 @@
             </div>
           </div>
 
-          <div id="settings-pane-obstacles" class="settings-pane hidden desktop-only">
+          <div id="settings-pane-obstacles" class="settings-pane hidden">
             <p class="designer-intro">
               Choose one obstacle type and spawn a flat-only obstacle test run.
             </p>
@@ -593,6 +593,8 @@
                 <option value="rotator_x">Rotator X</option>
                 <option value="pinball_bouncer">Pinball Bouncer</option>
                 <option value="bouncy_pad">Bouncy Pad</option>
+                <option value="swinging_hammer">Swinging Hammer</option>
+                <option value="falling_platform">Falling Platform</option>
               </select>
             </div>
             <div class="designer-actions">
@@ -601,7 +603,7 @@
             </div>
           </div>
 
-          <div id="settings-pane-debug" class="settings-pane hidden desktop-only">
+          <div id="settings-pane-debug" class="settings-pane hidden">
             <p class="designer-intro">
               Visualize platform geometry and spawn a minimal straight test level.
             </p>

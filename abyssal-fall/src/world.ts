@@ -1460,9 +1460,9 @@ export class LevelSpawner {
   private generateEnemies(chunk: Chunk, rng: SeededRNG, wallProfile: WallProfile): void {
     const BLOCK_SIZE = CONFIG.WALL_BLOCK_SIZE;
     
-    // Difficulty scaling based on depth
-    const difficultyMultiplier = 1 + chunk.index * 0.1;
-    const numEnemies = Math.floor(CONFIG.ENEMIES_PER_CHUNK * Math.min(difficultyMultiplier, 2));
+    // Enemy count: starts sparse (2) at chunk 1, scales up to the 2× cap over ~18 chunks
+    const maxEnemies = CONFIG.ENEMIES_PER_CHUNK * 2;
+    const numEnemies = Math.floor(Math.min(2 + chunk.index * 0.45, maxEnemies));
     
     // Get available enemy types based on depth
     let enemyTypes = EnemyFactory.getAvailableTypes(chunk.index);

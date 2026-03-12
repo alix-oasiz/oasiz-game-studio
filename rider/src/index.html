@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>My Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <style>
+        html, body {
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* --- UI OVERLAY --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+            pointer-events: none;
+            /* Let clicks pass through to game when playing */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Oasiz Safe Area: Top 120px reserved */
+        .top-safe-area {
+            height: 120px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Score & Gem Box (Rider Style) */
+        .score-hud {
+            display: flex;
+            align-items: center;
+            background: linear-gradient(180deg, #00132b 0%, #00234a 100%);
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 10px #00ffff, inset 0 0 10px #00ffff;
+            border-radius: 4px;
+            color: white;
+            padding: 5px 20px;
+            transform: skew(-15deg);
+        }
+
+        .score-hud>div {
+            transform: skew(15deg);
+            /* Un-skew content */
+            display: flex;
+            align-items: center;
+            margin: 0 15px;
+        }
+
+        .hud-score-val {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffffff;
+            text-shadow: 0 0 5px #fff;
+        }
+
+        .hud-gem-val {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+            margin-left: 10px;
+        }
+
+        /* Settings Gear — always on top, outside ui-layer */
+        #settings-btn {
+            position: fixed;
+            top: 130px;
+            right: 20px;
+            font-size: 30px;
+            color: #aaa;
+            z-index: 50;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: color 0.2s, transform 0.3s;
+            line-height: 1;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid #444;
+        }
+
+        #settings-btn:hover {
+            color: #00ffff;
+            border-color: #00ffff;
+            box-shadow: 0 0 10px #00ffff66;
+            transform: rotate(60deg);
+        }
+
+        /* Bottom Section of Menu */
+        .bottom-menu {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: auto;
+            /* Buttons are clickable */
+            padding-bottom: 30px;
+            box-sizing: border-box;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+        }
+
+        .play-btn {
+            background: linear-gradient(180deg, #ffcc00 0%, #f48c25 100%);
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 20px #f48c25, inset 0 0 10px #f48c25;
+            border-radius: 8px;
+            padding: 15px 60px;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            margin-bottom: 30px;
+            transform: skew(-10deg);
+        }
+
+        .play-btn span {
+            display: inline-block;
+            transform: skew(10deg);
+            text-shadow: 0 0 5px #fff;
+        }
+
+        .play-btn:active {
+            transform: skew(-10deg) scale(0.95);
+            box-shadow: 0 0 10px #f48c25, inset 0 0 5px #f48c25;
+        }
+
+        .nav-bar {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+        }
+
+        .nav-icon {
+            color: #ffffff;
+            font-size: 28px;
+            opacity: 0.6;
+            cursor: pointer;
+            transition: opacity 0.2s, color 0.2s, text-shadow 0.2s;
+            position: relative;
+        }
+
+        .nav-icon.active,
+        .nav-icon:hover {
+            opacity: 1;
+            color: #ff00ff;
+            text-shadow: 0 0 10px #ff00ff;
+        }
+
+        /* Floating Right Icons */
+        .right-floaters {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            pointer-events: auto;
+        }
+
+        .floating-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.2) 0%, rgba(0, 255, 255, 0) 70%);
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 15px #00ffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #00ffff;
+            font-size: 24px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .floating-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .floating-icon.gift {
+            border-color: #ffcc00;
+            box-shadow: 0 0 15px #ffcc00;
+            color: #ffcc00;
+            background: radial-gradient(circle, rgba(255, 204, 0, 0.2) 0%, rgba(255, 204, 0, 0) 70%);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- SETTINGS MODAL --- */
+        #settings-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.72);
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        #settings-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #settings-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.92);
+            z-index: 101;
+            width: min(360px, 88vw);
+            background: linear-gradient(160deg, #050918 0%, #0b1228 100%);
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 40px #00ffff44, inset 0 0 20px #00ffff0d;
+            border-radius: 12px;
+            padding: 30px 26px 24px;
+            box-sizing: border-box;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #settings-modal.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .settings-title {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            color: #00ffff;
+            text-shadow: 0 0 12px #00ffff, 0 0 24px #00ffff88;
+            text-transform: uppercase;
+            margin-bottom: 26px;
+        }
+
+        .settings-divider {
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #00ffff66, transparent);
+            margin-bottom: 20px;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 13px 0;
+            border-bottom: 1px solid #00ffff18;
+        }
+
+        .settings-row:last-of-type {
+            border-bottom: none;
+        }
+
+        .settings-label {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 15px;
+            color: #b8d4ff;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .settings-label .s-icon {
+            font-size: 18px;
+            width: 26px;
+            text-align: center;
+        }
+
+        /* Toggle Switch */
+        .toggle-wrap {
+            position: relative;
+            width: 54px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+
+        .toggle-wrap input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            position: absolute;
+        }
+
+        .toggle-track {
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            background: #111827;
+            border: 2px solid #2a2a44;
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .toggle-track::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #444;
+            transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+        }
+
+        .toggle-wrap input:checked + .toggle-track {
+            background: #001f1f;
+            border-color: #00ffff;
+            box-shadow: 0 0 10px #00ffff66;
+        }
+
+        .toggle-wrap input:checked + .toggle-track::after {
+            transform: translateX(26px);
+            background: #00ffff;
+            box-shadow: 0 0 8px #00ffff;
+        }
+
+        .settings-close-row {
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .settings-close-btn {
+            background: transparent;
+            border: 2px solid #ff00ff;
+            box-shadow: 0 0 14px #ff00ff55;
+            border-radius: 6px;
+            color: #ff00ff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 10px 36px;
+            cursor: pointer;
+            transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+        }
+
+        .settings-close-btn:hover {
+            background: #ff00ff1a;
+            box-shadow: 0 0 22px #ff00ffaa;
+        }
+
+        .settings-close-btn:active {
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container"></div>
+
+    <div id="ui-layer">
+        <!-- TOP SAFE AREA (120px) -->
+        <div class="top-safe-area">
+            <div class="score-hud">
+                <div>
+                    <!-- FontAwesome Diamond Icon for gems placeholder -->
+                    <span style="color:#00ffff; margin-right:5px;">💎</span>
+                    <span id="hud-score" class="hud-score-val">0</span>
+                    <span id="hud-gems" class="hud-gem-val">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT FLOATING ICONS -->
+        <div id="right-floaters" class="right-floaters">
+            <div class="floating-icon">
+                <span>%</span> <!-- Bonus placeholder -->
+            </div>
+            <div class="floating-icon gift">
+                <span>🎁</span>
+            </div>
+        </div>
+
+        <!-- BOTTOM MENU -->
+        <div id="bottom-menu" class="bottom-menu">
+            <div id="play-btn" class="play-btn">
+                <span id="play-btn-text">PLAY</span>
+            </div>
+
+            <div class="nav-bar">
+                <div class="nav-icon"><span style="font-size:1.5em">🛒</span></div>
+                <div class="nav-icon"><span style="font-size:1.5em">🏍️</span></div>
+                <div class="nav-icon active"><span style="font-size:1.5em">🏠</span></div>
+                <div class="nav-icon"><span style="font-size:1.5em">📋</span></div>
+                <div class="nav-icon"><span style="font-size:1.5em">🏁</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS GEAR — always visible, outside ui-layer -->
+    <div id="settings-btn">&#9881;</div>
+
+    <!-- SETTINGS OVERLAY + MODAL -->
+    <div id="settings-overlay"></div>
+    <div id="settings-modal">
+        <div class="settings-title">Settings</div>
+        <div class="settings-divider"></div>
+
+        <div class="settings-row">
+            <div class="settings-label">
+                <span class="s-icon">&#9835;</span>
+                <span>Music</span>
+            </div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-music" checked>
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+
+        <div class="settings-row">
+            <div class="settings-label">
+                <span class="s-icon">&#128266;</span>
+                <span>FX</span>
+            </div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-fx" checked>
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+
+        <div class="settings-row">
+            <div class="settings-label">
+                <span class="s-icon">&#128243;</span>
+                <span>Haptics</span>
+            </div>
+            <label class="toggle-wrap">
+                <input type="checkbox" id="toggle-haptics" checked>
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+
+        <div class="settings-close-row">
+            <button id="settings-close" class="settings-close-btn">Close</button>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

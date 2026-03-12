@@ -9,6 +9,7 @@
     "puppeteer": "^24.37.2"
   },
   "dependencies": {
+    "@oasiz/sdk": "^1.0.1",
     "sharp": "^0.34.5"
   }
 }

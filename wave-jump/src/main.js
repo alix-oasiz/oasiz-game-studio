@@ -576,6 +576,35 @@ function playSynth(fn) {
   fn(audioCtx, masterGain);
 }
 
+let _noiseBufShort = null;
+let _noiseBufMed = null;
+let _noiseBufLong = null;
+function getNoiseBuffer(ctx, duration) {
+  const len = Math.round(ctx.sampleRate * duration);
+  if (duration <= 0.09) {
+    if (!_noiseBufShort || _noiseBufShort.sampleRate !== ctx.sampleRate) {
+      _noiseBufShort = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = _noiseBufShort.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return _noiseBufShort;
+  } else if (duration <= 0.15) {
+    if (!_noiseBufMed || _noiseBufMed.sampleRate !== ctx.sampleRate) {
+      _noiseBufMed = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = _noiseBufMed.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return _noiseBufMed;
+  } else {
+    if (!_noiseBufLong || _noiseBufLong.sampleRate !== ctx.sampleRate) {
+      _noiseBufLong = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = _noiseBufLong.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return _noiseBufLong;
+  }
+}
+
 function sfxDash() {
   playSynth((ctx, dest) => {
     const now = ctx.currentTime;
@@ -592,10 +621,7 @@ function sfxDash() {
     osc.stop(now + 0.22);
 
     const noise = ctx.createBufferSource();
-    const nBuf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
-    const nData = nBuf.getChannelData(0);
-    for (let i = 0; i < nData.length; i++) nData[i] = (Math.random() * 2 - 1) * 0.3;
-    noise.buffer = nBuf;
+    noise.buffer = getNoiseBuffer(ctx, 0.08);
     const ng = ctx.createGain();
     ng.gain.setValueAtTime(0.2, now);
     ng.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
@@ -643,10 +669,7 @@ function sfxDeath() {
     osc.stop(now + 0.6);
 
     const noise = ctx.createBufferSource();
-    const nBuf = ctx.createBuffer(1, ctx.sampleRate * 0.4, ctx.sampleRate);
-    const nData = nBuf.getChannelData(0);
-    for (let i = 0; i < nData.length; i++) nData[i] = (Math.random() * 2 - 1);
-    noise.buffer = nBuf;
+    noise.buffer = getNoiseBuffer(ctx, 0.4);
     const ng = ctx.createGain();
     ng.gain.setValueAtTime(0.18, now);
     ng.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
@@ -737,10 +760,7 @@ function sfxLand() {
     osc.stop(now + 0.14);
 
     const noise = ctx.createBufferSource();
-    const nBuf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate);
-    const nData = nBuf.getChannelData(0);
-    for (let i = 0; i < nData.length; i++) nData[i] = (Math.random() * 2 - 1) * 0.15;
-    noise.buffer = nBuf;
+    noise.buffer = getNoiseBuffer(ctx, 0.06);
     const ng = ctx.createGain();
     ng.gain.setValueAtTime(0.12, now);
     ng.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
@@ -772,6 +792,13 @@ function killCrossfade() {
   if (crossfadeInterval) { clearInterval(crossfadeInterval); crossfadeInterval = null; }
 }
 
+function releaseAudio(audio) {
+  if (!audio) return;
+  audio.pause();
+  audio.src = "";
+  audio.load();
+}
+
 function crossfade(outAudio, inAudio, duration) {
   killCrossfade();
   const steps = 40;
@@ -787,7 +814,7 @@ function crossfade(outAudio, inAudio, duration) {
     inAudio.volume = MUSIC_TARGET_VOL * fadeIn;
     if (step >= steps) {
       killCrossfade();
-      if (outAudio) { outAudio.pause(); outAudio.volume = 0; }
+      releaseAudio(outAudio);
       inAudio.volume = MUSIC_TARGET_VOL;
     }
   }, stepMs);
@@ -827,7 +854,7 @@ function startMusic() {
   killCrossfade();
   if (currentBgMusic) {
     currentBgMusic.removeEventListener("ended", onSegmentEnd);
-    currentBgMusic.pause();
+    releaseAudio(currentBgMusic);
     currentBgMusic = null;
   }
   currentBgMusic = new Audio(musicTracks[musicTrackIndex]);
@@ -846,16 +873,15 @@ function stopMusic() {
   killCrossfade();
   if (segmentTimer) { clearTimeout(segmentTimer); segmentTimer = null; }
   if (currentBgMusic) {
-    currentBgMusic.pause();
+    currentBgMusic.removeEventListener("ended", onSegmentEnd);
+    releaseAudio(currentBgMusic);
+    currentBgMusic = null;
   }
 }
 
 function startGameOverMusic() {
   if (!settings.music) return;
-  if (gameOverMusic) {
-    gameOverMusic.pause();
-    gameOverMusic.currentTime = 0;
-  }
+  releaseAudio(gameOverMusic);
   gameOverMusic = new Audio(gameOverTrackUrl);
   gameOverMusic.volume = 0.35;
   gameOverMusic.loop = true;
@@ -865,7 +891,7 @@ function startGameOverMusic() {
 
 function stopGameOverMusic() {
   if (gameOverMusic) {
-    gameOverMusic.pause();
+    releaseAudio(gameOverMusic);
     gameOverMusic = null;
   }
 }

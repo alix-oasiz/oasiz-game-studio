@@ -16,5 +16,8 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "vite-plugin-singlefile": "^2.0.3"
+  },
+  "dependencies": {
+    "@oasiz/sdk": "^1.0.1"
   }
 }

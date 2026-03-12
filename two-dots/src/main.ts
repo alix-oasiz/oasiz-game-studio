@@ -3,6 +3,7 @@ console.log("[TwoDots] Game initialized");
 import { StartScreen } from "./StartScreen";
 import { LevelSelector } from "./LevelSelector";
 import { oasiz } from "@oasiz/sdk";
+import bgMusicUrl from "./music/Chibi Puzzle Glow.mp3";
 
 // Types
 export type DotColor = "red" | "blue" | "green" | "yellow" | "purple";
@@ -381,7 +382,7 @@ function playTapFx(): void {
 }
 
 // Background music still uses HTMLAudioElement (needs looping/pause/resume)
-const bgMusic = new Audio("https://assets.oasiz.ai/audio/puzzle-music.mp3");
+const bgMusic = new Audio(bgMusicUrl);
 bgMusic.loop = true;
 bgMusic.preload = "auto";
 bgMusic.volume = 0.35;
@@ -2299,5 +2300,7 @@ if (backBtn) {
     }
   });
 }
+
+updateUI();
 
 updateUI();

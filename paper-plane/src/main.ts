@@ -872,9 +872,26 @@ class AudioManager {
     ];
   }
 
+  private pauseAllTracks(resetTime: boolean): void {
+    for (const track of this.normalTracks) {
+      track.pause();
+      if (resetTime) {
+        track.currentTime = 0;
+      }
+    }
+
+    if (this.bossTrack) {
+      this.bossTrack.pause();
+      if (resetTime) {
+        this.bossTrack.currentTime = 0;
+      }
+    }
+  }
+
   startMusic(): void {
     this.musicActive = true;
     this.isBossMusic = false;
+    this.pauseAllTracks(true);
     if (!this.settings.music) return;
     const track = this.getCurrentNormalTrack();
     if (!track) return;
@@ -892,14 +909,7 @@ class AudioManager {
 
   stopMusic(): void {
     this.musicActive = false;
-    for (const track of this.normalTracks) {
-      track.pause();
-      track.currentTime = 0;
-    }
-    if (this.bossTrack) {
-      this.bossTrack.pause();
-      this.bossTrack.currentTime = 0;
-    }
+    this.pauseAllTracks(true);
     this.isBossMusic = false;
     console.log("[AudioManager] All music stopped");
   }
@@ -907,9 +917,7 @@ class AudioManager {
   switchToBossMusic(): void {
     if (this.isBossMusic) return;
     console.log("[AudioManager] Switching to boss music");
-    for (const track of this.normalTracks) {
-      track.pause();
-    }
+    this.pauseAllTracks(true);
     this.isBossMusic = true;
     if (!this.bossTrack || !this.settings.music) return;
     this.bossTrack.currentTime = 0;
@@ -922,10 +930,7 @@ class AudioManager {
   switchToNormalMusic(): void {
     if (!this.isBossMusic) return;
     console.log("[AudioManager] Switching back to normal music");
-    if (this.bossTrack) {
-      this.bossTrack.pause();
-      this.bossTrack.currentTime = 0;
-    }
+    this.pauseAllTracks(true);
     this.isBossMusic = false;
     this.currentNormalIndex =
       (this.currentNormalIndex + 1) % this.normalTracks.length;
@@ -1119,7 +1124,9 @@ class AudioManager {
 
   triggerHaptic(type: string): void {
     if (!this.settings.haptics) return;
-    oasiz.triggerHaptic(type as "light" | "medium" | "heavy" | "success" | "error");
+    oasiz.triggerHaptic(
+      type as "light" | "medium" | "heavy" | "success" | "error",
+    );
   }
 }
 
@@ -1466,6 +1473,9 @@ class PaperPlaneGame {
   bossesDefeated: number = 0;
   bossAnnouncementTimer: number = 0;
 
+  // Pause state tracking
+  prePauseState: GameState = "PLAYING";
+
   // Stats
   survivalTime: number = 0;
   coins: number = 0;
@@ -1681,7 +1691,10 @@ class PaperPlaneGame {
     // Keyboard
     window.addEventListener("keydown", (e) => {
       this.keysDown.add(e.key);
-      if (e.key === "Escape" && this.gameState === "PLAYING") {
+      if (
+        e.key === "Escape" &&
+        (this.gameState === "PLAYING" || this.gameState === "BOSS")
+      ) {
         this.pauseGame();
       } else if (e.key === "Escape" && this.gameState === "PAUSED") {
         this.resumeGame();
@@ -2129,15 +2142,16 @@ class PaperPlaneGame {
 
   pauseGame(): void {
     if (this.gameState !== "PLAYING" && this.gameState !== "BOSS") return;
-    console.log("[pauseGame]");
+    console.log("[pauseGame] Pausing from state:", this.gameState);
+    this.prePauseState = this.gameState;
     this.gameState = "PAUSED";
     document.getElementById("pauseScreen")?.classList.remove("hidden");
   }
 
   resumeGame(): void {
     if (this.gameState !== "PAUSED") return;
-    console.log("[resumeGame]");
-    this.gameState = "PLAYING";
+    console.log("[resumeGame] Restoring state:", this.prePauseState);
+    this.gameState = this.prePauseState;
     document.getElementById("pauseScreen")?.classList.add("hidden");
   }
 
@@ -4321,6 +4335,334 @@ class PaperPlaneGame {
     return distance(px, py, x1 + t * (x2 - x1), y1 + t * (y2 - y1));
   }
 
+  getCurrentBossRadius(): number {
+    if (!this.boss) return CONFIG.BOSS_RADIUS;
+    return CONFIG.BOSS_RADIUS * (1 + Math.sin(this.boss.pulsePhase) * 0.03);
+  }
+
+  getEraserRenderRotation(): number {
+    return this.boss ? this.boss.rotation * 0.3 : 0;
+  }
+
+  getStaplerLeverAngle(): number {
+    return this.boss ? Math.sin(this.boss.pulsePhase * 2) * 0.15 : 0;
+  }
+
+  getScissorsOpenAngle(): number {
+    return this.boss
+      ? 0.3 + Math.abs(Math.sin(this.boss.pulsePhase * 2)) * 0.4
+      : 0.3;
+  }
+
+  rotatePoint(x: number, y: number, angle: number): { x: number; y: number } {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return {
+      x: x * cos - y * sin,
+      y: x * sin + y * cos,
+    };
+  }
+
+  toBossLocalSpace(
+    px: number,
+    py: number,
+    angle: number = 0,
+  ): { x: number; y: number } {
+    if (!this.boss) {
+      return { x: 0, y: 0 };
+    }
+
+    return this.rotatePoint(px - this.boss.x, py - this.boss.y, -angle);
+  }
+
+  isPointInLocalRect(
+    px: number,
+    py: number,
+    cx: number,
+    cy: number,
+    halfW: number,
+    halfH: number,
+    padding: number = 0,
+  ): boolean {
+    return (
+      Math.abs(px - cx) <= halfW + padding &&
+      Math.abs(py - cy) <= halfH + padding
+    );
+  }
+
+  isPointInLocalRotatedRect(
+    px: number,
+    py: number,
+    cx: number,
+    cy: number,
+    halfW: number,
+    halfH: number,
+    rotation: number,
+    padding: number = 0,
+  ): boolean {
+    const local = this.rotatePoint(px - cx, py - cy, -rotation);
+    return this.isPointInLocalRect(
+      local.x,
+      local.y,
+      0,
+      0,
+      halfW,
+      halfH,
+      padding,
+    );
+  }
+
+  isPointInLocalEllipse(
+    px: number,
+    py: number,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    rotation: number = 0,
+    padding: number = 0,
+  ): boolean {
+    const local = this.rotatePoint(px - cx, py - cy, -rotation);
+    const paddedRx = rx + padding;
+    const paddedRy = ry + padding;
+    const normalized =
+      (local.x * local.x) / (paddedRx * paddedRx) +
+      (local.y * local.y) / (paddedRy * paddedRy);
+    return normalized <= 1;
+  }
+
+  isPointInLocalEllipseRing(
+    px: number,
+    py: number,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    rotation: number,
+    thickness: number,
+    padding: number = 0,
+  ): boolean {
+    const outer = this.isPointInLocalEllipse(
+      px,
+      py,
+      cx,
+      cy,
+      rx + thickness * 0.5,
+      ry + thickness * 0.5,
+      rotation,
+      padding,
+    );
+    const innerRx = Math.max(1, rx - thickness * 0.5 - padding);
+    const innerRy = Math.max(1, ry - thickness * 0.5 - padding);
+    const inner = this.isPointInLocalEllipse(
+      px,
+      py,
+      cx,
+      cy,
+      innerRx,
+      innerRy,
+      rotation,
+      0,
+    );
+
+    return outer && !inner;
+  }
+
+  isPointInPolygon(
+    px: number,
+    py: number,
+    points: Array<{ x: number; y: number }>,
+  ): boolean {
+    let inside = false;
+
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const xi = points[i].x;
+      const yi = points[i].y;
+      const xj = points[j].x;
+      const yj = points[j].y;
+
+      const intersects =
+        yi > py !== yj > py &&
+        px < ((xj - xi) * (py - yi)) / (yj - yi + Number.EPSILON) + xi;
+
+      if (intersects) {
+        inside = !inside;
+      }
+    }
+
+    return inside;
+  }
+
+  isPointNearPolygon(
+    px: number,
+    py: number,
+    points: Array<{ x: number; y: number }>,
+    padding: number,
+  ): boolean {
+    if (this.isPointInPolygon(px, py, points)) {
+      return true;
+    }
+
+    for (let i = 0; i < points.length; i++) {
+      const next = (i + 1) % points.length;
+      if (
+        this.distToSegment(
+          px,
+          py,
+          points[i].x,
+          points[i].y,
+          points[next].x,
+          points[next].y,
+        ) <= padding
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  isPointInBossHitbox(px: number, py: number): boolean {
+    if (!this.boss) return false;
+
+    const radius = this.getCurrentBossRadius();
+    const padding = Math.max(CONFIG.BULLET_WIDTH, CONFIG.BULLET_HEIGHT * 0.2);
+
+    switch (this.boss.type) {
+      case "eraser": {
+        const local = this.toBossLocalSpace(
+          px,
+          py,
+          this.getEraserRenderRotation(),
+        );
+        return this.isPointInLocalRect(
+          local.x,
+          local.y,
+          0,
+          0,
+          radius * 0.9,
+          radius * 0.45,
+          padding,
+        );
+      }
+
+      case "paperweight": {
+        const local = this.toBossLocalSpace(px, py);
+        return (
+          this.isPointInLocalEllipse(
+            local.x,
+            local.y,
+            0,
+            10,
+            radius * 1.1,
+            radius * 0.7,
+            0,
+            padding,
+          ) ||
+          this.isPointInLocalEllipse(
+            local.x,
+            local.y,
+            0,
+            -15,
+            radius * 0.8,
+            radius * 0.6,
+            0,
+            padding,
+          )
+        );
+      }
+
+      case "inkblot": {
+        const local = this.toBossLocalSpace(px, py, this.boss.rotation);
+        const angle = Math.atan2(local.y, local.x);
+        const wobble = Math.sin(angle * 5 + this.boss.pulsePhase * 3) * 15;
+        return Math.hypot(local.x, local.y) <= radius * 0.9 + wobble + padding;
+      }
+
+      case "rubberband": {
+        const local = this.toBossLocalSpace(px, py, this.boss.rotation);
+        return Math.hypot(local.x, local.y) <= radius * 0.95 + padding;
+      }
+
+      case "stapler": {
+        const local = this.toBossLocalSpace(px, py);
+        const w = radius * 2;
+        const h = radius * 0.6;
+        const leverAngle = this.getStaplerLeverAngle();
+
+        return (
+          this.isPointInLocalRect(
+            local.x,
+            local.y,
+            0,
+            h * 0.5,
+            w * 0.5,
+            h * 0.5,
+            padding,
+          ) ||
+          this.isPointInLocalRotatedRect(
+            local.x,
+            local.y,
+            0,
+            -h * 0.45,
+            (w - 20) * 0.5,
+            h * 0.35,
+            leverAngle,
+            padding,
+          ) ||
+          this.isPointInLocalRect(local.x, local.y, 0, h, 10, 5, padding)
+        );
+      }
+
+      case "scissors": {
+        const local = this.toBossLocalSpace(px, py);
+        const openAngle = this.getScissorsOpenAngle();
+
+        const leftBlade = [
+          this.rotatePoint(0, 0, -openAngle),
+          this.rotatePoint(-radius * 1.5, -30, -openAngle),
+          this.rotatePoint(-radius * 1.4, 0, -openAngle),
+          this.rotatePoint(-radius * 1.5, 30, -openAngle),
+        ];
+
+        const rightBlade = [
+          this.rotatePoint(0, 0, openAngle),
+          this.rotatePoint(radius * 1.5, -30, openAngle),
+          this.rotatePoint(radius * 1.4, 0, openAngle),
+          this.rotatePoint(radius * 1.5, 30, openAngle),
+        ];
+
+        return (
+          this.isPointNearPolygon(local.x, local.y, leftBlade, padding) ||
+          this.isPointNearPolygon(local.x, local.y, rightBlade, padding) ||
+          Math.hypot(local.x, local.y) <= 20 + padding ||
+          this.isPointInLocalEllipseRing(
+            local.x,
+            local.y,
+            -radius * 0.3,
+            radius * 0.7,
+            25,
+            30,
+            -0.3,
+            8,
+            padding,
+          ) ||
+          this.isPointInLocalEllipseRing(
+            local.x,
+            local.y,
+            radius * 0.3,
+            radius * 0.7,
+            25,
+            30,
+            0.3,
+            8,
+            padding,
+          )
+        );
+      }
+    }
+  }
+
   checkBossMinionCollisions(): void {
     // Bullets hit minions
     for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -5292,8 +5634,7 @@ class PaperPlaneGame {
       const bullet = this.bullets[i];
       if (!bullet.active) continue;
 
-      const dist = distance(bullet.x, bullet.y, this.boss.x, this.boss.y);
-      if (dist < CONFIG.BOSS_RADIUS) {
+      if (this.isPointInBossHitbox(bullet.x, bullet.y)) {
         const snowballMult = bullet.snowball
           ? 1 + Math.min(1, bullet.age / 1.2) * (bullet.snowballMax - 1)
           : 1;
@@ -5307,7 +5648,7 @@ class PaperPlaneGame {
         this.particles.emit(bullet.x, bullet.y, CONFIG.PENCIL_DARK, 5, "spark");
 
         this.audio.playHit();
-        this.triggerScreenShake(2);
+        this.triggerScreenShake(0.6);
 
         console.log(
           "[checkBossCollisions] Boss hit! Health:",
@@ -6223,9 +6564,7 @@ class PaperPlaneGame {
     const ctx = this.ctx;
     const x = this.boss.x;
     const y = this.boss.y;
-    const baseRadius = CONFIG.BOSS_RADIUS;
-    const pulseScale = 1 + Math.sin(this.boss.pulsePhase) * 0.03;
-    const radius = baseRadius * pulseScale;
+    const radius = this.getCurrentBossRadius();
     const config = BOSS_CONFIGS[this.boss.type];
 
     ctx.save();
@@ -6271,7 +6610,7 @@ class PaperPlaneGame {
     radius: number,
     config: BossConfig,
   ): void {
-    ctx.rotate(this.boss!.rotation * 0.3);
+    ctx.rotate(this.getEraserRenderRotation());
 
     // Pink eraser body - rounded rectangle shape
     const w = radius * 1.8;
@@ -6460,7 +6799,7 @@ class PaperPlaneGame {
     ctx.stroke();
 
     // Top lever (animated)
-    const leverAngle = Math.sin(this.boss!.pulsePhase * 2) * 0.15;
+    const leverAngle = this.getStaplerLeverAngle();
     ctx.save();
     ctx.rotate(leverAngle);
     ctx.fillStyle = config.accentColor;
@@ -6489,7 +6828,7 @@ class PaperPlaneGame {
     config: BossConfig,
   ): void {
     // Animated scissor blades
-    const openAngle = 0.3 + Math.abs(Math.sin(this.boss!.pulsePhase * 2)) * 0.4;
+    const openAngle = this.getScissorsOpenAngle();
 
     // Left blade
     ctx.save();
