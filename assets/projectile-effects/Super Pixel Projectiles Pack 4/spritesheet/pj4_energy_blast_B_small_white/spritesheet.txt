@@ -1,0 +1,4 @@
+pj4_energy_blast_B_small_white/frame0000.png = 0 0 32 16
+pj4_energy_blast_B_small_white/frame0001.png = 32 0 32 16
+pj4_energy_blast_B_small_white/frame0002.png = 64 0 32 16
+pj4_energy_blast_B_small_white/frame0003.png = 96 0 32 16

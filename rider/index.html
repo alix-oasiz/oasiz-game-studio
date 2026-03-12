@@ -1,40 +1,57 @@
 <!doctype html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Fonts for the Neon Rider Theme -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet">
+    <!-- Game Stylesheet -->
     <link rel="stylesheet" href="/style.css">
-    <title>Rider</title>
+    <title>Neon Rider</title>
 </head>
+
 <body>
     <div id="app">
         <div id="game-container"></div>
 
-        <div id="ui-layer" style="display: none;">
+        <div id="ui-layer" class="neon-bg" style="display: none;">
 
-            <div class="title-area">
-                <div class="game-title">RIDER</div>
+            <!-- Background Decor Elements -->
+            <div class="corner-glow"></div>
+            <div class="glow-line"></div>
+
+            <div class="title-area score-container">
+                <div class="game-title score-value">RIDER</div>
+                <div id="score-display" class="hidden" style="margin-top: 5px;">
+                    <div class="score-value-end">Score: <span id="hud-score">0</span></div>
+                </div>
             </div>
 
             <div class="moto-area">
-                <img src="/assets/motorcycle.png" class="moto-hero" alt="" />
+                <img src="/assets/Motorcycles/blue.png" class="moto-hero" alt="" />
             </div>
 
             <div class="bottom-area">
-                <div id="score-display" class="score-display hidden">
-                    <div class="score-label">SCORE</div>
-                    <div id="hud-score" class="score-value">0</div>
-                </div>
-                <div id="play-btn" class="play-btn">
-                    <span id="play-btn-text">PLAY</span>
-                </div>
+                <!-- Hexagonal Play Button -->
+                <button id="play-btn" class="play-button">
+                    <div class="play-button-inner">
+                        <div class="play-icon"></div>
+                        <span id="play-btn-text">Play</span>
+                    </div>
+                </button>
+                <div id="moto-select-btn" class="moto-select-btn">MOTORCYCLES</div>
             </div>
 
         </div>
     </div>
     <!-- SETTINGS GEAR — always visible, fixed, outside ui-layer -->
-    <div id="settings-btn">&#9881;</div>
+    <button id="settings-btn" class="settings-btn" aria-label="Settings">
+        <span class="material-symbols-outlined">settings</span>
+    </button>
 
     <!-- SETTINGS OVERLAY + MODAL -->
     <div id="settings-overlay"></div>
@@ -71,6 +88,103 @@
         </div>
     </div>
 
+    <!-- SKIN OVERLAY + MODAL -->
+    <div id="skin-overlay"></div>
+    <div id="skin-modal">
+        <div class="settings-title">MOTORCYCLES</div>
+        <div class="settings-divider"></div>
+        <div class="skin-list">
+            <div class="skin-row" data-skin="blue">
+                <img src="/assets/Motorcycles/blue.png" alt="Blue" />
+                <div class="skin-row-name">Blue</div>
+                <div class="skin-row-check"></div>
+            </div>
+            <div class="skin-row" data-skin="brown">
+                <img src="/assets/Motorcycles/brown.png" alt="Brown" />
+                <div class="skin-row-name">Brown</div>
+                <div class="skin-row-check"></div>
+            </div>
+            <div class="skin-row" data-skin="red">
+                <img src="/assets/Motorcycles/red.png" alt="Red" />
+                <div class="skin-row-name">Red</div>
+                <div class="skin-row-check"></div>
+            </div>
+            <div class="skin-row" data-skin="purple">
+                <img src="/assets/Motorcycles/purple.png" alt="Purple" />
+                <div class="skin-row-name">Purple</div>
+                <div class="skin-row-check"></div>
+            </div>
+        </div>
+        <div class="settings-close-row">
+            <button id="skin-close" class="settings-close-btn">CLOSE</button>
+        </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
+    <script>
+        // ---- SKIN SELECTION LOGIC ----
+        const SKIN_KEY = 'selectedSkin';
+        const DEFAULT_SKIN = 'blue';
+        const SKIN_KEY_MAP = {
+            'motorcycle_blue': 'blue',
+            'motorcycle_brown': 'brown',
+            'motorcycle_red': 'red',
+            'motorcycle_neon_purple': 'purple',
+        };
+
+        function getSelectedSkin() {
+            let skin = localStorage.getItem(SKIN_KEY) || DEFAULT_SKIN;
+            if (SKIN_KEY_MAP[skin]) {
+                skin = SKIN_KEY_MAP[skin];
+                localStorage.setItem(SKIN_KEY, skin);
+            }
+            return skin;
+        }
+
+        const SKIN_GLOW = {
+            'blue':   { drop: 'rgba(0, 180, 255, 0.45)',   bg: 'rgba(0, 200, 255, 0.22)' },
+            'brown':  { drop: 'rgba(180, 100, 30, 0.45)',  bg: 'rgba(180, 100, 30, 0.22)' },
+            'red':    { drop: 'rgba(255, 40, 40, 0.45)',   bg: 'rgba(255, 40, 40, 0.22)' },
+            'purple': { drop: 'rgba(160, 0, 255, 0.45)',   bg: 'rgba(160, 0, 255, 0.22)' },
+        };
+
+        function applySelectedSkin(skinKey) {
+            localStorage.setItem(SKIN_KEY, skinKey);
+            document.querySelectorAll('.skin-row').forEach(row => {
+                row.classList.toggle('selected', row.dataset.skin === skinKey);
+            });
+            const hero = document.querySelector('.moto-hero');
+            if (hero) hero.src = `/assets/Motorcycles/${skinKey}.png?t=${Date.now()}`;
+            const glow = SKIN_GLOW[skinKey] || SKIN_GLOW['blue'];
+            document.documentElement.style.setProperty('--moto-glow-drop', glow.drop);
+            document.documentElement.style.setProperty('--moto-glow-bg', glow.bg);
+        }
+
+        const skinOverlay = document.getElementById('skin-overlay');
+        const skinModal = document.getElementById('skin-modal');
+        const skinClose = document.getElementById('skin-close');
+        const motoSelectBtn = document.getElementById('moto-select-btn');
+
+        function openSkinModal() {
+            applySelectedSkin(getSelectedSkin());
+            skinOverlay.classList.add('visible');
+            skinModal.classList.add('visible');
+        }
+        function closeSkinModal() {
+            skinOverlay.classList.remove('visible');
+            skinModal.classList.remove('visible');
+        }
+
+        if (motoSelectBtn) motoSelectBtn.addEventListener('click', openSkinModal);
+        if (skinOverlay) skinOverlay.addEventListener('click', closeSkinModal);
+        if (skinClose) skinClose.addEventListener('click', closeSkinModal);
+
+        document.querySelectorAll('.skin-row').forEach(row => {
+            row.addEventListener('click', () => applySelectedSkin(row.dataset.skin));
+        });
+
+        applySelectedSkin(getSelectedSkin());
+    </script>
 </body>
+
 </html>

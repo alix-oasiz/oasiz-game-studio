@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d049ddca39591904a878331c5e543c06
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 154529
+  packageName: '#NVJOB FPS Counter and Graph'
+  packageVersion: 2.0
+  assetPath: Assets/#NVJOB FPS Counter and Graph/Example Scenes/4DCube/4DCube.mat
+  uploadId: 356255

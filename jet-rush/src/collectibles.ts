@@ -131,9 +131,12 @@ export function tickCollectibles(
 
     if (c.attracting) {
       const dist = Math.sqrt(distSq);
-      const speed = dist > C.COLLECT_ATTRACT_RANGE
-        ? C.COLLECT_CHASE_SPEED
-        : C.COLLECT_ATTRACT_SPEED + (C.COLLECT_CHASE_SPEED - C.COLLECT_ATTRACT_SPEED) * (1 - dist / C.COLLECT_ATTRACT_RANGE);
+      const speed =
+        dist > C.COLLECT_ATTRACT_RANGE
+          ? C.COLLECT_CHASE_SPEED
+          : C.COLLECT_ATTRACT_SPEED +
+            (C.COLLECT_CHASE_SPEED - C.COLLECT_ATTRACT_SPEED) *
+              (1 - dist / C.COLLECT_ATTRACT_RANGE);
       const inv = 1 / Math.max(dist, 0.01);
 
       c.mesh.position.x += dx * inv * speed * dt;

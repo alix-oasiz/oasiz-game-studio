@@ -1,0 +1,542 @@
+{
+  "_meta": {
+    "description": "Sprite manifest for all enemy/monster assets. Use this file to quickly find enemy sprites by type, color, animation state, and pack.",
+    "basePath": "assets/enemies",
+    "format": "Individual PNG frames in PNG/ and packed spritesheets in spritesheet/. Pack 1 & 2: PNG/{monster}_{color}/{animation}/. mega_monster_pack: {monster}/PNG/{animation}/. Alien packs: PNG/{monster}_{size}_{color}/. flying_demon: style_{letter}/PNG/{animation}/"
+  },
+  "packs": [
+    {
+      "name": "Super Pixel Monsters Pack 1",
+      "path": "Super Pixel Monsters Pack 1",
+      "monsters": [
+        {
+          "id": "bone_statue",
+          "description": "Skeletal statue with bony structure, menacing appearance. Has projectile sub-sprite.",
+          "colors": ["blue", "gray", "green", "red"],
+          "animations": [
+            { "id": "attack", "frameCount": 14, "frameSize": "64x48" },
+            { "id": "idle", "frameCount": 8, "frameSize": "64x48" },
+            { "id": "neck", "frameCount": 1, "frameSize": "16x16", "note": "Accessory piece" }
+          ],
+          "subSprites": [
+            { "id": "bone_statue_projectile", "frameCount": 4, "frameSize": "22x16" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/bone_statue_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/bone_statue_{color}/"
+        },
+        {
+          "id": "demon_eye",
+          "description": "Floating eye with glowing pupil and menacing stare",
+          "colors": ["blue", "green", "red", "violet"],
+          "animations": [
+            { "id": "idle", "frameCount": 11, "frameSize": "50x50" },
+            { "id": "move", "frameCount": 8, "frameSize": "50x50" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/demon_eye_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/demon_eye_{color}/"
+        },
+        {
+          "id": "hell_skull",
+          "description": "Tall flaming skull with fire effects, floats menacingly",
+          "colors": ["blue", "green", "orange", "violet"],
+          "animations": [
+            { "id": "default", "frameCount": 11, "frameSize": "48x96" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/hell_skull_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/hell_skull_{color}/"
+        },
+        {
+          "id": "leech",
+          "description": "Segmented worm creature with wide glowing pink mouth and fangs",
+          "colors": ["gray", "green", "red", "violet"],
+          "animations": [
+            { "id": "attack", "frameCount": 10, "frameSize": "50x50" },
+            { "id": "idle", "frameCount": 10, "frameSize": "50x50" },
+            { "id": "move", "frameCount": 10, "frameSize": "50x50" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/leech_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/leech_{color}/"
+        },
+        {
+          "id": "mudman",
+          "description": "Large humanoid blob monster with glowing red eyes and jagged teeth",
+          "colors": ["blue", "brown", "green", "red"],
+          "animations": [
+            { "id": "appear", "frameCount": 10, "frameSize": "128x64" },
+            { "id": "disappear", "frameCount": 10, "frameSize": "128x64" },
+            { "id": "idle", "frameCount": 10, "frameSize": "128x64" },
+            { "id": "move", "frameCount": 10, "frameSize": "128x64" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/mudman_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/mudman_{color}/"
+        },
+        {
+          "id": "shrubtooth",
+          "description": "Small leafy bush monster with glowing red-orange eyes peering from dark interior",
+          "colors": ["blue", "red", "violet", "yellow"],
+          "animations": [
+            { "id": "appear", "frameCount": 8, "frameSize": "52x48" },
+            { "id": "attack", "frameCount": 13, "frameSize": "52x48" },
+            { "id": "disappear", "frameCount": 7, "frameSize": "52x48" },
+            { "id": "idle", "frameCount": 30, "frameSize": "52x48" },
+            { "id": "move", "frameCount": 6, "frameSize": "52x48" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/shrubtooth_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/shrubtooth_{color}/"
+        },
+        {
+          "id": "skull_beetle",
+          "description": "Large beetle with skull-patterned shell, vibrant segmented legs, orange pincers",
+          "colors": ["blue", "green", "red", "violet"],
+          "animations": [
+            { "id": "attack", "frameCount": 9, "frameSize": "96x48" },
+            { "id": "idle", "frameCount": 12, "frameSize": "96x48" },
+            { "id": "move", "frameCount": 8, "frameSize": "96x48" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/skull_beetle_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/skull_beetle_{color}/"
+        },
+        {
+          "id": "skull_slime",
+          "description": "Glowing ghost with skull face in dark hooded cloak, can dissolve and reform",
+          "colors": ["blue", "green", "orange", "red"],
+          "animations": [
+            { "id": "dissolve", "frameCount": 22, "frameSize": "48x34" },
+            { "id": "exposed", "frameCount": 8, "frameSize": "48x34" },
+            { "id": "idle", "frameCount": 18, "frameSize": "48x34" },
+            { "id": "move", "frameCount": 8, "frameSize": "48x34" },
+            { "id": "reform", "frameCount": 35, "frameSize": "48x34" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/skull_slime_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/skull_slime_{color}/"
+        },
+        {
+          "id": "winged_skull",
+          "description": "Glowing skull with large dark bat wings, aerial enemy",
+          "colors": ["blue", "gray", "red", "violet"],
+          "animations": [
+            { "id": "attack", "frameCount": 12, "frameSize": "52x48" },
+            { "id": "idle", "frameCount": 8, "frameSize": "52x48" },
+            { "id": "move", "frameCount": 8, "frameSize": "52x48" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/winged_skull_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/winged_skull_{color}/"
+        },
+        {
+          "id": "wraith",
+          "description": "Grim reaper in blue robe with skeletal face, yellow eyes, holding scythe",
+          "colors": ["blue", "green", "red", "violet"],
+          "animations": [
+            { "id": "attack", "frameCount": 17, "frameSize": "128x64" },
+            { "id": "idle_A", "frameCount": 10, "frameSize": "128x64" },
+            { "id": "idle_B", "frameCount": 10, "frameSize": "128x64" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 1/PNG/wraith_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 1/spritesheet/wraith_{color}/"
+        }
+      ],
+      "effects": {
+        "description": "Shared particle effects: skull puffs and splatters in multiple colors/sizes",
+        "path": "Super Pixel Monsters Pack 1/PNG/effects/"
+      }
+    },
+    {
+      "name": "Super Pixel Monsters Pack 2",
+      "path": "Super Pixel Monsters Pack 2",
+      "monsters": [
+        {
+          "id": "evil_eye",
+          "description": "Floating brain-like creature with prominent yellow eye, tentacle limbs, glowing orbs",
+          "colors": ["blue", "green", "pink", "red"],
+          "animations": [
+            { "id": "attack", "frameCount": 11, "frameSize": "96x96" },
+            { "id": "idle", "frameCount": 20, "frameSize": "96x96" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 2/PNG/evil_eye_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 2/spritesheet/evil_eye_{color}/"
+        },
+        {
+          "id": "hell_hand",
+          "description": "Snake-like monster with orange spikes, rising from rocky base. Appears/disappears.",
+          "colors": ["blue", "green", "red", "violet"],
+          "animations": [
+            { "id": "appear", "frameCount": 17, "frameSize": "128x64" },
+            { "id": "attack", "frameCount": 19, "frameSize": "128x64" },
+            { "id": "disappear", "frameCount": 10, "frameSize": "128x64" },
+            { "id": "idle", "frameCount": 16, "frameSize": "128x64" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 2/PNG/hell_hand_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 2/spritesheet/hell_hand_{color}/"
+        },
+        {
+          "id": "medusa_head",
+          "description": "Luminous multi-tentacled creature with glowing orange eyes, small flying enemy",
+          "colors": ["blue", "green", "red", "violet"],
+          "animations": [
+            { "id": "default", "frameCount": 20, "frameSize": "32x32" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 2/PNG/medusa_head_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 2/spritesheet/medusa_head_{color}/"
+        },
+        {
+          "id": "skull_wheel",
+          "description": "Menacing skull with sharp teeth encircled by eight fiery orbs, large spinning enemy",
+          "colors": ["gray", "green", "red", "violet"],
+          "animations": [
+            { "id": "default", "frameCount": 11, "frameSize": "144x144" }
+          ],
+          "pngPath": "Super Pixel Monsters Pack 2/PNG/skull_wheel_{color}/",
+          "spritesheetPath": "Super Pixel Monsters Pack 2/spritesheet/skull_wheel_{color}/"
+        }
+      ],
+      "effects": {
+        "description": "Shared effects: projectiles (4 colors), skull puffs, and splatters in multiple colors/sizes",
+        "path": "Super Pixel Monsters Pack 2/PNG/effects/"
+      }
+    },
+    {
+      "name": "Mega Monster Pack",
+      "path": "mega_monster_pack",
+      "note": "Each monster has regular (64x64) and mini (32x32) variants in separate folders",
+      "monsters": [
+        {
+          "id": "bat",
+          "description": "Dark purple bat with large spread red wings and small glowing red eyes",
+          "variants": ["bat (64x64)", "bat_mini (32x32)"],
+          "animations": [
+            { "id": "attack", "frameCount": 9, "frameSize": "64x64 / 32x32" },
+            { "id": "die", "frameCount": 27, "frameSize": "64x64 / 32x32" },
+            { "id": "idle", "frameCount": 6, "frameSize": "64x64 / 32x32" },
+            { "id": "projectile", "frameCount": 32, "frameSize": "64x64 / 32x32", "note": "8 directions x 4 frames each" }
+          ],
+          "pngPath": "mega_monster_pack/bat/PNG/ | mega_monster_pack/bat_mini/PNG/",
+          "spritesheetPath": "mega_monster_pack/bat/spritesheet/ | mega_monster_pack/bat_mini/spritesheet/"
+        },
+        {
+          "id": "pumpkin",
+          "description": "Spooky orange jack-o-lantern with glowing yellow eyes, bouncing enemy",
+          "variants": ["pumpkin (64x64)", "pumpkin_mini (32x32)"],
+          "animations": [
+            { "id": "die", "frameCount": 8, "frameSize": "64x64 / 32x32" },
+            { "id": "idle", "frameCount": 8, "frameSize": "64x64 / 32x32" },
+            { "id": "jump", "frameCount": 14, "frameSize": "64x64 / 32x32" }
+          ],
+          "pngPath": "mega_monster_pack/pumpkin/PNG/ | mega_monster_pack/pumpkin_mini/PNG/",
+          "spritesheetPath": "mega_monster_pack/pumpkin/spritesheet/ | mega_monster_pack/pumpkin_mini/spritesheet/"
+        },
+        {
+          "id": "skull_bat",
+          "description": "Light blue skull with grinning teeth and outstretched dark orange bat wings",
+          "variants": ["skull_bat (64x64)", "skull_bat_mini (32x32)"],
+          "animations": [
+            { "id": "attack", "frameCount": 9, "frameSize": "64x64 / 32x32" },
+            { "id": "die", "frameCount": 27, "frameSize": "64x64 / 32x32" },
+            { "id": "idle", "frameCount": 6, "frameSize": "64x64 / 32x32" },
+            { "id": "projectile", "frameCount": 32, "frameSize": "64x64 / 32x32", "note": "8 directions x 4 frames each" }
+          ],
+          "pngPath": "mega_monster_pack/skull_bat/PNG/ | mega_monster_pack/skull_bat_mini/PNG/",
+          "spritesheetPath": "mega_monster_pack/skull_bat/spritesheet/ | mega_monster_pack/skull_bat_mini/spritesheet/"
+        },
+        {
+          "id": "spider",
+          "description": "Dark blue fuzzy spider with eight spindly legs and three small white eyes",
+          "variants": ["spider (64x64)", "spider_mini (32x32)"],
+          "animations": [
+            { "id": "die", "frameCount": 9, "frameSize": "64x64 / 32x32" },
+            { "id": "move_down", "frameCount": 6, "frameSize": "64x64 / 32x32" },
+            { "id": "move_up", "frameCount": 6, "frameSize": "64x64 / 32x32" },
+            { "id": "spawn", "frameCount": 9, "frameSize": "64x64 / 32x32" }
+          ],
+          "subSprites": [
+            { "id": "web_strand", "frameCount": 1, "frameSize": "2x1", "description": "Single pixel web strand tile, repeat vertically" },
+            { "id": "web_top", "frameCount": 1, "frameSize": "50x18 / 26x9", "description": "Web attachment point at top" }
+          ],
+          "miniExtraAnimations": [
+            { "id": "die_ground", "frameCount": 9, "frameSize": "32x32" },
+            { "id": "die_web", "frameCount": 8, "frameSize": "32x32" },
+            { "id": "hatch", "frameCount": 7, "frameSize": "32x32" },
+            { "id": "move_ground", "frameCount": 4, "frameSize": "32x32" },
+            { "id": "idle", "frameCount": 1, "frameSize": "32x32" }
+          ],
+          "pngPath": "mega_monster_pack/spider/PNG/ | mega_monster_pack/spider_mini/PNG/",
+          "spritesheetPath": "mega_monster_pack/spider/spritesheet/ | mega_monster_pack/spider_mini/spritesheet/"
+        },
+        {
+          "id": "spirit",
+          "description": "Menacing green skull with glowing red eyes surrounded by smoky aura, warps in/out",
+          "variants": ["spirit (64x64)", "spirit_mini (50x50)"],
+          "animations": [
+            { "id": "attack", "frameCount": 11, "frameSize": "64x64 / 50x50" },
+            { "id": "die", "frameCount": 11, "frameSize": "64x64 / 50x50" },
+            { "id": "idle", "frameCount": 7, "frameSize": "64x64 / 50x50" },
+            { "id": "warp_in", "frameCount": 9, "frameSize": "64x64 / 50x50" },
+            { "id": "warp_out", "frameCount": 9, "frameSize": "64x64 / 50x50" }
+          ],
+          "pngPath": "mega_monster_pack/spirit/PNG/ | mega_monster_pack/spirit_mini/PNG/",
+          "spritesheetPath": "mega_monster_pack/spirit/spritesheet/ | mega_monster_pack/spirit_mini/spritesheet/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Alien Monster Pack 1",
+      "path": "Super Pixel Alien Monster Pack 1",
+      "note": "Sci-fi alien enemies. Each monster has large and small variants in 3 color variants (A, B, C). Includes splatter effects and projectile sub-sprites.",
+      "monsters": [
+        {
+          "id": "crawling_horror",
+          "description": "Broad green alien with lumpy body, three red eyes, pink brain-like cap, dark wing appendages and pink tendrils",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "attack", "frameCount": 19, "frameSize": "96x48 / 48x24" },
+            { "id": "idle", "frameCount": 10, "frameSize": "96x48 / 48x24" },
+            { "id": "move", "frameCount": 8, "frameSize": "96x48 / 48x24" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 1/PNG/crawling_horror_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 1/spritesheet/crawling_horror_{size}_{color}/"
+        },
+        {
+          "id": "grub",
+          "description": "Elongated segmented dark blue worm with orange-red head, ribbed metallic segments and small claws",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "idle", "frameCount": 20, "frameSize": "52x24" },
+            { "id": "move", "frameCount": 12, "frameSize": "52x24" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 1/PNG/grub_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 1/spritesheet/grub_{size}_{color}/"
+        },
+        {
+          "id": "hopclops",
+          "description": "Squat blue alien with large yellow cyclops eye (vertical pupil), ridged spiky head, orange-brown shoulder pads",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "fall", "frameCount": 5, "frameSize": "72x34" },
+            { "id": "idle", "frameCount": 16, "frameSize": "72x34" },
+            { "id": "jump", "frameCount": 8, "frameSize": "72x34" },
+            { "id": "move", "frameCount": 8, "frameSize": "72x34" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 1/PNG/hopclops_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 1/spritesheet/hopclops_{size}_{color}/"
+        },
+        {
+          "id": "space_fly",
+          "description": "Dark demonic winged creature with glowing blue eyes, green tendrils, red armor accents, golden-orange feathered wings",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "attack_end", "frameCount": 8, "frameSize": "48x32" },
+            { "id": "attack_loop", "frameCount": 8, "frameSize": "48x32" },
+            { "id": "attack_start", "frameCount": 8, "frameSize": "48x32" },
+            { "id": "idle", "frameCount": 8, "frameSize": "48x32" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 1/PNG/space_fly_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 1/spritesheet/space_fly_{size}_{color}/"
+        },
+        {
+          "id": "egg",
+          "description": "Vibrant bumpy alien egg with orange-yellow bumps, pink core, blue rocky base — hatches into creature",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "hatch", "frameCount": 20, "frameSize": "100x80" },
+            { "id": "idle", "frameCount": 10, "frameSize": "100x80" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 1/PNG/egg_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 1/spritesheet/egg_{size}_{color}/"
+        }
+      ],
+      "subSprites": [
+        {
+          "id": "splatter",
+          "description": "Star-like burst death/hit effect with six radiating points",
+          "colors": ["A", "B", "C", "D", "E", "F"],
+          "sizes": ["large", "small"],
+          "frameCount": 7,
+          "frameSize": "64x64",
+          "pngPath": "Super Pixel Alien Monster Pack 1/PNG/splatter_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 1/spritesheet/splatter_{size}_{color}/"
+        },
+        {
+          "id": "projectile",
+          "description": "Glowing diamond-shaped energy projectile with bright white core",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "frameCount": 4,
+          "frameSize": "16x16",
+          "pngPath": "Super Pixel Alien Monster Pack 1/PNG/projectile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 1/spritesheet/projectile_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Alien Monster Pack 2",
+      "path": "Super Pixel Alien Monster Pack 2",
+      "note": "Advanced sci-fi alien enemies with complex behaviors (burrow, dissolve, reform). Most have large and small variants. Color variants use named colors instead of A/B/C.",
+      "monsters": [
+        {
+          "id": "amoeba",
+          "description": "Blue energy-based blob with circular core and pointed trail, ethereal luminous appearance. Can dissolve and reform.",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "attack_fx", "frameCount": 8, "frameSize": "48x24" },
+            { "id": "attack_loop", "frameCount": 3, "frameSize": "48x34" },
+            { "id": "attack_start", "frameCount": 5, "frameSize": "48x34" },
+            { "id": "attack_stop", "frameCount": 3, "frameSize": "48x34" },
+            { "id": "dissolve", "frameCount": 22, "frameSize": "48x34" },
+            { "id": "exposed", "frameCount": 10, "frameSize": "48x34" },
+            { "id": "idle", "frameCount": 18, "frameSize": "48x34" },
+            { "id": "move", "frameCount": 8, "frameSize": "48x34" },
+            { "id": "reform", "frameCount": 35, "frameSize": "48x34" }
+          ],
+          "smallAnimations": [
+            { "id": "idle", "frameCount": 8, "frameSize": "32x24" },
+            { "id": "move", "frameCount": 7, "frameSize": "32x24" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/amoeba_{color}/ | PNG/amoeba_small_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/amoeba_{color}/ | spritesheet/amoeba_small_{color}/"
+        },
+        {
+          "id": "egg",
+          "description": "Alien egg variant — hatches into creature",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "hatch", "frameCount": 20, "frameSize": "100x80" },
+            { "id": "idle", "frameCount": 10, "frameSize": "100x80" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/egg_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/egg_{size}_{color}/"
+        },
+        {
+          "id": "exofish",
+          "description": "Small blue-grey fish-like creature with pink ribbed fins, single bright yellow eye, dark mouth",
+          "colors": ["A", "B", "C"],
+          "animations": [
+            { "id": "default", "frameCount": 16, "frameSize": "24x16" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/exofish_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/exofish_{color}/"
+        },
+        {
+          "id": "moon_muncher",
+          "description": "Grey-purple alien with large yellow eye, sharp white fangs, golden-yellow horns, four segmented golden-brown legs. Can burrow underground.",
+          "colors": ["A", "B", "C"],
+          "animations": [
+            { "id": "attack", "frameCount": 11, "frameSize": "48x24" },
+            { "id": "burrow", "frameCount": 26, "frameSize": "48x24" },
+            { "id": "emerge", "frameCount": 26, "frameSize": "48x24" },
+            { "id": "idle", "frameCount": 16, "frameSize": "48x24" },
+            { "id": "move", "frameCount": 8, "frameSize": "48x24" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/moon_muncher_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/moon_muncher_{color}/"
+        },
+        {
+          "id": "skittermite",
+          "description": "Green-limbed alien with fanged orange mouth, glowing red eyes, segmented limbs, pumpkin-like body. Can jump and land.",
+          "colors": ["A", "B", "C"],
+          "sizes": ["large", "small"],
+          "animations": [
+            { "id": "attack_stop", "frameCount": 5, "frameSize": "64x32" },
+            { "id": "attack_loop", "frameCount": 3, "frameSize": "64x32" },
+            { "id": "attack_start", "frameCount": 5, "frameSize": "64x32" },
+            { "id": "fall", "frameCount": 3, "frameSize": "64x32" },
+            { "id": "idle", "frameCount": 12, "frameSize": "64x32" },
+            { "id": "jump", "frameCount": 6, "frameSize": "64x32" },
+            { "id": "land", "frameCount": 3, "frameSize": "64x32" },
+            { "id": "move", "frameCount": 8, "frameSize": "64x32" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/skittermite_{color}/ | PNG/skittermite_small_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/skittermite_{color}/ | spritesheet/skittermite_small_{color}/"
+        },
+        {
+          "id": "wall_gazer",
+          "description": "Small dark blue wall-mounted turret creature with glowing blue center, orange base. Opens/closes to fire.",
+          "colors": ["A", "B", "C"],
+          "animations": [
+            { "id": "charge", "frameCount": 8, "frameSize": "24x24" },
+            { "id": "close", "frameCount": 8, "frameSize": "24x24" },
+            { "id": "fire", "frameCount": 4, "frameSize": "24x24" },
+            { "id": "idle_closed", "frameCount": 1, "frameSize": "24x24" },
+            { "id": "idle_open", "frameCount": 1, "frameSize": "24x24" },
+            { "id": "open", "frameCount": 8, "frameSize": "24x24" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/wall_gazer_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/wall_gazer_{color}/"
+        },
+        {
+          "id": "xenomantis",
+          "description": "Large green mantis-like alien with pink dorsal spikes, orange segmented underbelly, scythe-like forelimbs, round yellow eyes",
+          "colors": ["A", "B", "C"],
+          "animations": [
+            { "id": "attack", "frameCount": 20, "frameSize": "128x64" },
+            { "id": "idle", "frameCount": 13, "frameSize": "128x64" },
+            { "id": "move", "frameCount": 8, "frameSize": "128x64" }
+          ],
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/xenomantis_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/xenomantis_{color}/"
+        }
+      ],
+      "subSprites": [
+        {
+          "id": "splatter",
+          "description": "Star-like burst death/hit effect with six radiating points",
+          "colors": ["blue", "green", "orange", "pink", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 7,
+          "frameSize": "64x64",
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/splatter_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/splatter_{size}_{color}/"
+        },
+        {
+          "id": "projectile",
+          "description": "Glowing energy projectile with bright core",
+          "colors": ["blue", "green", "orange", "pink", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 4,
+          "frameSize": "16x16",
+          "pngPath": "Super Pixel Alien Monster Pack 2/PNG/projectile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Alien Monster Pack 2/spritesheet/projectile_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Flying Demon",
+      "path": "flying_demon",
+      "note": "Large flying boss-type enemy with 6 color style variants and a fireball projectile. Structure: style_{letter}/PNG/{animation}/ and style_{letter}/spritesheet/",
+      "monsters": [
+        {
+          "id": "flying_demon",
+          "description": "Green horned one-eyed flying monster with purplish-red bat wings, spherical bumpy body, small claws. Large boss-type enemy.",
+          "styles": ["style_A", "style_B", "style_C", "style_D", "style_E", "style_F"],
+          "animations": [
+            { "id": "idle", "frameCount": 6, "frameSize": "106x104" },
+            { "id": "fly", "frameCount": 8, "frameSize": "106x104" },
+            { "id": "attack_A", "frameCount": 6, "frameSize": "106x104" },
+            { "id": "attack_A_charge", "frameCount": 8, "frameSize": "106x104" },
+            { "id": "attack_A_start", "frameCount": 3, "frameSize": "106x104" },
+            { "id": "attack_B", "frameCount": 11, "frameSize": "106x104" },
+            { "id": "get_hit", "frameCount": 7, "frameSize": "106x104" },
+            { "id": "die", "frameCount": 17, "frameSize": "106x104" }
+          ],
+          "pngPath": "flying_demon/{style}/PNG/{animation}/",
+          "spritesheetPath": "flying_demon/{style}/spritesheet/"
+        }
+      ],
+      "subSprites": [
+        {
+          "id": "fireball",
+          "description": "Horizontal elongated projectile with white/yellow pointed front fading to fiery red/orange rear",
+          "frameCount": 30,
+          "frameSize": "50x50",
+          "pngPath": "flying_demon/fireball/PNG/",
+          "spritesheetPath": "flying_demon/fireball/spritesheet/"
+        }
+      ]
+    }
+  ]
+}

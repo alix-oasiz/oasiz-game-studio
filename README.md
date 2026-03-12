@@ -322,6 +322,90 @@ The upload script will:
 4. Include thumbnail if `thumbnail/` folder exists
 5. Upload to the Oasiz platform
 
+---
+
+## Unity WebGL Games
+
+Unity games follow a different workflow. The full Unity project source lives under `Unity/` and the WebGL build output is produced manually in the Unity Editor.
+
+### Folder Structure
+
+```
+Unity/
+└── YourGame/                    ← Unity project root
+    ├── Assets/                  ← All game source (scenes, scripts, art)
+    ├── ProjectSettings/
+    ├── Packages/
+    ├── publish.json             ← Required for upload (create this manually)
+    └── Build/                   ← WebGL export goes here (gitignored)
+        ├── index.html
+        ├── Build/               ← Unity always creates this nested subfolder
+        │   ├── Build.loader.js
+        │   ├── Build.framework.js
+        │   ├── Build.data
+        │   └── Build.wasm
+        ├── StreamingAssets/     ← Optional: JSON data, audio, etc.
+        └── TemplateData/        ← Optional: loading screen assets
+```
+
+> The `Build/` folder is gitignored — it contains large binary files (`.wasm` can be 50 MB+). You export it locally before uploading.
+
+### Step 1: Export WebGL from Unity
+
+1. Open the project in Unity (e.g. `Unity/ThreadTangle/`)
+2. Go to **File → Build Settings**
+3. Select **WebGL** platform (switch platform if needed)
+4. Set the output folder to `Build/` inside your game directory
+5. Click **Build**
+
+Unity will produce the nested structure above automatically — this is Unity's default WebGL output.
+
+### Step 2: Create publish.json
+
+Add a `publish.json` at the root of your game folder (next to `Assets/`):
+
+```json
+{
+  "title": "Your Game Title",
+  "description": "A brief description of your game",
+  "category": "puzzle",
+  "verticalOnly": true
+}
+```
+
+### Step 3: Upload
+
+The upload script auto-detects Unity games — just use the game name:
+
+```bash
+# Auto-detected (script looks in Unity/ folder if not found at root)
+bun run upload YourGame
+
+# Or explicit path:
+bun run upload Unity/YourGame
+
+# Dry run to verify everything looks right before uploading:
+bun run upload YourGame --dry-run
+
+# List all games (shows TypeScript and Unity sections separately):
+bun run upload --list
+```
+
+The script will **skip the build step** (Unity games are pre-built) and:
+1. Read `Build/index.html` and rewrite asset paths to CDN URLs
+2. Upload all files in `Build/` to the CDN
+3. Upload to the Oasiz platform
+
+### Updating a Unity Game
+
+After making code changes in Unity:
+
+```
+Edit .cs files → Open Unity Editor (auto-recompiles) → File → Build Settings → Build → bun run upload YourGame
+```
+
+The `Build/` folder is replaced each time you build in Unity, so just re-run the upload after every new build.
+
 #### 4. Test on the App
 
 Once uploaded, open the Oasiz app and navigate to **Profile → Drafts** to find your game. Tap it to launch and verify:

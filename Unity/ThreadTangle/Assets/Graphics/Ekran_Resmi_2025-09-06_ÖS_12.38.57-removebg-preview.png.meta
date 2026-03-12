@@ -1,0 +1,364 @@
+fileFormatVersion: 2
+guid: e675d9be40bf646f2bd0eae7fb3d9d3d
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -7920015646015608116
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_0"
+  - first:
+      213: -1890875878359094415
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_1"
+  - first:
+      213: 2779802857813662246
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_2"
+  - first:
+      213: -5487379000997371015
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_3"
+  - first:
+      213: -5124386438755471822
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_4"
+  - first:
+      213: -5524200984423907813
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_5"
+  - first:
+      213: -135429277556137942
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_6"
+  - first:
+      213: -1079537574334477800
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_7"
+  - first:
+      213: -6467093655361827572
+    second: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_8"
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 1
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_0"
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 163
+        width: 277
+        height: 340
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: cca24b36bb3761290800000000000000
+      internalID: -7920015646015608116
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_1"
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 0
+        width: 100
+        height: 330
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 17b2d0c286242c5e0800000000000000
+      internalID: -1890875878359094415
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_2"
+      rect:
+        serializedVersion: 2
+        x: 23
+        y: 0
+        width: 99
+        height: 203
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 62a599d98f7d39620800000000000000
+      internalID: 2779802857813662246
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_3"
+      rect:
+        serializedVersion: 2
+        x: 55
+        y: 327
+        width: 96
+        height: 138
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9732d993fd9e8d3b0800000000000000
+      internalID: -5487379000997371015
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_4"
+      rect:
+        serializedVersion: 2
+        x: 55
+        y: 0
+        width: 385
+        height: 421
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 23ea6222fa582e8b0800000000000000
+      internalID: -5124386438755471822
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_5"
+      rect:
+        serializedVersion: 2
+        x: 263
+        y: 111
+        width: 233
+        height: 392
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b1ebc8f19781653b0800000000000000
+      internalID: -5524200984423907813
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_6"
+      rect:
+        serializedVersion: 2
+        x: 372
+        y: 0
+        width: 94
+        height: 202
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a2024132acbde1ef0800000000000000
+      internalID: -135429277556137942
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_7"
+      rect:
+        serializedVersion: 2
+        x: 393
+        y: 0
+        width: 103
+        height: 330
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 81a4b18bb46b401f0800000000000000
+      internalID: -1079537574334477800
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_8"
+      rect:
+        serializedVersion: 2
+        x: 166
+        y: 0
+        width: 159
+        height: 57
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c0dc9f6a5944046a0800000000000000
+      internalID: -6467093655361827572
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 5e97eb03825dee720800000000000000
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_0": -7920015646015608116
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_1": -1890875878359094415
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_2": 2779802857813662246
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_3": -5487379000997371015
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_4": -5124386438755471822
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_5": -5524200984423907813
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_6": -135429277556137942
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_7": -1079537574334477800
+      "Ekran_Resmi_2025-09-06_O\u0308S_12.38.57-removebg-preview_8": -6467093655361827572
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

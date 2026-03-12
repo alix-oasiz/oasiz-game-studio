@@ -1,0 +1,10 @@
+skull_wheel_violet/frame0000.png = 0 0 144 144
+skull_wheel_violet/frame0001.png = 0 144 144 144
+skull_wheel_violet/frame0002.png = 0 288 144 144
+skull_wheel_violet/frame0003.png = 0 432 144 144
+skull_wheel_violet/frame0004.png = 0 576 144 144
+skull_wheel_violet/frame0005.png = 0 720 144 144
+skull_wheel_violet/frame0006.png = 0 864 144 144
+skull_wheel_violet/frame0007.png = 0 1008 144 144
+skull_wheel_violet/frame0008.png = 0 1152 144 144
+skull_wheel_violet/frame0009.png = 0 1296 144 144

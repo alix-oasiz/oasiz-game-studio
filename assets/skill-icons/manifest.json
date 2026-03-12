@@ -1,0 +1,186 @@
+{
+  "_meta": {
+    "description": "Sprite manifest for all skill icon assets. Use this file to quickly find skill icons by type and color variant.",
+    "basePath": "assets/skill-icons",
+    "format": "Individual 32x32 PNG icons in icons/ folder. Animation sequences in autocast/, cooldown/, highlight_A/B/C/. HUD frames in hud_A/B/.",
+    "namingConvention": "icons: {id}_{colorVariant}.png | animations: frame####.png"
+  },
+  "packs": [
+    {
+      "name": "Super Pixel Skill Icons Pack 1",
+      "path": "Super Pixel Skill Icons Pack 1",
+      "iconSize": "32x32",
+      "colorVariants": {
+        "A": "red/orange theme",
+        "B": "green theme",
+        "C": "blue theme"
+      },
+      "icons": [
+        { "id": "sk1_attack_up", "description": "Upward arrow with glowing energy effect for attack buff" },
+        { "id": "sk1_blind", "description": "Eye with dark shadow or blindfold for blind debuff" },
+        { "id": "sk1_chain", "description": "Linked chain segments with magical glow for bind/chain spell" },
+        { "id": "sk1_claw", "description": "Three fiery red slashes with sparks for claw attack" },
+        { "id": "sk1_cleave", "description": "Horizontal sword slash with energy trail for cleave attack" },
+        { "id": "sk1_cure", "description": "Healing cross or medical symbol for cure/heal spell" },
+        { "id": "sk1_darkness", "description": "Dark shadow or void effect for darkness spell" },
+        { "id": "sk1_dash", "description": "Speed lines or dash trail for dash ability" },
+        { "id": "sk1_death", "description": "Skull or death symbol for instant-kill or death spell" },
+        { "id": "sk1_defense_up", "description": "Shield with upward arrow for defense buff" },
+        { "id": "sk1_empower", "description": "Glowing power-up symbol for empower buff" },
+        { "id": "sk1_far_sight", "description": "Eye or telescope symbol for vision/reveal ability" },
+        { "id": "sk1_fire_burst", "description": "Explosive fire burst for AoE fire spell" },
+        { "id": "sk1_fireball", "description": "Fiery comet with orange-red trail for fireball spell" },
+        { "id": "sk1_greed", "description": "Coin or treasure symbol for gold/greed ability" },
+        { "id": "sk1_guard", "description": "Shield or defensive barrier for guard/block ability" },
+        { "id": "sk1_holy_light", "description": "Radiant holy light beam for holy/divine spell" },
+        { "id": "sk1_ice_burst", "description": "Explosive ice crystal burst for AoE ice spell" },
+        { "id": "sk1_ice_spike", "description": "Sharp ice spike or icicle for ice projectile spell" },
+        { "id": "sk1_lightning", "description": "Purple lightning bolt with yellow sparks for lightning spell" },
+        { "id": "sk1_magic_dagger", "description": "Enchanted dagger with magical aura for magic melee" },
+        { "id": "sk1_poison", "description": "Toxic cloud or poison vial for poison spell" },
+        { "id": "sk1_poison_dagger", "description": "Poison-coated dagger for poisoned melee attack" },
+        { "id": "sk1_power_gauntlet", "description": "Glowing gauntlet or fist for power strike ability" },
+        { "id": "sk1_regenerate", "description": "Regeneration symbol or healing effect for regen buff" },
+        { "id": "sk1_sacrifice", "description": "Sacrificial symbol or blood effect for sacrifice spell" },
+        { "id": "sk1_storm", "description": "Storm cloud with lightning for storm/weather spell" },
+        { "id": "sk1_triple_knife", "description": "Three thrown knives for multi-hit ranged attack" },
+        { "id": "sk1_vampire", "description": "Vampire fangs or blood symbol for lifesteal ability" },
+        { "id": "sk1_water_burst", "description": "Explosive water burst for AoE water spell" }
+      ],
+      "animations": [
+        {
+          "id": "autocast",
+          "description": "Animated energy bolt loop overlay for auto-cast indicator",
+          "frameCount": 64,
+          "path": "Super Pixel Skill Icons Pack 1/autocast/"
+        },
+        {
+          "id": "cooldown",
+          "description": "Animated cooldown timer dark overlay sweeping clockwise",
+          "frameCount": 100,
+          "path": "Super Pixel Skill Icons Pack 1/cooldown/"
+        },
+        {
+          "id": "highlight_A",
+          "description": "Yellow/cream square outline pulsing highlight animation",
+          "frameCount": 9,
+          "path": "Super Pixel Skill Icons Pack 1/highlight_A/"
+        },
+        {
+          "id": "highlight_B",
+          "description": "Light blue/cyan square outline pulsing highlight animation",
+          "frameCount": 9,
+          "path": "Super Pixel Skill Icons Pack 1/highlight_B/"
+        },
+        {
+          "id": "highlight_C",
+          "description": "Light grey horizontal line sweep highlight animation",
+          "frameCount": 10,
+          "path": "Super Pixel Skill Icons Pack 1/highlight_C/"
+        }
+      ],
+      "hud": [
+        {
+          "id": "hud_A",
+          "description": "Dark blue-grey recessed square slot frame for skill bar",
+          "files": ["center.png", "left.png", "right.png"],
+          "path": "Super Pixel Skill Icons Pack 1/hud_A/"
+        },
+        {
+          "id": "hud_B",
+          "description": "Golden-orange ornate frame with dark interior for skill bar",
+          "files": ["center.png", "left.png", "right.png"],
+          "path": "Super Pixel Skill Icons Pack 1/hud_B/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Skill Icons Pack 2",
+      "path": "Super Pixel Skill Icons Pack 2",
+      "iconSize": "32x32",
+      "colorVariants": {
+        "A": "red/orange theme",
+        "B": "green theme",
+        "C": "blue theme"
+      },
+      "icons": [
+        { "id": "sk2_avalanche", "description": "Snow avalanche or rockfall for earth/ice AoE spell" },
+        { "id": "sk2_bow_and_arrow", "description": "Bow with arrow ready to fire for ranged attack" },
+        { "id": "sk2_capacitor", "description": "Electrical capacitor for energy storage/tech ability" },
+        { "id": "sk2_cauldron", "description": "Magic cauldron with steam for potion/brewing ability" },
+        { "id": "sk2_claw", "description": "Claw marks or slash attack for beast/melee ability" },
+        { "id": "sk2_curse", "description": "Dark curse symbol or hex for debuff/curse spell" },
+        { "id": "sk2_entangle", "description": "Vines or roots entangling for crowd control spell" },
+        { "id": "sk2_fairy", "description": "Fairy or magical creature for summon/nature spell" },
+        { "id": "sk2_fireball", "description": "Fiery comet projectile for fireball spell variant" },
+        { "id": "sk2_freeze", "description": "Ice crystal or freeze effect for freeze/stun spell" },
+        { "id": "sk2_gear", "description": "Mechanical gear or cog for tech/crafting ability" },
+        { "id": "sk2_heal", "description": "Green energy burst with yellow sparks for heal spell" },
+        { "id": "sk2_ignite", "description": "Ignition or flame burst for DoT fire spell" },
+        { "id": "sk2_keyhole", "description": "Keyhole or lock symbol for unlock/rogue ability" },
+        { "id": "sk2_kunai", "description": "Thrown kunai for ninja ranged attack" },
+        { "id": "sk2_lightning_eyes", "description": "Eyes with lightning effect for intimidate/shock ability" },
+        { "id": "sk2_lightning_hand", "description": "Hand casting lightning for direct lightning spell" },
+        { "id": "sk2_magic_crystal", "description": "Glowing magic crystal for mana/crystal ability" },
+        { "id": "sk2_magic_shield", "description": "Magical protective barrier for magic defense buff" },
+        { "id": "sk2_magic_staff", "description": "Staff with glowing blue crystal head for mage weapon" },
+        { "id": "sk2_magic_sword", "description": "Enchanted sword with magical aura for magic melee" },
+        { "id": "sk2_magic_up", "description": "Magic power-up symbol for magic stat buff" },
+        { "id": "sk2_runes", "description": "Ancient runic symbols for rune/enchant ability" },
+        { "id": "sk2_scifi_missile", "description": "Sci-fi missile or rocket for tech ranged attack" },
+        { "id": "sk2_shuriken", "description": "Thrown shuriken for ninja multi-hit attack" },
+        { "id": "sk2_slice", "description": "Slashing attack effect for quick melee slice" },
+        { "id": "sk2_speed_up", "description": "Speed boost symbol for haste/movement buff" },
+        { "id": "sk2_strength", "description": "Strength or power symbol for strength stat buff" },
+        { "id": "sk2_torch", "description": "Burning torch or flame for illumination/fire ability" },
+        { "id": "sk2_tornado", "description": "Tornado or whirlwind for wind/AoE spell" }
+      ],
+      "animations": [
+        {
+          "id": "autocast",
+          "description": "Animated energy bolt loop overlay for auto-cast indicator",
+          "frameCount": 64,
+          "path": "Super Pixel Skill Icons Pack 2/autocast/"
+        },
+        {
+          "id": "cooldown",
+          "description": "Animated cooldown timer dark overlay sweeping clockwise",
+          "frameCount": 100,
+          "path": "Super Pixel Skill Icons Pack 2/cooldown/"
+        },
+        {
+          "id": "highlight_A",
+          "description": "Yellow/cream square outline pulsing highlight animation",
+          "frameCount": 9,
+          "path": "Super Pixel Skill Icons Pack 2/highlight_A/"
+        },
+        {
+          "id": "highlight_B",
+          "description": "Light blue/cyan square outline pulsing highlight animation",
+          "frameCount": 9,
+          "path": "Super Pixel Skill Icons Pack 2/highlight_B/"
+        },
+        {
+          "id": "highlight_C",
+          "description": "Light grey horizontal line sweep highlight animation",
+          "frameCount": 10,
+          "path": "Super Pixel Skill Icons Pack 2/highlight_C/"
+        }
+      ],
+      "hud": [
+        {
+          "id": "hud_A",
+          "description": "Dark blue-grey recessed square slot frame for skill bar",
+          "files": ["center.png", "left.png", "right.png"],
+          "path": "Super Pixel Skill Icons Pack 2/hud_A/"
+        },
+        {
+          "id": "hud_B",
+          "description": "Dark reddish-brown wooden frame with decorative corners for skill bar",
+          "files": ["center.png", "left.png", "right.png"],
+          "path": "Super Pixel Skill Icons Pack 2/hud_B/"
+        }
+      ]
+    }
+  ]
+}

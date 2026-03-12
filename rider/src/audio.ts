@@ -15,18 +15,12 @@ const DEFAULT_SETTINGS: Settings = {
     haptics: true
 };
 
-const MUSIC_PATTERNS: Record<MusicMode, number[]> = {
-    menu: [220, 247, 277, 330, 277, 247, 196, 247],
-    game: [165, 196, 220, 247, 220, 196, 247, 294]
-};
-
 class GameAudioManager {
     private context: AudioContext | null = null;
     private noiseBuffer: AudioBuffer | null = null;
     private settings: Settings = { ...DEFAULT_SETTINGS };
 
     private masterGain: GainNode | null = null;
-    private musicGain: GainNode | null = null;
     private fxGain: GainNode | null = null;
 
     private engineOscA: OscillatorNode | null = null;
@@ -41,9 +35,8 @@ class GameAudioManager {
     private windFilter: BiquadFilterNode | null = null;
     private windGain: GainNode | null = null;
 
+    private bgMusic: HTMLAudioElement | null = null;
     private musicMode: MusicMode = "menu";
-    private musicStep: number = 0;
-    private musicTimer: number | null = null;
 
     constructor() {
         this.settings = { ...DEFAULT_SETTINGS, ...getSettings() };
@@ -61,10 +54,15 @@ class GameAudioManager {
 
     startMusic(mode: MusicMode): void {
         this.musicMode = mode;
-        this.musicStep = 0;
         this.ensureContext();
-        if (this.musicTimer === null && typeof window !== "undefined") {
-            this.musicTimer = window.setInterval(() => this.tickMusic(), 255);
+        if (!this.bgMusic && typeof window !== "undefined") {
+            this.bgMusic = new Audio("/assets/BgMusic.mp3");
+            this.bgMusic.loop = true;
+            this.bgMusic.volume = 0.4;
+        }
+        if (this.bgMusic) {
+            this.bgMusic.muted = !this.settings.music;
+            void this.bgMusic.play().catch(() => {});
         }
         this.applySettingsToGains();
     }
@@ -208,10 +206,6 @@ class GameAudioManager {
         this.masterGain.gain.value = 0.9;
         this.masterGain.connect(ctx.destination);
 
-        this.musicGain = ctx.createGain();
-        this.musicGain.gain.value = 0;
-        this.musicGain.connect(this.masterGain);
-
         this.fxGain = ctx.createGain();
         this.fxGain.gain.value = 0;
         this.fxGain.connect(this.masterGain);
@@ -280,29 +274,14 @@ class GameAudioManager {
     }
 
     private applySettingsToGains(): void {
-        if (!this.context || !this.musicGain || !this.fxGain) return;
+        if (this.bgMusic) {
+            this.bgMusic.muted = !this.settings.music;
+        }
+        if (!this.context || !this.fxGain) return;
         const now = this.context.currentTime;
-
-        this.musicGain.gain.cancelScheduledValues(now);
-        this.musicGain.gain.linearRampToValueAtTime(this.settings.music ? 0.12 : 0, now + 0.08);
 
         this.fxGain.gain.cancelScheduledValues(now);
         this.fxGain.gain.linearRampToValueAtTime(this.settings.fx ? 1 : 0, now + 0.06);
-    }
-
-    private tickMusic(): void {
-        const ctx = this.context;
-        if (!ctx || !this.musicGain || !this.settings.music || ctx.state !== "running") return;
-
-        const pattern = MUSIC_PATTERNS[this.musicMode];
-        const index = this.musicStep % pattern.length;
-        const note = pattern[index];
-        this.musicStep += 1;
-
-        this.playTone(note, 0.21, "triangle", 0.055, this.musicGain, 0);
-        if (index % 2 === 0) {
-            this.playTone(note / 2, 0.24, "sine", 0.032, this.musicGain, 0.015);
-        }
     }
 
     private createNoiseBuffer(ctx: AudioContext, durationSeconds: number): AudioBuffer {

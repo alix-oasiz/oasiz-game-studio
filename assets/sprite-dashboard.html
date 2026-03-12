@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprite Asset Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f1a;color:#e0e0e0;min-height:100vh}
+#app{display:flex;flex-direction:column;height:100vh}
+header{background:#13132a;border-bottom:1px solid #2a2a4a;padding:12px 20px;position:sticky;top:0;z-index:100}
+header h1{font-size:18px;color:#00A1E4;margin-bottom:8px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#search{background:#1a1a2e;border:1px solid #2a2a4a;color:#e0e0e0;padding:8px 14px;border-radius:12px;font-size:14px;width:260px;outline:none}
+#search:focus{border-color:#00A1E4}
+#search::placeholder{color:#666}
+.filters{display:flex;gap:4px;flex-wrap:wrap}
+.filter-btn{background:#1a1a2e;border:1px solid #2a2a4a;color:#999;padding:5px 12px;border-radius:12px;cursor:pointer;font-size:12px;transition:all .15s}
+.filter-btn:hover{color:#e0e0e0;border-color:#444}
+.filter-btn.active{background:#00A1E4;color:#fff;border-color:#00A1E4}
+.main-wrap{display:flex;flex:1;overflow:hidden}
+main{flex:1;overflow-y:auto;padding:16px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:12px;overflow:hidden;transition:border-color .15s;position:relative}
+.card:hover{border-color:#00A1E4}
+.card canvas{display:block;width:100%;aspect-ratio:1;image-rendering:pixelated;background:#111125}
+.card-info{padding:8px 10px}
+.card-name{font-size:12px;font-weight:600;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-cat{font-size:10px;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-desc{font-size:10px;color:#888;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}
+.add-btn{position:absolute;top:6px;right:6px;width:28px;height:28px;background:rgba(0,161,228,0.85);border:none;border-radius:50%;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;line-height:1}
+.card:hover .add-btn{opacity:1}
+.add-btn:hover{background:#00A1E4}
+.add-btn.added{background:#2ecc71;opacity:1}
+.card-loading{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1;background:#111125;color:#444;font-size:11px}
+.card-error{background:#1a0f0f;color:#663333;font-size:10px;padding:4px;text-align:center}
+aside{width:340px;background:#13132a;border-left:1px solid #2a2a4a;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+aside.collapsed{width:48px}
+aside.collapsed .basket-content{display:none}
+aside.collapsed .basket-header h2,.basket-actions{display:none}
+.basket-toggle{background:none;border:none;color:#00A1E4;font-size:20px;cursor:pointer;padding:4px 8px}
+.basket-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #2a2a4a}
+.basket-header h2{font-size:14px;color:#00A1E4}
+.basket-actions{display:flex;gap:6px;padding:8px 14px}
+.basket-actions button{flex:1;padding:6px;border-radius:12px;border:1px solid #2a2a4a;background:#1a1a2e;color:#e0e0e0;font-size:11px;cursor:pointer;transition:all .15s}
+.basket-actions button:hover{border-color:#00A1E4;color:#00A1E4}
+#basket-items{flex:1;overflow-y:auto;padding:6px}
+.basket-item{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:8px 10px;margin-bottom:6px;position:relative}
+.basket-item-name{font-size:11px;font-weight:600;color:#e0e0e0}
+.basket-item-cat{font-size:9px;color:#00A1E4;margin-top:1px}
+.basket-item-desc{font-size:9px;color:#888;margin-top:2px}
+.basket-item-path{font-size:9px;color:#666;margin-top:3px;font-family:monospace;word-break:break-all}
+.basket-item-actions{display:flex;gap:4px;margin-top:5px}
+.basket-item-actions button{padding:3px 8px;border-radius:8px;border:1px solid #2a2a4a;background:transparent;color:#999;font-size:9px;cursor:pointer}
+.basket-item-actions button:hover{border-color:#00A1E4;color:#00A1E4}
+.basket-item-actions .remove-btn:hover{border-color:#e74c3c;color:#e74c3c}
+.badge{background:#00A1E4;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:6px}
+.empty-basket{text-align:center;color:#444;font-size:12px;padding:30px 10px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#2ecc71;color:#fff;padding:8px 20px;border-radius:12px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}
+.sprite-count{font-size:12px;color:#666;margin-left:auto}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>Sprite Asset Dashboard</h1>
+  <div class="controls">
+    <input type="text" id="search" placeholder="Search by name or description...">
+    <div class="filters" id="filters"></div>
+    <span class="sprite-count" id="sprite-count"></span>
+  </div>
+</header>
+<div class="main-wrap">
+<main><div id="grid"></div></main>
+<aside id="basket-panel">
+  <div class="basket-header">
+    <h2>Basket <span class="badge" id="basket-count">0</span></h2>
+    <button class="basket-toggle" id="basket-toggle" title="Toggle basket">&#9776;</button>
+  </div>
+  <div class="basket-content">
+    <div class="basket-actions">
+      <button onclick="copyBasket()">Copy All</button>
+      <button onclick="clearBasket()">Clear All</button>
+    </div>
+    <div id="basket-items"><div class="empty-basket">Click + on sprites to add them here</div></div>
+  </div>
+</aside>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== CATALOG DATA ==========
+const CATALOG = [];
+
+function add(cat, id, desc, sheet, extra) {
+  CATALOG.push({ id, name: id.replace(/_/g, ' '), category: cat, description: desc, sheet, ...(extra||{}) });
+}
+
+function addPack(cat, base, sprites, defColor) {
+  sprites.forEach(([id, desc, color]) => {
+    add(cat, id, desc, base + '/' + id + '_large_' + (color || defColor || 'blue') + '/spritesheet');
+  });
+}
+
+function addGiga(cat, gigaCat, sprites, defColor) {
+  const base = 'skill-effects/Super Pixel Effects Gigapack/spritesheet/' + gigaCat;
+  sprites.forEach(([id, desc, color]) => {
+    add(cat, id, desc, base + '/' + id + '/' + id + '_large_' + (color || defColor || 'blue') + '/spritesheet');
+  });
+}
+
+// --- Skill Effects Pack 1 ---
+addPack('FX Pack 1', 'skill-effects/Super Pixel Effects Pack 1/spritesheet', [
+  ['fx1_aura_energy', 'Circular energy burst aura with glowing core'],
+  ['fx1_dash', 'Motion trail whoosh for dash or teleport', 'gray'],
+  ['fx1_electric_zap', 'Lightning zap burst with crackling sparks'],
+  ['fx1_energy_shield', 'Protective energy shield barrier bubble'],
+  ['fx1_explosion', 'Classic cloud explosion burst with fiery core'],
+  ['fx1_impact_dust', 'Dust cloud puff on ground impact', 'gray'],
+  ['fx1_impact_hit', 'Sharp impact strike for melee hits'],
+  ['fx1_magic_puff', 'Magic puff burst with radiating spikes'],
+  ['fx1_splash', 'Liquid splash with droplets', 'light_blue'],
+  ['fx1_splatter', 'Liquid splatter for blood or poison'],
+]);
+
+// --- Skill Effects Pack 2 ---
+addPack('FX Pack 2', 'skill-effects/Super Pixel Effects Pack 2/spritesheet', [
+  ['fx2_claw', 'Triple claw swipe attack slash marks'],
+  ['fx2_electric_burst', 'Electric energy burst with lightning tendrils'],
+  ['fx2_explosion', 'Stylized explosion with purple smoke'],
+  ['fx2_fire_burst', 'Bright fire burst with white-blue core'],
+  ['fx2_ice_burst', 'Ice crystal burst with frozen shards'],
+  ['fx2_impact_shock', 'Circular shockwave ring impact'],
+  ['fx2_magic_swirl', 'Magical energy swirl vortex'],
+  ['fx2_slash', 'Curved energy slash trail for melee'],
+  ['fx2_splatter', 'Liquid splatter burst with chunky droplets'],
+]);
+// Bubble special
+['appear','loop','pop'].forEach(s => {
+  add('FX Pack 2', 'fx2_bubble_'+s, 'Bubble effect — '+s+' phase',
+    'skill-effects/Super Pixel Effects Pack 2/spritesheet/fx2_bubble_large_blue_'+s+'/spritesheet');
+});
+
+// --- Skill Effects Pack 3 ---
+addPack('FX Pack 3', 'skill-effects/Super Pixel Effects Pack 3/spritesheet', [
+  ['fx3_bite', 'Chomping bite attack with snapping jaws'],
+  ['fx3_dust_trail', 'Dust trail for running movement', 'gray'],
+  ['fx3_impact_hit', 'Sharp hit impact burst for combat'],
+  ['fx3_lightning_aura', 'Lightning aura for charged states'],
+  ['fx3_magic_spawn', 'Magical spawn or summon portal'],
+  ['fx3_smoke_bomb', 'Smoke bomb explosion cloud'],
+  ['fx3_splatter', 'Splatter impact for liquid effects'],
+  ['fx3_toon_explosion', 'Cartoon-style bright explosion burst'],
+  ['fx3_toon_impact', 'Cartoon-style impact hit'],
+  ['fx3_warp', 'Warp portal with ring and energy patterns'],
+]);
+
+// --- Gigapack: Explosions ---
+addGiga('Explosions', 'Explosions', [
+  ['epic_explosion_001', 'Large dramatic explosion with dark smoke clouds'],
+  ['epic_explosion_002', 'Epic explosion with intense fiery core'],
+  ['stylized_explosion_001', 'Stylized cartoon explosion with bold shapes'],
+  ['stylized_explosion_002', 'Stylized explosion variant'],
+  ['stylized_explosion_003', 'Stylized explosion with radial burst'],
+  ['stylized_explosion_004', 'Stylized explosion compact burst'],
+  ['symmetrical_explosion_001', 'Symmetrical explosion expanding evenly'],
+  ['symmetrical_explosion_002', 'Symmetrical explosion variant'],
+  ['symmetrical_explosion_003', 'Symmetrical explosion with ring pattern'],
+]);
+
+// --- Gigapack: Fantasy Spells ---
+addGiga('Fantasy Spells', 'Fantasy Spells', [
+  ['spell_absorb_001', 'Orb particles converging inward for absorb'],
+  ['spell_attack_up_001', 'Sword with plus icon for attack buff'],
+  ['spell_death_001', 'Scythe slash marks for death magic'],
+  ['spell_defense_up_001', 'Shield with plus icon for defense buff'],
+  ['spell_haste_001', 'Clock face with speed lines for haste'],
+  ['spell_poison_001', 'Green bubbles arc for poison effect', 'green'],
+]);
+
+// --- Gigapack: Fire ---
+addGiga('Fire', 'Fire', [
+  ['fire_looping_001', 'Looping flame with bright core and fire aura', 'orange'],
+]);
+
+// --- Gigapack: Impacts ---
+addGiga('Impacts', 'Impacts', [
+  ['directional_impact_001', 'Directional impact burst angled to one side'],
+  ['directional_impact_002', 'Directional impact variant'],
+  ['directional_impact_003', 'Directional impact with wider spread'],
+  ['directional_impact_004', 'Directional impact with sharp lines'],
+  ['stylized_impact_001', 'Stylized impact with bold graphic burst'],
+  ['symmetrical_impact_001', 'Symmetrical impact burst centered'],
+  ['symmetrical_impact_002', 'Symmetrical impact with ring pattern'],
+  ['symmetrical_impact_003', 'Symmetrical impact with star pattern'],
+  ['symmetrical_impact_004', 'Symmetrical impact with radial lines'],
+  ['symmetrical_impact_005', 'Symmetrical impact expanding circle'],
+  ['toon_impact_001', 'Cartoon-style impact with comic energy'],
+]);
+
+// --- Gigapack: Lightning ---
+addGiga('Lightning', 'Lightning', [
+  ['lightning_burst_001', 'Radial lightning burst with branching bolts'],
+  ['lightning_burst_002', 'Lightning burst variant'],
+  ['lightning_burst_003', 'Lightning burst with wider spread'],
+  ['lightning_strike_001', 'Vertical lightning bolt from sky'],
+  ['lightning_strike_002A', 'Lightning strike with branching forks A'],
+  ['lightning_strike_002B', 'Lightning strike with branching forks B'],
+  ['lightning_strike_003A', 'Lightning strike jagged bolt A'],
+  ['lightning_strike_003B', 'Lightning strike jagged bolt B'],
+]);
+
+// --- Gigapack: Magic Bursts ---
+addGiga('Magic Bursts', 'Magic Bursts', [
+  ['directional_bubble_burst_001', 'Burst of bubbles shooting outward'],
+  ['directional_coin_burst_001', 'Gold coins burst for loot/rewards'],
+  ['directional_heart_burst_001', 'Heart particles for love/healing'],
+  ['directional_heart_burst_002', 'Heart burst variant'],
+  ['directional_music_burst_001', 'Music notes burst for bard effects'],
+  ['directional_music_burst_002', 'Music note burst variant'],
+  ['directional_particle_burst_001', 'Generic particle burst outward'],
+  ['directional_party_burst_001', 'Confetti celebration burst'],
+  ['directional_sparkle_burst_001', 'Sparkle star burst with twinkles'],
+  ['directional_sparkle_burst_002', 'Sparkle burst variant'],
+  ['directional_sparkle_burst_003', 'Sparkle burst wider spread'],
+  ['directional_star_burst_001', 'Star-shaped particles burst'],
+  ['round_heart_burst_001', 'Radial heart burst all directions'],
+  ['round_light_burst_001', 'Radial light burst with glow'],
+  ['round_music_burst_001', 'Radial music note burst'],
+  ['round_sparkle_burst_001', 'Radial sparkle burst from center'],
+  ['round_sparkle_burst_002', 'Radial sparkle burst variant'],
+  ['round_sparkle_burst_003', 'Radial sparkle burst larger'],
+]);
+
+// --- Gigapack: Sci-fi ---
+addGiga('Sci-fi', 'Sci-fi', [
+  ['scifi_analyze_001', 'Scanning HUD with rotating elements (120 frames)'],
+  ['scifi_charge_up_001', 'Energy charge-up with concentric circles'],
+  ['scifi_spark_burst_001', 'Electric spark burst with tech particles'],
+  ['scifi_spark_burst_002', 'Spark burst variant'],
+  ['scifi_warp_001', 'Warp teleport portal with distortion'],
+  ['scifi_warp_002', 'Warp variant'],
+  ['scifi_warp_003', 'Warp compact portal'],
+]);
+
+// --- Gigapack: Smoke ---
+addGiga('Smoke', 'Smoke Bursts', [
+  ['directional_smoke_burst_001', 'Directional smoke cloud burst'],
+  ['directional_smoke_burst_002', 'Smoke burst thicker clouds'],
+  ['directional_smoke_burst_003', 'Smoke burst dissipating wisps'],
+  ['stylized_skull_smoke_burst_001', 'Skull-shaped smoke for death magic'],
+  ['symmetrical_smoke_burst_001', 'Symmetrical smoke from center'],
+  ['symmetrical_smoke_burst_002', 'Symmetrical smoke dense core'],
+  ['symmetrical_smoke_burst_003', 'Symmetrical smoke wispy edges'],
+]);
+
+// --- Gigapack: Splatters ---
+addGiga('Splatters', 'Splatters', [
+  ['burst_splatter_001', 'Radial liquid splatter from center'],
+  ['directional_splatter_001', 'Directional liquid splatter'],
+  ['directional_splatter_002', 'Directional splatter variant'],
+]);
+
+// --- Gigapack: Symbols ---
+addGiga('Symbols', 'Symbols', [
+  ['symbol_alert_001', 'Animated exclamation alert symbol'],
+  ['symbol_alert_002', 'Alert symbol variant'],
+  ['symbol_danger_text_001', 'DANGER text popup'],
+  ['symbol_failure_001', 'X / failure cross symbol'],
+  ['symbol_place_1st_001', '1st place ranking'],
+  ['symbol_place_2nd_001', '2nd place ranking'],
+  ['symbol_place_3rd_001', '3rd place ranking'],
+  ['symbol_place_4th_001', '4th place ranking'],
+  ['symbol_place_5th_001', '5th place ranking'],
+  ['symbol_place_6th_001', '6th place ranking'],
+  ['symbol_place_7th_001', '7th place ranking'],
+  ['symbol_place_8th_001', '8th place ranking'],
+  ['symbol_rank_A_001', 'Letter grade A rank'],
+  ['symbol_rank_B_001', 'Letter grade B rank'],
+  ['symbol_rank_C_001', 'Letter grade C rank'],
+  ['symbol_rank_D_001', 'Letter grade D rank'],
+  ['symbol_rank_F_001', 'Letter grade F fail'],
+  ['symbol_rank_S_001', 'Letter grade S superior'],
+  ['symbol_success_001', 'Checkmark success symbol'],
+  ['symbol_thumbs_down_001', 'Thumbs down'],
+  ['symbol_thumbs_up_001', 'Thumbs up'],
+  ['symbol_warning_001', 'Warning triangle caution'],
+  ['symbol_warning_text_001', 'WARNING text popup'],
+]);
+
+// --- Will's Magic Pixel Particle Effects ---
+const willsBase = 'skill-effects/wills_magic_pixel_particle_effects';
+[
+  ['charge_A', 'Yellow-orange energy burst with blue-purple expanding rings'],
+  ['charge_B', 'Vibrant magical charge with colorful radiating particles'],
+  ['fire_A', 'Bright yellow-orange flame burst with pink accents'],
+  ['fire_B', 'Pink-magenta energy burst fading to purple and cyan'],
+  ['fire_C', 'Bright green-yellow burst from white core'],
+  ['four_trail_spellcast', 'Green arcs framing vertical blue energy streaks'],
+  ['implosion_A', 'Pink-purple starburst with radiating trails'],
+  ['implosion_B', 'Red-orange energy burst with white center'],
+  ['majestic_spiral', 'Colorful particles forming upward arc'],
+  ['multi_sparkle_puff', 'Blue-purple scattered magical shimmer'],
+  ['purple_spiral', 'Pink-magenta particles in spiral arc'],
+  ['purple_wisp', 'Ethereal pink-magenta wisping particles'],
+  ['shield_burst', 'Purple shield outline expanding with star center'],
+  ['six_trail_spellcast', 'Reddish-orange energy plume with purple rings'],
+  ['sparkle_puff', 'Blue-white sparkles in magical shimmer'],
+  ['square_burst', 'Nested rotated squares in pink and purple'],
+  ['sword_burst', 'Glowing pink sword outline with energy core'],
+  ['two_trail_spellcast_A', 'Green arcs flanking vertical blue surge'],
+  ['two_trail_spellcast_B', 'Pink burst with C-shaped arcs and energy stream'],
+  ['vortex', 'Purple-pink spiral dissipating outward'],
+].forEach(([id, desc]) => add("Will's FX", id, desc, willsBase + '/' + id + '/spritesheet'));
+
+// --- Projectile Packs ---
+addPack('Projectiles 1', 'projectile-effects/Super Pixel Projectiles Pack 1/spritesheet', [
+  ['pj1_blob', 'Luminous round blob with glowing aura'],
+  ['pj1_electricity', 'Multi-pointed star with electric aura'],
+  ['pj1_energy', 'Simple glowing energy orb'],
+  ['pj1_fireball', 'Flaming fireball with smoky tail'],
+  ['pj1_laser', 'Simple straight laser beam'],
+  ['pj1_magic_missile', 'Basic magic missile with trail'],
+  ['pj1_rock', 'Rocky projectile with energetic glow'],
+  ['pj1_scifi_missile', 'Sci-fi missile with exhaust'],
+  ['pj1_slash', 'Curved energy wave slash'],
+  ['pj1_toon_missile', 'Cartoon missile with trail'],
+]);
+addPack('Projectiles 2', 'projectile-effects/Super Pixel Projectiles Pack 2/spritesheet', [
+  ['pj2_fireball', 'Enhanced fireball with fiery aura'],
+  ['pj2_ground_shockwave', 'Ground circular shockwave'],
+  ['pj2_helix_beam', 'Spiraling double-helix beam'],
+  ['pj2_ice_spike', 'Ice spike with snowflake patterns'],
+  ['pj2_kunai', 'Kunai blade with energy trail'],
+  ['pj2_lightning_orb', 'Lightning-charged crackling orb'],
+  ['pj2_magic_missile', 'Magic missile with swirling trail'],
+  ['pj2_meteor', 'Pitted meteor with bright trail'],
+  ['pj2_scifi_missile', 'Sci-fi missile with tech exhaust'],
+  ['pj2_shuriken', 'Spinning shuriken with motion trail'],
+]);
+addPack('Projectiles 3', 'projectile-effects/Super Pixel Projectiles Pack 3/spritesheet', [
+  ['pj3_acid', 'Acid splash with corrosive trail'],
+  ['pj3_arrow_impact', 'Arrow impact explosion'],
+  ['pj3_arrow_loop', 'Animated arrow flight loop'],
+  ['pj3_death_wave', 'Dark energy wave with shadow'],
+  ['pj3_demon_bite_impact', 'Demon bite snapping jaws impact'],
+  ['pj3_demon_bite_loop', 'Demon bite chomping loop'],
+  ['pj3_knife', 'Knife blade with energy trails'],
+  ['pj3_light_spark', 'Bright light spark shimmer'],
+  ['pj3_magic_hex', 'Hexagonal magic geometric shapes'],
+  ['pj3_magic_missile', 'Magic missile with arcane trail'],
+  ['pj3_magic_orb', 'Large orb with swirling core'],
+  ['pj3_magic_spike', 'Magic spike with crystalline energy'],
+]);
+addPack('Projectiles 4', 'projectile-effects/Super Pixel Projectiles Pack 4/spritesheet', [
+  ['pj4_dark_matter', 'Dark matter energy with void aura'],
+  ['pj4_energy_blast_A', 'Energy blast radial burst A'],
+  ['pj4_energy_blast_B', 'Energy blast condensed burst B'],
+  ['pj4_energy_pellet', 'Small rapid-fire energy pellet'],
+  ['pj4_laser_beam_A', 'Laser beam continuous trail A'],
+  ['pj4_laser_beam_B', 'Laser beam pulsing trail B'],
+  ['pj4_plasma_ball', 'Plasma sphere with energy bursts'],
+  ['pj4_sawblade', 'Spinning sawblade energy vortex'],
+  ['pj4_scifi_bomb', 'Sci-fi bomb with tech details'],
+  ['pj4_scrap_metal', 'Tumbling scrap metal debris'],
+]);
+
+// --- Characters ---
+['style_1','style_2','style_3','style_4'].forEach((s,i) => {
+  const labels = ['Red/Blue','Green/Red','Violet/Blue','Blue/Red'];
+  add('Characters', 'character_'+s, 'Classic platformer character — '+labels[i]+' color variant. All animations: idle, run, jump, punch combo, dash, die, celebrate',
+    'characters/classic_character/classic_character/spritesheet/'+s+'/spritesheet');
+});
+
+// --- Enemies Pack 1 ---
+const ep1 = 'enemies/Super Pixel Monsters Pack 1/spritesheet';
+[
+  ['bone_statue', 'Skeletal statue with bony structure, menacing', 'blue'],
+  ['demon_eye', 'Floating eye with glowing pupil', 'blue'],
+  ['hell_skull', 'Tall flaming skull with fire effects', 'blue'],
+  ['leech', 'Segmented worm with glowing mouth and fangs', 'green'],
+  ['mudman', 'Large blob monster with red eyes and teeth', 'blue'],
+  ['shrubtooth', 'Leafy bush monster with glowing eyes', 'blue'],
+  ['skull_beetle', 'Beetle with skull shell and pincers', 'blue'],
+  ['skull_slime', 'Ghost with skull face in hooded cloak', 'blue'],
+  ['winged_skull', 'Glowing skull with dark bat wings', 'blue'],
+  ['wraith', 'Grim reaper in robe with scythe', 'blue'],
+].forEach(([id, desc, color]) => add('Enemies 1', id, desc, ep1+'/'+id+'_'+color+'/spritesheet'));
+
+// --- Enemies Pack 2 ---
+const ep2 = 'enemies/Super Pixel Monsters Pack 2/spritesheet';
+[
+  ['evil_eye', 'Brain creature with yellow eye and tentacles', 'blue'],
+  ['hell_hand', 'Snake monster with spikes rising from rock', 'blue'],
+  ['medusa_head', 'Multi-tentacled creature with glowing eyes', 'blue'],
+  ['skull_wheel', 'Skull encircled by fiery orbs', 'green'],
+].forEach(([id, desc, color]) => add('Enemies 2', id, desc, ep2+'/'+id+'_'+color+'/spritesheet'));
+
+// --- Mega Monster Pack ---
+const mp = 'enemies/mega_monster_pack';
+[
+  ['bat', 'Purple bat with spread red wings'],
+  ['bat_mini', 'Mini purple bat'],
+  ['pumpkin', 'Spooky jack-o-lantern with glowing eyes'],
+  ['pumpkin_mini', 'Mini pumpkin'],
+  ['skull_bat', 'Blue skull with orange bat wings'],
+  ['skull_bat_mini', 'Mini skull bat'],
+  ['spider', 'Blue fuzzy spider with eight legs'],
+  ['spider_mini', 'Mini spider'],
+  ['spirit', 'Green skull with red eyes and smoke'],
+  ['spirit_mini', 'Mini spirit'],
+].forEach(([id, desc]) => add('Mega Monsters', id, desc, mp+'/'+id+'/spritesheet/spritesheet'));
+
+// ========== APP LOGIC ==========
+const basket = JSON.parse(localStorage.getItem('spriteBasket') || '[]');
+const categories = [...new Set(CATALOG.map(s => s.category))];
+let activeFilter = 'All';
+let searchTerm = '';
+
+function parseFrames(txt) {
+  return txt.split('\n').map(l => l.trim()).filter(l => l.includes('=')).map(l => {
+    const p = l.split('=')[1].trim().split(/\s+/).map(Number);
+    return { x: p[0], y: p[1], w: p[2], h: p[3] };
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+function renderFilters() {
+  const el = document.getElementById('filters');
+  el.innerHTML = '<button class="filter-btn active" data-cat="All">All</button>' +
+    categories.map(c => '<button class="filter-btn" data-cat="'+c+'">'+c+'</button>').join('');
+  el.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.onclick = () => {
+      el.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = btn.dataset.cat;
+      renderGrid();
+    };
+  });
+}
+
+function getFiltered() {
+  return CATALOG.filter(s => {
+    if (activeFilter !== 'All' && s.category !== activeFilter) return false;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      return s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.category.toLowerCase().includes(q);
+    }
+    return true;
+  });
+}
+
+function isInBasket(id) { return basket.some(b => b.id === id); }
+
+function toggleBasket(sprite) {
+  const idx = basket.findIndex(b => b.id === sprite.id);
+  if (idx >= 0) { basket.splice(idx, 1); } else {
+    basket.push({ id: sprite.id, name: sprite.name, category: sprite.category, description: sprite.description, sheet: sprite.sheet });
+  }
+  localStorage.setItem('spriteBasket', JSON.stringify(basket));
+  renderBasket();
+  document.querySelectorAll('.add-btn').forEach(btn => {
+    btn.classList.toggle('added', isInBasket(btn.dataset.id));
+    btn.textContent = isInBasket(btn.dataset.id) ? '\u2713' : '+';
+  });
+}
+
+function renderBasket() {
+  document.getElementById('basket-count').textContent = basket.length;
+  const el = document.getElementById('basket-items');
+  if (!basket.length) { el.innerHTML = '<div class="empty-basket">Click + on sprites to add them here</div>'; return; }
+  el.innerHTML = basket.map((b,i) => `
+    <div class="basket-item">
+      <div class="basket-item-name">${b.name}</div>
+      <div class="basket-item-cat">${b.category}</div>
+      <div class="basket-item-desc">${b.description}</div>
+      <div class="basket-item-path">${b.sheet}.png</div>
+      <div class="basket-item-actions">
+        <button onclick="copyItem(${i})">Copy</button>
+        <button class="remove-btn" onclick="removeItem(${i})">Remove</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function copyItem(i) {
+  const b = basket[i];
+  const txt = `Name: ${b.name}\nCategory: ${b.category}\nDescription: ${b.description}\nPath: ${b.sheet}.png`;
+  navigator.clipboard.writeText(txt).then(() => showToast('Copied!'));
+}
+
+function removeItem(i) {
+  basket.splice(i, 1);
+  localStorage.setItem('spriteBasket', JSON.stringify(basket));
+  renderBasket();
+  document.querySelectorAll('.add-btn').forEach(btn => {
+    btn.classList.toggle('added', isInBasket(btn.dataset.id));
+    btn.textContent = isInBasket(btn.dataset.id) ? '\u2713' : '+';
+  });
+}
+
+function copyBasket() {
+  if (!basket.length) return;
+  const txt = basket.map(b =>
+    `Name: ${b.name}\nCategory: ${b.category}\nDescription: ${b.description}\nPath: ${b.sheet}.png`
+  ).join('\n---\n');
+  navigator.clipboard.writeText(txt).then(() => showToast('All ' + basket.length + ' items copied!'));
+}
+
+function clearBasket() {
+  basket.length = 0;
+  localStorage.setItem('spriteBasket', JSON.stringify(basket));
+  renderBasket();
+  document.querySelectorAll('.add-btn').forEach(btn => {
+    btn.classList.remove('added'); btn.textContent = '+';
+  });
+}
+
+// ========== SPRITE ANIMATION ==========
+const activeAnimations = new Map();
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    const id = e.target.dataset.spriteId;
+    if (e.isIntersecting) { loadAndAnimate(e.target, id); }
+    else { stopAnimation(id); }
+  });
+}, { rootMargin: '200px' });
+
+async function loadAndAnimate(card, id) {
+  if (activeAnimations.has(id)) return;
+  const sprite = CATALOG.find(s => s.id === id);
+  if (!sprite) return;
+  const canvas = card.querySelector('canvas');
+  if (!canvas || canvas.dataset.loaded === 'true') {
+    if (canvas && canvas.dataset.loaded === 'true') resumeAnimation(id);
+    return;
+  }
+  try {
+    const [txtRes, img] = await Promise.all([
+      fetch(sprite.sheet + '.txt').then(r => { if(!r.ok) throw new Error('txt'); return r.text(); }),
+      new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = sprite.sheet + '.png'; })
+    ]);
+    const frames = parseFrames(txtRes);
+    if (!frames.length) return;
+    canvas.width = frames[0].w;
+    canvas.height = frames[0].h;
+    canvas.dataset.loaded = 'true';
+    const ctx = canvas.getContext('2d');
+    let frameIdx = 0;
+    let lastTime = 0;
+    const fps = frames.length > 60 ? 30 : 13;
+    const interval = 1000 / fps;
+    function animate(time) {
+      const anim = activeAnimations.get(id);
+      if (!anim || anim.paused) return;
+      if (time - lastTime >= interval) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const f = frames[frameIdx];
+        ctx.drawImage(img, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
+        frameIdx = (frameIdx + 1) % frames.length;
+        lastTime = time;
+      }
+      anim.raf = requestAnimationFrame(animate);
+    }
+    activeAnimations.set(id, { paused: false, raf: null, animate });
+    activeAnimations.get(id).raf = requestAnimationFrame(animate);
+  } catch(err) {
+    const el = card.querySelector('.card-loading');
+    if (el) { el.textContent = 'Failed to load'; el.classList.add('card-error'); }
+  }
+}
+
+function stopAnimation(id) {
+  const anim = activeAnimations.get(id);
+  if (anim) { anim.paused = true; if (anim.raf) cancelAnimationFrame(anim.raf); }
+}
+
+function resumeAnimation(id) {
+  const anim = activeAnimations.get(id);
+  if (anim && anim.paused) { anim.paused = false; anim.raf = requestAnimationFrame(anim.animate); }
+}
+
+// ========== RENDER GRID ==========
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  const filtered = getFiltered();
+  document.getElementById('sprite-count').textContent = filtered.length + ' / ' + CATALOG.length + ' sprites';
+
+  // Disconnect old observers
+  activeAnimations.forEach((v, k) => stopAnimation(k));
+  grid.innerHTML = '';
+
+  filtered.forEach(sprite => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.spriteId = sprite.id;
+    const inBasket = isInBasket(sprite.id);
+    card.innerHTML = `
+      <div class="card-loading">Loading...</div>
+      <canvas style="display:none"></canvas>
+      <button class="add-btn ${inBasket?'added':''}" data-id="${sprite.id}">${inBasket?'\u2713':'+'}</button>
+      <div class="card-info">
+        <div class="card-name" title="${sprite.name}">${sprite.name}</div>
+        <div class="card-cat">${sprite.category}</div>
+        <div class="card-desc" title="${sprite.description}">${sprite.description}</div>
+      </div>
+    `;
+    card.querySelector('.add-btn').onclick = (e) => { e.stopPropagation(); toggleBasket(sprite); };
+
+    // When loaded, show canvas
+    const canvas = card.querySelector('canvas');
+    const loading = card.querySelector('.card-loading');
+    const origLoad = loadAndAnimate;
+    const wrappedObserver = new MutationObserver(() => {
+      if (canvas.dataset.loaded === 'true') {
+        loading.style.display = 'none';
+        canvas.style.display = 'block';
+        wrappedObserver.disconnect();
+      }
+    });
+    wrappedObserver.observe(canvas, { attributes: true });
+
+    grid.appendChild(card);
+    observer.observe(card);
+  });
+}
+
+// ========== INIT ==========
+document.getElementById('search').oninput = (e) => { searchTerm = e.target.value; renderGrid(); };
+document.getElementById('basket-toggle').onclick = () => {
+  document.getElementById('basket-panel').classList.toggle('collapsed');
+};
+
+renderFilters();
+renderGrid();
+renderBasket();
+</script>
+</body>
+</html>

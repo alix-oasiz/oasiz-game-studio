@@ -1,1 +1,0 @@
-{"scene":"Level","coordinate_system":"origin top-left, x right, y down","player":{"x":-128,"y":584,"vx":0,"vy":0,"flipX":false,"hp":6,"maxHp":6},"enemies":[{"type":"rat","x":1280,"y":584,"state":"idle"},{"type":"beholder","x":1280,"y":328,"state":"idle"},{"type":"golem","x":448,"y":712,"state":"idle"},{"type":"skeleton","x":832,"y":-184,"state":"idle"}],"collectedKeys":[]}

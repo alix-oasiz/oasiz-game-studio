@@ -15,7 +15,9 @@ function ensureTextures(): { base: THREE.Texture; emissive: THREE.Texture } {
   if (!baseTexture || !emissiveTexture) {
     const tl = new THREE.TextureLoader();
     baseTexture = tl.load("assets/textures/PolygonSciFiSpace_Texture_01_A.png");
-    emissiveTexture = tl.load("assets/textures/PolygonSciFiSpace_Emissive_01.png");
+    emissiveTexture = tl.load(
+      "assets/textures/PolygonSciFiSpace_Emissive_01.png",
+    );
     baseTexture.colorSpace = THREE.SRGBColorSpace;
     baseTexture.flipY = false;
     emissiveTexture.flipY = false;
@@ -29,9 +31,13 @@ export function createJet(scene: THREE.Scene, modelPath?: string): JetModel {
   const body = new THREE.Group();
 
   const placeholderMat = new THREE.MeshStandardMaterial({
-    color: 0x2288ff, roughness: 0.3, metalness: 0.7,
-    emissive: 0x1155cc, emissiveIntensity: 0.25,
-    transparent: true, opacity: 0,
+    color: 0x2288ff,
+    roughness: 0.3,
+    metalness: 0.7,
+    emissive: 0x1155cc,
+    emissiveIntensity: 0.25,
+    transparent: true,
+    opacity: 0,
   });
   const placeholder = new THREE.Mesh(
     new THREE.BoxGeometry(0.1, 0.1, 0.1),

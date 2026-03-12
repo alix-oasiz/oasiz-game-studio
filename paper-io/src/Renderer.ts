@@ -4,16 +4,18 @@ import {
   BOARD_COLOR,
   BG_COLOR,
   GRID_LINE_COLOR,
-  TRAIL_OPACITY,
   type Vec2,
 } from "./constants.ts";
-import { debugLog } from "./debug-log.ts";
 import { type TerritoryGrid } from "./Territory.ts";
-import { type TerritoryMultiPolygon } from "./polygon-ops.ts";
+import { territoryArea, type TerritoryMultiPolygon } from "./polygon-ops.ts";
 
 const TERRITORY_Y = 0.03;
 const TERRITORY_HEIGHT = 0.24;
-const TRAIL_Y = 0.022;
+const TRAIL_Y = TERRITORY_Y + 0.018;
+const TRAIL_CARVE_FLOOR_DEPTH_T = 0.82;
+const TRAIL_RENDER_ORDER_OFFSET = 1;
+const TRAIL_CARVE_RENDER_ORDER = 0.25;
+const TRAIL_CARVE_WALL_RENDER_ORDER = 0.62;
 const CELL_SIZE = 0.1;
 const BORDER_WIDTH = 1.0;
 const PATTERN_TILE = 5.0;
@@ -24,6 +26,17 @@ const TERRITORY_DEPTH_LAYERS = 3;
 const TERRITORY_DEPTH_OFFSET_X = -0.07;
 const TERRITORY_DEPTH_OFFSET_Z = 0.14;
 const TERRITORY_DEPTH_DROP = 0.02;
+const TRAIL_CARVE_FLOOR_Y =
+  TERRITORY_Y - TERRITORY_DEPTH_DROP * TRAIL_CARVE_FLOOR_DEPTH_T;
+// Board-level carve groove (shown on bare canvas, hidden under territory via renderOrder)
+// Groove ribbon sits just above the territory surface so it's never depth-culled
+const BOARD_CARVE_FLOOR_Y = TERRITORY_Y + 0.004; // 0.034 — above territory (0.03), below trail (0.048)
+// Half-width: thinner on canvas, thicker inside enemy territory
+const BOARD_CARVE_HALF_WIDTH_CANVAS = 0.2;
+const BOARD_CARVE_HALF_WIDTH_ENEMY = 0.3;
+// Negated: groove sits on the far/top edge of the ribbon (away from camera)
+const BOARD_CARVE_OFFSET_X = -(TERRITORY_DEPTH_OFFSET_X * 0.4); // ≈+0.028
+const BOARD_CARVE_OFFSET_Z = -(TERRITORY_DEPTH_OFFSET_Z * 0.4); // ≈-0.056
 const LOOP_POINT_SCALE = 1000;
 const LOOP_MIN_AREA = CELL_SIZE * CELL_SIZE * 6;
 const LOOP_MIN_DIST = CELL_SIZE * 0.16;
@@ -59,6 +72,13 @@ interface TerritoryMaterialSet {
   band: THREE.MeshPhongMaterial;
 }
 
+interface EnemyBoardCarveSegment {
+  path: Vec2[];
+  color: number;
+  territoryOwnerId: number | null;
+  startTangent: Vec2 | null;
+}
+
 export class Renderer {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -76,9 +96,32 @@ export class Renderer {
   private contactShadowMaterial: THREE.MeshBasicMaterial | null = null;
   private trailMeshes: Map<number, THREE.Mesh> = new Map();
   private trailMaterials: Map<number, THREE.MeshLambertMaterial> = new Map();
+  private trailCarveMeshes: Map<number, THREE.Mesh> = new Map();
+  private trailCarveMaterials: Map<number, THREE.MeshLambertMaterial> =
+    new Map();
+  private trailCarveEdgeMeshes: Map<number, THREE.Mesh> = new Map();
+  private trailCarveEdgeMaterials: Map<number, THREE.MeshLambertMaterial> =
+    new Map();
+  private trailBoardCarveMeshes: Map<number, THREE.Mesh> = new Map();
+  private trailBoardCarveMaterials: Map<number, THREE.MeshLambertMaterial> =
+    new Map();
+  private trailBoardCarveMesh2s: Map<number, THREE.Mesh> = new Map();
+  private trailEnemyBoardCarveMaterials: Map<
+    number,
+    THREE.MeshLambertMaterial[]
+  > = new Map();
+  /** All persisted carve segments (one per visit); re-entry does not replace previous segments. */
+  private trailCarvePathPersisted: Map<number, EnemyBoardCarveSegment[]> =
+    new Map();
+  /** Carve path from the last frame we were inside; pushed to persisted when we exit. */
+  private trailLastCarveWhenInside: Map<number, EnemyBoardCarveSegment> =
+    new Map();
+  /** One mesh per persisted + current segment so each visit stays visible. */
+  private trailEnemyBoardCarveMeshList: Map<number, THREE.Mesh[]> = new Map();
   private trailLengths: Map<number, number> = new Map();
-  private trailCapLogged: Set<number> = new Set();
-  private trailEarlyReturnLogged: Set<number> = new Set();
+  private trailSourceLengths: Map<number, number> = new Map();
+  private trailCarveLengths: Map<number, number> = new Map();
+  private trailCarveSourceLengths: Map<number, number> = new Map();
   private avatars: Map<number, THREE.Group> = new Map();
   private avatarLastPositions: Map<number, Vec2> = new Map();
   private territoryTakeovers: TerritoryTakeoverEffect[] = [];
@@ -846,6 +889,26 @@ export class Renderer {
     return { shapes, outerLoops };
   }
 
+  private loopBounds(loop: Vec2[]): {
+    width: number;
+    height: number;
+  } {
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minZ = Number.POSITIVE_INFINITY;
+    let maxZ = Number.NEGATIVE_INFINITY;
+    for (const point of loop) {
+      if (point.x < minX) minX = point.x;
+      if (point.x > maxX) maxX = point.x;
+      if (point.z < minZ) minZ = point.z;
+      if (point.z > maxZ) maxZ = point.z;
+    }
+    return {
+      width: maxX - minX,
+      height: maxZ - minZ,
+    };
+  }
+
   private clearTerritoryVisuals(id: number, disposeMaterials = false): void {
     const terr = this.territoryObjects.get(id);
     if (terr) {
@@ -894,6 +957,20 @@ export class Renderer {
       }
       this.territorySkinIds.delete(id);
     }
+  }
+
+  private countTaggedTerritorySceneObjects(playerId?: number): number {
+    let count = 0;
+    this.scene.traverse((obj) => {
+      const data = obj.userData as {
+        territoryVisual?: boolean;
+        territoryPlayerId?: number;
+      };
+      if (!data?.territoryVisual) return;
+      if (playerId !== undefined && data.territoryPlayerId !== playerId) return;
+      count++;
+    });
+    return count;
   }
 
   updateTerritory(
@@ -982,6 +1059,26 @@ export class Renderer {
       return;
     }
 
+    let droppedOuterCount = 0;
+    let droppedHoleCount = 0;
+    for (const polygon of polygons) {
+      if (
+        polygon.outer.length < 3 ||
+        Math.abs(this.loopArea(polygon.outer)) < LOOP_MIN_AREA
+      ) {
+        droppedOuterCount++;
+        continue;
+      }
+      for (const holeLoop of polygon.holes) {
+        if (
+          holeLoop.length < 3 ||
+          Math.abs(this.loopArea(holeLoop)) < LOOP_MIN_AREA
+        ) {
+          droppedHoleCount++;
+        }
+      }
+    }
+
     const bMinX = bounds.minX;
     const bMinZ = bounds.minZ;
     const bMaxX = bounds.maxX;
@@ -999,6 +1096,9 @@ export class Renderer {
     topGeo.computeVertexNormals();
 
     const mesh = new THREE.Mesh(topGeo, materials.top);
+    mesh.userData.territoryVisual = true;
+    mesh.userData.territoryPlayerId = id;
+    mesh.userData.territoryVisualType = "top";
     mesh.position.y = TERRITORY_Y;
     mesh.renderOrder = order;
     mesh.castShadow = false;
@@ -1016,6 +1116,9 @@ export class Renderer {
       layerGeo.rotateX(-Math.PI / 2);
       layerGeo.computeVertexNormals();
       const layerMesh = new THREE.Mesh(layerGeo, materials.depth);
+      layerMesh.userData.territoryVisual = true;
+      layerMesh.userData.territoryPlayerId = id;
+      layerMesh.userData.territoryVisualType = "depth";
       layerMesh.position.set(
         TERRITORY_DEPTH_OFFSET_X * t,
         TERRITORY_Y - TERRITORY_DEPTH_DROP * t,
@@ -1037,6 +1140,9 @@ export class Renderer {
     );
     if (sideBandGeo) {
       const sideBandMesh = new THREE.Mesh(sideBandGeo, materials.band);
+      sideBandMesh.userData.territoryVisual = true;
+      sideBandMesh.userData.territoryPlayerId = id;
+      sideBandMesh.userData.territoryVisualType = "band";
       sideBandMesh.position.y = TERRITORY_Y;
       sideBandMesh.renderOrder = order - 0.12;
       sideBandMesh.castShadow = false;
@@ -1075,6 +1181,9 @@ export class Renderer {
       true;
 
     const shadowMesh = new THREE.Mesh(shadowGeo, this.shadowMaterial!);
+    shadowMesh.userData.territoryVisual = true;
+    shadowMesh.userData.territoryPlayerId = id;
+    shadowMesh.userData.territoryVisualType = "shadow";
     shadowMesh.renderOrder = order - 1;
     this.scene.add(shadowMesh);
     this.territoryShadows.set(id, shadowMesh);
@@ -1101,112 +1210,159 @@ export class Renderer {
       true;
 
     const contactMesh = new THREE.Mesh(contactGeo, this.contactShadowMaterial!);
+    contactMesh.userData.territoryVisual = true;
+    contactMesh.userData.territoryPlayerId = id;
+    contactMesh.userData.territoryVisualType = "contact-shadow";
     contactMesh.renderOrder = order - 0.5;
     this.scene.add(contactMesh);
     this.territoryContactShadows.set(id, contactMesh);
     footprintGeo.dispose();
   }
 
-  private static readonly MAX_TRAIL_POINTS = 512;
+  private static readonly INITIAL_TRAIL_CAPACITY = 512;
+  private static readonly MAX_TRAIL_CAPACITY = 65536;
+  private static readonly UINT16_INDEX_CAPACITY = 10923; // (n-1)*6 <= 65535
 
-  updateTrail(
-    id: number,
-    trail: Vec2[],
-    color: number,
-    startTangent: Vec2 | null = null,
+  private createTrailRibbonGeometry(capacity: number): THREE.BufferGeometry {
+    const maxPts = Math.max(2, capacity);
+    const posAttr = new THREE.BufferAttribute(
+      new Float32Array(maxPts * 2 * 3),
+      3,
+    );
+    posAttr.setUsage(THREE.DynamicDrawUsage);
+    const indexCount = (maxPts - 1) * 6;
+    const idxArr =
+      maxPts > Renderer.UINT16_INDEX_CAPACITY
+        ? new Uint32Array(indexCount)
+        : new Uint16Array(indexCount);
+    for (let i = 0; i < maxPts - 1; i++) {
+      const vi = i * 2;
+      const ii = i * 6;
+      idxArr[ii] = vi;
+      idxArr[ii + 1] = vi + 1;
+      idxArr[ii + 2] = vi + 2;
+      idxArr[ii + 3] = vi + 1;
+      idxArr[ii + 4] = vi + 3;
+      idxArr[ii + 5] = vi + 2;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", posAttr);
+    const normalArr = new Float32Array(maxPts * 2 * 3);
+    for (let i = 0; i < normalArr.length; i += 3) {
+      normalArr[i + 1] = 1;
+    }
+    geo.setAttribute("normal", new THREE.BufferAttribute(normalArr, 3));
+    geo.setIndex(new THREE.BufferAttribute(idxArr, 1));
+    return geo;
+  }
+
+  private ensureTrailRibbonCapacity(mesh: THREE.Mesh, minPoints: number): void {
+    if (minPoints < 2) return;
+    const posAttr = mesh.geometry.getAttribute(
+      "position",
+    ) as THREE.BufferAttribute;
+    const currentCapacity = posAttr.count / 2;
+    if (minPoints <= currentCapacity) return;
+    let newCapacity = 1 << 31;
+    for (let i = 0; i < 31; i++) {
+      if (1 << i >= minPoints) {
+        newCapacity = Math.min(1 << i, Renderer.MAX_TRAIL_CAPACITY);
+        break;
+      }
+    }
+    const oldGeo = mesh.geometry;
+    mesh.geometry = this.createTrailRibbonGeometry(newCapacity);
+    oldGeo.dispose();
+  }
+
+  private createTrailRibbonMesh(
+    material: THREE.MeshLambertMaterial,
+  ): THREE.Mesh {
+    const geo = this.createTrailRibbonGeometry(Renderer.INITIAL_TRAIL_CAPACITY);
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.frustumCulled = false;
+    this.scene.add(mesh);
+    return mesh;
+  }
+
+  private createDynamicTrailMesh(
+    material: THREE.MeshLambertMaterial,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
+    mesh.frustumCulled = false;
+    this.scene.add(mesh);
+    return mesh;
+  }
+
+  private getTrailEndpointHalfWidth(
+    visibleTrail: Vec2[],
+    index: number,
+    baseHalfWidth: number,
+    taperEndpoints = false,
+  ): number {
+    if (
+      !taperEndpoints ||
+      visibleTrail.length < 2 ||
+      (index !== 0 && index !== visibleTrail.length - 1)
+    ) {
+      return baseHalfWidth;
+    }
+
+    const adjIndex = index === 0 ? 1 : index - 1;
+    const dx = visibleTrail[adjIndex].x - visibleTrail[index].x;
+    const dz = visibleTrail[adjIndex].z - visibleTrail[index].z;
+    const segmentLength = Math.sqrt(dx * dx + dz * dz);
+    return Math.min(
+      baseHalfWidth,
+      Math.max(CELL_SIZE * 0.08, segmentLength * 0.5),
+    );
+  }
+
+  /**
+   * Returns segments of the trail that are outside enemy territory.
+   * When there is no carve, returns [full trail]. When there is a carve,
+   * returns [segment before entering, segment after exiting] (either can be empty).
+   */
+  private getTrailOutsideSegments(trail: Vec2[], carvePath: Vec2[]): Vec2[][] {
+    if (trail.length < 2 || carvePath.length < 2) return [trail];
+    const eps = 1e-6;
+    const eq = (a: Vec2, b: Vec2) =>
+      Math.abs(a.x - b.x) < eps && Math.abs(a.z - b.z) < eps;
+    const firstInside = carvePath[1];
+    const lastInside = carvePath[carvePath.length - 1];
+    let startIdx = -1;
+    let endIdx = -1;
+    for (let i = 0; i < trail.length; i++) {
+      if (eq(trail[i], firstInside)) startIdx = i;
+      if (eq(trail[i], lastInside)) endIdx = i;
+    }
+    if (startIdx < 0 || endIdx < 0) return [trail];
+    const before = trail.slice(0, startIdx);
+    const after = trail.slice(endIdx + 1);
+    const segments: Vec2[][] = [];
+    if (before.length >= 2) segments.push(before);
+    if (after.length >= 2) segments.push(after);
+    return segments.length > 0 ? segments : [trail];
+  }
+
+  private writeTrailRibbonPositions(
+    mesh: THREE.Mesh,
+    visibleTrail: Vec2[],
+    windowStart: number,
+    prevLen: number,
+    prevSourceLen: number,
+    sourceTrailLen: number,
+    startTangent: Vec2 | null,
+    halfWidth: number,
+    y: number,
+    offsetX = 0,
+    offsetZ = 0,
+    taperEndpointWidth = false,
+    anchorStartAtPathPoint = false,
   ): void {
-    const prevLen = this.trailLengths.get(id) ?? 0;
-    const maxPts = Renderer.MAX_TRAIL_POINTS;
-    const n = Math.min(trail.length, maxPts);
-    if (trail.length > maxPts && !this.trailCapLogged.has(id)) {
-      this.trailCapLogged.add(id);
-      // #region agent log
-      debugLog("H1", "Renderer.ts:1117", "trail render cap reached", {
-        playerId: id,
-        trailLength: trail.length,
-        renderedLength: n,
-        prevLen,
-      });
-      // #endregion
-    }
-    if (prevLen === n && n > 0) {
-      if (trail.length > maxPts && !this.trailEarlyReturnLogged.has(id)) {
-        this.trailEarlyReturnLogged.add(id);
-        // #region agent log
-        debugLog(
-          "H2",
-          "Renderer.ts:1118",
-          "trail render early-return while capped",
-          {
-            playerId: id,
-            trailLength: trail.length,
-            renderedLength: n,
-            prevLen,
-          },
-        );
-        // #endregion
-      }
-      return;
-    }
-    this.trailLengths.set(id, n);
-
-    let mesh = this.trailMeshes.get(id);
-
-    if (n < 2) {
-      if (mesh) mesh.visible = false;
-      this.trailCapLogged.delete(id);
-      this.trailEarlyReturnLogged.delete(id);
-      return;
-    }
-
-    const halfWidth = 0.25;
-    const y = TRAIL_Y;
-
-    if (!mesh) {
-      let mat = this.trailMaterials.get(id);
-      if (!mat) {
-        mat = new THREE.MeshLambertMaterial({
-          color,
-          transparent: true,
-          opacity: TRAIL_OPACITY,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        });
-        this.trailMaterials.set(id, mat);
-      }
-
-      const posAttr = new THREE.BufferAttribute(
-        new Float32Array(maxPts * 2 * 3),
-        3,
-      );
-      posAttr.setUsage(THREE.DynamicDrawUsage);
-      const idxArr = new Uint16Array((maxPts - 1) * 6);
-      for (let i = 0; i < maxPts - 1; i++) {
-        const vi = i * 2;
-        const ii = i * 6;
-        idxArr[ii] = vi;
-        idxArr[ii + 1] = vi + 1;
-        idxArr[ii + 2] = vi + 2;
-        idxArr[ii + 3] = vi + 1;
-        idxArr[ii + 4] = vi + 3;
-        idxArr[ii + 5] = vi + 2;
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", posAttr);
-      const normalArr = new Float32Array(maxPts * 2 * 3);
-      for (let i = 0; i < normalArr.length; i += 3) {
-        normalArr[i + 1] = 1;
-      }
-      geo.setAttribute("normal", new THREE.BufferAttribute(normalArr, 3));
-      geo.setIndex(new THREE.BufferAttribute(idxArr, 1));
-
-      mesh = new THREE.Mesh(geo, mat);
-      mesh.frustumCulled = false;
-      this.scene.add(mesh);
-      this.trailMeshes.set(id, mesh);
-    }
-
-    mesh.visible = true;
+    const n = visibleTrail.length;
+    if (n < 2) return;
+    this.ensureTrailRibbonCapacity(mesh, n);
     const posArr = (
       mesh.geometry.getAttribute("position") as THREE.BufferAttribute
     ).array as Float32Array;
@@ -1218,23 +1374,30 @@ export class Renderer {
 
     const blendPoints = 4;
     const normalizedStartTangent =
-      startTangent && (startTangent.x !== 0 || startTangent.z !== 0)
+      windowStart === 0 &&
+      startTangent &&
+      (startTangent.x !== 0 || startTangent.z !== 0)
         ? normalize(startTangent.x, startTangent.z)
         : null;
 
-    const updateStart = trail.length >= prevLen ? Math.max(0, prevLen - 2) : 0;
+    const updateStart =
+      windowStart > 0 || sourceTrailLen !== prevSourceLen
+        ? 0
+        : visibleTrail.length >= prevLen
+          ? Math.max(0, prevLen - 2)
+          : 0;
 
     for (let i = updateStart; i < n; i++) {
       let dx: number, dz: number;
       if (i === 0) {
-        dx = trail[1].x - trail[0].x;
-        dz = trail[1].z - trail[0].z;
+        dx = visibleTrail[1].x - visibleTrail[0].x;
+        dz = visibleTrail[1].z - visibleTrail[0].z;
       } else if (i === n - 1) {
-        dx = trail[i].x - trail[i - 1].x;
-        dz = trail[i].z - trail[i - 1].z;
+        dx = visibleTrail[i].x - visibleTrail[i - 1].x;
+        dz = visibleTrail[i].z - visibleTrail[i - 1].z;
       } else {
-        dx = trail[i + 1].x - trail[i - 1].x;
-        dz = trail[i + 1].z - trail[i - 1].z;
+        dx = visibleTrail[i + 1].x - visibleTrail[i - 1].x;
+        dz = visibleTrail[i + 1].z - visibleTrail[i - 1].z;
       }
       const len = Math.sqrt(dx * dx + dz * dz) || 1;
       const alongDir = { x: dx / len, z: dz / len };
@@ -1254,12 +1417,50 @@ export class Renderer {
         );
       }
 
-      const px = widthDir.x * halfWidth;
-      const pz = widthDir.z * halfWidth;
-      const capOffset = i === 0 ? -halfWidth : i === n - 1 ? halfWidth : 0;
-      const centerX = trail[i].x + alongDir.x * capOffset;
-      const centerZ = trail[i].z + alongDir.z * capOffset;
-
+      const effectiveHalfWidth = this.getTrailEndpointHalfWidth(
+        visibleTrail,
+        i,
+        halfWidth,
+        taperEndpointWidth,
+      );
+      const px = widthDir.x * effectiveHalfWidth;
+      const pz = widthDir.z * effectiveHalfWidth;
+      let capOffset = 0;
+      if (i === n - 1) {
+        capOffset = halfWidth;
+      }
+      let startForwardOffset = 0;
+      if (i === 0 && !anchorStartAtPathPoint) {
+        // Keep the whole first cross-section outside the territory edge.
+        // One corner can project backward along moveDir when the start width
+        // follows a curved boundary tangent; push the whole section forward
+        // just enough so the rearmost corner lies on the exit boundary.
+        //
+        // The territory uses a faux-depth stack that is shifted toward the
+        // camera. Compensate for that visual overhang too so the trail start
+        // appears attached to the visible outer edge, not the logical top face.
+        const territoryVisualOverhang = Math.max(
+          0,
+          -(
+            alongDir.x * TERRITORY_DEPTH_OFFSET_X +
+            alongDir.z * TERRITORY_DEPTH_OFFSET_Z
+          ),
+        );
+        startForwardOffset = Math.max(
+          0,
+          Math.abs(widthDir.x * alongDir.x + widthDir.z * alongDir.z) *
+            effectiveHalfWidth,
+        );
+        startForwardOffset += territoryVisualOverhang;
+      }
+      const centerX =
+        visibleTrail[i].x +
+        alongDir.x * (capOffset + startForwardOffset) +
+        offsetX;
+      const centerZ =
+        visibleTrail[i].z +
+        alongDir.z * (capOffset + startForwardOffset) +
+        offsetZ;
       const off = i * 6;
       posArr[off] = centerX + px;
       posArr[off + 1] = y;
@@ -1274,6 +1475,647 @@ export class Renderer {
     ) as THREE.BufferAttribute;
     posAttr.needsUpdate = true;
     mesh.geometry.setDrawRange(0, Math.max(0, n - 1) * 6);
+  }
+
+  private buildTrailWallGeometry(
+    visibleTrail: Vec2[],
+    windowStart: number,
+    startTangent: Vec2 | null,
+    halfWidth: number,
+    topY: number,
+    bottomOffsetX: number,
+    bottomOffsetZ: number,
+    bottomDrop: number,
+    taperEndpointWidth = false,
+  ): THREE.BufferGeometry | null {
+    const n = visibleTrail.length;
+    if (n < 2) return null;
+
+    const normalize = (x: number, z: number): Vec2 => {
+      const len = Math.sqrt(x * x + z * z) || 1;
+      return { x: x / len, z: z / len };
+    };
+
+    const blendPoints = 4;
+    const normalizedStartTangent =
+      windowStart === 0 &&
+      startTangent &&
+      (startTangent.x !== 0 || startTangent.z !== 0)
+        ? normalize(startTangent.x, startTangent.z)
+        : null;
+    const depthDir = normalize(bottomOffsetX, bottomOffsetZ);
+
+    const rimPoints: Array<{
+      x: number;
+      z: number;
+      bottomX: number;
+      bottomZ: number;
+    }> = [];
+
+    for (let i = 0; i < n; i++) {
+      let dx: number, dz: number;
+      if (i === 0) {
+        dx = visibleTrail[1].x - visibleTrail[0].x;
+        dz = visibleTrail[1].z - visibleTrail[0].z;
+      } else if (i === n - 1) {
+        dx = visibleTrail[i].x - visibleTrail[i - 1].x;
+        dz = visibleTrail[i].z - visibleTrail[i - 1].z;
+      } else {
+        dx = visibleTrail[i + 1].x - visibleTrail[i - 1].x;
+        dz = visibleTrail[i + 1].z - visibleTrail[i - 1].z;
+      }
+      const len = Math.sqrt(dx * dx + dz * dz) || 1;
+      const alongDir = { x: dx / len, z: dz / len };
+      const trailSide = { x: -dz / len, z: dx / len };
+      let widthDir = trailSide;
+
+      if (normalizedStartTangent && i < blendPoints) {
+        let tangent = normalizedStartTangent;
+        if (tangent.x * trailSide.x + tangent.z * trailSide.z < 0) {
+          tangent = { x: -tangent.x, z: -tangent.z };
+        }
+
+        const t = i / Math.max(1, blendPoints - 1);
+        widthDir = normalize(
+          tangent.x * (1 - t) + trailSide.x * t,
+          tangent.z * (1 - t) + trailSide.z * t,
+        );
+      }
+
+      const effectiveHalfWidth = this.getTrailEndpointHalfWidth(
+        visibleTrail,
+        i,
+        halfWidth,
+        taperEndpointWidth,
+      );
+      let capOffset = 0;
+      if (i === n - 1) {
+        capOffset = halfWidth;
+      }
+      const centerX = visibleTrail[i].x + alongDir.x * capOffset;
+      const centerZ = visibleTrail[i].z + alongDir.z * capOffset;
+      const sideSign =
+        widthDir.x * depthDir.x + widthDir.z * depthDir.z >= 0 ? 1 : -1;
+      const edgeX = centerX + widthDir.x * effectiveHalfWidth * sideSign;
+      const edgeZ = centerZ + widthDir.z * effectiveHalfWidth * sideSign;
+
+      rimPoints.push({
+        x: edgeX,
+        z: edgeZ,
+        bottomX: edgeX + bottomOffsetX,
+        bottomZ: edgeZ + bottomOffsetZ,
+      });
+    }
+
+    const positions: number[] = [];
+    for (let i = 0; i < rimPoints.length - 1; i++) {
+      const curr = rimPoints[i];
+      const next = rimPoints[i + 1];
+      positions.push(
+        curr.x,
+        topY,
+        curr.z,
+        next.x,
+        topY,
+        next.z,
+        next.bottomX,
+        topY - bottomDrop,
+        next.bottomZ,
+        curr.x,
+        topY,
+        curr.z,
+        next.bottomX,
+        topY - bottomDrop,
+        next.bottomZ,
+        curr.bottomX,
+        topY - bottomDrop,
+        curr.bottomZ,
+      );
+    }
+
+    if (positions.length === 0) return null;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  updateTrail(
+    id: number,
+    trail: Vec2[],
+    color: number,
+    startTangent: Vec2 | null = null,
+    carveTrail: Vec2[] | null = null,
+    carveColor?: number,
+    carveStartTangent: Vec2 | null = null,
+    carveOwnerId?: number,
+  ): void {
+    const prevLen = this.trailLengths.get(id) ?? 0;
+    const prevSourceLen = this.trailSourceLengths.get(id) ?? 0;
+    const prevCarveLen = this.trailCarveLengths.get(id) ?? 0;
+    const prevCarveSourceLen = this.trailCarveSourceLengths.get(id) ?? 0;
+    const visibleTrail = trail;
+    const windowStart = 0;
+    const n = visibleTrail.length;
+    const carvePath = carveTrail ?? [];
+    const visibleCarveTrail = carvePath;
+    const carveWindowStart = 0;
+    const carveVisibleLen = visibleCarveTrail.length;
+    const carveEnemyTerritory = carveVisibleLen >= 2;
+    if (
+      prevLen === n &&
+      prevSourceLen === trail.length &&
+      prevCarveLen === carveVisibleLen &&
+      prevCarveSourceLen === carvePath.length &&
+      n > 0
+    ) {
+      return;
+    }
+    this.trailLengths.set(id, n);
+    this.trailSourceLengths.set(id, trail.length);
+    this.trailCarveLengths.set(id, carveVisibleLen);
+    this.trailCarveSourceLengths.set(id, carvePath.length);
+
+    let mesh = this.trailMeshes.get(id);
+    let carveMesh = this.trailCarveMeshes.get(id);
+    let carveEdgeMesh = this.trailCarveEdgeMeshes.get(id);
+
+    if (n < 2) {
+      if (mesh) mesh.visible = false;
+      if (carveMesh) carveMesh.visible = false;
+      if (carveEdgeMesh) carveEdgeMesh.visible = false;
+      const boardCarveMeshHide = this.trailBoardCarveMeshes.get(id);
+      if (boardCarveMeshHide) boardCarveMeshHide.visible = false;
+      const boardCarveMesh2Hide = this.trailBoardCarveMesh2s.get(id);
+      if (boardCarveMesh2Hide) boardCarveMesh2Hide.visible = false;
+      const enemyListHide = this.trailEnemyBoardCarveMeshList.get(id);
+      if (enemyListHide) {
+        for (const m of enemyListHide) {
+          m.visible = false;
+          this.scene.remove(m);
+          m.geometry.dispose();
+        }
+        this.trailEnemyBoardCarveMeshList.delete(id);
+      }
+      const enemyMaterialListHide = this.trailEnemyBoardCarveMaterials.get(id);
+      if (enemyMaterialListHide) {
+        for (const mat of enemyMaterialListHide) {
+          mat.dispose();
+        }
+        this.trailEnemyBoardCarveMaterials.delete(id);
+      }
+      this.trailCarvePathPersisted.delete(id);
+      this.trailLastCarveWhenInside.delete(id);
+      this.trailSourceLengths.delete(id);
+      this.trailCarveLengths.delete(id);
+      this.trailCarveSourceLengths.delete(id);
+      return;
+    }
+
+    const trailHalfWidth = 0.25;
+    const carveFloorHalfWidth = 0.31;
+    const carveWallHalfWidth = 0.33;
+    const carveFloorOffsetX =
+      TERRITORY_DEPTH_OFFSET_X * TRAIL_CARVE_FLOOR_DEPTH_T;
+    const carveFloorOffsetZ =
+      TERRITORY_DEPTH_OFFSET_Z * TRAIL_CARVE_FLOOR_DEPTH_T;
+    const carveFloorDrop = TERRITORY_DEPTH_DROP * TRAIL_CARVE_FLOOR_DEPTH_T;
+    const entrySegmentLength =
+      carvePath.length >= 2
+        ? Math.hypot(
+            carvePath[1].x - carvePath[0].x,
+            carvePath[1].z - carvePath[0].z,
+          )
+        : null;
+    const expectedTaperFloorHalfWidth =
+      entrySegmentLength === null
+        ? null
+        : Math.min(
+            carveFloorHalfWidth,
+            Math.max(CELL_SIZE * 0.08, entrySegmentLength * 0.5),
+          );
+    const expectedTaperWallHalfWidth =
+      entrySegmentLength === null
+        ? null
+        : Math.min(
+            carveWallHalfWidth,
+            Math.max(CELL_SIZE * 0.08, entrySegmentLength * 0.5),
+          );
+
+    if (!mesh) {
+      let mat = this.trailMaterials.get(id);
+      if (!mat) {
+        mat = new THREE.MeshLambertMaterial({
+          color,
+          transparent: false,
+          opacity: 1,
+          side: THREE.DoubleSide,
+          depthTest: true,
+          depthWrite: false,
+        });
+        this.trailMaterials.set(id, mat);
+      }
+
+      mesh = this.createTrailRibbonMesh(mat);
+      this.trailMeshes.set(id, mesh);
+    }
+
+    if (!carveMesh) {
+      let carveMat = this.trailCarveMaterials.get(id);
+      if (!carveMat) {
+        carveMat = new THREE.MeshLambertMaterial({
+          color,
+          transparent: true,
+          opacity: 0.55,
+          side: THREE.DoubleSide,
+          depthTest: true,
+          depthWrite: false,
+        });
+        this.trailCarveMaterials.set(id, carveMat);
+      }
+      carveMesh = this.createTrailRibbonMesh(carveMat);
+      this.trailCarveMeshes.set(id, carveMesh);
+    }
+
+    if (!carveEdgeMesh) {
+      let carveEdgeMat = this.trailCarveEdgeMaterials.get(id);
+      if (!carveEdgeMat) {
+        carveEdgeMat = new THREE.MeshLambertMaterial({
+          color,
+          transparent: false,
+          opacity: 1,
+          side: THREE.DoubleSide,
+          depthTest: true,
+          depthWrite: false,
+        });
+        this.trailCarveEdgeMaterials.set(id, carveEdgeMat);
+      }
+      carveEdgeMesh = this.createDynamicTrailMesh(carveEdgeMat);
+      this.trailCarveEdgeMeshes.set(id, carveEdgeMesh);
+    }
+
+    const material = mesh.material as THREE.MeshLambertMaterial;
+    material.color.setHex(color);
+    material.transparent = false;
+    material.opacity = 1;
+    material.depthTest = true;
+    material.depthWrite = false;
+    mesh.renderOrder = this.territoryRenderOrder + TRAIL_RENDER_ORDER_OFFSET;
+    mesh.visible = true;
+    this.writeTrailRibbonPositions(
+      mesh,
+      visibleTrail,
+      windowStart,
+      prevLen,
+      prevSourceLen,
+      trail.length,
+      startTangent,
+      trailHalfWidth,
+      TRAIL_Y,
+    );
+    const carveSourceColor = carveColor ?? color;
+    const carveMaterial = carveMesh.material as THREE.MeshLambertMaterial;
+    const carveFloorColor = new THREE.Color(carveSourceColor).multiplyScalar(
+      0.68,
+    );
+    carveMaterial.color.copy(carveFloorColor);
+    carveMaterial.transparent = false;
+    carveMaterial.opacity = 1;
+    carveMaterial.depthTest = true;
+    carveMaterial.depthWrite = false;
+    carveMesh.renderOrder =
+      this.territoryRenderOrder + TRAIL_CARVE_RENDER_ORDER;
+    // Legacy enemy-entry shadow ribbon disabled. The board-level groove now
+    // owns this visual, and keeping both paths active leaves an old artifact
+    // at the entrance.
+    carveMesh.visible = false;
+
+    const carveEdgeMaterial =
+      carveEdgeMesh.material as THREE.MeshLambertMaterial;
+    const carveWallColor = new THREE.Color(carveSourceColor).multiplyScalar(
+      0.48,
+    );
+    carveEdgeMaterial.color.copy(carveWallColor);
+    carveEdgeMaterial.transparent = false;
+    carveEdgeMaterial.opacity = 1;
+    carveEdgeMaterial.depthTest = true;
+    carveEdgeMaterial.depthWrite = false;
+    carveEdgeMesh.renderOrder =
+      this.territoryRenderOrder + TRAIL_CARVE_WALL_RENDER_ORDER;
+    carveEdgeMesh.visible = false;
+
+    if (carveEdgeMesh.geometry) {
+      carveEdgeMesh.geometry.dispose();
+      carveEdgeMesh.geometry = new THREE.BufferGeometry();
+    }
+
+    // ── Board-level groove ribbons ────────────────────────────────────────────
+    // Canvas groove: only the trail segments OUTSIDE enemy territory (thin).
+    // Enemy overlay: only the segment INSIDE enemy territory (thick, persistent).
+    // So the inside section never gets overwritten by the canvas groove.
+    const outsideSegments = this.getTrailOutsideSegments(trail, carvePath);
+    const hasCarve = carvePath.length >= 2;
+    const segment1 = outsideSegments[0] ?? [];
+    const segment2 = outsideSegments[1] ?? null;
+    const useFullTrailForSegment1 = !hasCarve && segment1.length > 0;
+
+    let boardCarveMesh = this.trailBoardCarveMeshes.get(id);
+    if (!boardCarveMesh) {
+      let boardCarveMat = this.trailBoardCarveMaterials.get(id);
+      if (!boardCarveMat) {
+        boardCarveMat = new THREE.MeshLambertMaterial({
+          color: new THREE.Color(BOARD_COLOR).multiplyScalar(0.95),
+          transparent: false,
+          opacity: 1,
+          side: THREE.DoubleSide,
+          depthTest: true,
+          depthWrite: false,
+        });
+        this.trailBoardCarveMaterials.set(id, boardCarveMat);
+      }
+      boardCarveMesh = this.createTrailRibbonMesh(boardCarveMat);
+      this.trailBoardCarveMeshes.set(id, boardCarveMesh);
+    }
+
+    boardCarveMesh.renderOrder =
+      this.territoryRenderOrder + TRAIL_RENDER_ORDER_OFFSET - 0.5;
+    if (segment1.length >= 2 || useFullTrailForSegment1) {
+      boardCarveMesh.visible = true;
+      if (useFullTrailForSegment1) {
+        this.writeTrailRibbonPositions(
+          boardCarveMesh,
+          visibleTrail,
+          windowStart,
+          prevLen,
+          prevSourceLen,
+          trail.length,
+          startTangent,
+          BOARD_CARVE_HALF_WIDTH_CANVAS,
+          BOARD_CARVE_FLOOR_Y,
+          BOARD_CARVE_OFFSET_X,
+          BOARD_CARVE_OFFSET_Z,
+          true,
+        );
+      } else {
+        this.writeTrailRibbonPositions(
+          boardCarveMesh,
+          segment1,
+          0,
+          0,
+          0,
+          segment1.length,
+          startTangent,
+          BOARD_CARVE_HALF_WIDTH_CANVAS,
+          BOARD_CARVE_FLOOR_Y,
+          BOARD_CARVE_OFFSET_X,
+          BOARD_CARVE_OFFSET_Z,
+          true,
+        );
+      }
+    } else {
+      boardCarveMesh.visible = false;
+    }
+
+    let boardCarveMesh2 = this.trailBoardCarveMesh2s.get(id);
+    if (!boardCarveMesh2) {
+      const mat = this.trailBoardCarveMaterials.get(id)!;
+      boardCarveMesh2 = this.createTrailRibbonMesh(mat);
+      this.trailBoardCarveMesh2s.set(id, boardCarveMesh2);
+    }
+    boardCarveMesh2.renderOrder =
+      this.territoryRenderOrder + TRAIL_RENDER_ORDER_OFFSET - 0.5;
+    if (segment2 && segment2.length >= 2) {
+      boardCarveMesh2.visible = true;
+      this.writeTrailRibbonPositions(
+        boardCarveMesh2,
+        segment2,
+        0,
+        0,
+        0,
+        segment2.length,
+        null,
+        BOARD_CARVE_HALF_WIDTH_CANVAS,
+        BOARD_CARVE_FLOOR_Y,
+        BOARD_CARVE_OFFSET_X,
+        BOARD_CARVE_OFFSET_Z,
+        true,
+      );
+    } else {
+      boardCarveMesh2.visible = false;
+    }
+
+    // ── Enemy board-carve overlay ─────────────────────────────────────────────
+    // All segments persist: previous visits stay drawn; re-entry adds a new segment.
+    const persistedList = this.trailCarvePathPersisted.get(id) ?? [];
+    if (carveEnemyTerritory) {
+      this.trailLastCarveWhenInside.set(id, {
+        path: [...carvePath],
+        color: carveSourceColor,
+        territoryOwnerId: carveOwnerId ?? null,
+        startTangent: carveStartTangent,
+      });
+    } else {
+      const last = this.trailLastCarveWhenInside.get(id);
+      if (last && last.path.length >= 2) {
+        persistedList.push({
+          path: [...last.path],
+          color: last.color,
+          territoryOwnerId: last.territoryOwnerId,
+          startTangent: last.startTangent,
+        });
+        this.trailCarvePathPersisted.set(id, persistedList);
+        this.trailLastCarveWhenInside.delete(id);
+      }
+    }
+    const activeSegment = carveEnemyTerritory
+      ? (this.trailLastCarveWhenInside.get(id) ?? null)
+      : null;
+    const segmentsToDraw: EnemyBoardCarveSegment[] = activeSegment
+      ? [...persistedList, activeSegment]
+      : persistedList;
+
+    let meshList = this.trailEnemyBoardCarveMeshList.get(id) ?? [];
+    let materialList = this.trailEnemyBoardCarveMaterials.get(id) ?? [];
+    while (meshList.length < segmentsToDraw.length) {
+      const mat = new THREE.MeshLambertMaterial({
+        color: 0xffffff,
+        transparent: false,
+        opacity: 1,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: false,
+      });
+      const mesh = this.createTrailRibbonMesh(mat);
+      this.scene.add(mesh);
+      meshList.push(mesh);
+      materialList.push(mat);
+    }
+    this.trailEnemyBoardCarveMeshList.set(id, meshList);
+    this.trailEnemyBoardCarveMaterials.set(id, materialList);
+
+    const renderOrder =
+      this.territoryRenderOrder + TRAIL_RENDER_ORDER_OFFSET - 0.4;
+    for (let i = 0; i < meshList.length; i++) {
+      const mesh = meshList[i];
+      mesh.renderOrder = renderOrder;
+      if (i < segmentsToDraw.length) {
+        const seg = segmentsToDraw[i];
+        const mat = materialList[i];
+        mesh.material = mat;
+        mat.color.setHex(seg.color).multiplyScalar(0.95);
+        if (seg.path.length >= 2) {
+          if (id === 0 && i === segmentsToDraw.length - 1 && seg.startTangent) {
+            const normalize = (x: number, z: number): Vec2 => {
+              const len = Math.sqrt(x * x + z * z) || 1;
+              return { x: x / len, z: z / len };
+            };
+            const p0 = seg.path[0];
+            const p1 = seg.path[1];
+            const alongDir = normalize(p1.x - p0.x, p1.z - p0.z);
+            const trailSide = { x: -alongDir.z, z: alongDir.x };
+            let tangent = normalize(seg.startTangent.x, seg.startTangent.z);
+            if (tangent.x * trailSide.x + tangent.z * trailSide.z < 0) {
+              tangent = { x: -tangent.x, z: -tangent.z };
+            }
+            const widthDir = normalize(tangent.x, tangent.z);
+            const effectiveHalfWidth = this.getTrailEndpointHalfWidth(
+              seg.path,
+              0,
+              BOARD_CARVE_HALF_WIDTH_ENEMY,
+              true,
+            );
+            const territoryVisualOverhang = Math.max(
+              0,
+              -(
+                alongDir.x * TERRITORY_DEPTH_OFFSET_X +
+                alongDir.z * TERRITORY_DEPTH_OFFSET_Z
+              ),
+            );
+            const startForwardOffset =
+              Math.max(
+                0,
+                Math.abs(widthDir.x * alongDir.x + widthDir.z * alongDir.z) *
+                  effectiveHalfWidth,
+              ) + territoryVisualOverhang;
+            fetch(
+              "http://127.0.0.1:7401/ingest/dc4ad8c8-bd58-49bd-b6f9-2a498299fa8e",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Debug-Session-Id": "304a5f",
+                },
+                body: JSON.stringify({
+                  sessionId: "304a5f",
+                  runId: "groove-entry-curve-2",
+                  hypothesisId: "H2",
+                  location: "Renderer.ts:updateTrail",
+                  message: "enemy groove first segment geometry",
+                  data: {
+                    startPoint: p0,
+                    secondPoint: p1,
+                    startTangent: seg.startTangent,
+                    alongDir,
+                    trailSide,
+                    widthDir,
+                    effectiveHalfWidth,
+                    territoryVisualOverhang,
+                    startForwardOffset,
+                  },
+                  timestamp: Date.now(),
+                }),
+              },
+            ).catch(() => {});
+          }
+          mesh.visible = true;
+          this.writeTrailRibbonPositions(
+            mesh,
+            seg.path,
+            0,
+            0,
+            0,
+            seg.path.length,
+            seg.startTangent,
+            BOARD_CARVE_HALF_WIDTH_ENEMY,
+            BOARD_CARVE_FLOOR_Y,
+            BOARD_CARVE_OFFSET_X,
+            BOARD_CARVE_OFFSET_Z,
+            true,
+            true,
+          );
+        } else {
+          mesh.visible = false;
+        }
+      } else {
+        mesh.visible = false;
+      }
+    }
+    if (id === 0 && (persistedList.length > 0 || carveEnemyTerritory)) {
+      // #region agent log
+      fetch(
+        "http://127.0.0.1:7401/ingest/dc4ad8c8-bd58-49bd-b6f9-2a498299fa8e",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "304a5f",
+          },
+          body: JSON.stringify({
+            sessionId: "304a5f",
+            runId: "groove-entry-curve-1",
+            hypothesisId: "H1",
+            location: "Renderer.ts:updateTrail",
+            message: "enemy groove segment entry tangents",
+            data: {
+              persistedCount: persistedList.length,
+              drawingCount: segmentsToDraw.length,
+              carveEnemyTerritory,
+              currentCarveColor: carveEnemyTerritory ? carveSourceColor : null,
+              meshCount: meshList.length,
+              tangentCount: segmentsToDraw.filter((seg) => seg.startTangent)
+                .length,
+              segmentStarts: segmentsToDraw.map((seg) => seg.path[0] ?? null),
+              segmentTangents: segmentsToDraw.map(
+                (seg) => seg.startTangent ?? null,
+              ),
+              segmentColors: segmentsToDraw.map((seg) => seg.color),
+              territoryOwnerIds: segmentsToDraw.map(
+                (seg) => seg.territoryOwnerId,
+              ),
+              materialCount: new Set(
+                meshList.map((mesh) => {
+                  const material = Array.isArray(mesh.material)
+                    ? mesh.material[0]
+                    : mesh.material;
+                  return material.uuid;
+                }),
+              ).size,
+              meshMaterialUuids: meshList.map((mesh) => {
+                const material = (
+                  Array.isArray(mesh.material)
+                    ? mesh.material[0]
+                    : mesh.material
+                ) as THREE.MeshLambertMaterial;
+                return material.uuid;
+              }),
+              meshColors: meshList.map((mesh) => {
+                const material = (
+                  Array.isArray(mesh.material)
+                    ? mesh.material[0]
+                    : mesh.material
+                ) as THREE.MeshLambertMaterial;
+                return material.color.getHex();
+              }),
+            },
+            timestamp: Date.now(),
+          }),
+        },
+      ).catch(() => {});
+      // #endregion
+    }
   }
 
   setCameraTarget(pos: Vec2): void {
@@ -1298,6 +2140,54 @@ export class Renderer {
 
   removeTerritory(id: number): void {
     this.clearTerritoryVisuals(id, true);
+  }
+
+  getDebugVisualState(id: number): {
+    territoryTaggedCount: number;
+    trailExists: boolean;
+    trailVisible: boolean;
+    takeoverCount: number;
+  } {
+    const trail = this.trailMeshes.get(id);
+    let takeoverCount = 0;
+    for (const effect of this.territoryTakeovers) {
+      if (effect.victimId === id) takeoverCount++;
+    }
+    return {
+      territoryTaggedCount: this.countTaggedTerritorySceneObjects(id),
+      trailExists: Boolean(trail),
+      trailVisible: Boolean(trail?.visible),
+      takeoverCount,
+    };
+  }
+
+  getTrailDebugState(id: number): {
+    exists: boolean;
+    visible: boolean;
+    renderOrder: number;
+    y: number;
+    depthTest: boolean;
+    depthWrite: boolean;
+    sourceLength: number;
+    visibleLength: number;
+    territoryRenderOrder: number;
+  } {
+    const trail = this.trailMeshes.get(id);
+    const material = trail?.material;
+    const meshMaterial = Array.isArray(material) ? material[0] : material;
+    return {
+      exists: Boolean(trail),
+      visible: Boolean(trail?.visible),
+      renderOrder: trail?.renderOrder ?? 0,
+      y: TRAIL_Y,
+      depthTest:
+        meshMaterial instanceof THREE.Material ? meshMaterial.depthTest : true,
+      depthWrite:
+        meshMaterial instanceof THREE.Material ? meshMaterial.depthWrite : true,
+      sourceLength: this.trailSourceLengths.get(id) ?? 0,
+      visibleLength: this.trailLengths.get(id) ?? 0,
+      territoryRenderOrder: this.territoryRenderOrder,
+    };
   }
 
   startTerritoryTakeover(
@@ -1358,6 +2248,8 @@ export class Renderer {
     material.needsUpdate = true;
 
     const mesh = new THREE.Mesh(victimMesh.geometry.clone(), material);
+    mesh.userData.territoryTakeoverEffect = true;
+    mesh.userData.territoryTakeoverVictimId = victimId;
     mesh.renderOrder = victimMesh.renderOrder + 2;
     mesh.position.copy(victimMesh.position);
     mesh.rotation.copy(victimMesh.rotation);
@@ -1395,6 +2287,12 @@ export class Renderer {
 
   render(): void {
     this.updateTerritoryTakeovers();
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  prewarmRender(): void {
+    this.updateTerritoryTakeovers();
+    this.renderer.compile(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -1964,12 +2862,74 @@ export class Renderer {
       trail.geometry.dispose();
       this.trailMeshes.delete(id);
     }
+    const carveTrail = this.trailCarveMeshes.get(id);
+    if (carveTrail) {
+      this.scene.remove(carveTrail);
+      carveTrail.geometry.dispose();
+      this.trailCarveMeshes.delete(id);
+    }
+    const carveEdgeTrail = this.trailCarveEdgeMeshes.get(id);
+    if (carveEdgeTrail) {
+      this.scene.remove(carveEdgeTrail);
+      carveEdgeTrail.geometry.dispose();
+      this.trailCarveEdgeMeshes.delete(id);
+    }
     const trailMat = this.trailMaterials.get(id);
     if (trailMat) {
       trailMat.dispose();
       this.trailMaterials.delete(id);
     }
+    const carveTrailMat = this.trailCarveMaterials.get(id);
+    if (carveTrailMat) {
+      carveTrailMat.dispose();
+      this.trailCarveMaterials.delete(id);
+    }
+    const carveEdgeTrailMat = this.trailCarveEdgeMaterials.get(id);
+    if (carveEdgeTrailMat) {
+      carveEdgeTrailMat.dispose();
+      this.trailCarveEdgeMaterials.delete(id);
+    }
+    const boardCarveTrail = this.trailBoardCarveMeshes.get(id);
+    if (boardCarveTrail) {
+      this.scene.remove(boardCarveTrail);
+      boardCarveTrail.geometry.dispose();
+      this.trailBoardCarveMeshes.delete(id);
+    }
+    const boardCarveTrail2 = this.trailBoardCarveMesh2s.get(id);
+    if (boardCarveTrail2) {
+      this.scene.remove(boardCarveTrail2);
+      boardCarveTrail2.geometry.dispose();
+      this.trailBoardCarveMesh2s.delete(id);
+    }
+    const boardCarveTrailMat = this.trailBoardCarveMaterials.get(id);
+    if (boardCarveTrailMat) {
+      boardCarveTrailMat.dispose();
+      this.trailBoardCarveMaterials.delete(id);
+    }
+    const enemyBoardCarveListCleanup =
+      this.trailEnemyBoardCarveMeshList.get(id);
+    if (enemyBoardCarveListCleanup) {
+      for (const m of enemyBoardCarveListCleanup) {
+        this.scene.remove(m);
+        m.geometry.dispose();
+      }
+      this.trailEnemyBoardCarveMeshList.delete(id);
+    }
+    const enemyBoardCarveMatCleanup =
+      this.trailEnemyBoardCarveMaterials.get(id);
+    if (enemyBoardCarveMatCleanup) {
+      for (const mat of enemyBoardCarveMatCleanup) {
+        mat.dispose();
+      }
+      this.trailEnemyBoardCarveMaterials.delete(id);
+    }
+    this.trailCarvePathPersisted.delete(id);
+    this.trailLastCarveWhenInside.delete(id);
     this.trailLengths.delete(id);
+    this.trailSourceLengths.delete(id);
+    this.trailCarveLengths.delete(id);
+    this.trailCarveSourceLengths.delete(id);
+    this.trailCarvePathPersisted.delete(id);
     this.avatarLastPositions.delete(id);
     this.hideAvatar(id);
   }

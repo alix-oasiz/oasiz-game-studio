@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Rabbit on Road</title>
+  <style>
+    *{ box-sizing:border-box; }
+    html,body{ margin:0; width:100%; height:100%; overflow:hidden; background:#111; font-family:Inter,system-ui,Arial,sans-serif; user-select:none; }
+
+    /* ════════════════════════
+       MAIN MENU — transparent overlay on 3D scene
+    ════════════════════════ */
+    #menu{
+      position:fixed; inset:0; z-index:100;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      gap:clamp(32px,7vh,56px);
+      pointer-events:none;
+    }
+
+    /* Title */
+    .menu-title{
+      text-align:center;
+      line-height:1;
+      display:flex; flex-direction:column; align-items:center;
+      animation:title-bob 4s ease-in-out 1.2s infinite;
+    }
+    @keyframes title-bob{
+      0%,100%{ transform:translateY(0); }
+      50%    { transform:translateY(-8px); }
+    }
+
+    .t-rabbit{
+      display:block;
+      font-size:clamp(54px,14.5vw,100px);
+      font-weight:900; letter-spacing:4px;
+      color:#fff;
+      line-height:1;
+      text-shadow:
+        2px 2px 0 #0d3d1a,
+        4px 4px 0 #0a3016,
+        6px 6px 0 #082812,
+        8px 10px 28px rgba(0,0,0,.55);
+      opacity:0; transform:translateY(-28px);
+      animation:drop .48s cubic-bezier(.18,.72,0,1.12) .08s forwards;
+    }
+    .t-on{
+      display:inline-flex; align-items:center; justify-content:center;
+      margin:10px auto 10px;
+      padding:5px 18px;
+      background:#ffd85a;
+      border-radius:3px;
+      font-size:12px; font-weight:900; letter-spacing:7px; text-indent:7px;
+      color:#1c2a06;
+      box-shadow:0 4px 0 #a87e10, 0 8px 20px rgba(0,0,0,.45);
+      opacity:0;
+      animation:drop .3s ease .34s forwards;
+    }
+    .t-road{
+      display:block;
+      font-size:clamp(54px,14.5vw,100px);
+      font-weight:900; letter-spacing:4px;
+      color:#43d77f;
+      line-height:1;
+      text-shadow:
+        2px 2px 0 #083818,
+        4px 4px 0 #062e12,
+        6px 6px 0 #04240e,
+        8px 10px 28px rgba(0,0,0,.55);
+      opacity:0; transform:translateY(-28px);
+      animation:drop .48s cubic-bezier(.18,.72,0,1.12) .56s forwards;
+    }
+    @keyframes drop{
+      to{ opacity:1; transform:translateY(0); }
+    }
+
+    /* Play button */
+    .menu-actions{
+      pointer-events:auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+    .btn-play{
+      padding:14px 64px;
+      background:#43d77f;
+      border:0; border-radius:4px;
+      font-size:20px; font-weight:900; letter-spacing:5px; text-indent:5px;
+      color:#021f0b; cursor:pointer;
+      box-shadow:0 6px 0 #185e2a, 0 12px 40px rgba(0,0,0,.55);
+      opacity:0;
+      animation:
+        fadeup .4s ease .88s forwards,
+        pulse  2.6s ease-in-out 1.5s infinite;
+      transition:transform .08s, box-shadow .08s;
+    }
+    @keyframes fadeup{
+      from{ opacity:0; transform:translateY(12px); }
+      to  { opacity:1; transform:translateY(0); }
+    }
+    @keyframes pulse{
+      0%,100%{ transform:translateY(0) scale(1); }
+      50%    { transform:translateY(-3px) scale(1.04); }
+    }
+    .btn-play:active{
+      transform:translateY(5px) scale(.98) !important;
+      box-shadow:0 1px 0 #185e2a, 0 4px 14px rgba(0,0,0,.45) !important;
+    }
+    .btn-character{
+      padding:13px 30px;
+      background:#ffd85a;
+      border:0; border-radius:4px;
+      font-size:14px; font-weight:900; letter-spacing:3px; text-indent:3px;
+      color:#2c2206; cursor:pointer;
+      box-shadow:0 5px 0 #a97d11, 0 10px 30px rgba(0,0,0,.45);
+      opacity:0;
+      animation:fadeup .4s ease .98s forwards, bob-soft 2.2s ease-in-out 1.7s infinite;
+      transition:transform .09s, box-shadow .09s;
+      position:relative;
+      overflow:hidden;
+      isolation:isolate;
+    }
+    .btn-character::before{
+      content:'';
+      position:absolute;
+      top:-180%; left:-40%;
+      width:34%; height:320%;
+      transform:rotate(28deg);
+      background:linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,.5), rgba(255,255,255,0));
+      animation:menu-shine 2.9s ease-in-out 2s infinite;
+      pointer-events:none;
+      z-index:0;
+    }
+    .btn-character > span{ position:relative; z-index:1; }
+    @keyframes menu-shine{
+      0%, 72%{ left:-45%; opacity:0; }
+      82%{ opacity:.95; }
+      100%{ left:118%; opacity:0; }
+    }
+    @keyframes bob-soft{
+      0%,100%{ transform:translateY(0); }
+      50%{ transform:translateY(-2px); }
+    }
+    .btn-character:active{
+      transform:translateY(4px) scale(.98);
+      box-shadow:0 1px 0 #a97d11, 0 3px 12px rgba(0,0,0,.4);
+    }
+    .menu-hint{
+      pointer-events:none;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:3px;
+      color:rgba(255,255,255,.85);
+      text-shadow:0 2px 8px rgba(0,0,0,.75);
+      text-transform:uppercase;
+    }
+    @media (pointer:fine){ .menu-hint{ display:none; } }
+    @media (max-width:680px){
+      .menu-actions{ gap:10px; }
+      .btn-play{ padding:13px 44px; font-size:18px; }
+      .btn-character{ padding:12px 20px; font-size:12px; }
+    }
+
+    /* ════════════════════════
+       CHARACTER PANEL
+    ════════════════════════ */
+    #characterMenu{
+      position:fixed; inset:0; z-index:160;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,0);
+      backdrop-filter:blur(0px);
+      opacity:0; visibility:hidden; pointer-events:none;
+      transition:opacity .28s ease, visibility 0s .32s, background .28s ease, backdrop-filter .28s ease;
+    }
+    #characterMenu.open{
+      opacity:1; visibility:visible; pointer-events:auto;
+      background:rgba(8,16,13,.26);
+      backdrop-filter:blur(.5px);
+      transition:opacity .28s ease, visibility 0s 0s, background .28s ease, backdrop-filter .28s ease;
+    }
+    .character-panel{
+      width:min(940px, 94vw);
+      background:
+        linear-gradient(180deg, #87c963 0%, #79bd57 56%, #6faf4f 100%);
+      border:4px solid #f4f7fb;
+      border-radius:18px;
+      box-shadow:0 6px 0 #578247, 0 12px 20px rgba(0,0,0,.2), inset 0 0 0 1px rgba(0,0,0,.08);
+      padding:22px 24px 20px;
+      transform:translateY(4px);
+      opacity:0;
+      transition:opacity .16s ease, transform .16s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    #characterMenu.open .character-panel{
+      opacity:1;
+      transform:translateY(0);
+    }
+    .character-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .character-title{
+      color:#1c2d10;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:6px;
+      text-indent:6px;
+      text-transform:uppercase;
+      text-shadow:0 2px 0 rgba(255,255,255,.35);
+    }
+    #selectedAnimalLabel{
+      color:#1c2d10;
+      font-size:11px;
+      letter-spacing:2px;
+      font-weight:800;
+      text-transform:uppercase;
+    }
+    .character-grid{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(120px, 1fr));
+      gap:12px;
+      margin-bottom:16px;
+    }
+    .animal-card{
+      border:2px solid rgba(232,241,228,.82);
+      border-radius:14px;
+      background:
+        linear-gradient(180deg, rgba(32,57,45,.92), rgba(21,38,31,.9));
+      color:#fff;
+      padding:10px 8px 11px;
+      min-height:148px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      flex-direction:column;
+      gap:7px;
+      box-shadow:0 2px 0 rgba(14,28,21,.32), 0 5px 8px rgba(0,0,0,.12);
+      transition:border-color .12s ease, box-shadow .12s ease, background .12s ease;
+      position:relative;
+      overflow:hidden;
+      isolation:isolate;
+    }
+    .animal-card > *{ position:relative; z-index:1; }
+    .animal-card:hover{
+      border-color:#ffe173;
+      box-shadow:0 2px 0 rgba(14,28,21,.35), 0 6px 9px rgba(0,0,0,.13);
+    }
+    .animal-card.selected{
+      border-color:#ffe173;
+      background:
+        linear-gradient(180deg, rgba(53,99,66,.96), rgba(27,56,39,.96));
+      box-shadow:0 2px 0 rgba(14,28,21,.42), 0 6px 9px rgba(0,0,0,.14);
+    }
+    .animal-preview{
+      width:72px; height:72px;
+      border-radius:18px;
+      display:flex; align-items:center; justify-content:center;
+      margin-top:2px;
+      background:
+        radial-gradient(120% 110% at 30% 10%, rgba(255,255,255,.24), rgba(255,255,255,.04) 65%),
+        linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.18), 0 2px 5px rgba(0,0,0,.16);
+      overflow:hidden;
+      position:relative;
+    }
+    .animal-preview canvas{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+    .animal-name{
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:1px;
+      text-transform:uppercase;
+      text-shadow:0 2px 6px rgba(0,0,0,.4);
+    }
+    .animal-check{
+      margin-top:auto;
+      font-size:10px;
+      font-weight:900;
+      letter-spacing:2px;
+      color:rgba(255,255,255,.48);
+      min-height:14px;
+      text-transform:uppercase;
+    }
+    .animal-card.selected .animal-check{
+      color:#43d77f;
+      text-shadow:0 0 10px rgba(67,215,127,.45);
+    }
+    .character-actions{
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+    }
+    .character-close{
+      border:0;
+      background:rgba(28,45,34,.55);
+      color:#fff;
+      padding:10px 14px;
+      border-radius:9px;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:2px;
+      cursor:pointer;
+      transition:background .14s ease, transform .08s ease;
+    }
+    .character-close:hover{ background:rgba(255,255,255,.2); }
+    .character-close:active{ transform:translateY(2px); }
+    .character-confirm{
+      border:0;
+      background:#ffe173;
+      color:#2a2208;
+      padding:10px 14px;
+      border-radius:9px;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:2px;
+      cursor:pointer;
+      box-shadow:0 4px 0 #947922;
+      transition:transform .08s ease, box-shadow .08s ease;
+    }
+    .character-confirm:active{ transform:translateY(3px); box-shadow:0 1px 0 #947922; }
+    @media (max-width:860px){
+      .character-grid{
+        grid-template-columns:repeat(3, minmax(112px, 1fr));
+      }
+      .animal-card{ min-height:140px; }
+    }
+    @media (max-width:560px){
+      .character-panel{ padding:18px 14px 14px; border-radius:14px; }
+      .character-grid{
+        grid-template-columns:repeat(2, minmax(120px, 1fr));
+        max-height:min(62vh, 460px);
+        overflow:auto;
+      }
+      .animal-card{ min-height:136px; }
+    }
+
+    /* ════════════════════════
+       GAME UI
+    ════════════════════════ */
+    #ui{ position:fixed; inset:0; pointer-events:none; color:#fff; display:none; }
+
+    .hud{
+      position:absolute; left:16px; top:136px;
+      display:flex; flex-direction:column; align-items:flex-start;
+      gap:0; pointer-events:none;
+    }
+    .hud-label{
+      font-size:10px; font-weight:900; letter-spacing:5px; text-indent:3px;
+      color:rgba(255,255,255,.55);
+      text-shadow:0 2px 6px rgba(0,0,0,.8);
+    }
+    #hudScore{
+      font-size:clamp(36px,9vw,52px); font-weight:900; line-height:1;
+      color:#ffd85a;
+      text-shadow:
+        2px 2px 0 #7a5a00,
+        4px 4px 0 #3d2d00,
+        0 8px 22px rgba(0,0,0,.65);
+    }
+
+    /* Game Over overlay */
+    .gameover{
+      position:absolute; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      gap:0;
+      background:rgba(0,0,0,.35);
+      backdrop-filter:blur(2px);
+    }
+    .gameover::before{
+      content:''; position:absolute; top:50%; left:50%;
+      width:min(680px,120vw); height:480px;
+      transform:translate(-50%,-50%);
+      background:radial-gradient(ellipse, rgba(0,0,0,.55) 0%, transparent 68%);
+      pointer-events:none;
+    }
+
+    /* Letter-by-letter GAME OVER title */
+    .go-title{
+      display:flex; flex-direction:column; align-items:center; gap:0;
+      margin-bottom:12px;
+    }
+    .go-title-row{ display:flex; gap:0.01em; }
+    .go-letter{
+      display:inline-block;
+      font-size:clamp(58px,14.5vw,108px);
+      font-weight:900; line-height:1;
+      opacity:0;
+      animation:goLetterDrop 0.52s cubic-bezier(0.18,0.72,0,1.12) forwards;
+    }
+    .go-letter-game{
+      color:#ff5252;
+      text-shadow:3px 3px 0 #7a0000, 5px 5px 0 #3d0000, 0 0 28px rgba(255,60,60,.45);
+    }
+    .go-letter-over{
+      color:#ffd85a;
+      text-shadow:3px 3px 0 #7a5a00, 5px 5px 0 #3d2d00, 0 0 28px rgba(255,210,60,.4);
+    }
+    @keyframes goLetterDrop{
+      0%  { opacity:0; transform:translateY(-88px) scale(0.45); }
+      55% { opacity:1; transform:translateY(10px) scale(1.2); }
+      75% { transform:translateY(-5px) scale(0.95); }
+      100%{ opacity:1; transform:translateY(0) scale(1); }
+    }
+
+    /* Score block (fades up after letters) */
+    .go-score-wrap{
+      text-align:center;
+      opacity:0; transform:translateY(14px);
+      transition:opacity 0.42s ease, transform 0.42s ease;
+      margin-bottom:32px;
+    }
+    .go-score-wrap.show{ opacity:1; transform:translateY(0); }
+    .go-score-label{
+      font-size:12px; font-weight:900; letter-spacing:5px;
+      color:rgba(255,255,255,.42); margin-bottom:2px;
+    }
+    .go-score-num{
+      font-size:clamp(80px,20vw,120px); font-weight:900; line-height:1;
+      color:#fff;
+      text-shadow:
+        0 4px 0 rgba(0,0,0,.6),
+        0 8px 0 rgba(0,0,0,.3),
+        0 16px 32px rgba(0,0,0,.55);
+      margin-bottom:0;
+    }
+
+    /* Retry button (slides up after score) */
+    .btn-retry{
+      pointer-events:auto;
+      padding:13px 56px; background:#43d77f;
+      border:0; border-radius:4px;
+      font-size:18px; font-weight:900; letter-spacing:4px; text-indent:4px;
+      color:#021f0b; cursor:pointer;
+      box-shadow:0 5px 0 #185e2a, 0 10px 28px rgba(0,0,0,.45);
+      opacity:0; transform:translateY(14px);
+      transition:opacity 0.35s ease, transform 0.35s ease, box-shadow 0.08s;
+    }
+    .btn-retry.show{ opacity:1; transform:translateY(0); }
+    .btn-retry.show:hover{ transform:translateY(-2px); }
+    .btn-retry.show:active{ transform:translateY(4px); box-shadow:0 1px 0 #185e2a; }
+
+    /* ════════════════════════
+       SETTINGS BUTTON
+    ════════════════════════ */
+    #settingsBtn{
+      position:fixed; top:144px; right:16px; z-index:200;
+      width:48px; height:48px;
+      background:#43d77f;
+      border:0; border-radius:8px;
+      color:#021f0b; font-size:22px;
+      cursor:pointer; pointer-events:auto;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 5px 0 #185e2a, 0 10px 28px rgba(0,0,0,.45);
+      transition:transform .08s, box-shadow .08s;
+    }
+    #settingsBtn:active{
+      transform:translateY(4px);
+      box-shadow:0 1px 0 #185e2a, 0 4px 12px rgba(0,0,0,.4);
+    }
+    @media (pointer:coarse){ #settingsBtn{ top:144px; } }
+
+    /* ════════════════════════
+       SETTINGS MODAL
+    ════════════════════════ */
+    #settingsModal{
+      position:fixed; inset:0; z-index:300;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,0);
+      backdrop-filter:blur(0px);
+      visibility:hidden; pointer-events:none;
+      transition:
+        background .28s ease,
+        backdrop-filter .28s ease,
+        visibility 0s .32s;
+    }
+    #settingsModal.open{
+      visibility:visible; pointer-events:auto;
+      background:rgba(0,0,0,.58);
+      backdrop-filter:blur(4px);
+      transition:
+        background .28s ease,
+        backdrop-filter .28s ease,
+        visibility 0s 0s;
+    }
+    .settings-panel{
+      background:#0e1a12;
+      border:1.5px solid rgba(67,215,127,.3);
+      border-radius:16px;
+      padding:28px 32px 24px;
+      width:min(320px,90vw);
+      display:flex; flex-direction:column; gap:20px;
+      box-shadow:0 24px 64px rgba(0,0,0,.75);
+      opacity:0;
+      transform:scale(0.78) translateY(-24px);
+      transition:
+        opacity .28s ease,
+        transform .34s cubic-bezier(.18,.72,0,1.12);
+    }
+    #settingsModal.open .settings-panel{
+      opacity:1;
+      transform:scale(1) translateY(0);
+    }
+    .settings-title{
+      font-size:11px; font-weight:900; letter-spacing:7px; text-indent:7px;
+      color:#ffd85a;
+      text-shadow:1px 1px 0 #7a5a00, 2px 2px 0 #3d2d00, 0 4px 12px rgba(0,0,0,.6);
+      text-align:center;
+    }
+    .settings-row{
+      display:flex; align-items:center; justify-content:space-between;
+      font-size:15px; font-weight:900; letter-spacing:2px;
+      color:#fff;
+      text-shadow:0 2px 6px rgba(0,0,0,.6);
+    }
+    .toggle-btn{
+      width:72px; height:34px;
+      border:0; border-radius:6px;
+      font-size:11px; font-weight:900; letter-spacing:2px;
+      cursor:pointer; transition:background .15s, transform .08s;
+    }
+    .toggle-btn.on{
+      background:#43d77f; color:#021f0b;
+      box-shadow:0 4px 0 #185e2a;
+    }
+    .toggle-btn.off{
+      background:rgba(255,255,255,.1); color:rgba(255,255,255,.35);
+      box-shadow:0 4px 0 rgba(0,0,0,.4);
+    }
+    .toggle-btn:active{ transform:translateY(3px); box-shadow:none !important; }
+    .btn-close-settings{
+      margin-top:4px; padding:12px;
+      background:transparent;
+      border:1.5px solid rgba(255,255,255,.18);
+      border-radius:8px;
+      color:rgba(255,255,255,.5);
+      font-size:11px; font-weight:900; letter-spacing:4px; text-indent:4px;
+      cursor:pointer; transition:background .15s;
+    }
+    .btn-close-settings:hover{ background:rgba(255,255,255,.07); }
+  </style>
+</head>
+<body>
+
+  <!-- ══ MENU — floats over 3D game world ══ -->
+  <div id="menu">
+    <div class="menu-title">
+      <span class="t-rabbit">RABBIT</span>
+      <span class="t-on">ON</span>
+      <span class="t-road">ROAD</span>
+    </div>
+    <div class="menu-actions">
+      <button id="startBtn" class="btn-play">PLAY</button>
+      <button id="characterBtn" class="btn-character"><span>CHARACTERS</span></button>
+    </div>
+    <div class="menu-hint">Drag or Swipe to Move</div>
+  </div>
+
+  <div id="characterMenu" aria-hidden="true">
+    <div class="character-panel">
+      <div class="character-head">
+        <div class="character-title">Choose Character</div>
+        <div id="selectedAnimalLabel">Selected: Rabbit</div>
+      </div>
+      <div class="character-grid">
+        <button class="animal-card selected" data-animal="rabbit">
+          <div class="animal-preview" data-preview="rabbit"></div>
+          <div class="animal-name">Rabbit</div>
+          <div class="animal-check">Selected</div>
+        </button>
+        <button class="animal-card" data-animal="turtle">
+          <div class="animal-preview" data-preview="turtle"></div>
+          <div class="animal-name">Turtle</div>
+          <div class="animal-check">Tap to Select</div>
+        </button>
+        <button class="animal-card" data-animal="deer">
+          <div class="animal-preview" data-preview="deer"></div>
+          <div class="animal-name">Deer</div>
+          <div class="animal-check">Tap to Select</div>
+        </button>
+      </div>
+      <div class="character-actions">
+        <button id="characterCloseBtn" class="character-close">CLOSE</button>
+        <button id="characterApplyBtn" class="character-confirm">USE THIS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ GAME UI ══ -->
+  <div id="ui">
+    <div class="hud" id="hud">
+      <span class="hud-label">SCORE</span>
+      <span id="hudScore">0</span>
+    </div>
+
+    <div class="gameover" id="gameover" style="display:none">
+      <div class="go-title" id="goTitle"></div>
+      <div class="go-score-wrap" id="goScoreWrap">
+        <div class="go-score-label">SCORE</div>
+        <div class="go-score-num" id="final">0</div>
+      </div>
+      <button id="retryBtn" class="btn-retry">PLAY AGAIN</button>
+    </div>
+
+  </div>
+
+  <!-- Settings gear button (always visible) -->
+  <button id="settingsBtn">&#9881;</button>
+
+  <!-- Settings modal -->
+  <div id="settingsModal">
+    <div class="settings-panel">
+      <div class="settings-title">SETTINGS</div>
+      <div class="settings-row">
+        <span>Music</span>
+        <button class="toggle-btn" id="toggleMusic">ON</button>
+      </div>
+      <div class="settings-row">
+        <span>FX</span>
+        <button class="toggle-btn" id="toggleFX">ON</button>
+      </div>
+      <div class="settings-row">
+        <span>Haptics</span>
+        <button class="toggle-btn" id="toggleHaptics">ON</button>
+      </div>
+      <button class="btn-close-settings" id="closeSettings">CLOSE</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

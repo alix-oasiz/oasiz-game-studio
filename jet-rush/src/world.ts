@@ -16,10 +16,13 @@ let movingStripMat: THREE.MeshBasicMaterial;
 let matsReady = false;
 
 const OUTLINE_COLORS = [
-  0x00aaff, 0x00ff88, 0xffdd00, 0xff6600, 0xff0066, 0xaa00ff, 0x0088ff, 0x88ff00,
+  0x00aaff, 0x00ff88, 0xffdd00, 0xff6600, 0xff0066, 0xaa00ff, 0x0088ff,
+  0x88ff00,
 ];
 
-export const OUTLINE_BASE_COLORS = OUTLINE_COLORS.map((c) => new THREE.Color(c));
+export const OUTLINE_BASE_COLORS = OUTLINE_COLORS.map(
+  (c) => new THREE.Color(c),
+);
 
 function ensureMats(): void {
   if (matsReady) return;
@@ -93,7 +96,12 @@ function getCachedBoxGeo(w: number, h: number, d: number): THREE.BoxGeometry {
   return geo;
 }
 
-function getCachedEdgesGeo(boxGeo: THREE.BoxGeometry, w: number, h: number, d: number): THREE.EdgesGeometry {
+function getCachedEdgesGeo(
+  boxGeo: THREE.BoxGeometry,
+  w: number,
+  h: number,
+  d: number,
+): THREE.EdgesGeometry {
   const qw = quantize(w);
   const qh = quantize(h);
   const qd = quantize(d);
@@ -121,7 +129,10 @@ export function buildGround(scene: THREE.Scene): THREE.Group[] {
   for (let row = 0; row < rows; row++) {
     for (let col = -halfCols; col <= halfCols; col++) {
       const g = new THREE.Group();
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), groundMat);
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        groundMat,
+      );
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = 0;
       g.add(floor);
@@ -135,7 +146,11 @@ export function buildGround(scene: THREE.Scene): THREE.Group[] {
   return tiles;
 }
 
-export function recycleGround(tiles: THREE.Group[], planeZ: number, planeX: number = 0): void {
+export function recycleGround(
+  tiles: THREE.Group[],
+  planeZ: number,
+  planeX: number = 0,
+): void {
   const size = C.GROUND_SIZE;
   const cols = C.GROUND_COLS;
   const rows = C.GROUND_SEGMENTS;
@@ -175,8 +190,10 @@ function ensureNoise(seed: number): void {
 /* ── Height from noise ── */
 
 function sampleHeight(x: number, z: number, score: number = 0): number {
-  const lo = (noiseLo.noise2D(x * C.NOISE_SCALE_LO, z * C.NOISE_SCALE_LO) + 1) * 0.5;
-  const hi = (noiseHi.noise2D(x * C.NOISE_SCALE_HI, z * C.NOISE_SCALE_HI) + 1) * 0.5;
+  const lo =
+    (noiseLo.noise2D(x * C.NOISE_SCALE_LO, z * C.NOISE_SCALE_LO) + 1) * 0.5;
+  const hi =
+    (noiseHi.noise2D(x * C.NOISE_SCALE_HI, z * C.NOISE_SCALE_HI) + 1) * 0.5;
   const raw = lo * C.NOISE_WEIGHT_LO + hi * C.NOISE_WEIGHT_HI;
   const shaped = Math.pow(raw, C.NOISE_HEIGHT_POW);
 
@@ -194,11 +211,17 @@ function sampleHeight(x: number, z: number, score: number = 0): number {
 /* ── Corridor center X at a given Z ── */
 
 function corridorCenterX(z: number): number {
-  return noiseCorridor.noise2D(0, z * C.CORRIDOR_WANDER_SCALE) * C.CORRIDOR_WANDER_AMP;
+  return (
+    noiseCorridor.noise2D(0, z * C.CORRIDOR_WANDER_SCALE) *
+    C.CORRIDOR_WANDER_AMP
+  );
 }
 
 function corridor2CenterX(z: number): number {
-  return noiseCorridor2.noise2D(5.5, z * C.CORRIDOR2_WANDER_SCALE) * C.CORRIDOR2_WANDER_AMP;
+  return (
+    noiseCorridor2.noise2D(5.5, z * C.CORRIDOR2_WANDER_SCALE) *
+    C.CORRIDOR2_WANDER_AMP
+  );
 }
 
 /** Returns the primary corridor's center X at a given Z. Requires ensureNoise() first. */
@@ -246,7 +269,9 @@ export function spawnRow(
   const cells: CellData[] = [];
 
   for (let cellX = loX; cellX <= hiX; cellX += C.CELL_SIZE_X) {
-    const cellRng = seededRandom(Math.floor(z * 7.37 + cellX * 13.17 + runSeed));
+    const cellRng = seededRandom(
+      Math.floor(z * 7.37 + cellX * 13.17 + runSeed),
+    );
     const jitterX = (cellRng() - 0.5) * 1.2;
     const jitterZ = (cellRng() - 0.5) * 1.0;
     const bx = cellX + jitterX;
@@ -310,8 +335,11 @@ export function spawnRow(
     for (let i = 0; i < cells.length; i++) {
       if (cells[i].bh >= thresh) {
         if (i - lastTallIdx <= gap) {
-          const declumpRng = seededRandom(Math.floor(z * 11.3 + i * 5.7 + runSeed));
-          cells[i].bh = C.SHORT_H_MIN + declumpRng() * (C.SHORT_H_MAX - C.SHORT_H_MIN);
+          const declumpRng = seededRandom(
+            Math.floor(z * 11.3 + i * 5.7 + runSeed),
+          );
+          cells[i].bh =
+            C.SHORT_H_MIN + declumpRng() * (C.SHORT_H_MAX - C.SHORT_H_MIN);
         } else {
           lastTallIdx = i;
         }
@@ -346,15 +374,18 @@ export function spawnRow(
     const lineGeo = new LineSegmentsGeometry().fromEdgesGeometry(edgesGeo);
 
     const baseCol = OUTLINE_BASE_COLORS[outlineTier];
-    const posBuffer = (lineGeo.attributes.instanceStart as THREE.InterleavedBufferAttribute)
-      .data.array as Float32Array;
+    const posBuffer = (
+      lineGeo.attributes.instanceStart as THREE.InterleavedBufferAttribute
+    ).data.array as Float32Array;
     const segCount = posBuffer.length / 6;
     const needed = segCount * 6;
     if (needed > _reusableColArr.length) {
       _reusableColArr = new Float32Array(needed);
     }
     const halfH = bh / 2;
-    const br = baseCol.r, bg = baseCol.g, bb = baseCol.b;
+    const br = baseCol.r,
+      bg = baseCol.g,
+      bb = baseCol.b;
     for (let si = 0; si < segCount; si++) {
       const off = si * 6;
       const y0 = posBuffer[off + 1];
@@ -363,14 +394,18 @@ export function spawnRow(
       const t1 = (y1 + halfH) / bh;
       const b0 = 0.15 + (t0 < 0 ? 0 : t0 > 1 ? 1 : t0) * 0.85;
       const b1 = 0.15 + (t1 < 0 ? 0 : t1 > 1 ? 1 : t1) * 0.85;
-      _reusableColArr[off]     = br * b0;
+      _reusableColArr[off] = br * b0;
       _reusableColArr[off + 1] = bg * b0;
       _reusableColArr[off + 2] = bb * b0;
       _reusableColArr[off + 3] = br * b1;
       _reusableColArr[off + 4] = bg * b1;
       _reusableColArr[off + 5] = bb * b1;
     }
-    lineGeo.setColors(new Float32Array(_reusableColArr.buffer.slice(0, needed * 4)) as unknown as number[]);
+    lineGeo.setColors(
+      new Float32Array(
+        _reusableColArr.buffer.slice(0, needed * 4),
+      ) as unknown as number[],
+    );
 
     const wireframe = new LineSegments2(lineGeo, wireframeMats[outlineTier]);
     wireframe.name = "wireframeOutline";
@@ -429,9 +464,15 @@ export function destroyRow(scene: THREE.Scene, row: BlockRow): void {
 }
 
 /** Animates moving blocks near the camera. Rows outside the visible range are skipped. */
-export function updateBlockAnimations(rows: BlockRow[], elapsed: number, camZ: number): void {
-  const ahead = camZ - 200;
-  const behind = camZ + 50;
+export function updateBlockAnimations(
+  rows: BlockRow[],
+  elapsed: number,
+  camZ: number,
+  planeX?: number,
+  planeZ?: number,
+): void {
+  const ahead = camZ - (C.ROW_AHEAD + 80);
+  const behind = camZ + 60;
   for (let ri = 0; ri < rows.length; ri++) {
     const rz = rows[ri].z;
     if (rz < ahead || rz > behind) continue;
@@ -441,7 +482,18 @@ export function updateBlockAnimations(rows: BlockRow[], elapsed: number, camZ: n
       if (!b.moving) continue;
 
       const yOffset = Math.sin(elapsed * b.moveSpeed + b.movePhase) * b.moveAmp;
-      const newH = Math.max(0.3, b.baseHeight + yOffset);
+      let newH = Math.max(0.3, b.baseHeight + yOffset);
+      const planeOverlapsBlock =
+        planeX !== undefined &&
+        planeZ !== undefined &&
+        Math.abs(planeZ - b.worldZ) <= b.depth / 2 + C.PLANE_HIT_R &&
+        Math.abs(planeX - b.worldX) <= b.width / 2 + C.PLANE_HIT_HALF_W;
+
+      // Prevent a moving column from rising into the player while they are above it.
+      if (planeOverlapsBlock && newH > b.currentTop) {
+        newH = b.currentTop;
+      }
+
       b.currentTop = newH;
 
       b.mesh.scale.y = newH / b.baseHeight;

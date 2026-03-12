@@ -10,16 +10,8 @@ interface TrackSampleLike {
 }
 
 export interface PhysicsDebugSnapshot {
-  inputAxis: number;
-  targetSteeringAngle: number;
-  steeringAngle: number;
-  steeringLerp: number;
-  controlScale: number;
   airborne: boolean;
-  steerImpulse: number;
-  driveImpulse: number;
   horizontalSpeed: number;
-  horizontalSpeedCap: number;
   verticalVelocity: number;
   verticalDelta: number;
 }
@@ -28,16 +20,9 @@ export interface MarbleVisualHost {
   gameState: GameState;
   marbleBody: RAPIER.RigidBody | null;
   marbleMesh: THREE.Mesh;
-  steeringAngle: number;
-  getTrackForwardDirectionAtPosition(x: number, z: number): THREE.Vector3;
 }
 
 export interface MarbleVisualConfig {
-  steeringArrowGap: number;
-  steeringArrowLength: number;
-  steeringArrowHeadLength: number;
-  steeringArrowShaftWidth: number;
-  steeringArrowHeadWidth: number;
   trailSpawnInterval: number;
   trailMaxPoints: number;
 }
@@ -52,23 +37,8 @@ export interface PhysicsHost {
   finishZ: number;
   endlessMode: boolean;
   currentLoseY: number;
-  inputLeft: boolean;
-  inputRight: boolean;
-  steeringAngle: number;
-  maxSteeringAngle: number;
-  steeringTurnRate: number;
-  steeringReturnRate: number;
-  steeringImpulseScale: number;
-  arrowDriveImpulseScale: number;
-  nudgeImpulse: number;
-  speedMultiplier: number;
-  airControlMultiplier: number;
-  startMomentumRatio: number;
-  maxHorizontalSpeed: number;
-  speedRampSeconds: number;
   marbleRadius: number;
   groundedProbePadding: number;
-  getTrackForwardDirectionAtPosition(x: number, z: number): THREE.Vector3;
   getTrackSurfaceYAtPosition(x: number, z: number): number;
   isInsideFinishFrame(position: RAPIER.Vector): boolean;
   setPhysicsDebug(snapshot: PhysicsDebugSnapshot): void;
@@ -83,51 +53,14 @@ function isAirborne(host: PhysicsHost, position: RAPIER.Vector): boolean {
 
 export function createPhysicsWorld(
   fixedStep: number,
-  gravityY: number = -9.81,
+  gravityY: number = -16,
 ): RAPIER.World {
   const world = new RAPIER.World({ x: 0, y: gravityY, z: 0 });
   world.integrationParameters.dt = fixedStep;
   return world;
 }
 
-const ULTRA_FAST_TONE_DOWN_SCALE = 0.28;
-const LOW_SPEED_ACCEL_BOOST_MAX = 2.0;
-const STEER_TO_DRIVE_RATIO_BASE = 1.5;
-const BASE_STEERING_IMPULSE_SCALE = 0.26;
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
-
-function createSteeringArrowGeometry(
-  shaftLength: number,
-  headLength: number,
-  shaftWidth: number,
-  headWidth: number,
-): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  shape.moveTo(-shaftWidth * 0.5, 0);
-  shape.lineTo(-shaftWidth * 0.5, shaftLength);
-  shape.lineTo(-headWidth * 0.5, shaftLength);
-  shape.lineTo(0, shaftLength + headLength);
-  shape.lineTo(headWidth * 0.5, shaftLength);
-  shape.lineTo(shaftWidth * 0.5, shaftLength);
-  shape.lineTo(shaftWidth * 0.5, 0);
-  shape.closePath();
-
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: shaftWidth,
-    bevelEnabled: false,
-    steps: 1,
-  });
-  geometry.rotateX(-Math.PI * 0.5);
-  geometry.translate(0, -shaftWidth * 0.5, 0);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 export class MarbleVisualController {
-  private readonly steeringArrow: THREE.Mesh;
   private trailRibbonMesh: THREE.Mesh | null = null;
   private trailRibbonGeometry: THREE.BufferGeometry | null = null;
   private trailPoints: THREE.Vector3[] = [];
@@ -138,25 +71,6 @@ export class MarbleVisualController {
     private readonly scene: THREE.Scene,
     private readonly config: MarbleVisualConfig,
   ) {
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: "#59d86f" });
-    const shaftLength = Math.max(
-      0.2,
-      (this.config.steeringArrowLength - this.config.steeringArrowHeadLength) *
-        0.5,
-    );
-    this.steeringArrow = new THREE.Mesh(
-      createSteeringArrowGeometry(
-        shaftLength,
-        this.config.steeringArrowHeadLength,
-        this.config.steeringArrowShaftWidth,
-        this.config.steeringArrowHeadWidth,
-      ),
-      arrowMaterial,
-    );
-    this.steeringArrow.castShadow = false;
-    this.steeringArrow.receiveShadow = false;
-    this.steeringArrow.visible = false;
-    this.scene.add(this.steeringArrow);
     this.ensureTrailRibbon();
   }
 
@@ -177,7 +91,6 @@ export class MarbleVisualController {
   }
 
   public update(host: MarbleVisualHost, delta: number): void {
-    this.updateSteeringArrowVisual(host);
     this.updateTrail(host, delta);
   }
 
@@ -279,33 +192,6 @@ export class MarbleVisualController {
     }
   }
 
-  private updateSteeringArrowVisual(host: MarbleVisualHost): void {
-    if (!host.marbleBody || host.gameState !== "playing") {
-      this.steeringArrow.visible = false;
-      return;
-    }
-
-    const marblePosition = host.marbleBody.translation();
-    const forwardDirection = host.getTrackForwardDirectionAtPosition(
-      marblePosition.x,
-      marblePosition.z,
-    );
-    const arrowDirection = forwardDirection
-      .clone()
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), host.steeringAngle)
-      .normalize();
-    const arrowOrigin = host.marbleMesh.position
-      .clone()
-      .add(new THREE.Vector3(0, 0.65, 0))
-      .add(arrowDirection.clone().multiplyScalar(this.config.steeringArrowGap));
-
-    this.steeringArrow.visible = true;
-    this.steeringArrow.position.copy(arrowOrigin);
-    this.steeringArrow.quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 0, -1),
-      arrowDirection,
-    );
-  }
 }
 
 export function createMarbleBody(
@@ -357,103 +243,17 @@ export function stepPhysicsTick(host: PhysicsHost, stepSeconds: number): void {
 
   host.runTimeSeconds += stepSeconds;
 
-  const positionBeforeStep = host.marbleBody.translation();
   const velocityBeforeStep = host.marbleBody.linvel();
-  const inputAxis = Number(host.inputRight) - Number(host.inputLeft);
-  const targetSteeringAngle = -inputAxis * host.maxSteeringAngle;
-  const steeringLerp = Math.min(
-    1,
-    stepSeconds *
-      (inputAxis === 0 ? host.steeringReturnRate : host.steeringTurnRate),
-  );
-  host.steeringAngle = THREE.MathUtils.lerp(
-    host.steeringAngle,
-    targetSteeringAngle,
-    steeringLerp,
-  );
-
-  const forward = host.getTrackForwardDirectionAtPosition(
-    positionBeforeStep.x,
-    positionBeforeStep.z,
-  );
-  const horizontalSpeedBefore = Math.sqrt(
-    velocityBeforeStep.x * velocityBeforeStep.x +
-      velocityBeforeStep.z * velocityBeforeStep.z,
-  );
-  const startCap = host.maxHorizontalSpeed * host.startMomentumRatio;
-  const rampT = clamp01(host.runTimeSeconds / Math.max(0.001, host.speedRampSeconds));
-  const horizontalSpeedCap =
-    startCap + (host.maxHorizontalSpeed - startCap) * rampT;
-  const speedRatio = horizontalSpeedBefore / Math.max(0.001, horizontalSpeedCap);
-  const accelRecoveryBoost =
-    1 + (LOW_SPEED_ACCEL_BOOST_MAX - 1) * (1 - clamp01(speedRatio));
-  const steerDirection = forward
-    .clone()
-    .applyAxisAngle(new THREE.Vector3(0, 1, 0), host.steeringAngle)
-    .normalize();
-  const rightDirection = new THREE.Vector3()
-    .crossVectors(forward, new THREE.Vector3(0, 1, 0))
-    .normalize();
-  const airborne = isAirborne(host, positionBeforeStep);
-  const controlScale = airborne ? host.airControlMultiplier : 1;
-  const driveImpulse =
-    host.nudgeImpulse *
-    host.speedMultiplier *
-    host.arrowDriveImpulseScale *
-    controlScale *
-    ULTRA_FAST_TONE_DOWN_SCALE *
-    accelRecoveryBoost;
-  const steerRatioScale =
-    host.steeringImpulseScale / Math.max(0.001, BASE_STEERING_IMPULSE_SCALE);
-  const steerImpulse = driveImpulse * STEER_TO_DRIVE_RATIO_BASE * steerRatioScale;
-  if (inputAxis !== 0) {
-    host.marbleBody.applyImpulse(
-      {
-        x: rightDirection.x * inputAxis * steerImpulse,
-        y: 0,
-        z: rightDirection.z * inputAxis * steerImpulse,
-      },
-      true,
-    );
-  }
-  host.marbleBody.applyImpulse(
-    {
-      x: forward.x * driveImpulse,
-      y: 0,
-      z: forward.z * driveImpulse,
-    },
-    true,
-  );
-
   host.world.step();
 
   const position = host.marbleBody.translation();
-  let velocity = host.marbleBody.linvel();
-  let horizontalSpeed = Math.sqrt(
+  const velocity = host.marbleBody.linvel();
+  const horizontalSpeed = Math.sqrt(
     velocity.x * velocity.x + velocity.z * velocity.z,
   );
-  if (horizontalSpeed > horizontalSpeedCap) {
-    const scale = horizontalSpeedCap / Math.max(0.001, horizontalSpeed);
-    host.marbleBody.setLinvel(
-      { x: velocity.x * scale, y: velocity.y, z: velocity.z * scale },
-      true,
-    );
-    velocity = host.marbleBody.linvel();
-    horizontalSpeed = Math.sqrt(
-      velocity.x * velocity.x + velocity.z * velocity.z,
-    );
-  }
   host.setPhysicsDebug({
-    inputAxis,
-    targetSteeringAngle,
-    steeringAngle: host.steeringAngle,
-    steeringLerp,
-    controlScale,
-    airborne,
-    steerImpulse,
-    driveImpulse,
+    airborne: isAirborne(host, position),
     horizontalSpeed,
-    horizontalSpeedCap,
     verticalVelocity: velocity.y,
     verticalDelta: velocity.y - velocityBeforeStep.y,
   });

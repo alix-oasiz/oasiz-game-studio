@@ -1,0 +1,6 @@
+{
+  "title": "Thread Tangle",
+  "description": "Connect matching colored dots by drawing paths through the grid. Fill every cell to solve each puzzle.",
+  "category": "puzzle",
+  "verticalOnly": true
+}

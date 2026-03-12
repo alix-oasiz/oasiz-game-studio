@@ -4450,6 +4450,16 @@ class Game {
     
     // Second pass: Handle horizontal collisions for all platform tiles.
     // A tile blocks horizontal movement as long as it exists.
+    // BUT: Don't apply wall contact if player is in a doorway entrance trigger zone
+    const playerRectForDoorway = this.playerController.getRect();
+    let isNearDoorway = false;
+    for (const doorway of this.activeWorldDoorways) {
+      if (this.isRectOverlapping(playerRectForDoorway, doorway.enterTriggerRect)) {
+        isNearDoorway = true;
+        break;
+      }
+    }
+
     for (const platform of nearbyPlatforms) {
       if (platform.oneWay) continue;
       const rect = this.playerController.getRect();
@@ -4479,11 +4489,17 @@ class Game {
       if (playerCenterX < platformCenterX) {
         // Player is left of platform → wall is on the RIGHT
         this.playerController.setPosition(platLeft - player.width / 2, player.y);
-        this.playerController.setWallContact(false, true);
+        // Don't set wall contact if player is in doorway trigger zone
+        if (!isNearDoorway) {
+          this.playerController.setWallContact(false, true);
+        }
       } else {
         // Player is right of platform → wall is on the LEFT
         this.playerController.setPosition(platRight + player.width / 2, player.y);
-        this.playerController.setWallContact(true, false);
+        // Don't set wall contact if player is in doorway trigger zone
+        if (!isNearDoorway) {
+          this.playerController.setWallContact(true, false);
+        }
       }
       this.playerController.stopHorizontal();
     }

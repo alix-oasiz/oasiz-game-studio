@@ -25,6 +25,97 @@ export function segmentsIntersect(
   return t > epsilon && t < 1 - epsilon && u > epsilon && u < 1 - epsilon;
 }
 
+function dot(ax: number, az: number, bx: number, bz: number): number {
+  return ax * bx + az * bz;
+}
+
+export function segmentDistanceSq(
+  a0: Vec2,
+  a1: Vec2,
+  b0: Vec2,
+  b1: Vec2,
+): number {
+  const ux = a1.x - a0.x;
+  const uz = a1.z - a0.z;
+  const vx = b1.x - b0.x;
+  const vz = b1.z - b0.z;
+  const wx = a0.x - b0.x;
+  const wz = a0.z - b0.z;
+
+  const a = dot(ux, uz, ux, uz);
+  const b = dot(ux, uz, vx, vz);
+  const c = dot(vx, vz, vx, vz);
+  const d = dot(ux, uz, wx, wz);
+  const e = dot(vx, vz, wx, wz);
+  const denom = a * c - b * b;
+  const EPS = 1e-8;
+
+  let sN = 0;
+  let sD = denom;
+  let tN = 0;
+  let tD = denom;
+
+  if (denom < EPS) {
+    sN = 0;
+    sD = 1;
+    tN = e;
+    tD = c;
+  } else {
+    sN = b * e - c * d;
+    tN = a * e - b * d;
+    if (sN < 0) {
+      sN = 0;
+      tN = e;
+      tD = c;
+    } else if (sN > sD) {
+      sN = sD;
+      tN = e + b;
+      tD = c;
+    }
+  }
+
+  if (tN < 0) {
+    tN = 0;
+    if (-d < 0) {
+      sN = 0;
+    } else if (-d > a) {
+      sN = sD;
+    } else {
+      sN = -d;
+      sD = a;
+    }
+  } else if (tN > tD) {
+    tN = tD;
+    if (-d + b < 0) {
+      sN = 0;
+    } else if (-d + b > a) {
+      sN = sD;
+    } else {
+      sN = -d + b;
+      sD = a;
+    }
+  }
+
+  const sc = Math.abs(sN) < EPS ? 0 : sN / sD;
+  const tc = Math.abs(tN) < EPS ? 0 : tN / tD;
+  const dx = wx + sc * ux - tc * vx;
+  const dz = wz + sc * uz - tc * vz;
+  return dx * dx + dz * dz;
+}
+
+export function segmentsHitWithRadius(
+  p1: Vec2,
+  p2: Vec2,
+  p3: Vec2,
+  p4: Vec2,
+  radius: number,
+): boolean {
+  return (
+    segmentsIntersect(p1, p2, p3, p4) ||
+    segmentDistanceSq(p1, p2, p3, p4) <= radius * radius
+  );
+}
+
 /**
  * Point-in-polygon test using ray casting algorithm.
  */

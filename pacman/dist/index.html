@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Pac-Man</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        /* HUD Overlay */
+        #hud {
+            position: fixed;
+            left: 0;
+            width: 100%;
+            padding: 12px 20px;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            z-index: 5;
+            /* Positioned dynamically by JS on mobile */
+        }
+
+        .hud-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .hud-label {
+            font-size: 0.6rem;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+
+        .hud-value {
+            font-size: 1rem;
+            color: #fff;
+        }
+
+        .hud-center {
+            text-align: center;
+        }
+
+        .high-score-label {
+            color: #f00;
+        }
+
+        /* Lives Display */
+        #livesDisplay {
+            position: fixed;
+            bottom: 10px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .life-icon {
+            width: 20px;
+            height: 20px;
+            background: #ffff00;
+            border-radius: 50%;
+            clip-path: polygon(100% 50%, 50% 50%, 50% 0%, 100% 0%, 100% 50%, 50% 50%, 50% 100%, 100% 100%);
+        }
+
+        /* Level Display */
+        #levelDisplay {
+            position: fixed;
+            bottom: 10px;
+            right: 20px;
+            z-index: 5;
+            pointer-events: none;
+            font-size: 0.6rem;
+            color: #fff;
+        }
+
+        /* Overlays */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 10;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .content {
+            text-align: center;
+            padding: 40px;
+            max-width: 90%;
+        }
+
+        /* Logo */
+        .game-logo {
+            margin-bottom: 30px;
+        }
+
+        .logo-pacman {
+            display: inline-block;
+            width: 120px;
+            height: 120px;
+            background: #ffff00;
+            border-radius: 50%;
+            position: relative;
+            animation: pacmanChomp 0.4s ease-in-out infinite;
+        }
+
+        @keyframes pacmanChomp {
+            0%, 100% { 
+                clip-path: polygon(100% 50%, 50% 50%, 75% 15%, 100% 0%, 100% 50%, 50% 50%, 75% 85%, 100% 100%);
+            }
+            50% { 
+                clip-path: polygon(100% 50%, 50% 50%, 50% 0%, 100% 0%, 100% 50%, 50% 50%, 50% 100%, 100% 100%);
+            }
+        }
+
+        .ghost-row {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 25px;
+        }
+
+        .mini-ghost {
+            width: 45px;
+            height: 50px;
+            border-radius: 50% 50% 0 0;
+            position: relative;
+            animation: ghostFloat 1s ease-in-out infinite;
+        }
+
+        .mini-ghost::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 100%;
+            height: 14px;
+            background: inherit;
+            clip-path: polygon(0% 0%, 20% 100%, 40% 0%, 60% 100%, 80% 0%, 100% 100%, 100% 0%);
+        }
+
+        .mini-ghost.red { background: #ff0000; }
+        .mini-ghost.pink { background: #ffb8ff; animation-delay: 0.1s; }
+        .mini-ghost.cyan { background: #00ffff; animation-delay: 0.2s; }
+        .mini-ghost.orange { background: #ffb852; animation-delay: 0.3s; }
+
+        @keyframes ghostFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            margin: 30px 0;
+            color: #ffff00;
+            text-shadow: 4px 4px 0 #ff0000;
+            letter-spacing: 4px;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #00ffff;
+            margin-bottom: 50px;
+            line-height: 2;
+        }
+
+        /* Buttons */
+        .btn {
+            background: transparent;
+            color: #ffff00;
+            border: 4px solid #ffff00;
+            padding: 20px 60px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 3px;
+        }
+
+        .btn:hover {
+            background: #ffff00;
+            color: #000;
+            transform: scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* How to Play */
+        .how-to-play {
+            margin-top: 50px;
+            padding: 30px 40px;
+            border: 3px solid #2121de;
+            background: rgba(33, 33, 222, 0.1);
+        }
+
+        .how-to-play h3 {
+            font-size: 0.9rem;
+            color: #00ffff;
+            margin-bottom: 20px;
+        }
+
+        .instructions {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            flex-wrap: wrap;
+        }
+
+        .instruction {
+            font-size: 0.75rem;
+            color: #fff;
+            text-align: center;
+        }
+
+        .instruction-icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        /* Game Over Screen */
+        .game-over-title {
+            font-size: 3rem;
+            color: #ff0000;
+            margin-bottom: 40px;
+            text-shadow: 3px 3px 0 #fff;
+            animation: gameOverPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes gameOverPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .final-score-container {
+            margin: 40px 0;
+            padding: 30px 60px;
+            border: 4px solid #ffff00;
+            background: rgba(255, 255, 0, 0.1);
+        }
+
+        .final-score-label {
+            font-size: 0.9rem;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+
+        .final-score {
+            font-size: 3.5rem;
+            color: #ffff00;
+        }
+
+        .new-high-score {
+            font-size: 0.7rem;
+            color: #ff0000;
+            margin-top: 15px;
+            opacity: 0;
+            animation: none;
+        }
+
+        .new-high-score.show {
+            opacity: 1;
+            animation: highScoreBlink 0.5s ease-in-out infinite;
+        }
+
+        @keyframes highScoreBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px 20px;
+            border: 2px solid #2121de;
+            min-width: 100px;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            color: #00ffff;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 0.4rem;
+            color: #fff;
+        }
+
+        /* Pause Overlay */
+        #pauseOverlay {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .pause-text {
+            font-size: 2rem;
+            color: #ffff00;
+            animation: pauseBlink 1s ease-in-out infinite;
+        }
+
+        @keyframes pauseBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Ready Text */
+        #readyText {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            color: #ffff00;
+            z-index: 15;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #readyText.show {
+            opacity: 1;
+        }
+
+        /* Mobile D-Pad - hidden by default on desktop */
+        #dpad {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 150px;
+            z-index: 20;
+            display: none;
+            pointer-events: auto;
+            /* Bottom position set dynamically by JS */
+        }
+        
+        #dpad.hidden {
+            display: none !important;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            touch-action: manipulation;
+            pointer-events: auto;
+        }
+
+        .dpad-btn:hover {
+            background: rgba(255, 255, 0, 0.2);
+            border-color: rgba(255, 255, 0, 0.6);
+        }
+
+        .dpad-btn:active {
+            background: rgba(255, 255, 0, 0.4);
+            border-color: #ffff00;
+        }
+
+        .dpad-up { top: 0; left: 50%; transform: translateX(-50%); }
+        .dpad-down { bottom: 0; left: 50%; transform: translateX(-50%); }
+        .dpad-left { left: 0; top: 50%; transform: translateY(-50%); }
+        .dpad-right { right: 0; top: 50%; transform: translateY(-50%); }
+
+        /* Mobile Adjustments */
+        @media (pointer: coarse) {
+            #dpad:not(.hidden) {
+                display: block;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+                text-shadow: 2px 2px 0 #ff0000;
+                letter-spacing: 2px;
+                margin: 15px 0;
+            }
+            
+            .subtitle {
+                font-size: 0.6rem;
+                margin-bottom: 25px;
+            }
+            
+            .logo-pacman {
+                width: 60px;
+                height: 60px;
+            }
+            
+            .ghost-row {
+                gap: 12px;
+                margin-top: 15px;
+            }
+            
+            .mini-ghost {
+                width: 25px;
+                height: 28px;
+            }
+            
+            .mini-ghost::after {
+                bottom: -5px;
+                height: 8px;
+            }
+            
+            .content {
+                padding: 25px;
+            }
+            
+            .btn {
+                padding: 12px 30px;
+                font-size: 0.8rem;
+                border-width: 3px;
+            }
+            
+            .how-to-play {
+                margin-top: 25px;
+                padding: 15px 20px;
+            }
+            
+            .how-to-play h3 {
+                font-size: 0.55rem;
+                margin-bottom: 12px;
+            }
+            
+            .instructions {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .instruction {
+                font-size: 0.5rem;
+            }
+            
+            .instruction-icon {
+                font-size: 1.2rem;
+                margin-bottom: 6px;
+            }
+            
+            .hud-label {
+                font-size: 0.5rem;
+            }
+            
+            .hud-value {
+                font-size: 0.8rem;
+            }
+            
+            .life-icon {
+                width: 16px;
+                height: 16px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .how-to-play {
+                display: none;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 1.2rem;
+                margin: 10px 0;
+            }
+            
+            .logo-pacman {
+                width: 50px;
+                height: 50px;
+            }
+
+            .ghost-row {
+                margin-top: 10px;
+            }
+
+            .mini-ghost {
+                width: 20px;
+                height: 24px;
+            }
+        }
+    </style>
+  <script type="module" crossorigin>(function(){const t=document.createElement("link").relList;if(t&&t.supports&&t.supports("modulepreload"))return;for(const i of document.querySelectorAll('link[rel="modulepreload"]'))s(i);new MutationObserver(i=>{for(const o of i)if(o.type==="childList")for(const a of o.addedNodes)a.tagName==="LINK"&&a.rel==="modulepreload"&&s(a)}).observe(document,{childList:!0,subtree:!0});function e(i){const o={};return i.integrity&&(o.integrity=i.integrity),i.referrerPolicy&&(o.referrerPolicy=i.referrerPolicy),i.crossOrigin==="use-credentials"?o.credentials="include":i.crossOrigin==="anonymous"?o.credentials="omit":o.credentials="same-origin",o}function s(i){if(i.ep)return;i.ep=!0;const o=e(i);fetch(i.href,o)}})();const h={TILE_SIZE:8,MAZE_WIDTH:28,MAZE_HEIGHT:31,MAX_FPS:60,PACMAN_SPEED:.12,GHOST_SPEED:.1,GHOST_SCARED_SPEED:.05,GHOST_EYES_SPEED:.2,POWER_DURATION:7e3,DOT_POINTS:10,POWER_PELLET_POINTS:50,GHOST_POINTS:[200,400,800,1600]},X={MAZE_WALL:"#2121de",MAZE_BG:"#000000",DOT:"#ffb8ae",POWER_PELLET:"#ffb8ae",PACMAN:"#ffff00",BLINKY:"#ff0000",PINKY:"#ffb8ff",INKY:"#00ffff",CLYDE:"#ffb852",SCARED:"#2121de",SCARED_FLASH:"#ffffff",EYES:"#ffffff"},S=["XXXXXXXXXXXXXXXXXXXXXXXXXXXX","XooooooooooooXXooooooooooooX","XoXXXXoXXXXXoXXoXXXXXoXXXXoX","XOXXXXoXXXXXoXXoXXXXXoXXXXOX","XoXXXXoXXXXXoXXoXXXXXoXXXXoX","XooooooooooooooooooooooooooX","XoXXXXoXXoXXXXXXXXoXXoXXXXoX","XoXXXXoXXoXXXXXXXXoXXoXXXXoX","XooooooXXooooXXooooXXooooooX","XXXXXXoXXXXX XX XXXXXoXXXXXX","XXXXXXoXXXXX XX XXXXXoXXXXXX","XXXXXXoXX          XXoXXXXXX","XXXXXXoXX XXXXXXXX XXoXXXXXX","XXXXXXoXX X      X XXoXXXXXX","      o   X      X   o      ","XXXXXXoXX X      X XXoXXXXXX","XXXXXXoXX XXXXXXXX XXoXXXXXX","XXXXXXoXX          XXoXXXXXX","XXXXXXoXX XXXXXXXX XXoXXXXXX","XXXXXXoXX XXXXXXXX XXoXXXXXX","XooooooooooooXXooooooooooooX","XoXXXXoXXXXXoXXoXXXXXoXXXXoX","XoXXXXoXXXXXoXXoXXXXXoXXXXoX","XOooXXooooooo  oooooooXXooOX","XXXoXXoXXoXXXXXXXXoXXoXXoXXX","XXXoXXoXXoXXXXXXXXoXXoXXoXXX","XooooooXXooooXXooooXXooooooX","XoXXXXXXXXXXoXXoXXXXXXXXXXoX","XoXXXXXXXXXXoXXoXXXXXXXXXXoX","XooooooooooooooooooooooooooX","XXXXXXXXXXXXXXXXXXXXXXXXXXXX"];function y(u,t){return Math.sqrt((u.col-t.col)**2+(u.row-t.row)**2)}function E(u){return{up:"down",down:"up",left:"right",right:"left"}[u]}function g(u){return{up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}}[u]}class w{sounds=new Map;musicPlaying=null;muted=!1;musicVolume=.3;sfxVolume=.5;sirenAudio=null;sirenPlaying=!1;constructor(){const t="https://assets.oasiz.ai/audio/";this.loadSound("waka",t+"pacman_chomp.wav"),this.loadSound("death",t+"pacman_death.wav"),this.loadSound("ghost-eat",t+"pacman_eatghost.wav"),this.loadSound("power",t+"pacman_intermission.wav"),this.loadSound("fruit",t+"pacman_eatfruit.wav"),this.loadSound("intro",t+"pacman_beginning.wav"),this.loadSound("extra-life",t+"pacman_extrapac.wav")}loadSound(t,e){const s=new Audio(e);s.preload="auto",this.sounds.set(t,s)}play(t){if(this.muted)return;const e=this.sounds.get(t);e&&(e.currentTime=0,e.volume=this.sfxVolume,e.play().catch(()=>{}))}playMusic(t,e=!0){if(this.musicPlaying===t)return;this.stopMusic();const s=this.sounds.get(t);s&&(s.loop=e,s.volume=this.musicVolume,s.currentTime=0,s.play().catch(()=>{}),this.musicPlaying=t)}stopMusic(){if(this.musicPlaying){const t=this.sounds.get(this.musicPlaying);t&&(t.pause(),t.currentTime=0),this.musicPlaying=null}}playWaka(){if(this.muted)return;const t=this.sounds.get("waka");t&&(t.paused||t.ended)&&(t.currentTime=0,t.volume=this.sfxVolume,t.play().catch(()=>{}))}toggleMute(){return this.muted=!this.muted,this.muted&&this.stopMusic(),this.muted}isMuted(){return this.muted}}class x{canvas;ctx;isMobile;soundManager;scale=1;scaledTileSize=8;offsetX=0;offsetY=0;gameState="menu";score=0;highScore=0;lives=3;level=1;dotsRemaining=0;totalDots=0;dotsEaten=0;ghostsEaten=0;ghostCombo=0;maze=[];dots=[];powerPellets=[];pacman;ghosts=[];lastTime=0;accumulator=0;timestep=1e3/h.MAX_FPS;powerTimer=0;readyTimer=0;deathTimer=0;levelCompleteTimer=0;modeTimer=0;currentMode="scatter";modeIndex=0;powerPelletBlink=!0;blinkTimer=0;scaredFlash=!1;flashTimer=0;hudElement;scoreElement;highScoreElement;levelElement;livesDisplay;startScreen;gameOverScreen;pauseOverlay;readyText;dpad;touchStartX=0;touchStartY=0;constructor(){console.log("[PacmanGame] Initializing game"),this.canvas=document.getElementById("gameCanvas"),this.ctx=this.canvas.getContext("2d"),this.isMobile=window.matchMedia("(pointer: coarse)").matches,this.soundManager=new w,this.hudElement=document.getElementById("hud"),this.scoreElement=document.getElementById("score"),this.highScoreElement=document.getElementById("highScore"),this.levelElement=document.getElementById("level"),this.livesDisplay=document.getElementById("livesDisplay"),this.startScreen=document.getElementById("startScreen"),this.gameOverScreen=document.getElementById("gameOverScreen"),this.pauseOverlay=document.getElementById("pauseOverlay"),this.readyText=document.getElementById("readyText"),this.dpad=document.getElementById("dpad"),this.highScore=parseInt(localStorage.getItem("pacmanHighScore")||"0",10),this.initMaze(),this.calculateLayout(),this.initEntities(),this.setupEventListeners(),this.dpad.classList.add("hidden"),this.lastTime=performance.now(),requestAnimationFrame(t=>this.gameLoop(t))}initMaze(){console.log("[initMaze] Parsing maze layout"),this.maze=[],this.dots=[],this.powerPellets=[],this.dotsRemaining=0,this.totalDots=0;for(let t=0;t<S.length;t++){this.maze[t]=[],this.dots[t]=[],this.powerPellets[t]=[];for(let e=0;e<S[t].length;e++){const s=S[t][e];this.maze[t][e]=s,this.dots[t][e]=s==="o",this.powerPellets[t][e]=s==="O",(s==="o"||s==="O")&&(this.dotsRemaining++,this.totalDots++)}}}calculateLayout(){const t=window.innerWidth,e=window.innerHeight;if(this.canvas.width=t,this.canvas.height=e,this.isMobile){const n=t-10,d=e-140-40-110-10,l=n/(h.TILE_SIZE*h.MAZE_WIDTH),c=d/(h.TILE_SIZE*h.MAZE_HEIGHT);this.scale=Math.min(l,c),this.scale<1&&(this.scale=1),this.scaledTileSize=h.TILE_SIZE*this.scale;const r=this.scaledTileSize*h.MAZE_WIDTH,m=this.scaledTileSize*h.MAZE_HEIGHT;this.offsetX=(t-r)/2,this.offsetY=155,this.hudElement.style.top="110px",this.hudElement.style.bottom="auto",this.hudElement.style.padding="5px 20px";const f=this.offsetY+m+5;this.dpad.style.bottom="auto",this.dpad.style.top=f+"px",this.dpad.style.transform="translateX(-50%) scale(0.9)",this.livesDisplay.style.bottom="auto",this.livesDisplay.style.top=f+45+"px"}else{const s=e*.06,i=40,o=t-20,a=e-s-i,n=o/(h.TILE_SIZE*h.MAZE_WIDTH),d=a/(h.TILE_SIZE*h.MAZE_HEIGHT);this.scale=Math.floor(Math.min(n,d)),this.scale<1&&(this.scale=1),this.scaledTileSize=h.TILE_SIZE*this.scale;const l=this.scaledTileSize*h.MAZE_WIDTH,c=this.scaledTileSize*h.MAZE_HEIGHT;this.offsetX=(t-l)/2,this.offsetY=s+(a-c)/2,this.hudElement.style.top="0px",this.hudElement.style.bottom="auto",this.livesDisplay.style.top="auto",this.livesDisplay.style.bottom="10px"}console.log("[calculateLayout] Scale:",this.scale,"Offset:",this.offsetX,this.offsetY)}initEntities(){console.log("[initEntities] Creating Pacman and Ghosts"),this.pacman=new v(13.5,23,this),this.ghosts=[new p("blinky",13.5,11,this),new p("pinky",13.5,14,this),new p("inky",11.5,14,this),new p("clyde",15.5,14,this)]}resetPositions(){console.log("[resetPositions] Resetting entity positions"),this.pacman.reset(13.5,23),this.ghosts[0].reset(13.5,11),this.ghosts[1].reset(13.5,14),this.ghosts[2].reset(11.5,14),this.ghosts[3].reset(15.5,14),this.powerTimer=0,this.ghostCombo=0,this.modeIndex=0,this.modeTimer=0,this.currentMode="scatter";for(const t of this.ghosts)t.setMode("scatter")}setupEventListeners(){console.log("[setupEventListeners] Setting up input handlers"),window.addEventListener("resize",()=>{this.calculateLayout()}),window.addEventListener("keydown",e=>this.handleKeyDown(e)),document.addEventListener("touchstart",e=>this.handleTouchStart(e),{passive:!1}),document.addEventListener("touchend",e=>this.handleTouchEnd(e),{passive:!1}),document.querySelectorAll(".dpad-btn").forEach(e=>{const s=i=>{i.preventDefault(),i.stopPropagation();const o=e.dataset.dir;console.log("[handleDpad] D-pad pressed:",o),o&&this.gameState==="playing"&&this.pacman.setDesiredDirection(o)};e.addEventListener("touchstart",s,{passive:!1}),e.addEventListener("mousedown",s)}),document.getElementById("startButton").addEventListener("click",()=>{this.startGame()}),document.getElementById("restartButton").addEventListener("click",()=>{this.restartGame()})}handleKeyDown(t){const s={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",W:"up",s:"down",S:"down",a:"left",A:"left",d:"right",D:"right"}[t.key];s&&this.gameState==="playing"&&(this.pacman.setDesiredDirection(s),t.preventDefault()),(t.key==="Escape"||t.key==="p"||t.key==="P")&&(this.gameState==="playing"||this.gameState==="paused")&&(this.togglePause(),t.preventDefault()),this.gameState==="menu"&&t.key==="Enter"&&this.startGame()}handleTouchStart(t){this.gameState==="playing"&&(this.touchStartX=t.touches[0].clientX,this.touchStartY=t.touches[0].clientY)}handleTouchEnd(t){if(this.gameState!=="playing")return;const e=t.changedTouches[0].clientX,s=t.changedTouches[0].clientY,i=e-this.touchStartX,o=s-this.touchStartY,a=30;if(Math.abs(i)<a&&Math.abs(o)<a)return;let n;Math.abs(i)>Math.abs(o)?n=i>0?"right":"left":n=o>0?"down":"up",this.pacman.setDesiredDirection(n)}startGame(){console.log("[startGame] Starting new game"),this.soundManager.play("intro"),this.startScreen.classList.add("hidden"),this.gameOverScreen.classList.add("hidden"),this.hudElement.style.display="flex",this.score=0,this.lives=3,this.level=1,this.dotsEaten=0,this.ghostsEaten=0,this.initMaze(),this.resetPositions(),this.updateHUD(),this.showReady()}restartGame(){console.log("[restartGame] Restarting game"),this.startGame()}showReady(){this.gameState="ready",this.readyTimer=2e3,this.readyText.textContent="READY!",this.readyText.classList.add("show"),this.showDpad()}showDpad(){this.isMobile&&this.dpad.classList.remove("hidden")}hideDpad(){this.dpad.classList.add("hidden")}togglePause(){this.gameState==="playing"?(this.gameState="paused",this.pauseOverlay.classList.remove("hidden")):this.gameState==="paused"&&(this.gameState="playing",this.pauseOverlay.classList.add("hidden"))}gameLoop(t){const e=t-this.lastTime;for(this.lastTime=t,this.accumulator+=e;this.accumulator>=this.timestep;)this.update(this.timestep),this.accumulator-=this.timestep;this.render(),requestAnimationFrame(s=>this.gameLoop(s))}update(t){if(this.blinkTimer+=t,this.blinkTimer>=200&&(this.powerPelletBlink=!this.powerPelletBlink,this.blinkTimer=0),this.gameState==="ready"){this.readyTimer-=t,this.readyTimer<=0&&(this.readyText.classList.remove("show"),this.gameState="playing");return}if(this.gameState==="dying"){this.deathTimer-=t,this.deathTimer<=0&&(this.lives--,this.lives<=0?this.gameOver():(this.resetPositions(),this.updateHUD(),this.showReady()));return}if(this.gameState==="levelcomplete"){this.levelCompleteTimer-=t,this.levelCompleteTimer<=0&&this.nextLevel();return}if(this.gameState==="playing"){this.updateGhostMode(t),this.powerTimer>0&&(this.powerTimer-=t,this.powerTimer<2e3&&(this.flashTimer+=t,this.flashTimer>=200&&(this.scaredFlash=!this.scaredFlash,this.flashTimer=0)),this.powerTimer<=0&&this.endPowerMode()),this.pacman.update(t);for(const e of this.ghosts)e.update(t);this.checkDotCollision(),this.checkGhostCollision(),this.dotsRemaining<=0&&this.levelComplete()}}updateGhostMode(t){if(this.powerTimer>0)return;const e=[{mode:"scatter",duration:7e3},{mode:"chase",duration:2e4},{mode:"scatter",duration:7e3},{mode:"chase",duration:2e4},{mode:"scatter",duration:5e3},{mode:"chase",duration:2e4},{mode:"scatter",duration:5e3},{mode:"chase",duration:1/0}];if(this.modeTimer+=t,this.modeIndex<e.length){const s=e[this.modeIndex];if(this.modeTimer>=s.duration&&(this.modeTimer=0,this.modeIndex++,this.modeIndex<e.length)){this.currentMode=e[this.modeIndex].mode;for(const i of this.ghosts)i.getMode()!=="scared"&&i.getMode()!=="eyes"&&(i.setMode(this.currentMode),i.reverseDirection())}}}checkDotCollision(){const t=Math.round(this.pacman.x),e=Math.round(this.pacman.y);e>=0&&e<this.dots.length&&t>=0&&t<this.dots[0].length&&(this.dots[e][t]&&(this.dots[e][t]=!1,this.dotsRemaining--,this.dotsEaten++,this.addScore(h.DOT_POINTS),this.soundManager.playWaka()),this.powerPellets[e][t]&&(this.powerPellets[e][t]=!1,this.dotsRemaining--,this.dotsEaten++,this.addScore(h.POWER_PELLET_POINTS),this.startPowerMode()))}startPowerMode(){console.log("[startPowerMode] Power pellet activated"),this.soundManager.play("power"),this.powerTimer=h.POWER_DURATION-(this.level-1)*500,this.powerTimer<1e3&&(this.powerTimer=1e3),this.ghostCombo=0,this.scaredFlash=!1;for(const t of this.ghosts)t.getMode()!=="eyes"&&(t.setMode("scared"),t.reverseDirection())}endPowerMode(){console.log("[endPowerMode] Power pellet ended"),this.powerTimer=0,this.scaredFlash=!1;for(const t of this.ghosts)t.getMode()==="scared"&&t.setMode(this.currentMode)}checkGhostCollision(){for(const t of this.ghosts)if(y({col:this.pacman.x,row:this.pacman.y},{col:t.x,row:t.y})<.8){if(t.getMode()==="scared")this.eatGhost(t);else if(t.getMode()!=="eyes"){this.pacmanDeath();return}}}eatGhost(t){console.log("[eatGhost] Eating ghost:",t.name),this.soundManager.play("ghost-eat");const e=h.GHOST_POINTS[Math.min(this.ghostCombo,3)];this.addScore(e),this.ghostCombo++,this.ghostsEaten++,t.setMode("eyes")}pacmanDeath(){console.log("[pacmanDeath] Pacman died"),this.soundManager.stopMusic(),this.soundManager.play("death"),this.gameState="dying",this.deathTimer=1500,this.pacman.startDeathAnimation()}levelComplete(){console.log("[levelComplete] Level completed"),this.gameState="levelcomplete",this.levelCompleteTimer=2e3,typeof window.submitScore=="function"&&window.submitScore(this.score)}nextLevel(){console.log("[nextLevel] Advancing to level",this.level+1),this.level++,this.initMaze(),this.resetPositions(),this.updateHUD(),this.showReady()}gameOver(){console.log("[gameOver] Game over. Final score:",this.score),this.soundManager.stopMusic(),this.gameState="gameover",this.hideDpad(),typeof window.submitScore=="function"&&window.submitScore(this.score),this.score>this.highScore&&(this.highScore=this.score,localStorage.setItem("pacmanHighScore",this.highScore.toString())),this.hudElement.style.display="none",document.getElementById("finalScore").textContent=this.score.toString(),document.getElementById("dotsEaten").textContent=this.dotsEaten.toString(),document.getElementById("ghostsEaten").textContent=this.ghostsEaten.toString(),document.getElementById("maxLevel").textContent=this.level.toString();const t=document.getElementById("newHighScore");this.score>=this.highScore&&this.score>0?t.classList.add("show"):t.classList.remove("show"),this.gameOverScreen.classList.remove("hidden")}addScore(t){this.score+=t,this.updateHUD()}updateHUD(){this.scoreElement.textContent=this.score.toString().padStart(2,"0"),this.highScoreElement.textContent=Math.max(this.score,this.highScore).toString().padStart(2,"0"),this.levelElement.textContent=this.level.toString(),this.livesDisplay.innerHTML="";for(let t=0;t<this.lives-1;t++){const e=document.createElement("div");e.className="life-icon",this.livesDisplay.appendChild(e)}}render(){this.ctx.fillStyle=X.MAZE_BG,this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height),this.drawMaze(),this.drawPickups(),this.gameState!=="menu"&&(this.drawPacman(),this.drawGhosts())}drawMaze(){const t=this.ctx,e=this.scaledTileSize;t.save(),t.translate(this.offsetX,this.offsetY),t.strokeStyle=X.MAZE_WALL,t.lineWidth=2;for(let s=0;s<this.maze.length;s++)for(let i=0;i<this.maze[s].length;i++)if(this.maze[s][i]==="X"){const o=i*e,a=s*e,n=s>0&&this.maze[s-1][i]==="X",d=s<this.maze.length-1&&this.maze[s+1][i]==="X",l=i>0&&this.maze[s][i-1]==="X",c=i<this.maze[s].length-1&&this.maze[s][i+1]==="X";t.fillStyle=X.MAZE_WALL;const r=e*.15;(l||c)&&t.fillRect(o+(l?0:e/2-r/2),a+e/2-r/2,l&&c?e:e/2+r/2,r),(n||d)&&t.fillRect(o+e/2-r/2,a+(n?0:e/2-r/2),r,n&&d?e:e/2+r/2),!n&&!d&&!l&&!c&&t.fillRect(o+e*.3,a+e*.3,e*.4,e*.4)}t.restore()}drawPickups(){const t=this.ctx,e=this.scaledTileSize;t.save(),t.translate(this.offsetX,this.offsetY),t.fillStyle=X.DOT;for(let s=0;s<this.dots.length;s++)for(let i=0;i<this.dots[s].length;i++)if(this.dots[s][i]){const o=i*e+e/2,a=s*e+e/2,n=e*.1;t.beginPath(),t.arc(o,a,n,0,Math.PI*2),t.fill()}if(this.powerPelletBlink){t.fillStyle=X.POWER_PELLET;for(let s=0;s<this.powerPellets.length;s++)for(let i=0;i<this.powerPellets[s].length;i++)if(this.powerPellets[s][i]){const o=i*e+e/2,a=s*e+e/2,n=e*.35;t.beginPath(),t.arc(o,a,n,0,Math.PI*2),t.fill()}}t.restore()}drawPacman(){const t=this.ctx,e=this.scaledTileSize;t.save(),t.translate(this.offsetX,this.offsetY);const s=this.pacman.x*e+e/2,i=this.pacman.y*e+e/2,o=e*.9;if(t.fillStyle=X.PACMAN,this.gameState==="dying"){const a=1-this.deathTimer/1500,n=Math.PI*a;t.beginPath(),t.arc(s,i,o,n,Math.PI*2-n),t.lineTo(s,i),t.closePath(),t.fill()}else{const a=this.pacman.getMouthAngle(),n=this.pacman.getRotation();t.save(),t.translate(s,i),t.rotate(n),t.beginPath(),t.arc(0,0,o,a,Math.PI*2-a),t.lineTo(0,0),t.closePath(),t.fill(),t.restore()}t.restore()}drawGhosts(){const t=this.ctx,e=this.scaledTileSize;t.save(),t.translate(this.offsetX,this.offsetY);for(const s of this.ghosts){if(this.gameState==="dying")continue;const i=s.x*e+e/2,o=s.y*e+e/2,a=e*.85;let n;if(s.getMode()==="scared")n=this.scaredFlash?X.SCARED_FLASH:X.SCARED;else if(s.getMode()==="eyes"){this.drawGhostEyes(i,o,a,s.direction);continue}else n=this.getGhostColor(s.name);t.fillStyle=n,t.beginPath(),t.arc(i,o-a*.2,a,Math.PI,0,!1),t.lineTo(i+a,o+a*.8);const d=3,l=a*2/d;for(let c=0;c<d;c++){const r=i+a-(c+.5)*l,m=o+a*.8;t.quadraticCurveTo(r+l*.25,m+a*.3,r,m),t.quadraticCurveTo(r-l*.25,m-a*.3,r-l*.5,m)}if(t.closePath(),t.fill(),s.getMode()!=="scared")this.drawGhostEyes(i,o,a,s.direction);else{t.fillStyle=X.EYES,t.beginPath(),t.arc(i-a*.3,o-a*.2,a*.15,0,Math.PI*2),t.arc(i+a*.3,o-a*.2,a*.15,0,Math.PI*2),t.fill(),t.strokeStyle=X.EYES,t.lineWidth=2,t.beginPath(),t.moveTo(i-a*.4,o+a*.3);for(let c=0;c<4;c++){const r=i-a*.4+c*(a*.2),m=o+a*.3+(c%2===0?0:a*.15);t.lineTo(r+a*.1,m)}t.stroke()}}t.restore()}drawGhostEyes(t,e,s,i){const o=this.ctx;o.fillStyle=X.EYES,o.beginPath(),o.ellipse(t-s*.3,e-s*.15,s*.25,s*.3,0,0,Math.PI*2),o.ellipse(t+s*.3,e-s*.15,s*.25,s*.3,0,0,Math.PI*2),o.fill();const a={x:0,y:0};switch(i){case"up":a.y=-s*.1;break;case"down":a.y=s*.1;break;case"left":a.x=-s*.1;break;case"right":a.x=s*.1;break}o.fillStyle="#0000ff",o.beginPath(),o.arc(t-s*.3+a.x,e-s*.15+a.y,s*.12,0,Math.PI*2),o.arc(t+s*.3+a.x,e-s*.15+a.y,s*.12,0,Math.PI*2),o.fill()}getGhostColor(t){return{blinky:X.BLINKY,pinky:X.PINKY,inky:X.INKY,clyde:X.CLYDE}[t]}isWall(t,e){const s=Math.floor(e),i=Math.floor(t);return s<0||s>=this.maze.length||i<0||i>=this.maze[0].length?!(s===14&&(i<0||i>=this.maze[0].length)):this.maze[s][i]==="X"}canMove(t,e,s){const i=g(s),o=.5;t+i.x*o,e+i.y*o;let a=!1;if(s==="left"||s==="right"){const n=s==="left"?Math.floor(t-.5):Math.ceil(t+.5),d=Math.round(e);this.isWall(n,d)&&(a=!0)}if(s==="up"||s==="down"){const n=s==="up"?Math.floor(e-.5):Math.ceil(e+.5),d=Math.round(t);this.isWall(d,n)&&(a=!0)}return!a}getGhostHouseCenter(){return{x:13.5,y:14}}getPacmanPosition(){return{x:this.pacman.x,y:this.pacman.y}}getPacmanDirection(){return this.pacman.direction}getBlinkyPosition(){return{x:this.ghosts[0].x,y:this.ghosts[0].y}}getLevel(){return this.level}getMazeWidth(){return h.MAZE_WIDTH}}class v{x;y;direction="left";desiredDirection="left";speed=h.PACMAN_SPEED;mouthAngle=0;mouthOpening=!0;game;deathAnimation=!1;constructor(t,e,s){this.x=t,this.y=e,this.game=s}reset(t,e){this.x=t,this.y=e,this.direction="left",this.desiredDirection="left",this.mouthAngle=0,this.deathAnimation=!1}setDesiredDirection(t){this.desiredDirection=t}startDeathAnimation(){this.deathAnimation=!0}update(t){if(this.deathAnimation)return;const e=.008*t;this.mouthOpening?(this.mouthAngle+=e,this.mouthAngle>=.4&&(this.mouthOpening=!1)):(this.mouthAngle-=e,this.mouthAngle<=.05&&(this.mouthOpening=!0));const s=Math.abs(this.x-Math.round(this.x))<.08,i=Math.abs(this.y-Math.round(this.y))<.08,o=this.direction==="up"&&this.desiredDirection==="down"||this.direction==="down"&&this.desiredDirection==="up"||this.direction==="left"&&this.desiredDirection==="right"||this.direction==="right"&&this.desiredDirection==="left";o?this.direction=this.desiredDirection:s&&i&&this.desiredDirection!==this.direction&&this.game.canMove(Math.round(this.x),Math.round(this.y),this.desiredDirection)&&(this.x=Math.round(this.x),this.y=Math.round(this.y),this.direction=this.desiredDirection);let a=this.game.canMove(this.x,this.y,this.direction);if(!a&&this.desiredDirection!==this.direction&&!o){const n=this.desiredDirection==="left"||this.desiredDirection==="right",d=this.desiredDirection==="up"||this.desiredDirection==="down",l=this.direction==="left"||this.direction==="right";if((this.direction==="up"||this.direction==="down")&&n||l&&d){const r=Math.round(this.x),m=Math.round(this.y),f=Math.abs(this.x-r)<.5,M=Math.abs(this.y-m)<.5;f&&M&&this.game.canMove(r,m,this.desiredDirection)&&(this.x=r,this.y=m,this.direction=this.desiredDirection,a=!0)}}if(a){const n=g(this.direction);this.x+=n.x*this.speed,this.y+=n.y*this.speed,this.x<-1&&(this.x=this.game.getMazeWidth()),this.x>this.game.getMazeWidth()&&(this.x=-1)}}getMouthAngle(){return this.mouthAngle*Math.PI}getRotation(){return{right:0,down:Math.PI/2,left:Math.PI,up:-Math.PI/2}[this.direction]}}class p{x;y;name;direction="left";mode="scatter";speed=h.GHOST_SPEED;game;inHouse=!0;houseTimer=0;targetX=0;targetY=0;constructor(t,e,s,i){this.name=t,this.x=e,this.y=s,this.game=i,this.direction=t==="blinky"?"left":"down",this.inHouse=t!=="blinky"}reset(t,e){this.x=t,this.y=e,this.mode="scatter",this.inHouse=this.name!=="blinky",this.houseTimer=this.getHouseExitDelay(),this.direction=this.name==="blinky"?"left":"down"}getHouseExitDelay(){return{blinky:0,pinky:2e3,inky:5e3,clyde:8e3}[this.name]}setMode(t){switch(this.mode=t,t){case"scared":this.speed=h.GHOST_SCARED_SPEED;break;case"eyes":this.speed=h.GHOST_EYES_SPEED;break;default:this.speed=h.GHOST_SPEED+(this.game.getLevel()-1)*.005}}getMode(){return this.mode}reverseDirection(){this.direction=E(this.direction)}update(t){if(this.inHouse){this.houseTimer-=t,this.houseTimer<=0?this.leaveHouse(t):this.y+=Math.sin(Date.now()/200)*.01;return}if(this.mode==="eyes"){const e=this.game.getGhostHouseCenter();if(y({col:this.x,row:this.y},{col:e.x,row:e.y})<.5){this.mode="scatter",this.speed=h.GHOST_SPEED,this.inHouse=!0,this.houseTimer=1e3;return}}this.calculateTarget(),this.move(t)}leaveHouse(t){this.x<13.4?this.x+=.05:this.x>13.6?this.x-=.05:this.y>11.5?this.y-=.05:(this.inHouse=!1,this.y=11,this.x=13.5,this.direction="left")}calculateTarget(){const t=this.game.getPacmanPosition(),e=this.game.getPacmanDirection();if(this.mode==="scared"){this.targetX=t.x,this.targetY=t.y;return}if(this.mode==="eyes"){const s=this.game.getGhostHouseCenter();this.targetX=s.x,this.targetY=s.y-3;return}if(this.mode==="scatter"){const s={blinky:{x:25,y:0},pinky:{x:2,y:0},inky:{x:27,y:30},clyde:{x:0,y:30}};this.targetX=s[this.name].x,this.targetY=s[this.name].y;return}switch(this.name){case"blinky":this.targetX=t.x,this.targetY=t.y;break;case"pinky":const s=g(e);this.targetX=t.x+s.x*4,this.targetY=t.y+s.y*4;break;case"inky":const i=g(e),o={x:t.x+i.x*2,y:t.y+i.y*2},a=this.game.getBlinkyPosition();this.targetX=o.x+(o.x-a.x),this.targetY=o.y+(o.y-a.y);break;case"clyde":y({col:this.x,row:this.y},{col:t.x,row:t.y})>8?(this.targetX=t.x,this.targetY=t.y):(this.targetX=0,this.targetY=30);break}}move(t){const e=Math.abs(this.x-Math.round(this.x))<.05,s=Math.abs(this.y-Math.round(this.y))<.05;e&&s&&this.chooseDirection();const i=g(this.direction),o=this.x+i.x*this.speed,a=this.y+i.y*this.speed;this.game.isWall(o,a)?(this.x=Math.round(this.x),this.y=Math.round(this.y),this.chooseDirection()):(this.x=o,this.y=a,this.x<-1&&(this.x=this.game.getMazeWidth()),this.x>this.game.getMazeWidth()&&(this.x=-1))}chooseDirection(){const t=["up","down","left","right"],e=E(this.direction);let s=this.direction,i=this.mode==="scared"?-1/0:1/0;for(const o of t){if(o===e)continue;const a=g(o),n=Math.round(this.x)+a.x,d=Math.round(this.y)+a.y;if(this.game.isWall(n,d))continue;if(o==="up"&&(Math.round(this.y)===14||Math.round(this.y)===26)){const c=Math.round(this.x);if((c===12||c===15)&&this.mode!=="eyes")continue}const l=y({col:n,row:d},{col:this.targetX,row:this.targetY});this.mode==="scared"?l>i&&(i=l,s=o):l<i&&(i=l,s=o)}this.direction=s}}console.log("[main] Starting Pac-Man game");new x;</script>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- HUD -->
+    <div id="hud" style="display: none;">
+        <div class="hud-section">
+            <div class="hud-label">1UP</div>
+            <div class="hud-value" id="score">00</div>
+        </div>
+        <div class="hud-section hud-center">
+            <div class="hud-label high-score-label">HIGH SCORE</div>
+            <div class="hud-value" id="highScore">00</div>
+        </div>
+        <div class="hud-section" style="text-align: right;">
+            <div class="hud-label">LEVEL</div>
+            <div class="hud-value" id="level">1</div>
+        </div>
+    </div>
+
+    <!-- Lives Display -->
+    <div id="livesDisplay"></div>
+
+    <!-- Level Display -->
+    <div id="levelDisplay"></div>
+
+    <!-- Ready Text -->
+    <div id="readyText">READY!</div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="overlay">
+        <div class="content">
+            <div class="game-logo">
+                <div class="logo-pacman"></div>
+                <div class="ghost-row">
+                    <div class="mini-ghost red"></div>
+                    <div class="mini-ghost pink"></div>
+                    <div class="mini-ghost cyan"></div>
+                    <div class="mini-ghost orange"></div>
+                </div>
+            </div>
+            <h1>PAC-MAN</h1>
+            <p class="subtitle">EAT ALL THE DOTS<br>AVOID THE GHOSTS</p>
+            <button class="btn" id="startButton">START</button>
+            <div class="how-to-play">
+                <h3>HOW TO PLAY</h3>
+                <div class="instructions">
+                    <div class="instruction">
+                        <span class="instruction-icon">⬆⬇⬅➡</span>
+                        <span>ARROW KEYS / WASD</span>
+                    </div>
+                    <div class="instruction">
+                        <span class="instruction-icon">👻</span>
+                        <span>EAT POWER PELLETS TO CHASE GHOSTS</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="overlay hidden">
+        <div class="content">
+            <h2 class="game-over-title">GAME OVER</h2>
+            <div class="final-score-container">
+                <div class="final-score-label">FINAL SCORE</div>
+                <div class="final-score" id="finalScore">0</div>
+                <div class="new-high-score" id="newHighScore">NEW HIGH SCORE!</div>
+            </div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-value" id="dotsEaten">0</div>
+                    <div class="stat-label">DOTS EATEN</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="ghostsEaten">0</div>
+                    <div class="stat-label">GHOSTS EATEN</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="maxLevel">1</div>
+                    <div class="stat-label">MAX LEVEL</div>
+                </div>
+            </div>
+            <button class="btn" id="restartButton">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Pause Overlay -->
+    <div id="pauseOverlay" class="overlay hidden">
+        <div class="content">
+            <div class="pause-text">PAUSED</div>
+            <p class="subtitle" style="margin-top: 20px;">PRESS ESC OR P TO RESUME</p>
+        </div>
+    </div>
+
+    <!-- Mobile D-Pad -->
+    <div id="dpad">
+        <button class="dpad-btn dpad-up" data-dir="up">▲</button>
+        <button class="dpad-btn dpad-down" data-dir="down">▼</button>
+        <button class="dpad-btn dpad-left" data-dir="left">◀</button>
+        <button class="dpad-btn dpad-right" data-dir="right">▶</button>
+    </div>
+
+</body>
+</html>

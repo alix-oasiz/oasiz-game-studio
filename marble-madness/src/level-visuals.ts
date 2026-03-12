@@ -30,7 +30,68 @@ interface AddFinishTriggerCubesInput {
   addLevelObject: (object: THREE.Object3D) => void;
 }
 
-function createCloudTexture(): THREE.CanvasTexture {
+// Relative offsets within a cloud cluster: [relX, relY, relZ, scaleMult]
+// Multiple overlapping puffs per cloud create soft volumetric depth illusion.
+const PUFF_TEMPLATES: [number, number, number, number][] = [
+  [0.0,   0.0,  0.0, 1.0],   // main center puff
+  [-0.18, -0.06, 0.0, 0.78], // lower-left puff
+  [0.18,  -0.06, 0.0, 0.74], // lower-right puff
+  [0.04,   0.18, 0.0, 0.62], // top accent puff
+];
+
+// Billboarding vertex shader: expands each plane toward camera-right/camera-up
+// using the instance's world position and scale from instanceMatrix.
+const CLOUD_VERT = `
+varying vec2 vUv;
+varying float vFogDepth;
+
+void main() {
+  vec3 instancePos = vec3(
+    instanceMatrix[3][0],
+    instanceMatrix[3][1],
+    instanceMatrix[3][2]
+  );
+  float scaleX = length(vec3(instanceMatrix[0][0], instanceMatrix[0][1], instanceMatrix[0][2]));
+  float scaleY = length(vec3(instanceMatrix[1][0], instanceMatrix[1][1], instanceMatrix[1][2]));
+
+  // Billboard: orient quad toward camera by expanding along view-space axes.
+  vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+  vec3 camUp    = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+
+  vec3 worldPos = instancePos
+    + camRight * position.x * scaleX
+    + camUp    * position.y * scaleY;
+
+  vec4 mvPosition = viewMatrix * vec4(worldPos, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  vUv = uv;
+  vFogDepth = -mvPosition.z;
+}
+`;
+
+// Fragment shader: samples the puff texture and applies linear fog.
+// fogColor/fogNear/fogFar are automatically updated by Three.js when fog: true.
+const CLOUD_FRAG = `
+uniform sampler2D map;
+uniform float opacity;
+uniform vec3 fogColor;
+uniform float fogNear;
+uniform float fogFar;
+
+varying vec2 vUv;
+varying float vFogDepth;
+
+void main() {
+  vec4 texColor = texture2D(map, vUv);
+  float alpha = texColor.a * opacity;
+  if (alpha < 0.04) discard;
+  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
+  vec3 color = mix(texColor.rgb, fogColor, fogFactor);
+  gl_FragColor = vec4(color, alpha);
+}
+`;
+
+function createPuffTexture(): THREE.CanvasTexture {
   const size = 128;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -41,32 +102,36 @@ function createCloudTexture(): THREE.CanvasTexture {
   }
 
   ctx.clearRect(0, 0, size, size);
-  const blobs = [
-    { x: 46, y: 66, r: 28 },
-    { x: 73, y: 55, r: 26 },
-    { x: 86, y: 72, r: 23 },
-    { x: 30, y: 78, r: 20 },
-  ];
-  for (const blob of blobs) {
-    const grad = ctx.createRadialGradient(
-      blob.x,
-      blob.y,
-      4,
-      blob.x,
-      blob.y,
-      blob.r,
-    );
-    grad.addColorStop(0, "rgba(255, 255, 255, 0.96)");
-    grad.addColorStop(0.75, "rgba(246, 251, 255, 0.72)");
-    grad.addColorStop(1, "rgba(237, 246, 255, 0)");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(blob.x, blob.y, blob.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
+
+  const cx = 64;
+  const cy = 64;
+
+  // Main puff body: bright white core fading to soft blue-grey edge.
+  // Focal point offset upward gives a top-lit appearance without real-time lighting.
+  // Pure white throughout — no colour tinting in any stop.
+  // Coloured semi-transparent outer regions accumulate visibly across hundreds
+  // of overlapping puffs and create dark arc halos. Pure white accumulation
+  // just adds brightness, which reads naturally as denser cloud.
+  // Top-lit appearance comes from the focal-point offset alone.
+  const bodyGrad = ctx.createRadialGradient(cx, cy - 10, 2, cx, cy, 46);
+  bodyGrad.addColorStop(0.0,  "rgba(255, 255, 255, 0.97)");
+  bodyGrad.addColorStop(0.30, "rgba(255, 255, 255, 0.88)");
+  bodyGrad.addColorStop(0.55, "rgba(255, 255, 255, 0.55)");
+  bodyGrad.addColorStop(0.75, "rgba(255, 255, 255, 0.14)");
+  bodyGrad.addColorStop(0.90, "rgba(255, 255, 255, 0.02)");
+  bodyGrad.addColorStop(1.0,  "rgba(255, 255, 255, 0.00)");
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 46, 0, Math.PI * 2);
+  ctx.fill();
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  // Disable mipmaps: mipmap generation bleeds opaque color into transparent
+  // corner pixels, producing faint rectangular fringing at close range.
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
   return texture;
 }
@@ -76,15 +141,19 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
     return 0;
   }
 
-  const cloudGroup = new THREE.Group();
-  const cloudTexture = createCloudTexture();
-  const cloudMaterial = new THREE.SpriteMaterial({
-    map: cloudTexture,
-    color: "#ffffff",
+  const puffTexture = createPuffTexture();
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: puffTexture },
+      opacity: { value: 0.93 },
+      fogColor: { value: new THREE.Color(0xffffff) },
+      fogNear: { value: 1 },
+      fogFar: { value: 2000 },
+    },
+    vertexShader: CLOUD_VERT,
+    fragmentShader: CLOUD_FRAG,
     transparent: true,
-    opacity: 0.93,
     depthWrite: false,
-    depthTest: true,
     fog: true,
   });
 
@@ -95,6 +164,15 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
   const laneSpan = Math.max(1, zTop - zBottom);
   const laneSteps = Math.max(32, Math.floor(laneSpan / 10));
 
+  interface PuffData {
+    x: number;
+    y: number;
+    z: number;
+    scaleX: number;
+    scaleY: number;
+  }
+  const puffs: PuffData[] = [];
+
   const tryPlaceCloud = (
     centerX: number,
     centerZ: number,
@@ -104,7 +182,6 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
     yJitter: number,
     topCapY: number,
   ): void => {
-    const sprite = new THREE.Sprite(cloudMaterial);
     const maxCenterY = topCapY - scale * 0.5;
     const y = THREE.MathUtils.clamp(
       yBase + yJitter,
@@ -123,9 +200,15 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
     if (!placed) {
       return;
     }
-    sprite.position.set(x, y, z);
-    sprite.scale.set(scale * 1.3, scale, 1);
-    cloudGroup.add(sprite);
+    for (const [rx, ry, rz, sm] of PUFF_TEMPLATES) {
+      puffs.push({
+        x: x + rx * scale,
+        y: y + ry * scale,
+        z: z + rz * scale * 0.25,
+        scaleX: scale * sm * 1.3,
+        scaleY: scale * sm,
+      });
+    }
   };
 
   for (let i = 0; i < laneSteps; i += 1) {
@@ -134,8 +217,8 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
     const centerX = input.sampleTrackX(z);
     const width = input.getSliceWidthAtZ(z);
     const localTrackY = input.getTrackSurfaceY(z);
-    const sideCloudTopCapY = localTrackY + 48;
-    const deepSideCloudTopCapY = localTrackY + 36;
+    const sideCloudTopCapY = localTrackY + 72;
+    const deepSideCloudTopCapY = localTrackY + 58;
     const valleyCloudTopCapY = localTrackY - 6;
     const valleyHalfWidth = width * 0.5 + 18;
 
@@ -152,7 +235,7 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
       wallScaleA,
       localTrackY,
       localTrackY + 18,
-      input.randomRange(-12, 8),
+      input.randomRange(-22, 28),
       sideCloudTopCapY,
     );
     tryPlaceCloud(
@@ -161,7 +244,7 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
       wallScaleB,
       localTrackY,
       localTrackY + 18,
-      input.randomRange(-12, 8),
+      input.randomRange(-22, 28),
       sideCloudTopCapY,
     );
 
@@ -176,7 +259,7 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
       input.randomRange(64, 116),
       localTrackY,
       localTrackY + 8,
-      input.randomRange(-14, 8),
+      input.randomRange(-20, 24),
       deepSideCloudTopCapY,
     );
     tryPlaceCloud(
@@ -185,7 +268,7 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
       input.randomRange(64, 116),
       localTrackY,
       localTrackY + 8,
-      input.randomRange(-14, 8),
+      input.randomRange(-20, 24),
       deepSideCloudTopCapY,
     );
 
@@ -204,10 +287,35 @@ export function addCloudBackdrop(input: AddCloudBackdropInput): number {
     }
   }
 
-  input.addLevelObject(cloudGroup);
-  const placedCount = cloudGroup.children.length;
-  console.log("[AddCloudBackdrop]", "Placed cloud sprites: " + String(placedCount));
-  return placedCount;
+  if (puffs.length === 0) {
+    return 0;
+  }
+
+  // All puffs rendered as one InstancedMesh — single draw call regardless of count.
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const mesh = new THREE.InstancedMesh(geometry, material, puffs.length);
+  // Disable frustum culling: clouds span the entire level, so Three.js's
+  // bounding-box check would incorrectly cull them from some camera angles.
+  mesh.frustumCulled = false;
+
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < puffs.length; i += 1) {
+    const p = puffs[i];
+    dummy.position.set(p.x, p.y, p.z);
+    dummy.scale.set(p.scaleX, p.scaleY, 1);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+
+  input.addLevelObject(mesh);
+  const cloudCount = Math.floor(puffs.length / PUFF_TEMPLATES.length);
+  console.log(
+    "[AddCloudBackdrop]",
+    `Placed ${String(cloudCount)} clouds (${String(puffs.length)} puffs, 1 draw call)`,
+  );
+  return cloudCount;
 }
 
 export function addFinishTriggerCubes(

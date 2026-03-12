@@ -13,7 +13,8 @@ const _burstMat = new THREE.MeshBasicMaterial({
 });
 
 const _explMats = [0xff4466, 0xff8800, 0xffcc00, 0x00ccff, 0x2288ff].map(
-  (c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 1 }),
+  (c) =>
+    new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 1 }),
 );
 
 const _trailMat = new THREE.MeshBasicMaterial({
@@ -35,13 +36,21 @@ const _tmpVec = new THREE.Vector3();
 
 const _trailMeshPool = new ObjectPool<THREE.Mesh>(
   () => new THREE.Mesh(_sharedSphereGeo, _trailMat),
-  (m) => { m.scale.setScalar(1); m.position.set(0, 0, 0); m.visible = false; },
+  (m) => {
+    m.scale.setScalar(1);
+    m.position.set(0, 0, 0);
+    m.visible = false;
+  },
   50,
 );
 
 const _burstMeshPool = new ObjectPool<THREE.Mesh>(
   () => new THREE.Mesh(_sharedSphereGeo, _burstMat),
-  (m) => { m.scale.setScalar(1); m.position.set(0, 0, 0); m.visible = false; },
+  (m) => {
+    m.scale.setScalar(1);
+    m.position.set(0, 0, 0);
+    m.visible = false;
+  },
   15,
 );
 
@@ -49,7 +58,12 @@ const _explMeshPools = _explMats.map(
   (mat) =>
     new ObjectPool<THREE.Mesh>(
       () => new THREE.Mesh(_sharedBoxGeo, mat),
-      (m) => { m.scale.setScalar(1); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.visible = false; },
+      (m) => {
+        m.scale.setScalar(1);
+        m.position.set(0, 0, 0);
+        m.rotation.set(0, 0, 0);
+        m.visible = false;
+      },
       8,
     ),
 );
@@ -62,7 +76,11 @@ const _vec3Pool = new ObjectPool<THREE.Vector3>(
 
 const _speedLinePool = new ObjectPool<THREE.Mesh>(
   () => new THREE.Mesh(_speedLineGeo, _speedLineMat),
-  (m) => { m.scale.setScalar(1); m.position.set(0, 0, 0); m.visible = false; },
+  (m) => {
+    m.scale.setScalar(1);
+    m.position.set(0, 0, 0);
+    m.visible = false;
+  },
   30,
 );
 
@@ -218,7 +236,9 @@ export function tickExplosion(
       if (geo === _speedLineGeo) {
         _speedLinePool.release(p.mesh);
       } else if (geo === _sharedBoxGeo) {
-        const matIdx = _explMats.indexOf(p.mesh.material as THREE.MeshBasicMaterial);
+        const matIdx = _explMats.indexOf(
+          p.mesh.material as THREE.MeshBasicMaterial,
+        );
         if (matIdx >= 0) _explMeshPools[matIdx].release(p.mesh);
       } else if (geo === _sharedSphereGeo) {
         _burstMeshPool.release(p.mesh);
@@ -246,7 +266,10 @@ export function tickExplosion(
 }
 
 /** Release all active particles back to their pools. */
-export function releaseAllParticles(scene: THREE.Scene, particles: Particle[]): void {
+export function releaseAllParticles(
+  scene: THREE.Scene,
+  particles: Particle[],
+): void {
   for (const p of particles) {
     scene.remove(p.mesh);
     p.mesh.visible = false;
@@ -254,7 +277,9 @@ export function releaseAllParticles(scene: THREE.Scene, particles: Particle[]): 
     if (geo === _speedLineGeo) {
       _speedLinePool.release(p.mesh);
     } else if (geo === _sharedBoxGeo) {
-      const matIdx = _explMats.indexOf(p.mesh.material as THREE.MeshBasicMaterial);
+      const matIdx = _explMats.indexOf(
+        p.mesh.material as THREE.MeshBasicMaterial,
+      );
       if (matIdx >= 0) _explMeshPools[matIdx].release(p.mesh);
     } else if (geo === _sharedSphereGeo) {
       if (p.mesh.material === _burstMat) _burstMeshPool.release(p.mesh);

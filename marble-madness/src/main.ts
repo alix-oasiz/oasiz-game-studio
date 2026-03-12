@@ -48,9 +48,11 @@ import {
   createRunObstacleOrder,
   updateWaveObstacleAnimation as updateWaveObstacleAnimationData,
   type BouncyPadObstacle,
+  type FallingPlatformObstacle,
   type ObstacleKind,
   type PinballBouncerObstacle,
   type RotatorXObstacle,
+  type SwingingHammerObstacle,
   type WaveObstacleKind,
 } from "./obstacles";
 import {
@@ -58,7 +60,7 @@ import {
   type LandingSoundDebugInfo,
 } from "./sound-manager";
 
-const BUILD_VERSION = "0.5.151";
+const BUILD_VERSION = "0.5.222";
 
 type GameState = "start" | "playing" | "gameOver";
 type HapticType = "light" | "medium" | "heavy" | "success" | "error";
@@ -92,6 +94,22 @@ interface HorizontalBlocker {
   tilt: number;
 }
 
+type FallingTileState = "stable" | "warning" | "falling" | "fallen";
+
+interface FallingTile {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  width: number;
+  depth: number;
+  state: FallingTileState;
+  playerStandingStartTime: number;
+  fallStartTime: number;
+  currentYOffset: number;
+  sectionIndex: number;
+}
+
 class MarbleMadnessStarter {
   private readonly canvas: HTMLCanvasElement;
   private readonly isMobile: boolean;
@@ -111,9 +129,6 @@ class MarbleMadnessStarter {
   private settings: Settings;
   private persistentState: PersistedState = {};
 
-  private inputLeft = false;
-  private inputRight = false;
-
   private animationFrameId = 0;
   private lastFrameSeconds = 0;
   private accumulator = 0;
@@ -121,12 +136,13 @@ class MarbleMadnessStarter {
   private cameraFollowAnchor = new THREE.Vector3();
   private cameraLookAnchor = new THREE.Vector3();
   private cameraAnchorsInitialized = false;
+  private cameraFinishZoomActive = false;
 
   private runTimeSeconds = 0;
   private finishedTimeSeconds = 0;
 
   private readonly fixedStep = 1 / 60;
-  private readonly trackWidth = 12;
+  private readonly trackWidth = 18;
   private readonly trackLength = 330;
   private readonly trackThickness = 2;
   private readonly trackCenterY = 30;
@@ -148,19 +164,9 @@ class MarbleMadnessStarter {
   private readonly obstacleAirborneVerticalScale = 0.35;
   private readonly obstacleRisingVerticalScale = 0.5;
   private readonly obstaclePlayerUpwardVelocityCap = 3.8;
-  private readonly maxSteeringAngle = Math.PI / 4;
-  private readonly steeringTurnRate = 5.5;
-  private readonly steeringReturnRate = 4.5;
-  private readonly steeringImpulseScale = 0.26;
-  private readonly arrowDriveImpulseScale = 0.11;
   private readonly startMomentumRatio = 0.5;
   private readonly maxHorizontalSpeed = 46.8;
   private readonly speedRampSeconds = 18;
-  private readonly steeringArrowGap = 3.1;
-  private readonly steeringArrowLength = 4.1;
-  private readonly steeringArrowHeadLength = 1.05;
-  private readonly steeringArrowShaftWidth = 0.528;
-  private readonly steeringArrowHeadWidth = 1.18;
   private readonly speedMultiplier = 18;
   private readonly trackStep = 0.9;
   private readonly wallHeight = 2.38;
@@ -196,14 +202,30 @@ class MarbleMadnessStarter {
   private readonly rotatorArmLength = 3.2;
   private readonly rotatorArmThickness = 0.92;
   private readonly rotatorSpinSpeedBase = 7.2;
-  private readonly bouncerColumnHeight = 1.1;
-  private readonly bouncerCapRadius = 0.72;
-  private readonly bouncerImpulse = 8.8;
+  private readonly bouncerColumnHeight = 1.45;
+  private readonly bouncerCapRadius = 1.08;
+  private readonly bouncerImpulse = 13.5;
   private readonly bouncyPadLength = 5.6;
   private readonly bouncyPadWidth = 1.05;
   private readonly bouncyPadSweepAmplitude = 1.18;
   private readonly bouncyPadSweepSpeedBase = 3.4;
   private readonly bouncyPadLaunchImpulse = 10.5;
+  private readonly swingingHammerLength = 4.2;
+  private readonly swingingHammerPivotHeight = 5.2;
+  private readonly swingingHammerSweepAmplitude = 1.05;
+  private readonly swingingHammerSweepSpeedBase = 2.8;
+  private readonly swingingHammerKnockbackImpulse = 15;
+  private readonly fallingPlatformLength = 4.5;
+  private readonly fallingPlatformWidth = 5.5;
+  private readonly fallingPlatformFallDelay = 2.0;
+  private readonly fallingPlatformFallDuration = 1.5;
+  private readonly fallingPlatformFallDistance = 20;
+  private readonly fallingTileWidth = 2.8;
+  private readonly fallingTileDepth = 2.8;
+  private readonly fallingTileFallDelay = 0.8;
+  private readonly fallingTileFallDuration = 1.5;
+  private readonly fallingTileFallDistance = 20;
+  private readonly fallingTileShakeAmplitude = 0.08;
   private readonly platformUvScaleV = 0.035;
   private readonly endlessMode = true;
   private readonly trackSamples: TrackSample[] = [];
@@ -238,12 +260,18 @@ class MarbleMadnessStarter {
     "detour_right_short",
     "bottleneck",
     "jump",
+    "falling_tiles",
   ];
   private horizontalBlockers: HorizontalBlocker[] = [];
   private runObstacleOrder: ObstacleKind[] = [];
   private rotatorObstacles: RotatorXObstacle[] = [];
   private pinballBouncers: PinballBouncerObstacle[] = [];
   private bouncyPads: BouncyPadObstacle[] = [];
+  private swingingHammers: SwingingHammerObstacle[] = [];
+  private fallingPlatforms: FallingPlatformObstacle[] = [];
+  private fallingTiles: FallingTile[] = [];
+  private tileMeshById = new Map<string, THREE.Mesh>();
+  private tileBodyById = new Map<string, RAPIER.RigidBody>();
   private obstacleMeshById = new Map<string, THREE.Object3D>();
   private bouncyPadPaddleById = new Map<string, THREE.Object3D>();
   private bouncerCapById = new Map<string, THREE.Mesh>();
@@ -281,7 +309,9 @@ class MarbleMadnessStarter {
   private readonly debugThudTraceToggleButton: HTMLButtonElement | null;
   private readonly debugCubeLevelSpawnButton: HTMLButtonElement | null;
   private readonly hud: HTMLElement;
-  private readonly mobileControls: HTMLElement;
+  private readonly swipeOverlay: HTMLElement;
+  private readonly swipeHandle: HTMLElement;
+  private readonly swipePowerLabel: HTMLElement;
   private readonly settingsButton: HTMLElement;
   private readonly restartButton: HTMLElement;
   private readonly timeLabel: HTMLElement;
@@ -295,7 +325,6 @@ class MarbleMadnessStarter {
   private readonly cloudDebugPanel: HTMLDivElement;
   private readonly thudDebugPanel: HTMLPreElement;
   private marbleVisuals: MarbleVisualController;
-  private steeringAngle = 0;
   private debugFlyMode = false;
   private debugLookDragging = false;
   private debugMoveForward = false;
@@ -330,6 +359,8 @@ class MarbleMadnessStarter {
   private rotatorTouchingById = new Map<string, boolean>();
   private bouncyPadHitAtById = new Map<string, number>();
   private bouncyPadTouchingById = new Map<string, boolean>();
+  private hammerHitAtById = new Map<string, number>();
+  private hammerTouchingById = new Map<string, boolean>();
   private blockerHitAtByIndex = new Map<number, number>();
   private blockerTouchingByIndex = new Map<number, boolean>();
   private debugTrackWireframeEnabled = false;
@@ -342,8 +373,27 @@ class MarbleMadnessStarter {
   private thudTraceFlashTimer = 0;
   private trackWireframeObjects: THREE.LineSegments[] = [];
   private physicsWireframeObjects: THREE.LineSegments[] = [];
+  private activeSwipePointerId: number | null = null;
+  private swipeStartClient = new THREE.Vector2();
+  private swipeCurrentClient = new THREE.Vector2();
+  private swipePreviousClient = new THREE.Vector2();
+  private swipeStartTimeMs = 0;
+  private swipeLastMoveTimeMs = 0;
+  private swipeDirection = new THREE.Vector3();
+  private pendingSwipeImpulse = new THREE.Vector3();
+  private swipeStrength = 0;
+  private readonly swipeDeadZonePx = 12;
+  private readonly swipeMaxDistancePx = 210;
+  private readonly swipeIndicatorRadiusPx = 34;
+  private readonly swipeMaxDurationMs = 1000;
+  private readonly swipeVelocityForMaxPxPerSec = 2000;
+  private readonly swipePerMoveDistanceForMaxPx = 96;
+  private readonly swipeBurstMinImpulse = 2.0;
+  private readonly swipeBurstMaxImpulse = 16.0;
+  private readonly swipeBurstStrengthExponent = 0.95;
 
   private soundManager: SoundManager;
+  private lastSettingsToggleAtMs = 0;
 
   public constructor(canvas: HTMLCanvasElement) {
     this.soundManager = new SoundManager(() => this.settings);
@@ -353,7 +403,9 @@ class MarbleMadnessStarter {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color("#8fd3ff");
 
-    this.camera = new THREE.PerspectiveCamera(52, 1, 0.1, 1400);
+    // Wider FOV on mobile to see fireworks at track edges
+    const fov = this.isMobile ? 65 : 52;
+    this.camera = new THREE.PerspectiveCamera(fov, 1, 0.1, 1400);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -428,7 +480,9 @@ class MarbleMadnessStarter {
       "debug-cube-level-spawn",
     ) as HTMLButtonElement | null;
     this.hud = this.requireElement("hud");
-    this.mobileControls = this.requireElement("mobile-controls");
+    this.swipeOverlay = this.requireElement("mobile-controls");
+    this.swipeHandle = this.requireElement("swipe-handle");
+    this.swipePowerLabel = this.requireElement("swipe-power-label");
     this.settingsButton = this.requireElement("settings-btn");
     this.restartButton = this.requireElement("restart-btn");
     this.timeLabel = this.requireElement("time-label");
@@ -528,11 +582,6 @@ class MarbleMadnessStarter {
     this.marbleMesh.receiveShadow = true;
     this.scene.add(this.marbleMesh);
     this.marbleVisuals = new MarbleVisualController(this.scene, {
-      steeringArrowGap: this.steeringArrowGap,
-      steeringArrowLength: this.steeringArrowLength,
-      steeringArrowHeadLength: this.steeringArrowHeadLength,
-      steeringArrowShaftWidth: this.steeringArrowShaftWidth,
-      steeringArrowHeadWidth: this.steeringArrowHeadWidth,
       trailSpawnInterval: this.trailSpawnInterval,
       trailMaxPoints: this.trailMaxPoints,
     });
@@ -563,6 +612,8 @@ class MarbleMadnessStarter {
     this.setSettingsTab("audio");
     this.applySettingsUi();
     this.applyUiForState();
+    this.emitScoreConfig();
+    this.resetSwipeInput(true);
     this.handleResize();
     this.registerLifecycleHandlers();
 
@@ -587,18 +638,24 @@ class MarbleMadnessStarter {
 
   private registerLifecycleHandlers(): void {
     oasiz.onPause(() => {
+      this.resetSwipeInput(true);
+      this.soundManager.pause();
       this.stopLoop();
       console.log("[OnPause]", "Paused render loop");
     });
     oasiz.onResume(() => {
+      this.soundManager.resume();
       this.startLoop();
       console.log("[OnResume]", "Resumed render loop");
     });
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
+        this.resetSwipeInput(true);
+        this.soundManager.pause();
         this.stopLoop();
         console.log("[VisibilityChange]", "Document hidden, stopped render loop");
       } else {
+        this.soundManager.resume();
         this.startLoop();
         console.log("[VisibilityChange]", "Document visible, resumed render loop");
       }
@@ -1113,12 +1170,15 @@ class MarbleMadnessStarter {
     this.addLevelObject(sunLight);
 
     this.addPlatformRunMeshes();
+    this.addFallingTilesMeshes();
     this.addSpiralSupportColumns();
     this.addHorizontalBlockerMeshes();
     addWaveObstacleMeshesData({
       rotatorObstacles: this.rotatorObstacles,
       pinballBouncers: this.pinballBouncers,
       bouncyPads: this.bouncyPads,
+      swingingHammers: this.swingingHammers,
+      fallingPlatforms: this.fallingPlatforms,
       obstacleMeshById: this.obstacleMeshById,
       bouncyPadPaddleById: this.bouncyPadPaddleById,
       bouncerCapById: this.bouncerCapById,
@@ -1487,11 +1547,13 @@ class MarbleMadnessStarter {
       return;
     }
     for (const blocker of this.horizontalBlockers) {
+      const geometry = this.createHorizontalBlockerRootGeometry(blocker);
       const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(blocker.length, blocker.height, blocker.depth),
+        geometry,
         this.trackMaterial,
       );
       mesh.position.set(blocker.x, blocker.y, blocker.z);
+      mesh.rotation.y = Math.PI;
       mesh.rotation.x = -blocker.tilt;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -1500,11 +1562,49 @@ class MarbleMadnessStarter {
     console.log("[AddHorizontalBlockerMeshes]", "Added blocker meshes");
   }
 
+  private createHorizontalBlockerRootGeometry(
+    blocker: HorizontalBlocker,
+  ): THREE.BufferGeometry {
+    const rootExtension = this.trackThickness * 0.9;
+    const rampHeight = blocker.height + rootExtension;
+    const rampDepth = blocker.depth * 0.92;
+    const halfLength = blocker.length * 0.5;
+    const halfDepth = blocker.depth * 0.5;
+    const halfHeight = blocker.height * 0.5;
+    const bottomY = -halfHeight - rootExtension;
+    const curveSamples = 10;
+    const shape = new THREE.Shape();
+    shape.moveTo(-halfDepth, bottomY);
+    shape.lineTo(halfDepth - rampDepth, bottomY);
+    for (let index = 1; index <= curveSamples; index += 1) {
+      const t = index / curveSamples;
+      const z = THREE.MathUtils.lerp(halfDepth, halfDepth - rampDepth, t);
+      const y = bottomY + rampHeight * (1 - Math.pow(1 - t, 2.2));
+      shape.lineTo(z, y);
+    }
+    shape.lineTo(-halfDepth, halfHeight);
+    shape.closePath();
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: blocker.length,
+      bevelEnabled: false,
+      steps: 1,
+      curveSegments: 10,
+    });
+    geometry.rotateY(Math.PI * 0.5);
+    geometry.translate(-halfLength, 0, 0);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   private getFloorRuns(): TrackSample[][] {
     const runs: TrackSample[][] = [];
     let current: TrackSample[] = [];
     for (const sample of this.trackSamples) {
-      if (sample.hasFloor) {
+      const section = this.levelConfig.sections[sample.sectionIndex];
+      const isFallingTilesSection = section?.type === "falling_tiles";
+
+      if (sample.hasFloor && !isFallingTilesSection) {
         current.push(sample);
       } else if (current.length > 1) {
         runs.push(current);
@@ -1826,6 +1926,88 @@ class MarbleMadnessStarter {
     );
   }
 
+  private addFallingTilesMeshes(): void {
+    this.fallingTiles = [];
+    this.tileMeshById.clear();
+
+    const fallingSections = this.levelConfig.sections.filter(
+      (section) => section.type === "falling_tiles",
+    );
+
+    if (fallingSections.length === 0) {
+      return;
+    }
+
+    const tileMaterial = new THREE.MeshPhysicalMaterial({
+      color: "#6b4e3d",
+      roughness: 0.72,
+      metalness: 0.15,
+      clearcoat: 0.1,
+      clearcoatRoughness: 0.5,
+      emissive: "#1a0f08",
+      emissiveIntensity: 0.12,
+    });
+
+    for (const section of fallingSections) {
+      const sectionLength = Math.abs(section.zStart - section.zEnd);
+      const tilesAlongZ = Math.ceil(sectionLength / this.fallingTileDepth);
+      const tilesAcrossX = Math.floor(section.width / this.fallingTileWidth);
+
+      for (let zIndex = 0; zIndex < tilesAlongZ; zIndex += 1) {
+        const tileZ =
+          section.zStart - (zIndex + 0.5) * (sectionLength / tilesAlongZ);
+
+        const trackX = this.sampleTrackX(tileZ);
+
+        const surfaceY = this.getTrackSurfaceYAtPosition(trackX, tileZ);
+
+        const startOffsetX = -(tilesAcrossX * this.fallingTileWidth) * 0.5;
+
+        for (let xIndex = 0; xIndex < tilesAcrossX; xIndex += 1) {
+          const tileX =
+            trackX + startOffsetX + (xIndex + 0.5) * this.fallingTileWidth;
+
+          const tileId = `tile_${this.obstacleIdCounter++}`;
+
+          const tile: FallingTile = {
+            id: tileId,
+            x: tileX,
+            y: surfaceY,
+            z: tileZ,
+            width: this.fallingTileWidth,
+            depth: this.fallingTileDepth,
+            state: "stable",
+            playerStandingStartTime: 0,
+            fallStartTime: 0,
+            currentYOffset: 0,
+            sectionIndex: this.levelConfig.sections.indexOf(section),
+          };
+
+          this.fallingTiles.push(tile);
+
+          const geometry = new THREE.BoxGeometry(
+            this.fallingTileWidth * 0.95,
+            this.trackThickness,
+            this.fallingTileDepth * 0.95,
+          );
+
+          const mesh = new THREE.Mesh(geometry, tileMaterial);
+          mesh.position.set(tileX, surfaceY - this.trackThickness * 0.5, tileZ);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+
+          this.tileMeshById.set(tileId, mesh);
+          this.addLevelObject(mesh);
+        }
+      }
+    }
+
+    console.log(
+      "[AddFallingTilesMeshes]",
+      `Created ${this.fallingTiles.length} falling tiles`,
+    );
+  }
+
   private addSpiralSupportColumns(): void {
     const spiralSections = this.levelConfig.sections.filter((section) =>
       this.isSpiralType(section.type),
@@ -2036,11 +2218,135 @@ class MarbleMadnessStarter {
       rotatorObstacles: this.rotatorObstacles,
       pinballBouncers: this.pinballBouncers,
       bouncyPads: this.bouncyPads,
+      swingingHammers: this.swingingHammers,
+      fallingPlatforms: this.fallingPlatforms,
       buildPhysicsRuns: () => this.getFloorRuns(),
       getHalfPipeHeightAtOffset: (xOffsetAbs, width) =>
         this.getHalfPipeHeightAtOffset(xOffsetAbs, width),
     });
+    this.createFallingTilesPhysics();
     console.log("[CreateTrackPhysics]", "Track colliders created");
+  }
+
+  private createFallingTilesPhysics(): void {
+    if (!this.world) {
+      return;
+    }
+
+    this.tileBodyById.clear();
+
+    for (const tile of this.fallingTiles) {
+      const bodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(
+        tile.x,
+        tile.y - this.trackThickness * 0.5,
+        tile.z,
+      );
+      const body = this.world.createRigidBody(bodyDesc);
+
+      const halfWidth = tile.width * 0.5;
+      const halfHeight = this.trackThickness * 0.5;
+      const halfDepth = tile.depth * 0.5;
+      const colliderDesc = RAPIER.ColliderDesc.cuboid(
+        halfWidth,
+        halfHeight,
+        halfDepth,
+      );
+      this.world.createCollider(colliderDesc, body);
+
+      this.tileBodyById.set(tile.id, body);
+    }
+
+    console.log(
+      "[CreateFallingTilesPhysics]",
+      `Created ${this.fallingTiles.length} tile physics bodies`,
+    );
+  }
+
+  private updateFallingTiles(): void {
+    if (!this.marbleBody || !this.world) {
+      return;
+    }
+
+    const marblePos = this.marbleBody.translation();
+    const marbleVel = this.marbleBody.linvel();
+
+    for (const tile of this.fallingTiles) {
+      const mesh = this.tileMeshById.get(tile.id);
+      const body = this.tileBodyById.get(tile.id);
+
+      if (tile.state === "stable") {
+        const dx = Math.abs(marblePos.x - tile.x);
+        const dz = Math.abs(marblePos.z - tile.z);
+        const dy = marblePos.y - tile.y;
+
+        // Check if marble is horizontally within tile bounds
+        const withinTileBounds = dx < tile.width * 0.5 && dz < tile.depth * 0.5;
+
+        // Check if marble is close enough vertically (sitting on or near tile surface)
+        // When sitting on tile, marble center is ~1 radius above surface
+        const closeToTile = dy > 0 && dy < this.marbleRadius * 2.5;
+
+        // Not falling fast
+        const notFallingFast = marbleVel.y > -3;
+
+        if (withinTileBounds && closeToTile && notFallingFast) {
+          tile.state = "warning";
+          tile.playerStandingStartTime = this.runTimeSeconds;
+          console.log("[FallingTile] Triggered:", tile.id, "dy:", dy.toFixed(2));
+        }
+      } else if (tile.state === "warning") {
+        const elapsed = this.runTimeSeconds - tile.playerStandingStartTime;
+        const warningProgress = elapsed / this.fallingTileFallDelay;
+
+        if (warningProgress >= 1) {
+          tile.state = "falling";
+          tile.fallStartTime = this.runTimeSeconds;
+          if (mesh) {
+            mesh.position.y = tile.y - this.trackThickness * 0.5;
+          }
+        } else {
+          const shakeOffset =
+            Math.sin(this.runTimeSeconds * 28) * this.fallingTileShakeAmplitude;
+          if (mesh) {
+            mesh.position.y = tile.y - this.trackThickness * 0.5 + shakeOffset;
+          }
+
+          const flickerIntensity = 0.12 + warningProgress * 0.18;
+          const material = mesh?.material;
+          if (material && "emissiveIntensity" in material) {
+            material.emissiveIntensity = flickerIntensity;
+          }
+        }
+      } else if (tile.state === "falling") {
+        const elapsed = this.runTimeSeconds - tile.fallStartTime;
+        const fallT = Math.min(1, elapsed / this.fallingTileFallDuration);
+
+        const easeT = fallT * fallT * (3 - 2 * fallT);
+        tile.currentYOffset = -easeT * this.fallingTileFallDistance;
+
+        if (mesh) {
+          mesh.position.y =
+            tile.y - this.trackThickness * 0.5 + tile.currentYOffset;
+        }
+
+        if (fallT >= 1) {
+          tile.state = "fallen";
+
+          if (body && this.world) {
+            try {
+              this.world.removeRigidBody(body);
+            } catch (e) {
+              console.error("[FallingTile] Error removing body:", e);
+            }
+            this.tileBodyById.delete(tile.id);
+          }
+
+          if (mesh) {
+            mesh.visible = false;
+          }
+        }
+      }
+    }
   }
 
   private createMarblePhysics(): void {
@@ -2058,7 +2364,7 @@ class MarbleMadnessStarter {
   }
 
   private initializeDesignerUi(): void {
-    if (this.isMobile || !this.designerList) {
+    if (!this.designerList) {
       return;
     }
 
@@ -2128,7 +2434,7 @@ class MarbleMadnessStarter {
   }
 
   private initializeDesignerRepeatUi(): void {
-    if (this.isMobile || !this.designerRepeatSelect) {
+    if (!this.designerRepeatSelect) {
       return;
     }
     while (this.designerRepeatSelect.firstChild) {
@@ -2156,7 +2462,7 @@ class MarbleMadnessStarter {
   }
 
   private initializeObstacleFocusUi(): void {
-    if (this.isMobile || !this.obstacleFocusSelect) {
+    if (!this.obstacleFocusSelect) {
       return;
     }
     this.obstacleFocusSelect.value = this.designerObstacleFocus;
@@ -2166,7 +2472,9 @@ class MarbleMadnessStarter {
         value === "horizontal_blocker" ||
         value === "rotator_x" ||
         value === "pinball_bouncer" ||
-        value === "bouncy_pad"
+        value === "bouncy_pad" ||
+        value === "swinging_hammer" ||
+        value === "falling_platform"
       ) {
         this.designerObstacleFocus = value;
       }
@@ -2391,6 +2699,8 @@ class MarbleMadnessStarter {
     this.rotatorTouchingById.clear();
     this.bouncyPadHitAtById.clear();
     this.bouncyPadTouchingById.clear();
+    this.hammerHitAtById.clear();
+    this.hammerTouchingById.clear();
     const activeKinds = this.getActiveObstacleKinds();
     const includeBlockers = activeKinds.includes("horizontal_blocker");
     const isSingleTypeFocus = (this.forcedRunObstacleOrder?.length ?? 0) === 1;
@@ -2410,6 +2720,8 @@ class MarbleMadnessStarter {
       this.rotatorObstacles = [];
       this.pinballBouncers = [];
       this.bouncyPads = [];
+      this.swingingHammers = [];
+      this.fallingPlatforms = [];
       return;
     }
 
@@ -2441,6 +2753,16 @@ class MarbleMadnessStarter {
       bouncyPadSweepAmplitude: this.bouncyPadSweepAmplitude,
       bouncyPadSweepSpeedBase: this.bouncyPadSweepSpeedBase,
       bouncyPadLaunchImpulse: this.bouncyPadLaunchImpulse,
+      swingingHammerLength: this.swingingHammerLength,
+      swingingHammerPivotHeight: this.swingingHammerPivotHeight,
+      swingingHammerSweepAmplitude: this.swingingHammerSweepAmplitude,
+      swingingHammerSweepSpeedBase: this.swingingHammerSweepSpeedBase,
+      swingingHammerKnockbackImpulse: this.swingingHammerKnockbackImpulse,
+      fallingPlatformLength: this.fallingPlatformLength,
+      fallingPlatformWidth: this.fallingPlatformWidth,
+      fallingPlatformFallDelay: this.fallingPlatformFallDelay,
+      fallingPlatformFallDuration: this.fallingPlatformFallDuration,
+      fallingPlatformFallDistance: this.fallingPlatformFallDistance,
       marbleRadius: this.marbleRadius,
       horizontalBlockers: this.horizontalBlockers,
       hasFloorAtArcLength: (s) => this.hasFloorAtArcLength(s),
@@ -2456,6 +2778,8 @@ class MarbleMadnessStarter {
     this.rotatorObstacles = rebuiltObstacles.rotatorObstacles;
     this.pinballBouncers = rebuiltObstacles.pinballBouncers;
     this.bouncyPads = rebuiltObstacles.bouncyPads;
+    this.swingingHammers = rebuiltObstacles.swingingHammers;
+    this.fallingPlatforms = rebuiltObstacles.fallingPlatforms;
   }
 
   private updateDesignerRepeatMeta(): void {
@@ -2468,9 +2792,9 @@ class MarbleMadnessStarter {
 
   private setSettingsTab(tab: SettingsTab): void {
     this.activeSettingsTab = tab;
-    const showDesigner = tab === "designer" && !this.isMobile;
-    const showRepeat = tab === "repeat" && !this.isMobile;
-    const showObstacles = tab === "obstacles" && !this.isMobile;
+    const showDesigner = tab === "designer";
+    const showRepeat = tab === "repeat";
+    const showObstacles = tab === "obstacles";
     const showDebug = tab === "debug" && !this.isMobile;
     const showAudio = !showDesigner && !showRepeat && !showObstacles && !showDebug;
     this.settingsPaneAudio.classList.toggle("hidden", !showAudio);
@@ -2504,9 +2828,6 @@ class MarbleMadnessStarter {
   }
 
   private spawnDesignedLevel(): void {
-    if (this.isMobile) {
-      return;
-    }
     const designed = this.readDesignerMiddleTypes();
     if (designed.length === 0) {
       return;
@@ -2525,15 +2846,14 @@ class MarbleMadnessStarter {
   }
 
   private spawnObstacleFocusLevel(): void {
-    if (this.isMobile) {
-      return;
-    }
     const selected = this.obstacleFocusSelect?.value ?? this.designerObstacleFocus;
     if (
       selected === "horizontal_blocker" ||
       selected === "rotator_x" ||
       selected === "pinball_bouncer" ||
-      selected === "bouncy_pad"
+      selected === "bouncy_pad" ||
+      selected === "swinging_hammer" ||
+      selected === "falling_platform"
     ) {
       this.designerObstacleFocus = selected;
     }
@@ -2552,9 +2872,6 @@ class MarbleMadnessStarter {
   }
 
   private spawnRepeatedDesignedLevel(): void {
-    if (this.isMobile) {
-      return;
-    }
     const selected = this.designerRepeatSelect?.value ?? this.designerRepeatType;
     if (this.isDesignerSelectableType(selected)) {
       this.designerRepeatType = selected;
@@ -2578,9 +2895,6 @@ class MarbleMadnessStarter {
   }
 
   private spawnDebugCubeLevel(): void {
-    if (this.isMobile) {
-      return;
-    }
     const middleTypes: PlatformType[] = [
       "flat",
       "slope_down_steep",
@@ -2760,25 +3074,12 @@ class MarbleMadnessStarter {
         this.setDebugMovementKey(key, true);
         return;
       }
-      if (event.key === "ArrowLeft" || key === "a") {
-        this.inputLeft = true;
-      }
-      if (event.key === "ArrowRight" || key === "d") {
-        this.inputRight = true;
-      }
     });
 
     window.addEventListener("keyup", (event) => {
       const key = event.key.toLowerCase();
       if (this.debugFlyMode) {
         this.setDebugMovementKey(key, false);
-        return;
-      }
-      if (event.key === "ArrowLeft" || key === "a") {
-        this.inputLeft = false;
-      }
-      if (event.key === "ArrowRight" || key === "d") {
-        this.inputRight = false;
       }
     });
 
@@ -2789,44 +3090,86 @@ class MarbleMadnessStarter {
     });
 
     this.canvas.addEventListener("pointerdown", (event) => {
-      if (!this.debugFlyMode || event.button !== 2) {
+      if (this.debugFlyMode && event.button === 2) {
+        this.debugLookDragging = true;
+        this.debugLastMouseX = event.clientX;
+        this.debugLastMouseY = event.clientY;
+        this.canvas.setPointerCapture(event.pointerId);
+        event.preventDefault();
         return;
       }
-      this.debugLookDragging = true;
-      this.debugLastMouseX = event.clientX;
-      this.debugLastMouseY = event.clientY;
+
+      if (this.debugFlyMode || this.gameState !== "playing") {
+        return;
+      }
+      if (event.button !== 0) {
+        return;
+      }
+
+      this.activeSwipePointerId = event.pointerId;
+      this.swipeStartClient.set(event.clientX, event.clientY);
+      this.swipeCurrentClient.copy(this.swipeStartClient);
+      this.swipePreviousClient.copy(this.swipeStartClient);
+      this.swipeStartTimeMs = performance.now();
+      this.swipeLastMoveTimeMs = this.swipeStartTimeMs;
+      this.pendingSwipeImpulse.set(0, 0, 0);
+      this.updateSwipeDirectionFromPointer();
       this.canvas.setPointerCapture(event.pointerId);
       event.preventDefault();
     });
 
     this.canvas.addEventListener("pointermove", (event) => {
-      if (!this.debugFlyMode || !this.debugLookDragging) {
+      if (this.debugFlyMode && this.debugLookDragging) {
+        const deltaX = event.clientX - this.debugLastMouseX;
+        const deltaY = event.clientY - this.debugLastMouseY;
+        this.debugLastMouseX = event.clientX;
+        this.debugLastMouseY = event.clientY;
+        const lookSensitivity = 0.0032;
+        this.debugYaw += deltaX * lookSensitivity;
+        this.debugPitch = THREE.MathUtils.clamp(
+          this.debugPitch - deltaY * lookSensitivity,
+          -Math.PI * 0.48,
+          Math.PI * 0.48,
+        );
         return;
       }
-      const deltaX = event.clientX - this.debugLastMouseX;
-      const deltaY = event.clientY - this.debugLastMouseY;
-      this.debugLastMouseX = event.clientX;
-      this.debugLastMouseY = event.clientY;
-      const lookSensitivity = 0.0032;
-      this.debugYaw += deltaX * lookSensitivity;
-      this.debugPitch = THREE.MathUtils.clamp(
-        this.debugPitch - deltaY * lookSensitivity,
-        -Math.PI * 0.48,
-        Math.PI * 0.48,
-      );
+      if (this.activeSwipePointerId !== event.pointerId) {
+        return;
+      }
+      const nowMs = performance.now();
+      if (nowMs - this.swipeStartTimeMs >= this.swipeMaxDurationMs) {
+        this.resetSwipeInput();
+        if (this.canvas.hasPointerCapture(event.pointerId)) {
+          this.canvas.releasePointerCapture(event.pointerId);
+        }
+        return;
+      }
+      this.swipeCurrentClient.set(event.clientX, event.clientY);
+      this.queueSwipeImpulseFromMove(nowMs);
+      this.updateSwipeDirectionFromPointer();
+      event.preventDefault();
     });
 
     this.canvas.addEventListener("pointerup", (event) => {
       if (event.button === 2) {
         this.debugLookDragging = false;
       }
+      if (this.activeSwipePointerId === event.pointerId) {
+        this.resetSwipeInput();
+      }
+      if (this.canvas.hasPointerCapture(event.pointerId)) {
+        this.canvas.releasePointerCapture(event.pointerId);
+      }
     });
-    this.canvas.addEventListener("pointercancel", () => {
+    this.canvas.addEventListener("pointercancel", (event) => {
       this.debugLookDragging = false;
+      if (this.activeSwipePointerId === event.pointerId) {
+        this.resetSwipeInput();
+      }
+      if (this.canvas.hasPointerCapture(event.pointerId)) {
+        this.canvas.releasePointerCapture(event.pointerId);
+      }
     });
-
-    this.bindHoldControl("left-btn", true);
-    this.bindHoldControl("right-btn", false);
   }
 
   private setDebugMovementKey(key: string, pressed: boolean): void {
@@ -2862,10 +3205,9 @@ class MarbleMadnessStarter {
       return;
     }
 
+    this.resetSwipeInput(true);
     this.debugFlyMode = !this.debugFlyMode;
     this.debugLookDragging = false;
-    this.inputLeft = false;
-    this.inputRight = false;
 
     if (this.debugFlyMode) {
       this.debugFlyPosition.copy(this.camera.position);
@@ -2883,6 +3225,7 @@ class MarbleMadnessStarter {
 
     this.clearDebugMovementKeys();
     this.cameraAnchorsInitialized = false;
+    this.cameraFinishZoomActive = false;
     this.updateCamera(1);
     this.updateDebugPlatformLabelVisibility();
     console.log("[ToggleDebugFlyMode]", "Disabled debug fly camera");
@@ -2984,33 +3327,165 @@ class MarbleMadnessStarter {
     this.focusDebugHelixView(this.agentDebugCameraMode);
   }
 
-  private bindHoldControl(id: string, isLeft: boolean): void {
-    const button = document.getElementById(id);
-    if (!(button instanceof HTMLButtonElement)) {
+  private updateSwipeDirectionFromPointer(): void {
+    const deltaX = this.swipeCurrentClient.x - this.swipeStartClient.x;
+    const deltaY = this.swipeCurrentClient.y - this.swipeStartClient.y;
+    const dragDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const effectiveDistance = Math.max(0, dragDistance - this.swipeDeadZonePx);
+    const strength = THREE.MathUtils.clamp(
+      effectiveDistance /
+        Math.max(1, this.swipeMaxDistancePx - this.swipeDeadZonePx),
+      0,
+      1,
+    );
+    this.swipeStrength = strength;
+    if (strength <= 0.0001) {
+      this.swipeDirection.set(0, 0, 0);
+    }
+    this.updateSwipeOverlayVisual(deltaX, deltaY, strength);
+  }
+
+  private queueSwipeImpulseFromMove(nowMs: number): void {
+    if (!this.marbleBody) {
+      return;
+    }
+    const deltaX = this.swipeCurrentClient.x - this.swipePreviousClient.x;
+    const deltaY = this.swipeCurrentClient.y - this.swipePreviousClient.y;
+    this.swipePreviousClient.copy(this.swipeCurrentClient);
+    const dtMs = Math.max(1, nowMs - this.swipeLastMoveTimeMs);
+    this.swipeLastMoveTimeMs = nowMs;
+    const deltaDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    if (deltaDistance <= this.swipeDeadZonePx) {
       return;
     }
 
-    const onDown = (): void => {
-      if (isLeft) {
-        this.inputLeft = true;
-      } else {
-        this.inputRight = true;
-      }
-      this.triggerLightHaptic();
-    };
+    const velocityPxPerSec = (deltaDistance * 1000) / dtMs;
+    const velocityStrength = THREE.MathUtils.clamp(
+      velocityPxPerSec / this.swipeVelocityForMaxPxPerSec,
+      0,
+      1,
+    );
+    const distanceStrength = THREE.MathUtils.clamp(
+      deltaDistance / this.swipePerMoveDistanceForMaxPx,
+      0,
+      1,
+    );
+    const strokeStrength = THREE.MathUtils.clamp(
+      velocityStrength * 0.72 + distanceStrength * 0.44,
+      0,
+      1,
+    );
+    if (strokeStrength <= 0.0001) {
+      return;
+    }
 
-    const onUp = (): void => {
-      if (isLeft) {
-        this.inputLeft = false;
-      } else {
-        this.inputRight = false;
-      }
-    };
+    const position = this.marbleBody.translation();
+    const forward = this
+      .getTrackForwardDirectionAtPosition(position.x, position.z)
+      .setY(0);
+    if (forward.lengthSq() < 0.0001) {
+      forward.set(0, 0, -1);
+    } else {
+      forward.normalize();
+    }
+    const right = new THREE.Vector3()
+      .crossVectors(forward, new THREE.Vector3(0, 1, 0))
+      .normalize();
+    const normalizedDragX = deltaX / Math.max(0.0001, deltaDistance);
+    const normalizedDragY = deltaY / Math.max(0.0001, deltaDistance);
+    this.swipeDirection
+      .copy(right)
+      .multiplyScalar(normalizedDragX)
+      .add(forward.multiplyScalar(-normalizedDragY));
+    if (this.swipeDirection.lengthSq() < 0.0001) {
+      return;
+    }
+    this.swipeDirection.normalize();
 
-    button.addEventListener("pointerdown", onDown);
-    button.addEventListener("pointerup", onUp);
-    button.addEventListener("pointercancel", onUp);
-    button.addEventListener("pointerleave", onUp);
+    const curvedStrength = Math.pow(
+      strokeStrength,
+      this.swipeBurstStrengthExponent,
+    );
+    const impulseMagnitude = THREE.MathUtils.lerp(
+      this.swipeBurstMinImpulse,
+      this.swipeBurstMaxImpulse,
+      curvedStrength,
+    );
+    this.pendingSwipeImpulse.addScaledVector(
+      this.swipeDirection,
+      impulseMagnitude,
+    );
+  }
+
+  private updateSwipeOverlayVisual(
+    deltaX: number,
+    deltaY: number,
+    strength: number,
+  ): void {
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    if (distance < 0.0001 || strength <= 0.0001) {
+      this.swipeHandle.style.transform = "translate(0px, 0px)";
+      this.swipeOverlay.classList.remove("swipe-active");
+      this.swipePowerLabel.textContent = "Swipe Power 0%";
+      return;
+    }
+    const normX = deltaX / distance;
+    const normY = deltaY / distance;
+    const handleDistance = this.swipeIndicatorRadiusPx * strength;
+    const handleX = normX * handleDistance;
+    const handleY = normY * handleDistance;
+    this.swipeHandle.style.transform =
+      "translate(" +
+      handleX.toFixed(1) +
+      "px, " +
+      handleY.toFixed(1) +
+      "px)";
+    this.swipeOverlay.classList.add("swipe-active");
+    this.swipePowerLabel.textContent =
+      "Swipe Power " + String(Math.round(strength * 100)) + "%";
+  }
+
+  private resetSwipeInput(silent: boolean = false): void {
+    this.activeSwipePointerId = null;
+    this.swipeStartClient.set(0, 0);
+    this.swipeCurrentClient.set(0, 0);
+    this.swipePreviousClient.set(0, 0);
+    this.swipeStartTimeMs = 0;
+    this.swipeLastMoveTimeMs = 0;
+    this.swipeDirection.set(0, 0, 0);
+    this.pendingSwipeImpulse.set(0, 0, 0);
+    this.swipeStrength = 0;
+    this.updateSwipeOverlayVisual(0, 0, 0);
+    if (!silent) {
+      console.log("[ResetSwipeInput]", "Swipe state cleared");
+    }
+  }
+
+  private applySwipeImpulse(): void {
+    if (this.gameState !== "playing" || !this.marbleBody) {
+      return;
+    }
+    if (
+      this.activeSwipePointerId !== null &&
+      performance.now() - this.swipeStartTimeMs >= this.swipeMaxDurationMs
+    ) {
+      this.resetSwipeInput();
+      return;
+    }
+    if (this.pendingSwipeImpulse.lengthSq() <= 0.000001) {
+      return;
+    }
+    const impulseX = this.pendingSwipeImpulse.x;
+    const impulseZ = this.pendingSwipeImpulse.z;
+    this.pendingSwipeImpulse.set(0, 0, 0);
+    this.marbleBody.applyImpulse(
+      {
+        x: impulseX,
+        y: 0,
+        z: impulseZ,
+      },
+      true,
+    );
   }
 
   private bindSettingToggle(buttonId: string, key: keyof Settings): void {
@@ -3019,7 +3494,7 @@ class MarbleMadnessStarter {
       return;
     }
 
-    button.addEventListener("click", () => {
+    button.addEventListener("click", this.createSettingsToggleHandler((event) => {
       this.settings[key] = !this.settings[key];
       this.saveSettings();
       this.applySettingsUi();
@@ -3032,7 +3507,22 @@ class MarbleMadnessStarter {
         "[BindSettingToggle]",
         "Updated setting " + key + "=" + String(this.settings[key]),
       );
-    });
+    }));
+  }
+
+  private createSettingsToggleHandler(
+    callback: (event: Event) => void,
+  ): (event: Event) => void {
+    return (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const now = Date.now();
+      if (now - this.lastSettingsToggleAtMs < 300) {
+        return;
+      }
+      this.lastSettingsToggleAtMs = now;
+      callback(event);
+    };
   }
 
   private loadSettings(): Settings {
@@ -3053,7 +3543,14 @@ class MarbleMadnessStarter {
   }
 
   private saveSettings(): void {
-    localStorage.setItem("gameSettings", JSON.stringify(this.settings));
+    try {
+      localStorage.setItem("gameSettings", JSON.stringify(this.settings));
+    } catch (error) {
+      console.log(
+        "[SaveSettings]",
+        "Unable to persist settings: " + String(error),
+      );
+    }
   }
 
   private applySettingsUi(): void {
@@ -3101,6 +3598,7 @@ class MarbleMadnessStarter {
     this.setupSceneVisuals();
     this.createTrackPhysics();
     this.cameraAnchorsInitialized = false;
+    this.cameraFinishZoomActive = false;
     for (const row of this.fireworkRows) {
       row.triggered = false;
     }
@@ -3109,6 +3607,7 @@ class MarbleMadnessStarter {
     }
     this.particles = [];
     this.marbleVisuals.resetTrail();
+    this.resetSwipeInput(true);
     this.setSettingsVisible(false);
     this.resetMarble();
     this.updateHud();
@@ -3121,10 +3620,12 @@ class MarbleMadnessStarter {
   }
 
   private startRun(): void {
+    this.resetSwipeInput(true);
     this.gameState = "playing";
     this.runTimeSeconds = 0;
     this.finishedTimeSeconds = 0;
     this.loopsCompleted = 0;
+    this.cameraFinishZoomActive = false;
     this.lastObstacleThudRunTime = -999;
     this.rotatorHitAtById.clear();
     this.rotatorTouchingById.clear();
@@ -3169,6 +3670,7 @@ class MarbleMadnessStarter {
     this.setupSceneVisuals();
     this.createTrackPhysics();
     this.cameraAnchorsInitialized = false;
+    this.cameraFinishZoomActive = false;
     for (const row of this.fireworkRows) {
       row.triggered = false;
     }
@@ -3257,6 +3759,8 @@ class MarbleMadnessStarter {
       bouncerCapById: this.bouncerCapById,
       bouncerPulseById: this.bouncerPulseById,
     });
+    this.tileMeshById.clear();
+    this.fallingTiles = [];
   }
 
   private clearTrackPhysics(): void {
@@ -3266,6 +3770,17 @@ class MarbleMadnessStarter {
       this.obstacleBodyById,
       this.bouncyPadJointById,
     );
+
+    if (this.world) {
+      for (const body of this.tileBodyById.values()) {
+        try {
+          this.world.removeRigidBody(body);
+        } catch (e) {
+          console.error("[ClearTrackPhysics] Error removing tile body:", e);
+        }
+      }
+    }
+    this.tileBodyById.clear();
   }
 
   private advanceToNextRandomLevel(): void {
@@ -3291,6 +3806,8 @@ class MarbleMadnessStarter {
     this.setupSceneVisuals();
     this.createTrackPhysics();
     this.cameraAnchorsInitialized = false;
+    this.cameraFinishZoomActive = false;
+    this.resetSwipeInput(true);
     this.resetMarble();
     this.updateLevelProgressUi();
 
@@ -3306,6 +3823,7 @@ class MarbleMadnessStarter {
     }
 
     this.gameState = "gameOver";
+    this.resetSwipeInput(true);
     this.finishedTimeSeconds = this.runTimeSeconds;
 
     if (finished) {
@@ -3348,16 +3866,35 @@ class MarbleMadnessStarter {
     console.log("[SubmitFinalScore]", "Submitted score=" + String(safeScore));
   }
 
+  private emitScoreConfig(): void {
+    const sdkBridge = oasiz as typeof oasiz & {
+      emitScoreConfig?: (config: {
+        anchors: Array<{ raw: number; normalized: number }>;
+      }) => void;
+    };
+    if (typeof sdkBridge.emitScoreConfig !== "function") {
+      console.log("[EmitScoreConfig]", "emitScoreConfig unavailable");
+      return;
+    }
+    sdkBridge.emitScoreConfig({
+      anchors: [
+        { raw: 500, normalized: 120 },
+        { raw: 2000, normalized: 360 },
+        { raw: 4000, normalized: 680 },
+        { raw: 6000, normalized: 950 },
+      ],
+    });
+    console.log("[EmitScoreConfig]", "Published score anchors");
+  }
+
   private setSettingsVisible(visible: boolean): void {
     this.settingsModal.classList.toggle("hidden", !visible);
     this.syncGameplayActivity();
     if (visible) {
-      this.setSettingsTab(this.isMobile ? "audio" : this.activeSettingsTab);
-      if (!this.isMobile) {
-        this.designedMiddleTypes = this.readDesignerMiddleTypes();
-        this.updateDesignerMeta();
-        this.updateDesignerRepeatMeta();
-      }
+      this.setSettingsTab(this.activeSettingsTab);
+      this.designedMiddleTypes = this.readDesignerMiddleTypes();
+      this.updateDesignerMeta();
+      this.updateDesignerRepeatMeta();
     }
   }
 
@@ -3405,16 +3942,16 @@ class MarbleMadnessStarter {
     this.hud.classList.toggle("hidden", !isPlaying);
     this.settingsButton.classList.toggle("hidden", !isPlaying);
     this.restartButton.classList.toggle("hidden", !isPlaying);
-    this.mobileControls.classList.toggle(
-      "hidden",
-      !isPlaying || !this.isMobile,
-    );
+    this.swipeOverlay.classList.toggle("hidden", !isPlaying);
     this.gameOverScreen.classList.toggle("hidden", !isGameOver);
     this.settingsModal.classList.add("hidden");
     this.updatePhysicsDebugPanelVisibility();
     this.updateCloudCountOverlay();
     this.updateThudTraceOverlay();
     this.updateDebugPlatformLabelVisibility();
+    if (!isPlaying) {
+      this.resetSwipeInput(true);
+    }
     this.syncGameplayActivity();
   }
 
@@ -3451,19 +3988,14 @@ class MarbleMadnessStarter {
       (s) => this.getTrackSurfaceYAtArcLength(s),
       spawnS,
     );
-    const startForward = this
-      .getTrackForwardDirectionAtArcLength(spawnS)
-      .normalize();
-    const startSpeed = this.maxHorizontalSpeed * this.startMomentumRatio;
     this.marbleBody.setLinvel(
       {
-        x: startForward.x * startSpeed,
+        x: 0,
         y: 0,
-        z: startForward.z * startSpeed,
+        z: 0,
       },
       true,
     );
-    this.steeringAngle = 0;
 
     const bodyPosition = this.marbleBody.translation();
     this.marbleMesh.position.set(bodyPosition.x, bodyPosition.y, bodyPosition.z);
@@ -3544,10 +4076,14 @@ class MarbleMadnessStarter {
             rotatorObstacles: this.rotatorObstacles,
             bouncyPads: this.bouncyPads,
             pinballBouncers: this.pinballBouncers,
+            swingingHammers: this.swingingHammers,
+            fallingPlatforms: this.fallingPlatforms,
             rotatorHitAtById: this.rotatorHitAtById,
             rotatorTouchingById: this.rotatorTouchingById,
             bouncyPadHitAtById: this.bouncyPadHitAtById,
             bouncyPadTouchingById: this.bouncyPadTouchingById,
+            hammerHitAtById: this.hammerHitAtById,
+            hammerTouchingById: this.hammerTouchingById,
             horizontalBlockers: this.horizontalBlockers,
             blockerHitAtByIndex: this.blockerHitAtByIndex,
             blockerTouchingByIndex: this.blockerTouchingByIndex,
@@ -3564,13 +4100,19 @@ class MarbleMadnessStarter {
             onPinballBouncerHit: () => {
               this.soundManager.playBouncerBoing();
             },
+            onSwingingHammerHit: (impact) => {
+              this.playObstacleThud(impact, "swinging_hammer");
+            },
           });
           updateWaveObstacleAnimationData({
+            world: this.world,
             fixedStep: this.fixedStep,
             runTimeSeconds: this.runTimeSeconds,
             rotatorObstacles: this.rotatorObstacles,
             pinballBouncers: this.pinballBouncers,
             bouncyPads: this.bouncyPads,
+            swingingHammers: this.swingingHammers,
+            fallingPlatforms: this.fallingPlatforms,
             obstacleMeshById: this.obstacleMeshById,
             bouncyPadPaddleById: this.bouncyPadPaddleById,
             bouncerCapById: this.bouncerCapById,
@@ -3578,6 +4120,7 @@ class MarbleMadnessStarter {
             obstacleBodyById: this.obstacleBodyById,
             bouncyPadJointById: this.bouncyPadJointById,
           });
+          this.updateFallingTiles();
         }
         this.accumulator -= this.fixedStep;
       }
@@ -3631,9 +4174,6 @@ class MarbleMadnessStarter {
         gameState: this.gameState,
         marbleBody: this.marbleBody,
         marbleMesh: this.marbleMesh,
-        steeringAngle: this.steeringAngle,
-        getTrackForwardDirectionAtPosition: (x, z) =>
-          this.getTrackForwardDirectionAtPosition(x, z),
       },
       delta,
     );
@@ -3648,6 +4188,7 @@ class MarbleMadnessStarter {
   }
 
   private stepPhysics(stepSeconds: number): void {
+    this.applySwipeImpulse();
     stepPhysicsTick(this as unknown as PhysicsHost, stepSeconds);
     this.updateFireworkTriggers();
   }
@@ -3707,14 +4248,53 @@ class MarbleMadnessStarter {
     const targetPosition = this.marbleMesh.position;
     const nearest = this.getNearestTrackSample(targetPosition.x, targetPosition.z);
     const forward = this.getTrackForwardDirectionAtArcLength(nearest.s);
-    const followTarget = targetPosition
-      .clone()
-      .add(new THREE.Vector3(0, 24, 0))
-      .add(forward.clone().multiplyScalar(-32.4));
-    const lookTarget = targetPosition
-      .clone()
-      .add(new THREE.Vector3(0, 0.9, 0))
-      .add(forward.clone().multiplyScalar(20.4));
+
+    // Calculate marble speed for dynamic camera
+    const velocity = this.marbleBody?.linvel();
+    const speed = velocity
+      ? Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z)
+      : 0;
+
+    // Detect when approaching finish line and activate finish zoom
+    const distanceToFinish = targetPosition.z - this.finishZ;
+    if (distanceToFinish < 30 && this.gameState === "playing") {
+      this.cameraFinishZoomActive = true;
+    }
+
+    let followTarget: THREE.Vector3;
+    let lookTarget: THREE.Vector3;
+
+    if (this.cameraFinishZoomActive) {
+      // Finish zoom: pull back and up 2x to show the fireworks
+      const fireworkCenterX = this.sampleTrackX(this.fireworkTriggerZ);
+      const fireworkSurfaceY = this.getTrackSurfaceY(this.fireworkTriggerZ);
+
+      followTarget = new THREE.Vector3(
+        fireworkCenterX,
+        fireworkSurfaceY + 24.0, // 2x higher up
+        this.fireworkTriggerZ + 50.0 // 2x further back
+      );
+
+      lookTarget = new THREE.Vector3(
+        fireworkCenterX,
+        fireworkSurfaceY + 3.0, // Look at firework spawn height
+        this.fireworkTriggerZ
+      );
+    } else {
+      // Normal speed-based camera
+      const baseDistance = 7.95 * (this.isMobile ? 1.15 : 1.0);
+      const speedFactor = THREE.MathUtils.clamp(speed / 20, 0, 1);
+      const cameraDistance = baseDistance * (2 - speedFactor); // Lerp from 2x to 1x
+
+      followTarget = targetPosition
+        .clone()
+        .add(new THREE.Vector3(0, 6.3, 0))
+        .add(forward.clone().multiplyScalar(-cameraDistance));
+      lookTarget = targetPosition
+        .clone()
+        .add(new THREE.Vector3(0, 0.2, 0))
+        .add(forward.clone().multiplyScalar(4.8));
+    }
 
     if (!this.cameraAnchorsInitialized) {
       this.cameraFollowAnchor.copy(followTarget);
@@ -3722,8 +4302,11 @@ class MarbleMadnessStarter {
       this.cameraAnchorsInitialized = true;
     }
 
-    // Delayed camera anchors smooth small physics jitters.
-    const followSmooth = Math.min(1, delta * 2.2);
+    // Slower follow during finish zoom for cinematic effect
+    const baseFollowSpeed = this.cameraFinishZoomActive ? 0.8 : 1.0;
+    const speedFactor = THREE.MathUtils.clamp(speed / 20, 0, 1);
+    const followSpeed = baseFollowSpeed + speedFactor * 2.0;
+    const followSmooth = Math.min(1, delta * followSpeed);
     const lookSmooth = Math.min(1, delta * 2.6);
     this.cameraFollowAnchor.lerp(followTarget, followSmooth);
     this.cameraLookAnchor.lerp(lookTarget, lookSmooth);
@@ -3813,73 +4396,7 @@ class MarbleMadnessStarter {
     this.physicsDebugPanel.innerHTML =
       "<span style=\"" +
       title +
-      "\">Drive Formula</span>\n" +
-      "<span style=\"" +
-      label +
-      "\"> steerImpulse = </span><span style=\"" +
-      value +
-      "\">nudgeImpulse * speedMultiplier * steeringImpulseScale * controlScale * toneDown</span>\n" +
-      "<span style=\"" +
-      label +
-      "\"> driveImpulse = </span><span style=\"" +
-      value +
-      "\">nudgeImpulse * speedMultiplier * arrowDriveImpulseScale * controlScale * toneDown</span>\n\n" +
-      "<span style=\"" +
-      label +
-      "\">inputAxis=</span><span style=\"" +
-      value +
-      "\">" +
-      debug.inputAxis.toFixed(2) +
-      "</span> " +
-      "<span style=\"" +
-      label +
-      "\">steeringAngle=</span><span style=\"" +
-      value +
-      "\">" +
-      THREE.MathUtils.radToDeg(debug.steeringAngle).toFixed(2) +
-      "deg</span>\n" +
-      "<span style=\"" +
-      label +
-      "\">targetAngle=</span><span style=\"" +
-      value +
-      "\">" +
-      THREE.MathUtils.radToDeg(debug.targetSteeringAngle).toFixed(2) +
-      "deg</span> " +
-      "<span style=\"" +
-      label +
-      "\">steeringLerp=</span><span style=\"" +
-      value +
-      "\">" +
-      debug.steeringLerp.toFixed(3) +
-      "</span>\n" +
-      "<span style=\"" +
-      label +
-      "\">airborne=</span><span style=\"" +
-      value +
-      "\">" +
-      (debug.airborne ? "true" : "false") +
-      "</span> " +
-      "<span style=\"" +
-      label +
-      "\">controlScale=</span><span style=\"" +
-      value +
-      "\">" +
-      debug.controlScale.toFixed(3) +
-      "</span>\n" +
-      "<span style=\"" +
-      label +
-      "\">steerImpulse=</span><span style=\"" +
-      value +
-      "\">" +
-      debug.steerImpulse.toFixed(4) +
-      "</span> " +
-      "<span style=\"" +
-      label +
-      "\">driveImpulse=</span><span style=\"" +
-      value +
-      "\">" +
-      debug.driveImpulse.toFixed(4) +
-      "</span>\n" +
+      "\">Rapier Marble Metrics</span>\n" +
       "<span style=\"" +
       label +
       "\">hSpeed=</span><span style=\"" +
@@ -3887,14 +4404,6 @@ class MarbleMadnessStarter {
       "\">" +
       debug.horizontalSpeed.toFixed(3) +
       "</span> " +
-      "<span style=\"" +
-      label +
-      "\">hCap=</span><span style=\"" +
-      value +
-      "\">" +
-      debug.horizontalSpeedCap.toFixed(3) +
-      "</span> " +
-      "\n" +
       "<span style=\"" +
       label +
       "\">maxHSpeed=</span><span style=\"" +

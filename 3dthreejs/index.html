@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Egg Hunt Clone</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section id="game-shell">
+        <canvas id="game-canvas" aria-label="Egg Hunt game canvas"></canvas>
+        <button id="settings-btn" type="button" aria-label="Open settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M19.4 13.5a7.6 7.6 0 0 0 .05-1.5l1.73-1.35a.6.6 0 0 0 .14-.77l-1.64-2.84a.6.6 0 0 0-.73-.26l-2.03.82a7.14 7.14 0 0 0-1.28-.75l-.3-2.16a.6.6 0 0 0-.6-.52h-3.28a.6.6 0 0 0-.6.52l-.3 2.16c-.45.18-.88.43-1.28.75l-2.03-.82a.6.6 0 0 0-.73.26L2.68 9.88a.6.6 0 0 0 .14.77L4.55 12a7.59 7.59 0 0 0 0 1.5l-1.73 1.35a.6.6 0 0 0-.14.77l1.64 2.84a.6.6 0 0 0 .73.26l2.03-.82c.4.32.83.57 1.28.75l.3 2.16a.6.6 0 0 0 .6.52h3.28a.6.6 0 0 0 .6-.52l.3-2.16c.45-.18.88-.43 1.28-.75l2.03.82a.6.6 0 0 0 .73-.26l1.64-2.84a.6.6 0 0 0-.14-.77L19.4 13.5Zm-7.4 1.8a3.3 3.3 0 1 1 0-6.6 3.3 3.3 0 0 1 0 6.6Z"
+            />
+          </svg>
+        </button>
+        <div id="hud">ORBS 00</div>
+        <p id="tutorial">Dash right before the rocks open.</p>
+        <div id="dash-flash" aria-hidden="true"></div>
+        <dialog id="settings-modal" aria-labelledby="settings-title">
+          <div id="settings-card">
+            <div id="settings-head">
+              <h2 id="settings-title">SETTINGS</h2>
+              <button id="settings-close" type="button">Close</button>
+            </div>
+            <div id="settings-body">
+              <div class="setting-row">
+                <span class="setting-label">Music</span>
+                <button id="toggle-music" class="setting-toggle" type="button" aria-pressed="true">
+                  ON
+                </button>
+              </div>
+              <div class="setting-row">
+                <span class="setting-label">FX</span>
+                <button id="toggle-fx" class="setting-toggle" type="button" aria-pressed="true">
+                  ON
+                </button>
+              </div>
+              <div class="setting-row">
+                <span class="setting-label">Haptics</span>
+                <button
+                  id="toggle-haptics"
+                  class="setting-toggle"
+                  type="button"
+                  aria-pressed="true"
+                >
+                  ON
+                </button>
+              </div>
+            </div>
+          </div>
+        </dialog>
+        <div id="menu" class="visible">
+          <div id="menu-card">
+            <p id="menu-kicker">SPRING RUNNER</p>
+            <h1 id="menu-title">ORB HUNT</h1>
+            <p id="menu-text">
+              Click or press Space to dash. Hit the opening and collect the orb.
+            </p>
+            <button id="start-btn" type="button">PLAY</button>
+          </div>
+        </div>
+        <div id="cloud-veil" aria-hidden="true"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

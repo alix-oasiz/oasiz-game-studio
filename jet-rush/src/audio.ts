@@ -1,32 +1,40 @@
-import crashSfx from "./sfx/crash.mp3";
-import uiSfx from "./sfx/ui.mp3";
-import collectSfx from "./sfx/collect.mp3";
-import stealthOnSfx from "./sfx/stealth_on.mp3";
-import stealthLoopSfx from "./sfx/stealth_loop.mp3";
-import milestone1Sfx from "./sfx/milestone1.mp3";
-import milestone2Sfx from "./sfx/milestone2.mp3";
+type SoundName =
+  | "crash"
+  | "ui"
+  | "nav"
+  | "collect"
+  | "stealth_on"
+  | "stealth_loop"
+  | "milestone1"
+  | "milestone2";
 
-const sfxUrls: Record<string, string> = {
-  crash: crashSfx,
-  ui: uiSfx,
-  collect: collectSfx,
-  stealth_on: stealthOnSfx,
-  stealth_loop: stealthLoopSfx,
-  milestone1: milestone1Sfx,
-  milestone2: milestone2Sfx,
+// Audio lives under Vite's public directory so missing files do not break builds.
+// If a file is absent, loading fails gracefully and the game keeps running.
+const sfxUrls: Record<SoundName, string> = {
+  crash: "./sfx/crash.mp3",
+  ui: "./sfx/ui.mp3",
+  nav: "./sfx/nav.mp3",
+  collect: "./sfx/collect.mp3",
+  stealth_on: "./sfx/stealth_on.mp3",
+  stealth_loop: "./sfx/stealth_loop.mp3",
+  milestone1: "./sfx/milestone1.mp3",
+  milestone2: "./sfx/milestone2.mp3",
 };
 
 export class AudioManager {
   private ctx: AudioContext | null = null;
-  private buffers: Record<string, AudioBuffer> = {};
+  private buffers: Partial<Record<SoundName, AudioBuffer>> = {};
 
   constructor() {
     const initCtx = () => {
       if (this.ctx) return;
       try {
-        this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.ctx = new (
+          window.AudioContext || (window as any).webkitAudioContext
+        )();
         this.loadBuffer("crash");
         this.loadBuffer("ui");
+        this.loadBuffer("nav");
         this.loadBuffer("collect");
         this.loadBuffer("stealth_on");
         this.loadBuffer("stealth_loop");
@@ -58,19 +66,25 @@ export class AudioManager {
     document.addEventListener("keydown", unlock, { once: true });
   }
 
-  private async loadBuffer(name: string) {
+  private async loadBuffer(name: SoundName) {
     try {
       const resp = await fetch(sfxUrls[name]);
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
       const arrayBuffer = await resp.arrayBuffer();
       if (this.ctx) {
         this.buffers[name] = await this.ctx.decodeAudioData(arrayBuffer);
       }
     } catch (e) {
-      console.warn("Failed to load audio:", name);
+      console.warn("[AudioManager]", "Failed to load audio:", name, e);
     }
   }
 
-  private playSound(name: string, volume: number = 0.5): AudioBufferSourceNode | null {
+  private playSound(
+    name: SoundName,
+    volume: number = 0.5,
+  ): AudioBufferSourceNode | null {
     if (!this.ctx) return null;
     if (this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
@@ -92,35 +106,41 @@ export class AudioManager {
   }
 
   crash(): void {
-    this.playSound("crash", 0.6);
+    this.playSound("crash", 1.0);
   }
 
   ui(): void {
-    this.playSound("ui", 0.4);
+    this.playSound("ui", 0.75);
+  }
+
+  nav(): void {
+    this.playSound("nav", 1.0);
   }
 
   collect(): void {
-    this.playSound("collect", 0.5);
+    this.playSound("collect", 0.9);
   }
 
   stealthOn(): void {
-    this.playSound("stealth_on", 0.7);
+    this.playSound("stealth_on", 1.0);
   }
 
   private milestoneIdx = 0;
   milestone(): void {
     const name = this.milestoneIdx % 2 === 0 ? "milestone1" : "milestone2";
     this.milestoneIdx++;
-    this.playSound(name, 0.7);
+    this.playSound(name, 1.0);
   }
 
   private stealthLoopSource: AudioBufferSourceNode | null = null;
 
   stealthLoopStart(): void {
     if (this.stealthLoopSource) {
-      try { this.stealthLoopSource.stop(); } catch (_) {}
+      try {
+        this.stealthLoopSource.stop();
+      } catch (_) {}
     }
-    this.stealthLoopSource = this.playSound("stealth_loop", 0.6);
+    this.stealthLoopSource = this.playSound("stealth_loop", 1.0);
     if (this.stealthLoopSource) {
       this.stealthLoopSource.loop = true;
     }
@@ -128,7 +148,9 @@ export class AudioManager {
 
   stealthLoopStop(): void {
     if (this.stealthLoopSource) {
-      try { this.stealthLoopSource.stop(); } catch (_) {}
+      try {
+        this.stealthLoopSource.stop();
+      } catch (_) {}
       this.stealthLoopSource = null;
     }
   }
@@ -136,15 +158,15 @@ export class AudioManager {
   /* ── Background music (dual-track crossfade) ── */
 
   private static readonly BGM_URLS = [
-    "sfx/Orbiting The Unknown.mp3",
-    "sfx/Orbiting The Unknown 2.mp3",
+    "./music/Orbiting The Unknown.mp3",
+    "./music/Orbiting The Unknown 2.mp3",
   ];
   private audioA: HTMLAudioElement | null = null;
   private audioB: HTMLAudioElement | null = null;
   private activeAudio: "A" | "B" = "A";
   private crossfadeTimer: number | null = null;
   private isMusicEnabled = false;
-  private readonly MAX_VOL = 0.35;
+  private readonly MAX_VOL = 0.22;
   private readonly CROSSFADE_TIME = 3.0;
 
   musicOn(): void {
@@ -164,10 +186,16 @@ export class AudioManager {
     }
   }
 
-  private setupTimeUpdate(audio: HTMLAudioElement, nextAudioKey: "A" | "B"): void {
+  private setupTimeUpdate(
+    audio: HTMLAudioElement,
+    nextAudioKey: "A" | "B",
+  ): void {
     audio.addEventListener("timeupdate", () => {
       if (!this.isMusicEnabled) return;
-      if (audio.duration && audio.currentTime >= audio.duration - this.CROSSFADE_TIME) {
+      if (
+        audio.duration &&
+        audio.currentTime >= audio.duration - this.CROSSFADE_TIME
+      ) {
         if (!this.crossfadeTimer) {
           this.startCrossfade(audio, nextAudioKey);
         }
@@ -175,7 +203,10 @@ export class AudioManager {
     });
   }
 
-  private startCrossfade(fadingOutAudio: HTMLAudioElement, nextAudioKey: "A" | "B"): void {
+  private startCrossfade(
+    fadingOutAudio: HTMLAudioElement,
+    nextAudioKey: "A" | "B",
+  ): void {
     const nextAudio = nextAudioKey === "A" ? this.audioA : this.audioB;
     if (!nextAudio) return;
 

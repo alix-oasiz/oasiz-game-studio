@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Pac-Man</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        /* HUD Overlay */
+        #hud {
+            position: fixed;
+            left: 0;
+            width: 100%;
+            padding: 12px 20px;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            z-index: 5;
+            /* Positioned dynamically by JS on mobile */
+        }
+
+        .hud-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .hud-label {
+            font-size: 0.6rem;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+
+        .hud-value {
+            font-size: 1rem;
+            color: #fff;
+        }
+
+        .hud-center {
+            text-align: center;
+        }
+
+        .high-score-label {
+            color: #f00;
+        }
+
+        /* Lives Display */
+        #livesDisplay {
+            position: fixed;
+            bottom: 10px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .life-icon {
+            width: 20px;
+            height: 20px;
+            background: #ffff00;
+            border-radius: 50%;
+            clip-path: polygon(100% 50%, 50% 50%, 50% 0%, 100% 0%, 100% 50%, 50% 50%, 50% 100%, 100% 100%);
+        }
+
+        /* Level Display */
+        #levelDisplay {
+            position: fixed;
+            bottom: 10px;
+            right: 20px;
+            z-index: 5;
+            pointer-events: none;
+            font-size: 0.6rem;
+            color: #fff;
+        }
+
+        /* Overlays */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 10;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .content {
+            text-align: center;
+            padding: 40px;
+            max-width: 90%;
+        }
+
+        /* Logo */
+        .game-logo {
+            margin-bottom: 30px;
+        }
+
+        .logo-pacman {
+            display: inline-block;
+            width: 120px;
+            height: 120px;
+            background: #ffff00;
+            border-radius: 50%;
+            position: relative;
+            animation: pacmanChomp 0.4s ease-in-out infinite;
+        }
+
+        @keyframes pacmanChomp {
+            0%, 100% { 
+                clip-path: polygon(100% 50%, 50% 50%, 75% 15%, 100% 0%, 100% 50%, 50% 50%, 75% 85%, 100% 100%);
+            }
+            50% { 
+                clip-path: polygon(100% 50%, 50% 50%, 50% 0%, 100% 0%, 100% 50%, 50% 50%, 50% 100%, 100% 100%);
+            }
+        }
+
+        .ghost-row {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 25px;
+        }
+
+        .mini-ghost {
+            width: 45px;
+            height: 50px;
+            border-radius: 50% 50% 0 0;
+            position: relative;
+            animation: ghostFloat 1s ease-in-out infinite;
+        }
+
+        .mini-ghost::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 100%;
+            height: 14px;
+            background: inherit;
+            clip-path: polygon(0% 0%, 20% 100%, 40% 0%, 60% 100%, 80% 0%, 100% 100%, 100% 0%);
+        }
+
+        .mini-ghost.red { background: #ff0000; }
+        .mini-ghost.pink { background: #ffb8ff; animation-delay: 0.1s; }
+        .mini-ghost.cyan { background: #00ffff; animation-delay: 0.2s; }
+        .mini-ghost.orange { background: #ffb852; animation-delay: 0.3s; }
+
+        @keyframes ghostFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            margin: 30px 0;
+            color: #ffff00;
+            text-shadow: 4px 4px 0 #ff0000;
+            letter-spacing: 4px;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #00ffff;
+            margin-bottom: 50px;
+            line-height: 2;
+        }
+
+        /* Buttons */
+        .btn {
+            background: transparent;
+            color: #ffff00;
+            border: 4px solid #ffff00;
+            padding: 20px 60px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 3px;
+        }
+
+        .btn:hover {
+            background: #ffff00;
+            color: #000;
+            transform: scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* How to Play */
+        .how-to-play {
+            margin-top: 50px;
+            padding: 30px 40px;
+            border: 3px solid #2121de;
+            background: rgba(33, 33, 222, 0.1);
+        }
+
+        .how-to-play h3 {
+            font-size: 0.9rem;
+            color: #00ffff;
+            margin-bottom: 20px;
+        }
+
+        .instructions {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            flex-wrap: wrap;
+        }
+
+        .instruction {
+            font-size: 0.75rem;
+            color: #fff;
+            text-align: center;
+        }
+
+        .instruction-icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        /* Game Over Screen */
+        .game-over-title {
+            font-size: 3rem;
+            color: #ff0000;
+            margin-bottom: 40px;
+            text-shadow: 3px 3px 0 #fff;
+            animation: gameOverPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes gameOverPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .final-score-container {
+            margin: 40px 0;
+            padding: 30px 60px;
+            border: 4px solid #ffff00;
+            background: rgba(255, 255, 0, 0.1);
+        }
+
+        .final-score-label {
+            font-size: 0.9rem;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+
+        .final-score {
+            font-size: 3.5rem;
+            color: #ffff00;
+        }
+
+        .new-high-score {
+            font-size: 0.7rem;
+            color: #ff0000;
+            margin-top: 15px;
+            opacity: 0;
+            animation: none;
+        }
+
+        .new-high-score.show {
+            opacity: 1;
+            animation: highScoreBlink 0.5s ease-in-out infinite;
+        }
+
+        @keyframes highScoreBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px 20px;
+            border: 2px solid #2121de;
+            min-width: 100px;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            color: #00ffff;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 0.4rem;
+            color: #fff;
+        }
+
+        /* Pause Overlay */
+        #pauseOverlay {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .pause-text {
+            font-size: 2rem;
+            color: #ffff00;
+            animation: pauseBlink 1s ease-in-out infinite;
+        }
+
+        @keyframes pauseBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Ready Text */
+        #readyText {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            color: #ffff00;
+            z-index: 15;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #readyText.show {
+            opacity: 1;
+        }
+
+        /* Mobile D-Pad - hidden by default on desktop */
+        #dpad {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 150px;
+            z-index: 20;
+            display: none;
+            pointer-events: auto;
+            /* Bottom position set dynamically by JS */
+        }
+        
+        #dpad.hidden {
+            display: none !important;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            touch-action: manipulation;
+            pointer-events: auto;
+        }
+
+        .dpad-btn:hover {
+            background: rgba(255, 255, 0, 0.2);
+            border-color: rgba(255, 255, 0, 0.6);
+        }
+
+        .dpad-btn:active {
+            background: rgba(255, 255, 0, 0.4);
+            border-color: #ffff00;
+        }
+
+        .dpad-up { top: 0; left: 50%; transform: translateX(-50%); }
+        .dpad-down { bottom: 0; left: 50%; transform: translateX(-50%); }
+        .dpad-left { left: 0; top: 50%; transform: translateY(-50%); }
+        .dpad-right { right: 0; top: 50%; transform: translateY(-50%); }
+
+        /* Mobile Adjustments */
+        @media (pointer: coarse) {
+            #dpad:not(.hidden) {
+                display: block;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+                text-shadow: 2px 2px 0 #ff0000;
+                letter-spacing: 2px;
+                margin: 15px 0;
+            }
+            
+            .subtitle {
+                font-size: 0.6rem;
+                margin-bottom: 25px;
+            }
+            
+            .logo-pacman {
+                width: 60px;
+                height: 60px;
+            }
+            
+            .ghost-row {
+                gap: 12px;
+                margin-top: 15px;
+            }
+            
+            .mini-ghost {
+                width: 25px;
+                height: 28px;
+            }
+            
+            .mini-ghost::after {
+                bottom: -5px;
+                height: 8px;
+            }
+            
+            .content {
+                padding: 25px;
+            }
+            
+            .btn {
+                padding: 12px 30px;
+                font-size: 0.8rem;
+                border-width: 3px;
+            }
+            
+            .how-to-play {
+                margin-top: 25px;
+                padding: 15px 20px;
+            }
+            
+            .how-to-play h3 {
+                font-size: 0.55rem;
+                margin-bottom: 12px;
+            }
+            
+            .instructions {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .instruction {
+                font-size: 0.5rem;
+            }
+            
+            .instruction-icon {
+                font-size: 1.2rem;
+                margin-bottom: 6px;
+            }
+            
+            .hud-label {
+                font-size: 0.5rem;
+            }
+            
+            .hud-value {
+                font-size: 0.8rem;
+            }
+            
+            .life-icon {
+                width: 16px;
+                height: 16px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .how-to-play {
+                display: none;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 1.2rem;
+                margin: 10px 0;
+            }
+            
+            .logo-pacman {
+                width: 50px;
+                height: 50px;
+            }
+
+            .ghost-row {
+                margin-top: 10px;
+            }
+
+            .mini-ghost {
+                width: 20px;
+                height: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- HUD -->
+    <div id="hud" style="display: none;">
+        <div class="hud-section">
+            <div class="hud-label">1UP</div>
+            <div class="hud-value" id="score">00</div>
+        </div>
+        <div class="hud-section hud-center">
+            <div class="hud-label high-score-label">HIGH SCORE</div>
+            <div class="hud-value" id="highScore">00</div>
+        </div>
+        <div class="hud-section" style="text-align: right;">
+            <div class="hud-label">LEVEL</div>
+            <div class="hud-value" id="level">1</div>
+        </div>
+    </div>
+
+    <!-- Lives Display -->
+    <div id="livesDisplay"></div>
+
+    <!-- Level Display -->
+    <div id="levelDisplay"></div>
+
+    <!-- Ready Text -->
+    <div id="readyText">READY!</div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="overlay">
+        <div class="content">
+            <div class="game-logo">
+                <div class="logo-pacman"></div>
+                <div class="ghost-row">
+                    <div class="mini-ghost red"></div>
+                    <div class="mini-ghost pink"></div>
+                    <div class="mini-ghost cyan"></div>
+                    <div class="mini-ghost orange"></div>
+                </div>
+            </div>
+            <h1>PAC-MAN</h1>
+            <p class="subtitle">EAT ALL THE DOTS<br>AVOID THE GHOSTS</p>
+            <button class="btn" id="startButton">START</button>
+            <div class="how-to-play">
+                <h3>HOW TO PLAY</h3>
+                <div class="instructions">
+                    <div class="instruction">
+                        <span class="instruction-icon">⬆⬇⬅➡</span>
+                        <span>ARROW KEYS / WASD</span>
+                    </div>
+                    <div class="instruction">
+                        <span class="instruction-icon">👻</span>
+                        <span>EAT POWER PELLETS TO CHASE GHOSTS</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="overlay hidden">
+        <div class="content">
+            <h2 class="game-over-title">GAME OVER</h2>
+            <div class="final-score-container">
+                <div class="final-score-label">FINAL SCORE</div>
+                <div class="final-score" id="finalScore">0</div>
+                <div class="new-high-score" id="newHighScore">NEW HIGH SCORE!</div>
+            </div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-value" id="dotsEaten">0</div>
+                    <div class="stat-label">DOTS EATEN</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="ghostsEaten">0</div>
+                    <div class="stat-label">GHOSTS EATEN</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="maxLevel">1</div>
+                    <div class="stat-label">MAX LEVEL</div>
+                </div>
+            </div>
+            <button class="btn" id="restartButton">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Pause Overlay -->
+    <div id="pauseOverlay" class="overlay hidden">
+        <div class="content">
+            <div class="pause-text">PAUSED</div>
+            <p class="subtitle" style="margin-top: 20px;">PRESS ESC OR P TO RESUME</p>
+        </div>
+    </div>
+
+    <!-- Mobile D-Pad -->
+    <div id="dpad">
+        <button class="dpad-btn dpad-up" data-dir="up">▲</button>
+        <button class="dpad-btn dpad-down" data-dir="down">▼</button>
+        <button class="dpad-btn dpad-left" data-dir="left">◀</button>
+        <button class="dpad-btn dpad-right" data-dir="right">▶</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

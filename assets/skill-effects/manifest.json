@@ -1,0 +1,1451 @@
+{
+  "_meta": {
+    "description": "Sprite manifest for all skill/VFX effect assets. Use this file to quickly find effect spritesheets by type, color, and size.",
+    "basePath": "assets/skill-effects",
+    "format": "Each effect has individual PNG frame sequences in PNG/ and packed spritesheets (spritesheet.png + spritesheet.txt) in spritesheet/",
+    "namingConvention": "{id}_{size}_{color}"
+  },
+  "packs": [
+    {
+      "name": "Super Pixel Effects Pack 1",
+      "path": "Super Pixel Effects Pack 1",
+      "sprites": [
+        {
+          "id": "fx1_aura_energy",
+          "description": "Circular energy burst aura with glowing core, good for power-ups or shields",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_aura_energy_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_aura_energy_{size}_{color}/"
+        },
+        {
+          "id": "fx1_dash",
+          "description": "Motion trail whoosh effect for dash or teleport movement",
+          "colors": ["brown", "gray", "white"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_dash_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_dash_{size}_{color}/"
+        },
+        {
+          "id": "fx1_electric_zap",
+          "description": "Lightning zap burst with crackling electric sparks",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_electric_zap_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_electric_zap_{size}_{color}/"
+        },
+        {
+          "id": "fx1_energy_shield",
+          "description": "Protective energy shield barrier bubble effect",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_energy_shield_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_energy_shield_{size}_{color}/"
+        },
+        {
+          "id": "fx1_explosion",
+          "description": "Classic cloud explosion burst with fiery core",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_explosion_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_explosion_{size}_{color}/"
+        },
+        {
+          "id": "fx1_impact_dust",
+          "description": "Dust cloud puff on ground impact or landing",
+          "colors": ["brown", "gray", "white"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_impact_dust_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_impact_dust_{size}_{color}/"
+        },
+        {
+          "id": "fx1_impact_hit",
+          "description": "Sharp impact strike effect for melee hits and collisions",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_impact_hit_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_impact_hit_{size}_{color}/"
+        },
+        {
+          "id": "fx1_magic_puff",
+          "description": "Magic puff burst with radiating spikes, good for spell casting",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_magic_puff_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_magic_puff_{size}_{color}/"
+        },
+        {
+          "id": "fx1_splash",
+          "description": "Liquid splash effect with droplets, good for water or potions",
+          "colors": ["dark_blue", "green", "light_blue", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_splash_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_splash_{size}_{color}/"
+        },
+        {
+          "id": "fx1_splatter",
+          "description": "Liquid splatter effect for blood, paint, or poison impacts",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 1/PNG/fx1_splatter_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 1/spritesheet/fx1_splatter_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Effects Pack 2",
+      "path": "Super Pixel Effects Pack 2",
+      "note": "fx2_bubble has sub-states: _appear, _loop, _pop for each color variant",
+      "sprites": [
+        {
+          "id": "fx2_bubble",
+          "description": "Animated bubble effect with appear, loop, and pop phases",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 9,
+          "subStates": ["appear", "loop", "pop"],
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_bubble_{size}_{color}_{subState}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_bubble_{size}_{color}_{subState}/"
+        },
+        {
+          "id": "fx2_claw",
+          "description": "Triple claw swipe attack slash marks",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_claw_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_claw_{size}_{color}/"
+        },
+        {
+          "id": "fx2_electric_burst",
+          "description": "Electric energy burst with lightning tendrils",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_electric_burst_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_electric_burst_{size}_{color}/"
+        },
+        {
+          "id": "fx2_explosion",
+          "description": "Stylized explosion with purple smoke and orange claw tendrils",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_explosion_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_explosion_{size}_{color}/"
+        },
+        {
+          "id": "fx2_fire_burst",
+          "description": "Bright fire burst with white-blue core and red-orange flames",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_fire_burst_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_fire_burst_{size}_{color}/"
+        },
+        {
+          "id": "fx2_ice_burst",
+          "description": "Ice crystal burst with frozen shard fragments",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_ice_burst_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_ice_burst_{size}_{color}/"
+        },
+        {
+          "id": "fx2_impact_shock",
+          "description": "Circular shockwave ring impact with radiating lines",
+          "colors": ["black", "blue", "brown", "gray", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_impact_shock_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_impact_shock_{size}_{color}/"
+        },
+        {
+          "id": "fx2_magic_swirl",
+          "description": "Magical energy swirl vortex, good for spell charging",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_magic_swirl_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_magic_swirl_{size}_{color}/"
+        },
+        {
+          "id": "fx2_slash",
+          "description": "Curved energy slash trail for sword or melee attacks",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_slash_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_slash_{size}_{color}/"
+        },
+        {
+          "id": "fx2_splatter",
+          "description": "Liquid splatter burst variant with chunky droplets",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Effects Pack 2/PNG/fx2_splatter_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 2/spritesheet/fx2_splatter_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Effects Pack 3",
+      "path": "Super Pixel Effects Pack 3",
+      "sprites": [
+        {
+          "id": "fx3_bite",
+          "description": "Chomping bite attack with snapping jaws",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 17,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_bite_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_bite_{size}_{color}/"
+        },
+        {
+          "id": "fx3_dust_trail",
+          "description": "Dust trail for running or ground movement",
+          "colors": ["dark_brown", "gray", "light_brown", "white"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_dust_trail_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_dust_trail_{size}_{color}/"
+        },
+        {
+          "id": "fx3_impact_hit",
+          "description": "Sharp hit impact burst for combat feedback",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_impact_hit_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_impact_hit_{size}_{color}/"
+        },
+        {
+          "id": "fx3_lightning_aura",
+          "description": "Lightning aura surrounding effect for charged states",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_lightning_aura_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_lightning_aura_{size}_{color}/"
+        },
+        {
+          "id": "fx3_magic_spawn",
+          "description": "Magical spawn or summon portal effect",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_magic_spawn_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_magic_spawn_{size}_{color}/"
+        },
+        {
+          "id": "fx3_smoke_bomb",
+          "description": "Smoke bomb explosion cloud for stealth or area denial",
+          "colors": ["black", "blue", "brown", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_smoke_bomb_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_smoke_bomb_{size}_{color}/"
+        },
+        {
+          "id": "fx3_splatter",
+          "description": "Splatter impact variant for liquid or blood effects",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_splatter_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_splatter_{size}_{color}/"
+        },
+        {
+          "id": "fx3_toon_explosion",
+          "description": "Cartoon-style bright explosion burst with glowing crescent",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_toon_explosion_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_toon_explosion_{size}_{color}/"
+        },
+        {
+          "id": "fx3_toon_impact",
+          "description": "Cartoon-style impact hit with comic-book energy lines",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_toon_impact_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_toon_impact_{size}_{color}/"
+        },
+        {
+          "id": "fx3_warp",
+          "description": "Warp portal effect with ring and radiating energy patterns",
+          "colors": ["blue", "green", "orange", "pink", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Effects Pack 3/PNG/fx3_warp_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Effects Pack 3/spritesheet/fx3_warp_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Effects Gigapack",
+      "path": "Super Pixel Effects Gigapack",
+      "note": "Organized by category subfolders. PNG path: PNG/{category}/{id}/{id}_{size}_{color}/. Spritesheet path: spritesheet/{category}/{id}/{id}_{size}_{color}/",
+      "categories": [
+        {
+          "category": "Explosions",
+          "sprites": [
+            {
+              "id": "epic_explosion_001",
+              "description": "Large dramatic explosion with dark purple smoke clouds spreading organically",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "epic_explosion_002",
+              "description": "Epic explosion variant with intense fiery core and debris",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "stylized_explosion_001",
+              "description": "Stylized cartoon explosion with bold outlines and shapes",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "stylized_explosion_002",
+              "description": "Stylized explosion variant with different shape pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "stylized_explosion_003",
+              "description": "Stylized explosion variant with radial burst pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "stylized_explosion_004",
+              "description": "Stylized explosion variant with compact burst shape",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "symmetrical_explosion_001",
+              "description": "Symmetrical explosion pattern expanding evenly in all directions",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "symmetrical_explosion_002",
+              "description": "Symmetrical explosion variant with different symmetry pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            },
+            {
+              "id": "symmetrical_explosion_003",
+              "description": "Symmetrical explosion variant with circular ring pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 13
+            }
+          ]
+        },
+        {
+          "category": "Fantasy Spells",
+          "sprites": [
+            {
+              "id": "spell_absorb_001",
+              "description": "Scattering orb particles converging inward, for mana/health absorb effects",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 31
+            },
+            {
+              "id": "spell_attack_up_001",
+              "description": "Sword with plus icon buff indicator for attack power-up",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 31
+            },
+            {
+              "id": "spell_death_001",
+              "description": "Purple scythe slash marks for death or dark magic spell",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 31
+            },
+            {
+              "id": "spell_defense_up_001",
+              "description": "Shield with plus icon buff indicator for defense power-up",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 31
+            },
+            {
+              "id": "spell_haste_001",
+              "description": "Clock face with speed lines for haste or time acceleration spell",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 31
+            },
+            {
+              "id": "spell_poison_001",
+              "description": "Green bubbles forming arc for poison or toxic spell effect",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 31
+            }
+          ]
+        },
+        {
+          "category": "Fire",
+          "sprites": [
+            {
+              "id": "fire_looping_001",
+              "description": "Looping flame animation with bright core and swirling fire aura",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 12,
+              "looping": true
+            }
+          ]
+        },
+        {
+          "category": "Impacts",
+          "sprites": [
+            {
+              "id": "directional_impact_001",
+              "description": "Directional impact hit burst angled to one side",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "directional_impact_002",
+              "description": "Directional impact variant with different angle/shape",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "directional_impact_003",
+              "description": "Directional impact variant with wider spread",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "directional_impact_004",
+              "description": "Directional impact variant with sharp lines",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "stylized_impact_001",
+              "description": "Stylized impact with bold graphic burst shape",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "symmetrical_impact_001",
+              "description": "Symmetrical impact burst centered in all directions",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "symmetrical_impact_002",
+              "description": "Symmetrical impact variant with ring pattern",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "symmetrical_impact_003",
+              "description": "Symmetrical impact variant with star pattern",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "symmetrical_impact_004",
+              "description": "Symmetrical impact variant with radial lines",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "symmetrical_impact_005",
+              "description": "Symmetrical impact variant with expanding circle",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "toon_impact_001",
+              "description": "Cartoon-style impact with comic-book visual language",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            }
+          ]
+        },
+        {
+          "category": "Lightning",
+          "sprites": [
+            {
+              "id": "lightning_burst_001",
+              "description": "Radial lightning burst with multiple branching bolts",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 8
+            },
+            {
+              "id": "lightning_burst_002",
+              "description": "Lightning burst variant with different bolt pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 8
+            },
+            {
+              "id": "lightning_burst_003",
+              "description": "Lightning burst variant with wider spread pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 8
+            },
+            {
+              "id": "lightning_strike_001",
+              "description": "Vertical lightning bolt strike from sky to ground",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "lightning_strike_002A",
+              "description": "Lightning strike variant A with branching forks",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "lightning_strike_002B",
+              "description": "Lightning strike variant B with different fork pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "lightning_strike_003A",
+              "description": "Lightning strike variant A with jagged bolt path",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            },
+            {
+              "id": "lightning_strike_003B",
+              "description": "Lightning strike variant B with alternative bolt path",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 7
+            }
+          ]
+        },
+        {
+          "category": "Magic Bursts",
+          "sprites": [
+            {
+              "id": "directional_bubble_burst_001",
+              "description": "Directional burst of animated bubbles shooting outward",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_coin_burst_001",
+              "description": "Directional burst of gold coins shooting outward for loot/rewards",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_heart_burst_001",
+              "description": "Directional burst of heart particles for love/healing effects",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_heart_burst_002",
+              "description": "Heart burst variant with different trajectory pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_music_burst_001",
+              "description": "Directional burst of music notes for bard/music effects",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_music_burst_002",
+              "description": "Music note burst variant with different note arrangement",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_particle_burst_001",
+              "description": "Generic particle burst shooting outward directionally",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_party_burst_001",
+              "description": "Confetti and party celebration burst effect",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_sparkle_burst_001",
+              "description": "Directional sparkle and star burst with twinkling particles",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_sparkle_burst_002",
+              "description": "Sparkle burst variant with different sparkle shapes",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_sparkle_burst_003",
+              "description": "Sparkle burst variant with wider spread pattern",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "directional_star_burst_001",
+              "description": "Directional burst of star-shaped particles",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "round_heart_burst_001",
+              "description": "Radial heart burst expanding in all directions",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "round_light_burst_001",
+              "description": "Radial light burst expanding with glowing particles",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "round_music_burst_001",
+              "description": "Radial music note burst expanding in all directions",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "round_sparkle_burst_001",
+              "description": "Radial sparkle burst expanding evenly from center",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "round_sparkle_burst_002",
+              "description": "Radial sparkle burst variant with different sparkle density",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            },
+            {
+              "id": "round_sparkle_burst_003",
+              "description": "Radial sparkle burst variant with larger particle size",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 40
+            }
+          ]
+        },
+        {
+          "category": "Sci-fi",
+          "sprites": [
+            {
+              "id": "scifi_analyze_001",
+              "description": "Sci-fi scanning/analysis HUD effect with rotating elements (120 frames)",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 120,
+              "looping": true
+            },
+            {
+              "id": "scifi_charge_up_001",
+              "description": "Energy charge-up with concentric circles and sparks",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 30
+            },
+            {
+              "id": "scifi_spark_burst_001",
+              "description": "Sci-fi electric spark burst with tech-styled particles",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            },
+            {
+              "id": "scifi_spark_burst_002",
+              "description": "Sci-fi spark burst variant with different particle pattern",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            },
+            {
+              "id": "scifi_warp_001",
+              "description": "Sci-fi warp/teleport portal with ring distortion",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            },
+            {
+              "id": "scifi_warp_002",
+              "description": "Sci-fi warp variant with different distortion pattern",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            },
+            {
+              "id": "scifi_warp_003",
+              "description": "Sci-fi warp variant with compact portal shape",
+              "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            }
+          ]
+        },
+        {
+          "category": "Smoke Bursts",
+          "sprites": [
+            {
+              "id": "directional_smoke_burst_001",
+              "description": "Directional smoke cloud burst shooting to one side",
+              "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 21
+            },
+            {
+              "id": "directional_smoke_burst_002",
+              "description": "Directional smoke burst variant with thicker clouds",
+              "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 21
+            },
+            {
+              "id": "directional_smoke_burst_003",
+              "description": "Directional smoke burst variant with dissipating wisps",
+              "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 21
+            },
+            {
+              "id": "stylized_skull_smoke_burst_001",
+              "description": "Smoke burst shaped like a skull for death or dark magic",
+              "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 21
+            },
+            {
+              "id": "symmetrical_smoke_burst_001",
+              "description": "Symmetrical smoke cloud expanding evenly from center",
+              "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 21
+            },
+            {
+              "id": "symmetrical_smoke_burst_002",
+              "description": "Symmetrical smoke burst variant with dense core",
+              "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 21
+            },
+            {
+              "id": "symmetrical_smoke_burst_003",
+              "description": "Symmetrical smoke burst variant with wispy edges",
+              "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 21
+            }
+          ]
+        },
+        {
+          "category": "Splatters",
+          "sprites": [
+            {
+              "id": "burst_splatter_001",
+              "description": "Radial liquid splatter burst from center outward",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            },
+            {
+              "id": "directional_splatter_001",
+              "description": "Directional liquid splatter shooting to one side",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            },
+            {
+              "id": "directional_splatter_002",
+              "description": "Directional splatter variant with different droplet pattern",
+              "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 10
+            }
+          ]
+        },
+        {
+          "category": "Symbols",
+          "sprites": [
+            {
+              "id": "symbol_alert_001",
+              "description": "Animated alert/exclamation mark symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_alert_002",
+              "description": "Alert symbol variant with different style",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_danger_text_001",
+              "description": "Animated DANGER text popup symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_failure_001",
+              "description": "Animated X/failure/cross symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_1st_001",
+              "description": "Animated 1st place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_2nd_001",
+              "description": "Animated 2nd place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_3rd_001",
+              "description": "Animated 3rd place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_4th_001",
+              "description": "Animated 4th place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_5th_001",
+              "description": "Animated 5th place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_6th_001",
+              "description": "Animated 6th place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_7th_001",
+              "description": "Animated 7th place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_place_8th_001",
+              "description": "Animated 8th place ranking symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_rank_A_001",
+              "description": "Animated letter grade A rank symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_rank_B_001",
+              "description": "Animated letter grade B rank symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_rank_C_001",
+              "description": "Animated letter grade C rank symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_rank_D_001",
+              "description": "Animated letter grade D rank symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_rank_F_001",
+              "description": "Animated letter grade F (fail) rank symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_rank_S_001",
+              "description": "Animated letter grade S (superior) rank symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_success_001",
+              "description": "Animated checkmark/success symbol with 3D beveled effect",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_thumbs_down_001",
+              "description": "Animated thumbs down disapproval symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_thumbs_up_001",
+              "description": "Animated thumbs up approval symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_warning_001",
+              "description": "Animated warning triangle caution symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            },
+            {
+              "id": "symbol_warning_text_001",
+              "description": "Animated WARNING text popup symbol",
+              "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+              "sizes": ["large", "small"],
+              "frameCount": 14
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Fantasy FX Pack 1",
+      "path": "Super Pixel Fantasy FX Pack 1",
+      "note": "Fantasy spell casting effects with multiple variants (A/B/C/D) per spell type. Naming: fanfx1_{id}_{variant}_{size}_{color}. Spellcast C has front/back orientations.",
+      "sprites": [
+        {
+          "id": "fanfx1_spellcast",
+          "description": "Magical casting circle with sparkling ring particles and glowing center — 4 variants (A/B/C/D)",
+          "variants": ["A", "B", "C", "D"],
+          "colors": ["blue", "green", "orange", "rainbow", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCounts": { "A": 18, "B": 24, "C": 24, "D": 29 },
+          "frameSize": { "large": "64x64", "small": "32x32" },
+          "note": "Variant C has front/back orientations",
+          "pngPath": "Super Pixel Fantasy FX Pack 1/PNG/fanfx1_spellcast_{variant}_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 1/spritesheet/fanfx1_spellcast_{variant}_{size}_{color}/"
+        },
+        {
+          "id": "fanfx1_magic_burst",
+          "description": "Concentrated magical energy burst with radiating particles — 2 variants (A/B)",
+          "variants": ["A", "B"],
+          "colors": ["blue", "green", "orange", "rainbow", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCounts": { "A": 14, "B": 20 },
+          "frameSize": { "large": "64x64", "small": "32x32" },
+          "pngPath": "Super Pixel Fantasy FX Pack 1/PNG/fanfx1_magic_burst_{variant}_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 1/spritesheet/fanfx1_magic_burst_{variant}_{size}_{color}/"
+        },
+        {
+          "id": "fanfx1_magic_puff",
+          "description": "Soft magical cloud puff with gentle particle dispersion — 2 variants (A/B)",
+          "variants": ["A", "B"],
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCounts": { "A": 18, "B": 21 },
+          "frameSize": { "large": "64x64", "small": "32x32" },
+          "pngPath": "Super Pixel Fantasy FX Pack 1/PNG/fanfx1_magic_puff_{variant}_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 1/spritesheet/fanfx1_magic_puff_{variant}_{size}_{color}/"
+        },
+        {
+          "id": "fanfx1_power_up",
+          "description": "Upward energy surge indicating power enhancement or level-up",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 16,
+          "frameSize": { "large": "64x64", "small": "32x32" },
+          "pngPath": "Super Pixel Fantasy FX Pack 1/PNG/fanfx1_power_up_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 1/spritesheet/fanfx1_power_up_{size}_{color}/"
+        },
+        {
+          "id": "fanfx1_skull_puff",
+          "description": "Skull-shaped magical cloud effect with ethereal particles — dark magic",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 12,
+          "frameSize": { "large": "64x64", "small": "32x32" },
+          "pngPath": "Super Pixel Fantasy FX Pack 1/PNG/fanfx1_skull_puff_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 1/spritesheet/fanfx1_skull_puff_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Fantasy FX Pack 2",
+      "path": "Super Pixel Fantasy FX Pack 2",
+      "note": "Elemental spell effects (fire, ice, lightning, wind, earth, poison) and combat effects. Naming: fanfx2_{id}_{size}_{color}. Lightning has start/loop/end + tileable variants. Cure has front/back orientations.",
+      "sprites": [
+        {
+          "id": "fanfx2_fire_spell",
+          "description": "Red and orange flame spell with white-blue core, upward embers — fire magic",
+          "colors": ["black", "blue", "gray", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 23,
+          "frameSize": { "large": "160x160", "small": "80x80" },
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_fire_spell_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_fire_spell_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_ice_spell",
+          "description": "Crystalline ice formation with frost particles — ice magic",
+          "colors": ["black", "blue", "gray", "green", "orange", "pink", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 50,
+          "frameSize": { "large": "192x192", "small": "96x96" },
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_ice_spell_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_ice_spell_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_lightning_spell",
+          "description": "Vertical lightning bolt with crackling energy — has start/loop/end phases + tileable variants for continuous beams",
+          "variants": ["start", "loop", "end", "tileable_start", "tileable_loop", "tileable_end"],
+          "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCounts": { "start": 2, "loop": 8, "end": 2 },
+          "frameSize": { "large": "64x128", "small": "32x64" },
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_lightning_spell_{variant}_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_lightning_spell_{variant}_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_wind_spell",
+          "description": "Swirling wind vortex with air particles — wind magic",
+          "colors": ["black", "blue", "brown", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 31,
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_wind_spell_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_wind_spell_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_cure",
+          "description": "Healing energy with gentle upward particles — restoration spell. Has front/back orientations.",
+          "colors": ["blue", "green", "orange", "pink", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 35,
+          "frameSize": { "large": "128x128", "small": "64x64" },
+          "note": "Has front and back orientation variants",
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_cure_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_cure_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_claw",
+          "description": "Sharp claw swipe attack with impact particles — physical combat",
+          "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_claw_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_claw_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_absorb",
+          "description": "Energy absorption effect with inward particle flow — mana/life drain",
+          "colors": ["black", "blue", "green", "orange", "pink", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 31,
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_absorb_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_absorb_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_poison",
+          "description": "Toxic cloud with bubbling particles — poison/toxic damage",
+          "colors": ["black", "blue", "brown", "gray", "green", "orange", "pink", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 17,
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_poison_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_poison_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_shatter",
+          "description": "Explosive shatter with fragment particles — breaking/destruction effect",
+          "colors": ["black", "blue", "gray", "green", "orange", "pink", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 27,
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_shatter_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_shatter_{size}_{color}/"
+        },
+        {
+          "id": "fanfx2_earth_spikes",
+          "description": "Ground spikes emerging with earth particles — earth magic",
+          "colors": ["black", "blue", "brown", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 32,
+          "pngPath": "Super Pixel Fantasy FX Pack 2/PNG/fanfx2_earth_spikes_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 2/spritesheet/fanfx2_earth_spikes_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Fantasy FX Pack 3",
+      "path": "Super Pixel Fantasy FX Pack 3",
+      "note": "Status effects and buff/debuff spell animations. Naming: fanfx3_{id}_{size}_{color}.",
+      "sprites": [
+        {
+          "id": "fanfx3_pain",
+          "description": "Light blue diagonal beam with pink and purple fragments — damage/pain indicator",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 39,
+          "frameSize": { "large": "128x128", "small": "64x64" },
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_pain_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_pain_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_death",
+          "description": "Dark energy with fading particles — death/instant kill spell",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 50,
+          "frameSize": { "large": "64x64", "small": "32x32" },
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_death_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_death_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_barrier",
+          "description": "Protective shield barrier with energy field — defensive buff",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 26,
+          "frameSize": { "large": "64x64", "small": "32x32" },
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_barrier_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_barrier_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_haste",
+          "description": "Speed enhancement effect with motion trails — haste/speed buff",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 29,
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_haste_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_haste_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_rejuvenate",
+          "description": "Restorative energy with healing particles — HP regeneration over time",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 40,
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_rejuvenate_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_rejuvenate_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_slow",
+          "description": "Time-slowing effect with deceleration particles — slow debuff",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 29,
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_slow_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_slow_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_stop",
+          "description": "Time-stop effect with frozen particles — stun/freeze debuff",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 40,
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_stop_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_stop_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_gaze",
+          "description": "Hypnotic gaze effect with eye-like particles — charm/confuse debuff",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 26,
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_gaze_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_gaze_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_attack_up",
+          "description": "Attack power boost with upward energy surge — attack buff",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 18,
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_attack_up_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_attack_up_{size}_{color}/"
+        },
+        {
+          "id": "fanfx3_defense_up",
+          "description": "Defense enhancement with protective aura — defense buff",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 18,
+          "pngPath": "Super Pixel Fantasy FX Pack 3/PNG/fanfx3_defense_up_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Fantasy FX Pack 3/spritesheet/fanfx3_defense_up_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Will's Magic Pixel Particle Effects",
+      "path": "wills_magic_pixel_particle_effects",
+      "description": "Hand-crafted pixel art magic particle effects. One-shot animations with individual frames and spritesheets. Most are 50x50 frames.",
+      "note": "Each effect folder contains: frames/ (individual PNGs), spritesheet.png, spritesheet.txt",
+      "sprites": [
+        {
+          "id": "charge_A",
+          "description": "Yellow-orange energy burst with blue-purple rings expanding outward",
+          "frameCount": 49,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/charge_A/"
+        },
+        {
+          "id": "charge_B",
+          "description": "Vibrant magical charge with colorful radiating energy particles, longer buildup",
+          "frameCount": 106,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/charge_B/"
+        },
+        {
+          "id": "fire_A",
+          "description": "Bright yellow-orange flame burst with pink-purple accents",
+          "frameCount": 47,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/fire_A/"
+        },
+        {
+          "id": "fire_B",
+          "description": "Pink-magenta magical energy burst fading to purple and cyan",
+          "frameCount": 47,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/fire_B/"
+        },
+        {
+          "id": "fire_C",
+          "description": "Bright green-yellow burst radiating from white core",
+          "frameCount": 47,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/fire_C/"
+        },
+        {
+          "id": "four_trail_spellcast",
+          "description": "Symmetrical light green arcs framing vertical blue-teal energy streaks",
+          "frameCount": 119,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/four_trail_spellcast/"
+        },
+        {
+          "id": "implosion_A",
+          "description": "Bright pink-purple starburst with radiating horizontal trails collapsing inward",
+          "frameCount": 106,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/implosion_A/"
+        },
+        {
+          "id": "implosion_B",
+          "description": "Red-orange energy burst with white center and chaotic expansion",
+          "frameCount": 106,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/implosion_B/"
+        },
+        {
+          "id": "majestic_spiral",
+          "description": "Colorful pixel particles forming upward-curving arc in red-orange-blue",
+          "frameCount": 117,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/majestic_spiral/"
+        },
+        {
+          "id": "multi_sparkle_puff",
+          "description": "Light blue-purple pixel particles scattered in magical shimmer cloud",
+          "frameCount": 88,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/multi_sparkle_puff/"
+        },
+        {
+          "id": "purple_spiral",
+          "description": "Pink-magenta-purple pixel particles in upward-curving spiral arc",
+          "frameCount": 72,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/purple_spiral/"
+        },
+        {
+          "id": "purple_wisp",
+          "description": "Ethereal cluster of tiny bright pink-magenta wisping particles",
+          "frameCount": 114,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/purple_wisp/"
+        },
+        {
+          "id": "raw_particles",
+          "description": "Library of individual particle sprites: cloud particles (16x16, 8 frames), rainbow particles (2-3 frames), static sprites (2x2 to 138x138). Building blocks for custom effects.",
+          "frameCount": null,
+          "frameSize": "variable (2x2 to 138x138)",
+          "looping": false,
+          "note": "Not a sequential animation — a sprite library of particle building blocks",
+          "path": "wills_magic_pixel_particle_effects/raw_particles/"
+        },
+        {
+          "id": "shield_burst",
+          "description": "Light purple shield outline expanding with pink-faced star center",
+          "frameCount": 85,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/shield_burst/"
+        },
+        {
+          "id": "six_trail_spellcast",
+          "description": "Vertical reddish-orange energy plume with small purple ring accents",
+          "frameCount": 120,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/six_trail_spellcast/"
+        },
+        {
+          "id": "sparkle_puff",
+          "description": "Scattered light blue and white sparkles in magical shimmer pattern",
+          "frameCount": 93,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/sparkle_puff/"
+        },
+        {
+          "id": "square_burst",
+          "description": "Symmetrical nested rotated square outlines in hot pink and light purple",
+          "frameCount": 84,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/square_burst/"
+        },
+        {
+          "id": "sword_burst",
+          "description": "Glowing pink pixel art sword outline with energetic brighter pink core",
+          "frameCount": 84,
+          "frameSize": "100x100",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/sword_burst/"
+        },
+        {
+          "id": "two_trail_spellcast_A",
+          "description": "Symmetrical light green curved arcs flanking vertical blue energy surge",
+          "frameCount": 120,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/two_trail_spellcast_A/"
+        },
+        {
+          "id": "two_trail_spellcast_B",
+          "description": "Bright pink-yellow-orange burst with thick C-shaped arcs and vertical energy stream",
+          "frameCount": 120,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/two_trail_spellcast_B/"
+        },
+        {
+          "id": "vortex",
+          "description": "Vibrant purple-pink spiral dissipating as it expands outward",
+          "frameCount": 118,
+          "frameSize": "50x50",
+          "looping": false,
+          "path": "wills_magic_pixel_particle_effects/vortex/"
+        }
+      ]
+    }
+  ]
+}

@@ -432,6 +432,7 @@ body {
     cursor: pointer;
     z-index: 9999;
     font-size: 20px;
+    color: #000;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
 }

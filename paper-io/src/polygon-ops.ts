@@ -12,6 +12,10 @@ export type PolygonBooleanGeom = polygonClipping.MultiPolygon;
 
 const MIN_LOOP_POINTS = 3;
 const MIN_POLYGON_AREA = 0.0001;
+const MIN_RENDERABLE_HOLE_AREA = 1.5;
+const MIN_RENDERABLE_HOLE_SPAN = 1.5;
+const MIN_RENDERABLE_FRAGMENT_AREA = 1.5;
+const MIN_RENDERABLE_FRAGMENT_SPAN = 1.5;
 const POINT_EPSILON = 1e-5;
 const COLLINEAR_EPSILON = 1e-7;
 
@@ -116,23 +120,6 @@ function cleanupLoop(loop: Vec2[]): Vec2[] {
   return cleaned;
 }
 
-export function sanitizeTerritory(
-  polygons: TerritoryMultiPolygon,
-): TerritoryMultiPolygon {
-  return polygons
-    .map((polygon) => ({
-      outer: cleanupLoop(polygon.outer),
-      holes: polygon.holes
-        .map((hole) => cleanupLoop(hole))
-        .filter((hole) => hole.length >= MIN_LOOP_POINTS),
-    }))
-    .filter(
-      (polygon) =>
-        polygon.outer.length >= MIN_LOOP_POINTS &&
-        loopArea(polygon.outer) >= MIN_POLYGON_AREA,
-    );
-}
-
 export function signedLoopArea(loop: Vec2[]): number {
   if (loop.length < MIN_LOOP_POINTS) return 0;
   let area = 0;
@@ -146,6 +133,62 @@ export function signedLoopArea(loop: Vec2[]): number {
 
 export function loopArea(loop: Vec2[]): number {
   return Math.abs(signedLoopArea(loop));
+}
+
+function loopBounds(loop: Vec2[]): { width: number; height: number } {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+  for (const point of loop) {
+    if (point.x < minX) minX = point.x;
+    if (point.x > maxX) maxX = point.x;
+    if (point.z < minZ) minZ = point.z;
+    if (point.z > maxZ) maxZ = point.z;
+  }
+  return {
+    width: maxX - minX,
+    height: maxZ - minZ,
+  };
+}
+
+function isRenderableHole(loop: Vec2[]): boolean {
+  if (loop.length < MIN_LOOP_POINTS) return false;
+  if (loopArea(loop) < MIN_RENDERABLE_HOLE_AREA) return false;
+  const bounds = loopBounds(loop);
+  return (
+    bounds.width >= MIN_RENDERABLE_HOLE_SPAN &&
+    bounds.height >= MIN_RENDERABLE_HOLE_SPAN
+  );
+}
+
+function isTinyFragment(loop: Vec2[]): boolean {
+  if (loop.length < MIN_LOOP_POINTS) return true;
+  const area = loopArea(loop);
+  if (area < MIN_RENDERABLE_FRAGMENT_AREA) return true;
+  const bounds = loopBounds(loop);
+  return (
+    bounds.width < MIN_RENDERABLE_FRAGMENT_SPAN &&
+    bounds.height < MIN_RENDERABLE_FRAGMENT_SPAN
+  );
+}
+
+export function sanitizeTerritory(
+  polygons: TerritoryMultiPolygon,
+): TerritoryMultiPolygon {
+  return polygons
+    .map((polygon) => ({
+      outer: cleanupLoop(polygon.outer),
+      holes: polygon.holes
+        .map((hole) => cleanupLoop(hole))
+        .filter(isRenderableHole),
+    }))
+    .filter(
+      (polygon) =>
+        polygon.outer.length >= MIN_LOOP_POINTS &&
+        loopArea(polygon.outer) >= MIN_POLYGON_AREA &&
+        !isTinyFragment(polygon.outer),
+    );
 }
 
 function ensureOrientation(loop: Vec2[], clockwise: boolean): Vec2[] {

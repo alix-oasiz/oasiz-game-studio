@@ -1,0 +1,122 @@
+{
+  "_meta": {
+    "description": "Master asset manifest for the Oasiz Game Studio sprite library. Each category has its own detailed manifest.json with individual sprite descriptions, animations, colors, sizes, and paths.",
+    "lastUpdated": "2026-02-12"
+  },
+  "categories": [
+    {
+      "name": "characters",
+      "path": "assets/characters",
+      "description": "Playable character sprites with full animation sets (idle, run, jump, attack, die, etc.)",
+      "status": "populated",
+      "manifest": "assets/characters/manifest.json",
+      "summary": {
+        "totalPacks": 2,
+        "packs": [
+          {
+            "name": "Classic Character",
+            "styles": 4,
+            "animations": 16,
+            "frameSize": "40x40",
+            "description": "2D platformer character: 4 color styles (red/blue, green/red, violet/blue, blue/red) with idle, run, jump, fall, 3-hit punch combo, dash attack, get_hit, die, celebrate, talk, wall_cling + dash_fx effect"
+          },
+          {
+            "name": "Valiant Knight",
+            "styles": 4,
+            "animations": 13,
+            "frameSize": "79x63",
+            "description": "Armored medieval knight: 4 color styles (red/gold, purple/gold, brown/gold, green/gold). Sword and shield combat with 3-hit attack combo, guard/block system (start/loop/end), jump, get_hit, die + 3 block impact effects (64x64)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "enemies",
+      "path": "assets/enemies",
+      "description": "Enemy/monster sprites with multiple animation states, colors, and combat behaviors",
+      "status": "populated",
+      "manifest": "assets/enemies/manifest.json",
+      "summary": {
+        "totalPacks": 6,
+        "totalUniqueMonsters": 37,
+        "packs": [
+          { "name": "Super Pixel Monsters Pack 1", "monsters": 10, "examples": "bone_statue, demon_eye, hell_skull, leech, mudman, shrubtooth, skull_beetle, skull_slime, winged_skull, wraith" },
+          { "name": "Super Pixel Monsters Pack 2", "monsters": 4, "examples": "evil_eye, hell_hand, medusa_head, skull_wheel" },
+          { "name": "Mega Monster Pack", "monsters": 5, "examples": "bat, pumpkin, skull_bat, spider, spirit — each with regular (64x64) and mini (32x32) variants" },
+          { "name": "Super Pixel Alien Monster Pack 1", "monsters": 5, "examples": "crawling_horror, grub, hopclops, space_fly, egg — sci-fi aliens with large/small in 3 color variants (A/B/C) + splatter & projectile sub-sprites" },
+          { "name": "Super Pixel Alien Monster Pack 2", "monsters": 7, "examples": "amoeba, exofish, moon_muncher, skittermite, wall_gazer, xenomantis, egg — advanced aliens with burrow/dissolve/reform behaviors + splatter & projectile sub-sprites" },
+          { "name": "Flying Demon", "monsters": 1, "examples": "flying_demon — large boss-type flying monster with 6 color styles (A-F), charged attacks, and fireball projectile (106x104)" }
+        ]
+      }
+    },
+    {
+      "name": "projectile-effects",
+      "path": "assets/projectile-effects",
+      "description": "Animated projectile sprites for bullets, missiles, magic bolts, and other flying objects",
+      "status": "populated",
+      "manifest": "assets/projectile-effects/manifest.json",
+      "summary": {
+        "totalPacks": 4,
+        "totalUniqueTypes": 42,
+        "packs": [
+          { "name": "Super Pixel Projectiles Pack 1", "types": 10, "examples": "blob, electricity, energy, fireball, laser, magic missile, rock, scifi missile, slash, toon missile" },
+          { "name": "Super Pixel Projectiles Pack 2", "types": 10, "examples": "fireball, ground shockwave, helix beam, ice spike, kunai, lightning orb, magic missile, meteor, scifi missile, shuriken" },
+          { "name": "Super Pixel Projectiles Pack 3", "types": 12, "examples": "acid, arrow (impact+loop), death wave, demon bite (impact+loop), knife, light spark, magic hex, magic missile, magic orb, magic spike" },
+          { "name": "Super Pixel Projectiles Pack 4", "types": 10, "examples": "dark matter, energy blast A/B, energy pellet, laser beam A/B, plasma ball, sawblade, scifi bomb, scrap metal" }
+        ]
+      }
+    },
+    {
+      "name": "skill-effects",
+      "path": "assets/skill-effects",
+      "description": "Animated VFX sprites for explosions, spells, impacts, lightning, fire, smoke, magic bursts, UI symbols, elemental magic, status effects, and hand-crafted particle effects",
+      "status": "populated",
+      "manifest": "assets/skill-effects/manifest.json",
+      "summary": {
+        "totalPacks": 8,
+        "totalUniqueTypes": 169,
+        "packs": [
+          { "name": "Super Pixel Effects Pack 1", "types": 10, "examples": "aura energy, dash, electric zap, energy shield, explosion, impact dust, impact hit, magic puff, splash, splatter" },
+          { "name": "Super Pixel Effects Pack 2", "types": 10, "examples": "bubble (appear/loop/pop), claw, electric burst, explosion, fire burst, ice burst, impact shock, magic swirl, slash, splatter" },
+          { "name": "Super Pixel Effects Pack 3", "types": 10, "examples": "bite, dust trail, impact hit, lightning aura, magic spawn, smoke bomb, splatter, toon explosion, toon impact, warp" },
+          {
+            "name": "Super Pixel Effects Gigapack",
+            "types": 93,
+            "categories": {
+              "Explosions": 9,
+              "Fantasy Spells": 6,
+              "Fire": 1,
+              "Impacts": 11,
+              "Lightning": 8,
+              "Magic Bursts": 18,
+              "Sci-fi": 7,
+              "Smoke Bursts": 7,
+              "Splatters": 3,
+              "Symbols": 23
+            }
+          },
+          { "name": "Super Pixel Fantasy FX Pack 1", "types": 5, "examples": "spellcast (4 variants A/B/C/D), magic burst (2 variants), magic puff (2 variants), power up, skull puff — casting circles & magic effects in 7 colors with large/small sizes" },
+          { "name": "Super Pixel Fantasy FX Pack 2", "types": 10, "examples": "fire spell, ice spell, lightning spell (start/loop/end + tileable), wind spell, cure (front/back), claw, absorb, poison, shatter, earth spikes — elemental combat magic in 9-10 colors" },
+          { "name": "Super Pixel Fantasy FX Pack 3", "types": 10, "examples": "pain, death, barrier, haste, rejuvenate, slow, stop, gaze, attack up, defense up — status effects and buff/debuff spells in 6-8 colors" },
+          { "name": "Will's Magic Pixel Particle Effects", "types": 21, "examples": "charge A/B, fire A/B/C, spellcast variants (two/four/six trail), implosion A/B, shield burst, sword burst, square burst, vortex, spirals, sparkle puff, purple wisp, raw particles library" }
+        ]
+      }
+    },
+    {
+      "name": "skill-icons",
+      "path": "assets/skill-icons",
+      "description": "32x32 pixel art skill/ability icons with 3 color variants each, plus cooldown/highlight animations and HUD frames",
+      "status": "populated",
+      "manifest": "assets/skill-icons/manifest.json",
+      "summary": {
+        "totalPacks": 2,
+        "totalUniqueIcons": 60,
+        "packs": [
+          { "name": "Super Pixel Skill Icons Pack 1", "icons": 30, "examples": "attack up, blind, chain, claw, cleave, cure, darkness, dash, death, defense up, fireball, guard, holy light, ice burst, lightning, poison, storm, vampire" },
+          { "name": "Super Pixel Skill Icons Pack 2", "icons": 30, "examples": "avalanche, bow and arrow, cauldron, curse, entangle, fairy, fireball, freeze, heal, kunai, lightning hand, magic crystal, magic shield, runes, shuriken, tornado" }
+        ],
+        "extras": ["autocast animation (64 frames)", "cooldown animation (100 frames)", "highlight animations (3 styles)", "HUD skill bar frames (2 styles per pack)"]
+      }
+    }
+  ]
+}

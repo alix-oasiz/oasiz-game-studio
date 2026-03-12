@@ -17,8 +17,14 @@ export function $(id: string): HTMLElement {
 /* ── Simplex 2D Noise ── */
 
 const GRAD2 = [
-  [1, 1], [-1, 1], [1, -1], [-1, -1],
-  [1, 0], [-1, 0], [0, 1], [0, -1],
+  [1, 1],
+  [-1, 1],
+  [1, -1],
+  [-1, -1],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
 ];
 
 function buildPerm(seed: number): Uint8Array {
@@ -29,7 +35,9 @@ function buildPerm(seed: number): Uint8Array {
   for (let i = 255; i > 0; i--) {
     s = (s * 16807) % 2147483647;
     const j = s % (i + 1);
-    const tmp = base[i]; base[i] = base[j]; base[j] = tmp;
+    const tmp = base[i];
+    base[i] = base[j];
+    base[j] = tmp;
   }
   for (let i = 0; i < 512; i++) p[i] = base[i & 255];
   return p;
@@ -55,8 +63,13 @@ export class SimplexNoise {
     const y0 = y - Y0;
 
     let i1: number, j1: number;
-    if (x0 > y0) { i1 = 1; j1 = 0; }
-    else { i1 = 0; j1 = 1; }
+    if (x0 > y0) {
+      i1 = 1;
+      j1 = 0;
+    } else {
+      i1 = 0;
+      j1 = 1;
+    }
 
     const x1 = x0 - i1 + G2;
     const y1 = y0 - j1 + G2;
@@ -67,7 +80,9 @@ export class SimplexNoise {
     const jj = j & 255;
     const p = this.perm;
 
-    let n0 = 0, n1 = 0, n2 = 0;
+    let n0 = 0,
+      n1 = 0,
+      n2 = 0;
     let t0 = 0.5 - x0 * x0 - y0 * y0;
     if (t0 > 0) {
       t0 *= t0;

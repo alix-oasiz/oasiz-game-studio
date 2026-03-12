@@ -1,6 +1,0 @@
-[
-  {
-    "type": "pageerror",
-    "text": "TypeError: chest.refreshBody is not a function"
-  }
-]

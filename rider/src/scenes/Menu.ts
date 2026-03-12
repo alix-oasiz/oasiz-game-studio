@@ -25,11 +25,31 @@ export default class Menu extends Phaser.Scene {
         // Clean dark background — UI is handled by DOM
         this.cameras.main.setBackgroundColor(0x0c0c14);
 
+        // Update motorcycle hero image with selected skin
+        const motoHero = document.querySelector('.moto-hero') as HTMLImageElement | null;
+        if (motoHero) {
+            const skin = localStorage.getItem('selectedSkin') || 'blue';
+            motoHero.src = `/assets/Motorcycles/${skin}.png?t=${Date.now()}`;
+        }
+
         // Show UI layer
         const uiLayer = document.getElementById("ui-layer");
         if (uiLayer) {
             uiLayer.style.display = "flex";
+            // Giriş animasyonunu hazırla (elemanlar gizli başlar)
+            uiLayer.classList.remove("menu-entering");
+            void uiLayer.offsetWidth;
+            uiLayer.classList.add("menu-entering");
+            setTimeout(() => uiLayer.classList.remove("menu-entering"), 1200);
             this.enableMenuFx(uiLayer);
+        }
+
+        // DOM overlay'i kaldır — canvas + DOM birlikte belirir
+        const fd = document.getElementById("scene-fade");
+        if (fd) {
+            fd.classList.remove("fade-in");
+            // Küçük gecikme: Menu sahnesi render edilsin, sonra fade out başlasın
+            setTimeout(() => fd.classList.add("fade-out"), 60);
         }
 
         // Score display

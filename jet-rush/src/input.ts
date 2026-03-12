@@ -124,7 +124,10 @@ export function initInput(
       if (getState() !== "PLAYING") return;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
-        if (t.identifier === input.touchLeftId || t.identifier === input.touchRightId) {
+        if (
+          t.identifier === input.touchLeftId ||
+          t.identifier === input.touchRightId
+        ) {
           updateTouchSteeringSide(t);
         }
       }

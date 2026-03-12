@@ -26,7 +26,6 @@
     "dependencies": {
         "@fortawesome/fontawesome-free": "^7.2.0",
         "@phaserjs/editor-scripts-base": "^1.0.0",
-        "@rollup/rollup-darwin-arm64": "^4.57.1",
         "phaser": "3.80.1"
     }
 }

@@ -1,1 +1,0 @@
-{"scene":"Level","coordinate_system":"origin top-left, x right, y down","player":{"x":-128,"y":584,"vx":0,"vy":0,"flipX":false,"character":"rogue","hp":6,"maxHp":6,"level":1,"exp":0,"expToNext":25},"ui":{"paused":false,"mainMenu":true,"gameOver":false,"characterSelect":false},"score":0,"enemies":[],"collectedKeys":[]}

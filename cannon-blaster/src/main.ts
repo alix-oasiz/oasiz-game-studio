@@ -1,3 +1,6 @@
+import upgradeModalOpenSfxUrl from "./assets/upgrade-modal-open.mp3";
+import upgradeShockwaveSfxUrl from "./assets/upgrade-shockwave.mp3";
+
 /**
  * CANNON BLASTER
  *
@@ -8,11 +11,11 @@
 // ============= CONFIGURATION =============
 const CONFIG = {
   // Cannon (simple position-based)
-  CANNON_WHEEL_RADIUS: 24,
-  CANNON_BODY_WIDTH: 80,
-  CANNON_BODY_HEIGHT: 28,
-  CANNON_BARREL_LENGTH: 50,
-  CANNON_BARREL_WIDTH: 18,
+  CANNON_WHEEL_RADIUS: 17,
+  CANNON_BODY_WIDTH: 56,
+  CANNON_BODY_HEIGHT: 20,
+  CANNON_BARREL_LENGTH: 36,
+  CANNON_BARREL_WIDTH: 13,
   CANNON_MAX_SPEED: 1200, // Increased for much snappier direct follow
   CANNON_ACCELERATION: 3500, // Also boosted for keyboard
   CANNON_FRICTION: 8,
@@ -26,14 +29,14 @@ const CONFIG = {
   // Boulders
   BOULDER_POOL_SIZE: 50,
   BOULDER_SIZES: {
-    large: { radius: 75, health: 1, points: 30 }, // Scaled up from 42
-    medium: { radius: 50, health: 1, points: 15 }, // Scaled up from 28
-    small: { radius: 30, health: 1, points: 5 }, // Much larger than 16
+    large: { radius: 45, health: 1, points: 30 }, // Reduced again to better fit the tank footprint
+    medium: { radius: 35, health: 1, points: 15 }, // Scaled up from 28
+    small: { radius: 25, health: 1, points: 5 }, // Much larger than 16
   },
-  BOULDER_GRAVITY: 0.12,
-  BOULDER_BOUNCE: 0.82,
+  BOULDER_GRAVITY: 0.065,
+  BOULDER_BOUNCE: 1,
   BOULDER_SPAWN_INTERVAL_START: 2800, // Slightly slower start
-  BOULDER_SPAWN_INTERVAL_MIN: 800, // Min interval for late game
+  BOULDER_SPAWN_INTERVAL_MIN: 1000, // Min interval for late game
   BOULDER_HEALTH_INCREASE_INTERVAL: 36, // Legacy - health now scales per upgrade
 
   // Particles
@@ -52,7 +55,13 @@ const CONFIG = {
 };
 
 // ============= TYPES =============
-type GameState = "START" | "PLAYING" | "UPGRADE" | "PAUSED" | "GAME_OVER";
+type GameState =
+  | "START"
+  | "PLAYING"
+  | "UPGRADE_TRANSITION"
+  | "UPGRADE"
+  | "PAUSED"
+  | "GAME_OVER";
 type BoulderSize = "large" | "medium" | "small";
 type SkillTreeCategory = "fire" | "utility" | "defense";
 
@@ -110,6 +119,14 @@ interface Settings {
   music: boolean;
   fx: boolean;
   haptics: boolean;
+}
+
+interface UpgradeShockwaveState {
+  active: boolean;
+  radius: number;
+  maxRadius: number;
+  speed: number;
+  alpha: number;
 }
 
 // ============= UTILITY FUNCTIONS =============
@@ -193,11 +210,17 @@ class AudioManager {
   private musicGain: GainNode | null = null;
   private music: HTMLAudioElement | null = null;
   private musicSource: MediaElementAudioSourceNode | null = null;
+  private upgradeWaveSfx: HTMLAudioElement | null = null;
+  private upgradeModalSfx: HTMLAudioElement | null = null;
   private initialized = false;
   settings: Settings;
 
   constructor(settings: Settings) {
     this.settings = settings;
+    this.upgradeWaveSfx = new Audio(upgradeShockwaveSfxUrl);
+    this.upgradeWaveSfx.preload = "auto";
+    this.upgradeModalSfx = new Audio(upgradeModalOpenSfxUrl);
+    this.upgradeModalSfx.preload = "auto";
     console.log("[AudioManager] Created");
   }
 
@@ -339,6 +362,24 @@ class AudioManager {
       osc.start(now + i * 0.1);
       osc.stop(now + i * 0.1 + 0.25);
     });
+  }
+
+  playUpgradeWave(): void {
+    if (!this.settings.fx || !this.upgradeWaveSfx) return;
+    this.upgradeWaveSfx.currentTime = 0;
+    this.upgradeWaveSfx
+      .play()
+      .catch((e) => console.warn("[AudioManager.playUpgradeWave] Failed:", e));
+  }
+
+  playUpgradeModalOpen(): void {
+    if (!this.settings.fx || !this.upgradeModalSfx) return;
+    this.upgradeModalSfx.currentTime = 0;
+    this.upgradeModalSfx
+      .play()
+      .catch((e) =>
+        console.warn("[AudioManager.playUpgradeModalOpen] Failed:", e),
+      );
   }
 
   playGameOver(): void {
@@ -996,6 +1037,10 @@ class CannonBlasterGame {
   lockedBranches: Set<string> = new Set(); // Branches locked by sibling choices
   upgradePoints: number = 0; // Points available to spend
 
+  // Hull health
+  maxPlayerHealth: number = 3;
+  playerHealth: number = 3;
+
   // Defense/Shield state
   shieldHits: number = 0;
   maxShieldHits: number = 0;
@@ -1015,6 +1060,13 @@ class CannonBlasterGame {
     x: 0,
     y: 0,
     intensity: 0,
+  };
+  upgradeShockwave: UpgradeShockwaveState = {
+    active: false,
+    radius: 0,
+    maxRadius: 0,
+    speed: 0,
+    alpha: 0,
   };
 
   // Input
@@ -1383,7 +1435,10 @@ class CannonBlasterGame {
       // Check for upgrade
       this.updateProgressBar();
       const needed = this.getDestructionsNeededForNextUpgrade();
-      if (this.destroyedSinceUpgrade >= needed) {
+      if (
+        this.gameState === "PLAYING" &&
+        this.destroyedSinceUpgrade >= needed
+      ) {
         const available = getAvailableUpgrades(
           this.ownedUpgrades,
           this.lockedBranches,
@@ -1398,7 +1453,7 @@ class CannonBlasterGame {
             this.destroyedSinceUpgrade,
             "destructions (needed " + needed + ")",
           );
-          this.showUpgradeScreen();
+          this.beginUpgradeTransition();
         }
       }
     });
@@ -1438,10 +1493,38 @@ class CannonBlasterGame {
         return;
       }
 
+      this.playerHealth--;
+      this.invincibilityTimer = 1200;
+      this.audio.triggerHaptic("error");
+
+      if (this.playerHealth > 0) {
+        const damageColor = this.playerHealth === 1 ? "#ff8844" : "#aab3bb";
+        const damageText =
+          this.playerHealth === 1 ? "ENGINE FIRE" : "ENGINE SMOKE";
+        this.triggerScreenShake(this.playerHealth === 1 ? 0.65 : 0.45);
+        this.particles.emit(
+          this.cannonX,
+          this.groundY - 110,
+          damageColor,
+          this.playerHealth === 1 ? 10 : 6,
+          this.playerHealth === 1 ? "explosion" : "debris",
+        );
+        this.floatingText.add(
+          this.cannonX,
+          this.groundY - 105,
+          damageText,
+          damageColor,
+          18,
+        );
+        console.log("[Event] Hull hit, remaining health:", this.playerHealth);
+        return;
+      }
+
       // Phoenix Protocol - revive once
       if (!this.hasRevived && this.ownedUpgrades.has("d7b")) {
         this.hasRevived = true;
         this.shieldHits = this.maxShieldHits;
+        this.playerHealth = this.maxPlayerHealth;
         this.invincibilityTimer = 3000;
         this.floatingText.add(
           this.cannonX,
@@ -1456,6 +1539,21 @@ class CannonBlasterGame {
       }
 
       // Game over
+      this.particles.emit(
+        this.cannonX,
+        this.groundY - 90,
+        "#ff8844",
+        18,
+        "explosion",
+      );
+      this.particles.emit(
+        this.cannonX,
+        this.groundY - 70,
+        "#5a5a5a",
+        14,
+        "debris",
+      );
+      this.triggerScreenShake(1.1);
       console.log("[Event] No defenses remaining - Game Over");
       this.gameOver();
     });
@@ -1466,7 +1564,7 @@ class CannonBlasterGame {
     this.h = this.gameContainer.clientHeight;
     this.canvas.width = this.w;
     this.canvas.height = this.h;
-    this.groundY = this.h - 50;
+    this.groundY = this.h - 100;
 
     console.log("[resizeCanvas]", this.w, "x", this.h);
   }
@@ -1484,6 +1582,96 @@ class CannonBlasterGame {
     this.wheelRotation = 0;
   }
 
+  resetUpgradeShockwave(): void {
+    this.upgradeShockwave.active = false;
+    this.upgradeShockwave.radius = 0;
+    this.upgradeShockwave.maxRadius = 0;
+    this.upgradeShockwave.speed = 0;
+    this.upgradeShockwave.alpha = 0;
+  }
+
+  getUpgradeWaveOrigin(): { x: number; y: number } {
+    return {
+      x: this.cannonX,
+      y: this.groundY - CONFIG.CANNON_WHEEL_RADIUS - CONFIG.CANNON_BODY_HEIGHT,
+    };
+  }
+
+  beginUpgradeTransition(): void {
+    console.log("[beginUpgradeTransition]");
+    const origin = this.getUpgradeWaveOrigin();
+    const maxDistance = Math.max(
+      distance(origin.x, origin.y, 0, 0),
+      distance(origin.x, origin.y, this.w, 0),
+      distance(origin.x, origin.y, 0, this.groundY),
+      distance(origin.x, origin.y, this.w, this.groundY),
+    );
+
+    this.gameState = "UPGRADE_TRANSITION";
+    this.fireTimer = 0;
+    this.spawnTimer = 0;
+    this.upgradeShockwave.active = true;
+    this.upgradeShockwave.radius = 0;
+    this.upgradeShockwave.maxRadius = maxDistance + 120;
+    this.upgradeShockwave.speed = this.upgradeShockwave.maxRadius / 0.7;
+    this.upgradeShockwave.alpha = 0.7;
+
+    this.audio.playUpgradeWave();
+    this.audio.triggerHaptic("success");
+    this.triggerScreenShake(0.9);
+    this.particles.emit(origin.x, origin.y, "#8ad8ff", 20, "explosion");
+    this.floatingText.add(
+      origin.x,
+      origin.y - 60,
+      "UPGRADE READY",
+      "#8ad8ff",
+      22,
+    );
+  }
+
+  destroyBoulderWithShockwave(index: number): void {
+    const boulder = this.boulders[index];
+    const config = CONFIG.BOULDER_SIZES[boulder.size];
+    this.eventBus.emit("BOULDER_DESTROYED", {
+      boulder,
+      points: config.points,
+    });
+    this.particles.emit(boulder.x, boulder.y, "#8ad8ff", 8, "explosion");
+    this.boulderPool.release(boulder);
+    this.boulders.splice(index, 1);
+  }
+
+  updateUpgradeTransition(dt: number): void {
+    if (!this.upgradeShockwave.active) {
+      this.showUpgradeScreen();
+      return;
+    }
+
+    this.updateBullets(dt);
+    this.updateBoulders(dt);
+
+    this.upgradeShockwave.radius += this.upgradeShockwave.speed * dt;
+    this.upgradeShockwave.alpha = Math.max(
+      0,
+      0.72 - this.upgradeShockwave.radius / this.upgradeShockwave.maxRadius,
+    );
+
+    const origin = this.getUpgradeWaveOrigin();
+    for (let i = this.boulders.length - 1; i >= 0; i--) {
+      const boulder = this.boulders[i];
+      const config = CONFIG.BOULDER_SIZES[boulder.size];
+      const dist = distance(origin.x, origin.y, boulder.x, boulder.y);
+      if (dist <= this.upgradeShockwave.radius + config.radius) {
+        this.destroyBoulderWithShockwave(i);
+      }
+    }
+
+    if (this.upgradeShockwave.radius >= this.upgradeShockwave.maxRadius) {
+      this.resetUpgradeShockwave();
+      this.showUpgradeScreen();
+    }
+  }
+
   startGame(): void {
     console.log("[startGame] Starting game");
 
@@ -1496,6 +1684,7 @@ class CannonBlasterGame {
     this.totalDestroyed = 0;
     this.destroyedSinceUpgrade = 0;
     this.upgradesEarned = 0;
+    this.playerHealth = this.maxPlayerHealth;
     this.fireTimer = 0;
     this.spawnTimer = 0;
 
@@ -1513,6 +1702,7 @@ class CannonBlasterGame {
     this.killsSinceShieldLost = 0;
     this.invincibilityTimer = 0;
     this.hasRevived = false;
+    this.resetUpgradeShockwave();
 
     // Clear entities
     for (const b of this.bullets) this.bulletPool.release(b);
@@ -1550,6 +1740,7 @@ class CannonBlasterGame {
     document.getElementById("upgradeScreen")?.classList.add("hidden");
     document.getElementById("hud")?.classList.add("hidden");
     document.getElementById("pauseBtn")?.classList.add("hidden");
+    this.resetUpgradeShockwave();
 
     this.initDemoAnimation();
   }
@@ -1623,9 +1814,16 @@ class CannonBlasterGame {
   showUpgradeScreen(): void {
     console.log("[showUpgradeScreen]");
     this.gameState = "UPGRADE";
+    this.resetUpgradeShockwave();
     this.hasSelectedUpgrade = false;
     this.selectedNodeId = null;
     this.upgradePoints = 1;
+
+    const installBtn = document.getElementById("installBtn");
+    if (installBtn) {
+      installBtn.textContent = "Initiate Install";
+      installBtn.classList.remove("active");
+    }
 
     // Reset details panel
     this.updateDetailsPanel(null);
@@ -1641,14 +1839,22 @@ class CannonBlasterGame {
     if (available.length === 0) {
       console.log("[showUpgradeScreen] No upgrades available — enabling skip");
       this.hasSelectedUpgrade = true;
-      const installBtn = document.getElementById("installBtn");
       if (installBtn) {
         installBtn.textContent = "All Systems Maxed - Continue";
         installBtn.classList.add("active");
       }
     }
 
-    document.getElementById("upgradeScreen")?.classList.remove("hidden");
+    const upgradeScreen = document.getElementById("upgradeScreen");
+    const upgradeContent = upgradeScreen?.querySelector(".content");
+    if (upgradeContent instanceof HTMLElement) {
+      upgradeContent.classList.remove("upgrade-modal-enter");
+      void upgradeContent.offsetWidth;
+      upgradeContent.classList.add("upgrade-modal-enter");
+    }
+
+    upgradeScreen?.classList.remove("hidden");
+    this.audio.playUpgradeModalOpen();
   }
 
   renderSchematic(): void {
@@ -1907,37 +2113,50 @@ class CannonBlasterGame {
 
   getDestructionsNeededForNextUpgrade(): number {
     const count = this.upgradesEarned;
-    if (count <= 1) return CONFIG.UPGRADE_BASE_COUNT;
-    if (count === 2) return 16;
-    if (count === 3) return 22;
-    if (count === 4) return 30;
-    // Quadratic ramp: each successive upgrade requires significantly more
-    return Math.round(30 + Math.pow(count - 4, 1.5) * 8);
+    if (count <= 1) return 16;
+    if (count === 2) return 22;
+    if (count === 3) return 30;
+    if (count === 4) return 40;
+    // Keep later upgrades spaced out so the power curve stays under control.
+    if (count <= 8) {
+      return Math.round(40 + Math.pow(count - 4, 1.5) * 10);
+    }
+    return Math.round(60 + Math.pow(count - 8, 1.6) * 12);
   }
 
   getDifficultyMultiplier(): number {
-    // Upgrade-based scaling (gentler: 20% first, 12% compounding)
+    // Slow the overall ramp so upgrades do not immediately spike enemy speed.
     let mult = 1.0;
     if (this.upgradesEarned > 0) {
-      mult = 1.2 * Math.pow(1.12, this.upgradesEarned - 1);
+      mult = 1.1 * Math.pow(1.08, this.upgradesEarned - 1);
     }
-    // Continuous scaling from total destructions (slower ramp)
-    mult += this.totalDestroyed * 0.003;
+    // Continuous scaling from total destructions stays noticeable, but gentler.
+    mult += this.totalDestroyed * 0.0015;
+    return mult;
+  }
+
+  getSpawnPressureMultiplier(): number {
+    // Upgrades should affect spawn cadence, but much more gently than before.
+    let mult = 1.0;
+    if (this.upgradesEarned > 0) {
+      mult = 1.03 * Math.pow(1.035, this.upgradesEarned - 1);
+    }
+    mult += this.totalDestroyed * 0.0008;
     return mult;
   }
 
   getSpawnCountForWave(): number {
     const u = this.upgradesEarned;
     const t = this.totalDestroyed;
-    // Extra spawns from sustained play (slower ramp, caps at 40%)
-    const bonusChance = clamp(t / 800, 0, 0.4);
+    // Extra spawns from sustained play, but slightly less often than before.
+    const bonusChance = clamp(t / 1100, 0, 0.22);
     const bonus = Math.random() < bonusChance ? 1 : 0;
 
     let base = 1;
-    if (u < 3) base = 1;
-    else if (u < 6) base = Math.random() < 0.25 ? 2 : 1;
-    else if (u < 9) base = Math.random() < 0.35 ? 2 : 1;
-    else base = Math.random() < 0.3 ? 3 : 2;
+    if (u < 4) base = 1;
+    else if (u < 8) base = Math.random() < 0.12 ? 2 : 1;
+    else if (u < 11) base = Math.random() < 0.18 ? 2 : 1;
+    else base = Math.random() < 0.1 ? 3 : 2;
 
     return base + bonus;
   }
@@ -1945,6 +2164,8 @@ class CannonBlasterGame {
   updateHUD(): void {
     document.getElementById("scoreDisplay")!.textContent =
       this.score.toString();
+    document.getElementById("healthDisplay")!.textContent =
+      this.playerHealth + "/" + this.maxPlayerHealth;
     document.getElementById("destroyedDisplay")!.textContent =
       this.totalDestroyed.toString();
   }
@@ -1989,6 +2210,125 @@ class CannonBlasterGame {
       this.screenShake.intensity,
       intensity,
     );
+  }
+
+  drawUpgradeShockwave(): void {
+    if (!this.upgradeShockwave.active) return;
+
+    const ctx = this.ctx;
+    const origin = this.getUpgradeWaveOrigin();
+    const radius = this.upgradeShockwave.radius;
+    const ringWidth = 42;
+
+    ctx.save();
+
+    const halo = ctx.createRadialGradient(
+      origin.x,
+      origin.y,
+      Math.max(0, radius - ringWidth * 1.6),
+      origin.x,
+      origin.y,
+      radius + ringWidth,
+    );
+    halo.addColorStop(0, "rgba(80, 200, 255, 0)");
+    halo.addColorStop(0.78, "rgba(80, 200, 255, 0)");
+    halo.addColorStop(
+      0.9,
+      "rgba(160, 240, 255, " + this.upgradeShockwave.alpha * 0.18 + ")",
+    );
+    halo.addColorStop(1, "rgba(160, 240, 255, 0)");
+
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(origin.x, origin.y, radius + ringWidth, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle =
+      "rgba(185, 245, 255, " + (this.upgradeShockwave.alpha * 0.9 + 0.05) + ")";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(origin.x, origin.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle =
+      "rgba(105, 205, 255, " +
+      (this.upgradeShockwave.alpha * 0.55 + 0.05) +
+      ")";
+    ctx.lineWidth = 20;
+    ctx.beginPath();
+    ctx.arc(origin.x, origin.y, Math.max(0, radius - 14), 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  drawTankDamageEffects(bodyY: number, barrelBaseY: number): void {
+    const damageTaken = this.maxPlayerHealth - this.playerHealth;
+    if (damageTaken <= 0 || this.playerHealth <= 0) return;
+
+    const ctx = this.ctx;
+    const time = performance.now() * 0.0022;
+    const smokeBaseX = this.cannonX + 8;
+    const smokeBaseY = barrelBaseY - 10;
+
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      const phase = time + i * 1.4;
+      const rise = ((time * 110 + i * 22) % 55) + i * 4;
+      const drift = Math.sin(phase) * (8 + i * 2);
+      const radius = 10 + i * 3 + Math.sin(phase * 1.3) * 1.5;
+      const alpha = 0.18 + i * 0.05;
+      ctx.fillStyle = "rgba(120, 126, 132, " + alpha + ")";
+      ctx.beginPath();
+      ctx.arc(smokeBaseX + drift, smokeBaseY - rise, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    if (damageTaken < 2) return;
+
+    const flamePulse = 0.85 + Math.sin(time * 4.5) * 0.12;
+    const flameX = this.cannonX + 6;
+    const flameY = bodyY - 6;
+
+    ctx.save();
+    ctx.translate(flameX, flameY);
+    ctx.scale(flamePulse, flamePulse);
+
+    ctx.fillStyle = "rgba(255, 120, 28, 0.9)";
+    ctx.beginPath();
+    ctx.moveTo(0, -26);
+    ctx.quadraticCurveTo(14, -8, 5, 12);
+    ctx.quadraticCurveTo(0, 18, -5, 12);
+    ctx.quadraticCurveTo(-14, -8, 0, -26);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255, 214, 92, 0.95)";
+    ctx.beginPath();
+    ctx.moveTo(0, -18);
+    ctx.quadraticCurveTo(8, -5, 3, 8);
+    ctx.quadraticCurveTo(0, 12, -3, 8);
+    ctx.quadraticCurveTo(-8, -5, 0, -18);
+    ctx.fill();
+
+    const emberColors = [
+      "rgba(255, 232, 120, 0.92)",
+      "rgba(255, 176, 64, 0.8)",
+      "rgba(255, 110, 32, 0.7)",
+    ];
+    for (let i = 0; i < 6; i++) {
+      const orbit = time * 3.2 + i * 1.15;
+      const offsetX = Math.cos(orbit) * (7 + (i % 3) * 3);
+      const offsetY =
+        -8 - ((time * 70 + i * 11) % 16) + Math.sin(orbit * 1.6) * 2;
+      const emberRadius = 2.8 + ((Math.sin(orbit * 2.1) + 1) * 0.9) / 2;
+      ctx.fillStyle = emberColors[i % emberColors.length];
+      ctx.beginPath();
+      ctx.arc(offsetX, offsetY, emberRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   // ============= GAME LOGIC =============
@@ -2215,14 +2555,13 @@ class CannonBlasterGame {
     vx?: number,
     vy?: number,
   ): void {
-    // Determine size based on upgrades + total destructions (never stops shifting)
+    // Determine size based on upgrades + total destructions with a gentler curve.
     if (!size) {
       const roll = Math.random();
       const u = this.upgradesEarned;
       const t = this.totalDestroyed;
-      // Upgrades shift fast, destructions shift slowly but never stop
-      const largeChance = clamp(0.1 + u * 0.06 + t * 0.0006, 0.1, 0.55);
-      const mediumChance = clamp(0.35 + u * 0.02 + t * 0.0002, 0.35, 0.45);
+      const largeChance = clamp(0.08 + u * 0.03 + t * 0.0002, 0.08, 0.32);
+      const mediumChance = clamp(0.34 + u * 0.015 + t * 0.00008, 0.34, 0.44);
 
       if (roll < largeChance) size = "large";
       else if (roll < largeChance + mediumChance) size = "medium";
@@ -2232,16 +2571,16 @@ class CannonBlasterGame {
     const config = CONFIG.BOULDER_SIZES[size];
     const boulder = this.boulderPool.acquire();
 
-    // Health scales from upgrades + continuous scaling from total destructions
+    // Health still scales up over time, but with less aggressive growth.
     let bonusHealth = 0;
     const u = this.upgradesEarned;
     const t = this.totalDestroyed;
     if (size === "large") {
-      bonusHealth = Math.floor(u * 1.5) + Math.floor(t / 30);
+      bonusHealth = Math.floor(u * 1.0) + Math.floor(t / 55);
     } else if (size === "medium") {
-      bonusHealth = Math.floor(u * 0.8) + Math.floor(t / 50);
+      bonusHealth = Math.floor(u * 0.55) + Math.floor(t / 85);
     } else {
-      bonusHealth = Math.floor(u * 0.4) + Math.floor(t / 70);
+      bonusHealth = Math.floor(u * 0.25) + Math.floor(t / 120);
     }
 
     boulder.id = ++this.boulderIdCounter;
@@ -2253,7 +2592,7 @@ class CannonBlasterGame {
     boulder.y = y ?? -config.radius - 20;
     const diffMult = this.getDifficultyMultiplier();
     boulder.vx = vx ?? randomRange(-1.0, 1.0) * diffMult;
-    boulder.vy = vy ?? randomRange(1.0, 2.5) * diffMult;
+    boulder.vy = vy ?? randomRange(0.8, 2.0) * diffMult;
     boulder.rotation = Math.random() * Math.PI * 2;
     boulder.rotationSpeed = (Math.random() - 0.5) * 0.03;
     boulder.active = true;
@@ -2807,6 +3146,8 @@ class CannonBlasterGame {
 
     ctx.restore();
 
+    this.drawTankDamageEffects(bodyY, barrelBaseY);
+
     // Draw Shield Visual if active
     if (this.shieldHits > 0 || this.invincibilityTimer > 0) {
       ctx.save();
@@ -3245,12 +3586,12 @@ class CannonBlasterGame {
         }
       }
 
-      // Spawning - faster progression with exponential ramp
-      const difficultyMult = this.getDifficultyMultiplier();
+      // Spawning - keep late game busy without ramping too sharply.
+      const spawnPressureMult = this.getSpawnPressureMultiplier();
       const spawnInterval = Math.max(
         CONFIG.BOULDER_SPAWN_INTERVAL_MIN,
-        (CONFIG.BOULDER_SPAWN_INTERVAL_START - this.totalDestroyed * 25) /
-          difficultyMult,
+        (CONFIG.BOULDER_SPAWN_INTERVAL_START - this.totalDestroyed * 16) /
+          spawnPressureMult,
       );
       this.spawnTimer -= dt * 1000;
       if (this.spawnTimer <= 0) {
@@ -3263,6 +3604,9 @@ class CannonBlasterGame {
 
       this.updateHUD();
       this.updateShieldRecharge(dt);
+    } else if (this.gameState === "UPGRADE_TRANSITION") {
+      this.updateUpgradeTransition(dt);
+      this.updateHUD();
     }
     // UPGRADE state - no timer, player takes their time
   }
@@ -3278,6 +3622,7 @@ class CannonBlasterGame {
 
     if (
       this.gameState === "PLAYING" ||
+      this.gameState === "UPGRADE_TRANSITION" ||
       this.gameState === "PAUSED" ||
       this.gameState === "UPGRADE" ||
       this.gameState === "GAME_OVER"
@@ -3285,6 +3630,7 @@ class CannonBlasterGame {
       this.drawBoulders();
       this.drawBullets();
       this.drawCannon();
+      this.drawUpgradeShockwave();
       this.particles.draw(ctx);
       this.floatingText.draw(ctx);
     }

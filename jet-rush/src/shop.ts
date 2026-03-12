@@ -12,13 +12,37 @@ export interface ShipDef {
 }
 
 export const SHIPS: ShipDef[] = [
-  { id: "fighter_01", name: "Viper",    model: "assets/models/SM_Ship_Fighter_01.fbx", price: 0 },
-  { id: "fighter_02", name: "Phantom",  model: "assets/models/SM_Ship_Fighter_02.fbx", price: 500 },
-  { id: "fighter_03", name: "Wraith",   model: "assets/models/SM_Ship_Fighter_03.fbx", price: 1500 },
-  { id: "fighter_04", name: "Spectre",  model: "assets/models/SM_Ship_Fighter_04.fbx", price: 3000 },
-  { id: "fighter_05", name: "Nemesis",  model: "assets/models/SM_Ship_Fighter_05.fbx", price: 5000 },
+  {
+    id: "fighter_01",
+    name: "Viper",
+    model: "assets/models/SM_Ship_Fighter_01.fbx",
+    price: 0,
+  },
+  {
+    id: "fighter_02",
+    name: "Phantom",
+    model: "assets/models/SM_Ship_Fighter_02.fbx",
+    price: 500,
+  },
+  {
+    id: "fighter_03",
+    name: "Wraith",
+    model: "assets/models/SM_Ship_Fighter_03.fbx",
+    price: 1500,
+  },
+  {
+    id: "fighter_04",
+    name: "Spectre",
+    model: "assets/models/SM_Ship_Fighter_04.fbx",
+    price: 3000,
+  },
+  {
+    id: "fighter_05",
+    name: "Nemesis",
+    model: "assets/models/SM_Ship_Fighter_05.fbx",
+    price: 5000,
+  },
 ];
-
 
 export class Shop {
   private renderer: THREE.WebGLRenderer | null = null;
@@ -61,11 +85,18 @@ export class Shop {
 
     this.owned = this.loadOwned();
     this.selected = this.loadSelected();
-    this.index = Math.max(0, SHIPS.findIndex((s) => s.id === this.selected));
+    this.index = Math.max(
+      0,
+      SHIPS.findIndex((s) => s.id === this.selected),
+    );
 
     const texLoader = new THREE.TextureLoader();
-    this.baseTexture = texLoader.load("assets/textures/PolygonSciFiSpace_Texture_01_A.png");
-    this.emissiveTexture = texLoader.load("assets/textures/PolygonSciFiSpace_Emissive_01.png");
+    this.baseTexture = texLoader.load(
+      "assets/textures/PolygonSciFiSpace_Texture_01_A.png",
+    );
+    this.emissiveTexture = texLoader.load(
+      "assets/textures/PolygonSciFiSpace_Emissive_01.png",
+    );
     this.baseTexture.colorSpace = THREE.SRGBColorSpace;
     this.baseTexture.flipY = false;
     this.emissiveTexture.flipY = false;
@@ -179,7 +210,9 @@ export class Shop {
   private navigate(dir: number): void {
     if (this.navLock) return;
     this.navLock = true;
-    setTimeout(() => { this.navLock = false; }, 250);
+    setTimeout(() => {
+      this.navLock = false;
+    }, 250);
 
     this.haptic("light");
     this.playFX();
@@ -376,7 +409,11 @@ export class Shop {
     const arr = state.ownedShips;
     if (Array.isArray(arr)) return new Set(arr as string[]);
     const defaults = new Set([SHIPS[0].id]);
-    oasiz.saveGameState({ ...state, ownedShips: [...defaults], selectedShip: SHIPS[0].id });
+    oasiz.saveGameState({
+      ...state,
+      ownedShips: [...defaults],
+      selectedShip: SHIPS[0].id,
+    });
     oasiz.flushGameState();
     return defaults;
   }
@@ -388,7 +425,9 @@ export class Shop {
 
   private loadSelected(): string {
     const state = oasiz.loadGameState();
-    return typeof state.selectedShip === "string" ? (state.selectedShip as string) : SHIPS[0].id;
+    return typeof state.selectedShip === "string"
+      ? (state.selectedShip as string)
+      : SHIPS[0].id;
   }
 
   private saveSelected(): void {

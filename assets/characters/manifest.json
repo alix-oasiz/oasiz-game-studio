@@ -1,0 +1,300 @@
+{
+  "_meta": {
+    "description": "Sprite manifest for all playable character assets. Use this file to quickly find character sprites, animations, and color styles.",
+    "basePath": "assets/characters",
+    "format": "Individual PNG frames in PNG/{style}/{animation}/f####.png and packed spritesheets in spritesheet/{style}/spritesheet.png + .txt"
+  },
+  "packs": [
+    {
+      "name": "Classic Character",
+      "path": "classic_character/classic_character",
+      "description": "2D pixel art platformer character with 4 color styles, full combat and movement animation set",
+      "frameSize": "40x40",
+      "recommendedFrameDuration": "75ms (13.33 FPS)",
+      "styles": [
+        {
+          "id": "style_1",
+          "description": "Red jacket, blue pants — default color scheme",
+          "pngPath": "classic_character/classic_character/PNG/style_1/",
+          "spritesheetPath": "classic_character/classic_character/spritesheet/style_1/"
+        },
+        {
+          "id": "style_2",
+          "description": "Green jacket, red pants — alternate color scheme",
+          "pngPath": "classic_character/classic_character/PNG/style_2/",
+          "spritesheetPath": "classic_character/classic_character/spritesheet/style_2/"
+        },
+        {
+          "id": "style_3",
+          "description": "Violet jacket, blue pants — alternate color scheme",
+          "pngPath": "classic_character/classic_character/PNG/style_3/",
+          "spritesheetPath": "classic_character/classic_character/spritesheet/style_3/"
+        },
+        {
+          "id": "style_4",
+          "description": "Blue jacket, red pants — alternate color scheme",
+          "pngPath": "classic_character/classic_character/PNG/style_4/",
+          "spritesheetPath": "classic_character/classic_character/spritesheet/style_4/"
+        }
+      ],
+      "animations": [
+        {
+          "id": "idle_A",
+          "description": "Standing pose, arms relaxed, slight smile — primary idle",
+          "frameCount": 7,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "idle_B",
+          "description": "Standing pose with more subtle movement — secondary idle",
+          "frameCount": 8,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "idle_C",
+          "description": "Longest idle animation with varied poses — extended idle",
+          "frameCount": 15,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "run",
+          "description": "Running cycle with arms and legs in motion",
+          "frameCount": 10,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "jump",
+          "description": "Jump arc: launch, peak, descent",
+          "frameCount": 3,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "fall",
+          "description": "Falling pose with arms spread",
+          "frameCount": 3,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "punch_A",
+          "description": "First punch, right arm extended forward — combo starter",
+          "frameCount": 8,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "punch_B",
+          "description": "Second punch, combo continuation",
+          "frameCount": 8,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "punch_C",
+          "description": "Third punch, combo finisher with extra impact",
+          "frameCount": 8,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "dash_attack",
+          "description": "Dash forward with attack, usable on ground and in air. Skip to frame 3 for air, switch to fall after frame 6",
+          "frameCount": 9,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "get_hit",
+          "description": "Hit reaction with yellow energy burst and recoil",
+          "frameCount": 9,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "die",
+          "description": "Death sequence, character falls and collapses",
+          "frameCount": 4,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "celebrate",
+          "description": "Victory animation with arms raised and wide grin",
+          "frameCount": 10,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "talk_A",
+          "description": "Talking mouth movement variant A — for dialogue",
+          "frameCount": 2,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "talk_B",
+          "description": "Talking mouth movement variant B — for dialogue",
+          "frameCount": 2,
+          "frameSize": "40x40"
+        },
+        {
+          "id": "wall_cling",
+          "description": "Single frame clinging to wall, Mega Man X style",
+          "frameCount": 1,
+          "frameSize": "40x43",
+          "note": "Single PNG file, not in a subfolder"
+        }
+      ],
+      "effects": [
+        {
+          "id": "dash_fx",
+          "description": "White pixel burst/splash trail effect for dash attack on ground",
+          "frameCount": 5,
+          "frameSize": "80x96",
+          "pngPath": "classic_character/classic_character/PNG/dash_fx/",
+          "spritesheetPath": "classic_character/classic_character/spritesheet/dash_fx/"
+        }
+      ],
+      "usageNotes": {
+        "punchCombo": "Chain punch_A → punch_B → punch_C. Skip leading/trailing frames for smoother combo transitions.",
+        "dashAttack": "On ground: play full animation with dash_fx behind character. In air: skip to frame 3, switch to fall after frame 6.",
+        "wallCling": "Single frame. Use for Mega Man X-style wall sliding."
+      }
+    },
+    {
+      "name": "Valiant Knight",
+      "path": "valiant_knight",
+      "description": "Armored medieval knight with sword and shield, 4 color styles, full combat with guard/block system and 3-hit attack combo",
+      "frameSize": "79x63",
+      "recommendedFrameDuration": "67ms (15 FPS)",
+      "styles": [
+        {
+          "id": "style_A",
+          "description": "Grey armor, red cape/shield, gold accents, orange-red helmet plume",
+          "pngPath": "valiant_knight/style_A/PNG/",
+          "spritesheetPath": "valiant_knight/style_A/spritesheet/"
+        },
+        {
+          "id": "style_B",
+          "description": "Grey armor, purple cape/shield, gold accents, purple helmet plume",
+          "pngPath": "valiant_knight/style_B/PNG/",
+          "spritesheetPath": "valiant_knight/style_B/spritesheet/"
+        },
+        {
+          "id": "style_C",
+          "description": "Grey-blue armor, brown cape/shield, gold accents, orange-gold helmet",
+          "pngPath": "valiant_knight/style_C/PNG/",
+          "spritesheetPath": "valiant_knight/style_C/spritesheet/"
+        },
+        {
+          "id": "style_D",
+          "description": "Grey armor, green cape/shield, gold accents, green helmet plume",
+          "pngPath": "valiant_knight/style_D/PNG/",
+          "spritesheetPath": "valiant_knight/style_D/spritesheet/"
+        }
+      ],
+      "animations": [
+        {
+          "id": "idle",
+          "description": "Standing ready pose with sword raised and shield ready, cape flowing",
+          "frameCount": 6,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "run",
+          "description": "Running with sword raised and shield forward, cape trailing",
+          "frameCount": 8,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "attack_A",
+          "description": "First attack with sword swing crescent effect — combo starter. Last 2 frames are idle transition (skip for combos)",
+          "frameCount": 14,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "attack_B",
+          "description": "Second attack variant — combo continuation",
+          "frameCount": 13,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "attack_C",
+          "description": "Third attack variant — combo finisher",
+          "frameCount": 14,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "jump_start",
+          "description": "Jump takeoff: crouch then launch upward",
+          "frameCount": 4,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "jump_loop",
+          "description": "Mid-air pose loop with cape flowing upward",
+          "frameCount": 2,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "fall_loop",
+          "description": "Falling animation loop with arms extended",
+          "frameCount": 2,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "get_hit",
+          "description": "Hit reaction with recoil, shield raised defensively",
+          "frameCount": 5,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "die",
+          "description": "Death sequence — knight collapses to final pose",
+          "frameCount": 10,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "guard_start",
+          "description": "Raising shield into defensive guard position",
+          "frameCount": 4,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "guard",
+          "description": "Guard/block loop — holding shield in defensive stance",
+          "frameCount": 6,
+          "frameSize": "79x63"
+        },
+        {
+          "id": "guard_end",
+          "description": "Lowering shield, returning from guard to ready position",
+          "frameCount": 4,
+          "frameSize": "79x63"
+        }
+      ],
+      "effects": [
+        {
+          "id": "block1",
+          "description": "Light blue energy burst block impact effect — variant 1",
+          "frameCount": 16,
+          "frameSize": "64x64",
+          "pngPath": "valiant_knight/block_effect/PNG/block1/",
+          "spritesheetPath": "valiant_knight/block_effect/spritesheet/"
+        },
+        {
+          "id": "block2",
+          "description": "Energy burst block impact effect — variant 2",
+          "frameCount": 16,
+          "frameSize": "64x64",
+          "pngPath": "valiant_knight/block_effect/PNG/block2/",
+          "spritesheetPath": "valiant_knight/block_effect/spritesheet/"
+        },
+        {
+          "id": "block3",
+          "description": "Energy burst block impact effect — variant 3",
+          "frameCount": 16,
+          "frameSize": "64x64",
+          "pngPath": "valiant_knight/block_effect/PNG/block3/",
+          "spritesheetPath": "valiant_knight/block_effect/spritesheet/"
+        }
+      ],
+      "usageNotes": {
+        "attackCombo": "Chain attack_A → attack_B → attack_C. Skip last 2 frames of attack_A for smooth transitions.",
+        "guardSystem": "guard_start → guard (loop) → guard_end. Play block effects on successful blocks.",
+        "jumpSequence": "jump_start → jump_loop (loop while airborne) → fall_loop (when descending)"
+      }
+    }
+  ]
+}

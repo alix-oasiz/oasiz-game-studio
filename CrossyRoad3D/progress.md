@@ -1,0 +1,331 @@
+Original prompt: oyunu daha çok crossy roada brnzet harita görsellerini
+
+- Inceleme: Harita olusumu main.js icindeki addLane/spawnGrassDecor fonksiyonlarinda.
+- Plan: Cimen, yol ve nehir seritlerini daha voxel/tile tabanli cizerek Crossy Road benzeri harita estegine yaklastirmak.
+
+- Uygulama: main.js icine makeLaneTexture eklendi; grass/road/river lane materyalleri pixel checker/desenli canvas texture ile guncellendi.
+- Uygulama: addLane icinde yol seritleri (sari kesik cizgi), beyaz yol cizgileri, lane yan bloklari (curb/bank/grass edge) eklendi.
+- Uygulama: spawnGrassDecor daha grid benzeri konumlandirildi; agaclar iki katmanli blok canopy ile yenilendi.
+- Uygulama: window.render_game_to_text ve window.advanceTime eklendi (otomasyon ve deterministik adimlama icin).
+- Hata duzeltme: resetWorld lane olusturma sirasi degistirildi; ayni z de cift lane olusumu giderildi.
+- Test: Playwright client 3 iterasyon (output/web-game) basarili, console error yok, screenshotlar kontrol edildi.
+- Test: Ek hareket regresyon testi (output/web-game-move) basarili; skor artisi ve oyuncu hareketi dogrulandi.
+- TODO: Arac ve kutuk meshleri de voxel/pixel stiline cekilirse estetik daha tutarli olur.
+
+- Follow-up prompt: arabalar tek serit kaplasin, kamera ekran boyu hissettirsin, gorsellik ciddi artsin ve serit sistemi gelsin.
+- Degisiklik (WIP): laneDepth/laneWidth/xStep/camera rig yeniden olceklendi; dinamik kamera ayari eklendi.
+- Degisiklik (WIP): yol alt-serit offset mantigi (lane.trafficZ) ve tek-seride arac spawn davranisi eklendi.
+- Degisiklik (WIP): gokyuzu gradient, horizon bloklari, gelişmis isik, gelistirilmis lane texture ve detayli arac modeli eklendi.
+- Duzeltme: arac spawn/despawn mesafeleri yol kenarina cekildi; ekranin disinda yanan/ucan hissi azaltildi.
+- Test: Playwright uzun akıs testi (output/web-game-lanes) gecildi; araclar road alt-seridinde ilerliyor ve console error yok.
+- Test: Yol/carpisma regresyonunda oyuncu carpisma ile gameover tetiklenmesi dogrulandi (state-1 mode=gameover).
+- Not: 4173 portu dolu oldugu icin testler 5173 uzerinde kosuldu.
+- Follow-up prompt 2: agaclardan gecmeme, araclarin ust uste binmemesi, seritli akis, daha gercekci arac ve kamera full oyun.
+- Uygulama: grass lane icin lane.obstacles eklendi; movePlayer hedef adimi hitsGrassObstacle ile kontrol edip agac/tas engelini blokluyor.
+- Uygulama: spawnGrassDecor lane bazli obstacle kaydi yapiyor (tree/stone hitbox).
+- Uygulama: arac modeli gelistirildi (sase, govde, kabin, kaput, tampon, silindir teker, far/stop).
+- Uygulama: ayni yol seridinde spawn icin min spacing kontrolu eklendi; araclarin ust uste spawn olmasi engellendi.
+- Uygulama: kamera rig fov/height/back/follow ayarlari genisletildi; daha cok saha tek ekranda gorunuyor.
+- Test: Playwright (output/web-game-check3) ile yeni gorsel/serit/kamera ciktilari dogrulandi, console error yok.
+- Test: Playwright (output/web-game-treeblock) ile 3 sol hareket denemesinde oyuncu x=-1.8'de bloklandi; state'te yakin agac hitbox'lari mevcut, engel calismasi dogrulandi.
+- Test: Playwright (output/web-game-traffic2) ile uzun akis kontrolu, console error yok.
+- Follow-up prompt 3: 3 adimdan fazla geri gidince kartal oyuncunun tam ustune alcalsin ve oyle yakalasin; test istenmedi.
+- Uygulama: Eagle tetik kosulu blocksBack >= 3 -> blocksBack > 3 olarak degistirildi.
+- Uygulama: Eagle baslangic konumu oyuncunun x/z'sine alinip dikey inis yapacak sekilde ayarlandi; faz 1'de yatay dis-swoop ve yukseklik arki kaldirildi.
+- Not: Kullanici talebi geregi test calistirilmadi.
+- Follow-up fix: Kartal sekansi baslarken normal checkDeath aninda oldurdugu icin, eagle.active iken checkDeath bypass edildi.
+- Follow-up prompt 4: karakteri tavuk yerine baska hayvan yap.
+- Uygulama: Oyuncu modeli `createChicken` yerine `createRabbit` ile voxel tavsan tasarimina cevrildi (kulak, burun, patiler, kuyruk); hareket/fizik ayni birakildi.
+- Uygulama: Hareket yonu aciklama yorumu model-ozel olmaktan cikarilip genel oyuncu yonune cekildi.
+- Test: Playwright (output/web-game-rabbit) 3 iterasyon kosuldu; yeni tavsan modeli gorunurlugu screenshotlarda dogrulandi, errors-*.json uretimi yok (console/page error yok).
+- Test: Playwright regresyonu (output/web-game-rabbit-move) up/right/jump adimlariyla kosuldu; model rotasyonu/animasyonu ve skor ilerlemesi dogrulandi, hata kaydi yok.
+
+- Follow-up prompt 5: oyuna arabalı yol gibi farklı farklı 5-6 tane engel türü ekle, harita boş kalmasın.
+- Uygulama: lane sistemi `hazard` profiline geçirildi; dinamik döngüye `cars`, `bikes`, `logs`, `trucks`, `trains`, `barrels` tipleri eklendi.
+- Uygulama: yeni yüzey tipleri ve görseller eklendi (`mud`, `rail`) ve lane pattern'i neredeyse tüm satırlarda aktif engel akışı olacak şekilde güncellendi.
+- Uygulama: mover üretimi tür bazlı hale getirildi (car/truck/bike/train/log/barrel meshleri), spawn/cooldown kanal bazında yönetiliyor.
+- Uygulama: grass lane engelleri çeşitlendirildi (`tree`, `rock`, `bush`) ve lane boşluğu hissini azaltmak için `laneAt` kapsaması artırıldı.
+- Uygulama: `render_game_to_text` artık lane hazard/channels ve mover türlerini raporluyor.
+- Test: Kullanıcı isteğiyle playtest çalıştırılmadı.
+- TODO: Kullanıcı izin verirse Playwright ile yeni hazard türlerinin görsel yoğunluğu ve denge kontrolü tekrar doğrulanmalı.
+- Follow-up prompt 6: arada boş çimenler de olsun.
+- Uygulama: pattern'e `grass/open` lane eklendi; bu lane'de oynanabilir alanda engel spawn edilmiyor, sadece kenarlarda dekor var.
+- Test: Kullanıcı talebi nedeniyle playtest yine çalıştırılmadı; yalnızca `node --check --input-type=module` ile sözdizimi doğrulandı.
+- Follow-up prompt 7: nehir daha seyrek olsun (1.4x) ve nehirden hemen onceki blok cimen olsun.
+- Uygulama: lane pattern 7 adimdan 10 adıma cikartildi; nehir frekansi 1/7'den 1/10'a dusuruldu (yaklasik 1.4x daha seyrek).
+- Uygulama: pattern'de her nehirin hemen oncesine `grass/open` lane sabitlendi.
+- Test: Kullanici istegiyle playtest yok; `node --check --input-type=module` ile sözdizimi gecerli.
+- Follow-up prompt 8: nehir kenarinda cimenin icinden suya dusurme bugi.
+- Uygulama: `laneAt` snap eşiği `0.52` -> `0.45` geri çekildi; yarım adım/kenar bloklarin river lane olarak yanlis algılanması engellendi.
+- Test: Playtest calistirilmadi; `node --check --input-type=module` ile sözdizimi gecerli.
+- Follow-up prompt 9: mobilde desktop gibi genis gorunmesi, butonsuz surukleme kontrolu.
+- Uygulama: mobil kamera framingi genisletildi; `refreshCameraRig` coarse pointer cihazlarda minimum yatay dünya kapsaması koruyacak şekilde güncellendi.
+- Uygulama: on-screen D-pad tamamen kaldırıldı (HTML/CSS + JS listener temizlendi).
+- Uygulama: canvas üzerinde pointer drag/swipe kontrolü eklendi; her drag eşiğinde oyuncu ilgili yöne adım atıyor.
+- Uygulama: canvas `touch-action: none` yapıldı ve menüye "Drag or Swipe to Move" ipucu eklendi.
+- Test: Playtest çalıştırılmadı; `node --check --input-type=module` ile sözdizimi doğrulandı.
+- Follow-up prompt 10: `bgMusic.mp3` dosyasını arkaplan müziği olarak kullan ve ölüm sesi ekle.
+- Uygulama: procedural bgm kaldırıldı; `./bgMusic.mp3` dosyasını loop oynatan `bgMusic` sistemi eklendi.
+- Uygulama: ölüm için ayrı `playDeathSfx()` eklendi ve tüm ölüm tetiklerinde eski blip yerine bu efekt kullanıldı.
+- Test: Playtest çalıştırılmadı; `node --check --input-type=module` ile sözdizimi doğrulandı.
+- Follow-up prompt 11: mobil swipe PC'de kapalı olsun, bir swipe tek adım atsın.
+- Uygulama: pointer drag kontrolü `coarse + touch/pen` koşuluna bağlandı; PC/mouse üzerinde mobil kontrol devre dışı bırakıldı.
+- Uygulama: `dragControl.moved` eklendi; tek swipe boyunca sadece bir kez `movePlayer` çağrılıyor (tek adım).
+- Uygulama: menu swipe ipucu desktop'ta gizlendi (`@media (pointer:fine)`).
+- Test: Playtest çalıştırılmadı; `node --check --input-type=module` ile sözdizimi doğrulandı.
+- Follow-up prompt 12: bazen araçlar iç içe spawn oluyor, engellensin.
+- Uygulama: başlangıç pre-spawn için `pickNonOverlappingSeedX` eklendi; aynı kanal/z içinde araçlar güvenli X mesafesiyle yerleştiriliyor.
+- Uygulama: canlı spawn kontrolüne `estimateMoverHalfX` ve ekstra `spawnSafety` eklendi; yeni doğan araç mevcut araca temas edecekse spawn edilmiyor.
+- Test: Playtest çalıştırılmadı; `node --check --input-type=module` ile sözdizimi doğrulandı.
+- Follow-up prompt 13: telefonda ekran 1.2x zoomlansin.
+- Uygulama: `refreshCameraRig` içine mobil için `phoneZoomFactor = 1/1.2` eklendi; coarse pointer cihazlarda kamera 1.2x daha yakın.
+- Test: Playtest çalıştırılmadı; `node --check --input-type=module` ile sözdizimi doğrulandı.
+- Follow-up prompt 14: haritayi 2 kat genislet.
+- Uygulama: `laneWidth` 30 -> 60 ve `sideLimit` 8.1 -> 16.2 yapilarak hem lane geometrisi hem oynanabilir yatay alan 2x genisletildi.
+- Test: Playtest çalıştırılmadı; `node --check --input-type=module` ile sözdizimi doğrulandı.
+- Follow-up prompt 15: kayik ve arabalarin gidisi daha guzel olsun.
+- Uygulama: mover sistemine `createMoverMotion` + `animateMover` eklendi; `log` (kayik hissi) ve `car/truck/bike` icin hiz dalgalanmasi + yumuşak hiz gecisi (easing) + gorsel bob/sway/tilt animasyonu getirildi.
+- Uygulama: arac tekerleri icin mesh referansi tutulup hareketle bagli wheel spin eklendi; ayni anda hitbox/collision olculeri korunarak sadece gorsel akis iyilestirildi.
+- Uygulama: mover heading yaw tek noktadan yonetildi; yeni motion katmani z-kaymasi ile serit icinde daha dogal akış veriyor.
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: Playwright (output/web-game-motion) kosuldu; menu/akış screenshotlari alindi, errors-*.json olusmadi.
+- Test: Playwright (output/web-game-motion-play) gameplay kosuldu; state JSON uretildi, errors-*.json olusmadi.
+- Test: Playwright (output/web-game-motion-live) oyuncu sabit gameplay kosuldu; arac akisi screenshot/state ile dogrulandi, errors-*.json yok.
+- Not: `#startBtn` click-selector animasyon nedeniyle dengesiz davrandi; bu turde canvas koordinat click adimi ile test baslatildi.
+- Follow-up prompt 16: settings tusu biraz daha asagi.
+- Uygulama: `#settingsBtn` top degeri `16px` -> `24px` yapildi; coarse pointer media kurali da ayni sekilde guncellendi.
+- Test: Playwright (output/web-game-settings-btn) tek iterasyon menu screenshotu alindi ve yeni buton konumu dogrulandi.
+- Follow-up prompt 17: settings tusu ve skor sayaci 120px daha asagi.
+- Uygulama: skor HUD `top` degeri `16px` -> `136px`; settings tusu `top` degeri `24px` -> `144px` olarak ayarlandi (coarse pointer media kurali da `144px`).
+- Test: Sunucu baglanti testi sirasinda `localhost:8080` erisilemedi; degisiklik CSS satirlari uzerinden dogrulandi.
+- Follow-up prompt 17: ana menude tusla acilan karakter secimi, 5 farkli hayvan, menuyla uyumlu gorsel/animasyon.
+- Uygulama: index.html menuye `CHARACTERS` butonu eklendi; blur + glow + kart giris animasyonlari olan `#characterMenu` paneli ve 5 karakter karti (rabbit/fox/panda/turtle/deer) eklendi.
+- Uygulama: main.js oyuncu sistemi tek modelden coklu karakter fabrikasina cevrildi (`createRabbit/createFox/createPanda/createTurtle/createDeer`, `setCharacter`).
+- Uygulama: secim UI state'i (`selectedCharacterId`) ve localStorage (`crossy3d_character`) baglandi; menu basligindaki hayvan etiketi secime gore dinamikleniyor.
+- Uygulama: tum oyun akisi `player` referansina genellendi (move/reset/death/eagle/camera/render_game_to_text) ve text state'e `character` alani eklendi.
+- Bugfix: secili kart gorunmezligi giderildi (`.animal-card.selected` animation/opacity cakisimi duzeltildi).
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: Playwright baseline menu screenshot (output/web-game-character-baseline) alindi.
+- Test: Playwright karakter panel acilis dogrulandi (output/web-game-character-open4), 5 kart gorunur.
+- Test: Playwright panel icinde Deer secimi dogrulandi (output/web-game-character-selected-deer), state'te `character:"deer"`.
+- Test: Playwright Deer ile oyuna giris + hareket dogrulandi (output/web-game-character-play), mode=playing ve character=deer.
+- Test: Playwright Fox ile oyuna giris dogrulandi (output/web-game-character-fox-play), mode=playing ve character=fox.
+- Test notu: test ciktilarinda errors-*.json uretilmedi (console/page error yok).
+- TODO: Istenirse karakter paneline 3D canli preview (secili hayvanin menu sahnesinde gorunmesi) eklenebilir.
+- Follow-up prompt 18: karakter seciminde oyun tarzina tam uyum ve secim kartlarinda modelin gorunmesi.
+- Uygulama: karakter kartlarindaki emoji ikonlar kaldirildi; her karta `animal-preview` alanı eklendi.
+- Uygulama: kart stiline yol-serit esintili alt pattern eklendi (`.animal-card::before`) ve secili kartta bu efekt guclendirildi.
+- Uygulama: `main.js` tarafina mini 3D preview sistemi eklendi (`setupCharacterPreviews`, `renderCharacterPreviews`, `refreshCharacterPreviewSizes`, `shouldRenderCharacterPreviews`).
+- Uygulama: her kart icin ayri mini Three.js scene/camera/light kurulup ilgili hayvan modeli render ediliyor; modeller kart icinde hafif donme + bob animasyonu yapiyor.
+- Uygulama: viewport degisiminde preview canvas boyutlari guncelleniyor; menu acikken preview render dongusu aktif.
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: Playwright karakter panel gorunumu (output/web-game-character-model-preview) - 5 kartta model goruntuleri dogrulandi.
+- Test: Playwright panelde Deer secimi (output/web-game-character-model-selected) - secili kart + state `character:\"deer\"` dogrulandi.
+- Test: Playwright Deer ile oyuna giris ve hareket (output/web-game-character-model-play) - mode=playing, score artisi ve secili karakter korunumu dogrulandi.
+- Test notu: ilgili test klasorlerinde errors-*.json olusmadi (console/page error yok).
+- Follow-up prompt 19: karakter secim ekraninin arkaplan/border stilini degistir, fox+panda preview glitchini duzelt, karakter aciklamalarini genislet.
+- Uygulama: karakter paneli arkaplan/border tamamen yeniden tasarlandi (daha oyun-stili yesil panel, beyaz blok border, altta serit bar).
+- Uygulama: kart stilinde border/golge/selected paleti sade ve daha okunur hale cekildi.
+- Uygulama: karakter aciklamalari tum kartlarda daha detayli metinlerle guncellendi.
+- Uygulama: Panda govde yan patchlerinde coplanar flicker olusturan geometrik cakisimi azaltmak icin yan panel olculeri/konumu revize edildi.
+- Uygulama: preview sahnesinde model-flo or temasindan kaynakli clipping/flicker azaltildi (model yuksekligi, floor offset/kalinlik duzeltildi).
+- Uygulama: preview animasyonu yumusatildi; fox/panda icin daha stabil aci tabani ile donus amplitude'i dusuruldu.
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: Playwright karakter panel gorunumu v2 (output/web-game-character-model-preview-v2) - yeni arkaplan/border + 5 model goruntusu dogrulandi.
+- Test: Playwright oyuna giris v2 (output/web-game-character-model-play-v2) - mode=playing, character=deer, score artisi dogrulandi.
+- Test notu: ilgili v2 klasorlerinde errors-*.json olusmadi.
+- Follow-up prompt 20: deer'e goz ekle, karakter secimindeki efekt/animasyonlari azalt.
+- Uygulama: `createDeer` icine beyaz goz + koyu pupil meshleri eklendi; deer kart/modelde gozler net gorunur hale getirildi.
+- Uygulama: karakter secim preview animasyonu daha da sakinlestirildi (`renderCharacterPreviews`: hafif yaw sway, dikey bob kaldirildi).
+- Uygulama: karakter secim panelinde agir glow/animasyonlar azaltildi (backdrop blur/golge/selected pulse/bounce ve benzeri efektler sadeleştirildi).
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: Playwright preview v3 (`output/web-game-character-model-preview-v3`) ve gameplay v3 (`output/web-game-character-model-play-v3`) kosularinda errors-*.json olusmadi.
+
+- Follow-up prompt 21: karakter secim ekraninda arkaplan/borderi daha az efektli yap, karakter aciklamalarini kaldir.
+- Uygulama: `index.html` karakter kartlarindaki tum `animal-sub` aciklama metinleri kaldirildi.
+- Uygulama: kart/panel efektleri bir kademe daha dusuruldu (kart giris animasyonu kaldirildi, hover hareketi kaldirildi, golge ve gecisler hafifletildi, kart yukseklikleri aciklamasiz duzene gore guncellendi).
+- Test: Playwright menu acilis kontrolu (`output/web-game-character-model-preview-v4/shot-0.png`) basarili.
+- Test: Playwright deer secim kontrolu (`output/web-game-character-model-selected-v4/shot-0.png`), state'te `character:"deer"` dogrulandi.
+- Test: Playwright kisa gameplay regresyonu (`output/web-game-character-model-play-v4/state-0.json`) calisti; oyun akisi ve state uretimi dogrulandi.
+- Test notu: v4 cikti klasorlerinde errors-*.json olusmadi (console/page error yok).
+
+- TODO: Eger istenirse karakter secim kartlarinda mevcut 3D preview yerine tamamen statik render kullanilip GPU yuk/olasi flicker daha da dusurulebilir.
+- Follow-up prompt 22: fox ve panda kaldirilsin, deer'e goz eklensin.
+- Uygulama: karakter secim ekranindan fox/panda kartlari kaldirildi; grid 3 karaktere (rabbit/turtle/deer) gore duzenlendi.
+- Uygulama: karakter whitelist'i guncellendi (`CHARACTER_META` icinden fox/panda cikarildi); localStorage'da eski fox/panda secimi varsa otomatik rabbit'e normalize olur.
+- Uygulama: deer gozleri daha belirginlestirildi (sclera/pupil boyut ve ileri konum ayari).
+- Uygulama: preview scale/rotation tablolarindan fox/panda girdileri temizlendi.
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: Playwright menu kontrolu (`output/web-game-character-remove-fox-panda-v1/shot-0.png`) sadece 3 kart gorunumu dogruladi.
+- Test: Playwright deer secim kontrolu (`output/web-game-character-remove-fox-panda-select-deer-v1/shot-0.png`), state'te `character:"deer"` dogrulandi.
+- Test notu: ilgili klasorlerde errors-*.json olusmadi.
+- Follow-up prompt 23: deer boynu daha kisa olsun, hareketlere 0.2sn siniri gelsin.
+- Uygulama: deer modelinde neck/head/snout/ear/antler yukseklikleri yeniden konumlandirildi; boyun daha kisa/sik gorunume cekildi.
+- Uygulama: hareket spamini engellemek icin `movePlayer` akisina 0.2s cooldown eklendi.
+- Uygulama: cooldown gercek zaman yerine oyun-simulasyon zamanina baglandi (`elapsedGameTime`), boylece hem normal loop hem `advanceTime` testlerinde tutarli calisiyor.
+- Uygulama: `resetWorld` icinde cooldown zamanlayicilari sifirlaniyor.
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: karakter menusu/deer gorunumu (`output/web-game-deer-neck-cooldown-menu-v1/shot-0.png`) dogrulandi.
+- Test: hizli cift `down` girdi cooldown testi (`output/web-game-move-cooldown-fast-down-v2/state-0.json`) - tek hamle uygulandi (`player.z: 2.2`), ikinci hamle cooldown nedeniyle engellendi.
+- Test notu: ilgili klasorlerde errors-*.json olusmadi.
+- Follow-up prompt 24: hizli giderken collider/olum kaciyor, nehir ustunden olmeden atliyor.
+- Kök neden: olum kontrolu `player.jump > 0` iken tamamen devre disiydi; hizli/ardisik hamlede carpisma ve nehir kontrolu atlanabiliyordu.
+- Uygulama: `checkDeath` artik `player.targetX/targetZ` yerine `player.group.position` (gercek anlik pozisyon) uzerinden hesap yapiyor.
+- Uygulama: update akisinda olum kontrolunden `player.jump > 0` engeli kaldirildi; kartal aktif degilse her frame carpisma/su kontrolu calisiyor.
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test: hizli ardışık down girdisi senaryosu (`output/web-game-fast-death-fix-v1/state-0.json`) artik `mode:"gameover"` veriyor; onceki kacirma davranisi tekrar uretilemedi.
+- Test: spam stres kosusu (`output/web-game-fast-spam-stress-v1/state-0.json`) hata dosyasi olusmadan calisti.
+- Test notu: ilgili klasorlerde errors-*.json olusmadi.
+- Follow-up prompt 25: olumde atlama benzeri pixel ses efekti.
+- Uygulama: `playDeathSfx()` chiptune/pixel stile cevrildi; square lead + triangle body + kisa pixel click katmani ile kademeli pitch-dusen retro fail/jump-benzeri efekt eklendi.
+- Uygulama: ses zarfi kisa tutuldu (yaklasik 0.31s), oldurme aninda net duyulan ama muzikle cakismayan bir one-shot formuna cekildi.
+- Test: `node --check --input-type=module < main.js` basarili.
+- Test notu: `http-server` uzerinden run'da `Failed to resolve module specifier "three"` pageerror'u alindi (Vite gerekli).
+- Test: Vite URL ile Playwright run (`output/web-game-death-pixel-sfx-vite-click/state-0.json`) `mode:"playing"` ve errors-*.json yok; screenshot alindi.
+- Follow-up prompt 26: CrossyRoad iyilestirmeleri (tap-forward, tile-fit/hitbox, hizlar, train warning, log spawn, gorsel asset onerileri).
+- Uygulama: ileri/geri hareket adimi `forwardStep = laneDepth` yapildi; karakter artik yarim lane yerine tam lane merkezlerine iniyor (tile-fit).
+- Uygulama: tap ile ileri hareket eklendi; pointer drag/swipe halen yon hareketi veriyor, drag yoksa tek tap `up` hamlesi atiyor.
+- Uygulama: menu click'inin yanlislikla hamle tetiklememesi icin pointer hareketi yalnizca `active` oyunda isleniyor.
+- Uygulama: oyuncu carpisma olcusu tek kaynaga cekildi (`PLAYER_HITBOX`); grass obstacle, car/barrel/truck/train carpisma ve river log temas hesaplari bu ortak hitbox ile yapiliyor (tum skinlerde tutarli).
+- Uygulama: car/bike/barrel/truck/train hizlari yeniden dengelendi; `cars` belirgin hizlandirildi, `train` taban hizi ciddi arttirildi.
+- Uygulama: train icin Crossy benzeri pre-warning sistemi eklendi (`TRAIN_WARNING_LEAD_S`): rayda yanip sonen warning materyali + yakinlikta periyodik uyari bip'i + spawn oncesi bekleme.
+- Uygulama: `logs` spawn seyrekligi azaltildi (daha sik): cooldown araligi kisaltildi, max ve spawnGap degerleri guncellendi, pre-seed sayisi artirildi.
+- Uygulama: lane/channel spawn akisinda ortak `canSpawnInChannel/trySpawnInChannel` kullanildi; train warning akisi `updateTrainChannel` ile ayrildi.
+- Uygulama: `render_game_to_text` alanlari genisletildi (`forward_step`, `player_hitbox`, train channel warning state/timer) test gozlemi kolaylasti.
+- Test: `node --check --input-type=module < src/main.js` basarili (birden fazla tur).
+- Test: Playwright gameplay akisi (output/web-game-crossy-improvements-v4) basarili; mode=gameover state ve mover hizlari dogrulandi, errors-*.json yok.
+- Test: Playwright oynanir bekleme akisi (output/web-game-crossy-improvements-v7) basarili; mode=playing, score=0, menu-click yan etki regresyonu yok, errors-*.json yok.
+- Test: Playwright tap-forward dogrulama (output/web-game-crossy-improvements-tap-v2) basarili; tek tap sonrasi `player.z=-4.4`, `score=1`, errors-*.json yok.
+- Test: Playwright train warning state dogrulama (output/web-game-crossy-improvements-v6/state-2.json) `warning_active:true` goruldu; train hizlari ~8.6+ olarak state'te dogrulandi.
+- Not: Itch queue baglantilari (password/query URL) anonim erisimde icerik dondurmuyor; login gerektiriyor.
+- Not: Acik kaynak asset fiyat arastirmasi yapildi (DevilsWorkshop vehicles $4, AtomicRealm roads free/$4.99/$5.99, Unity Hyper Casual Trains €9.19 goruntulendi).
+- TODO: Harici assetlerin (FBX/Unitypackage) projeye import/pivot/scale/material atlas uyumu ve lisans attribution metni bir sonraki adimda eklenmeli.
+- Follow-up prompt 27: Referans verilen assetlerin stilini baz alip benzerlerini oyunda ozgun olarak tasarla.
+- Uygulama: lane texture atlaslari (grass/road/mud/rail/river) daha zengin modular/pixel detaylarla yeniden tasarlandi (panel/cizgi/catlak/parlama varyasyonlari).
+- Uygulama: materyal katmanina yeni arac trim/metal paleti eklendi (`carTrim`, `carMetal`) ve arac renk secimi palette tabanli hale getirildi (`VEHICLE_COLOR_FAMILIES`, `pickVehicleColor`).
+- Uygulama: agac/rock/bush modelleri tek bloktan cikartilip varyasyonlu low-poly setlere cevrildi (cok katmanli canopy, kaya parcalari/highlight, bush lob + cicek).
+- Uygulama: `spawnMover` modelleri yeniden tasarlandi; car/truck/bike/train/log/barrel tiplerinde ek geometri detaylari (roof/trim/bumper/rack/cargo/nose/stripe/plank/spike vb.) eklendi.
+- Uygulama: road lane icin modul hissini guclendiren tekrarli curb cap detaylari eklendi.
+- Test: `node --check --input-type=module < src/main.js` basarili.
+- Test: Playwright bekleme akisi (`output/web-game-assetstyle-play-v2`) basarili; yeni gorseller screenshotlarda dogrulandi, errors-*.json yok.
+- Test: Playwright hareket akisi (`output/web-game-assetstyle-move-v1`) basarili; gameplay/gameover akisinda yeni arac/zemin gorselleri dogrulandi, errors-*.json yok.
+- Follow-up prompt: Sandallarin ustune cikinca icinden gecip suya dusme bugi.
+- Uygulama: `findSupportingLog` kontrolu merkez-nokta yerine oyuncu hitbox overlap'i kullanacak sekilde genisletildi (`+ PLAYER_HITBOX.halfX/halfZ`). Bu sayede log ustunde gorunurken yanlislikla `river` olum tetiklenmesi azaltildi.
+- Test: develop-web-game Playwright client ile nehir senaryosu denendi (`output/web-game-river-log-fix-v1/v2/v3`); menu `PLAY` butonu animasyon stabilite problemi nedeniyle otomatik tiklama basarisiz/etkisiz kaldi (state `mode: menu`).
+- Test: Uretilen screenshot acilip manuel kontrol edildi (v2: menu/river/log gorunumu dogru), yeni console error dosyasi olusmadi.
+- TODO: Playwright client icin menu baslatma adimini selector-force click veya menuden bagimsiz start hook ile daha stabil hale getir.
+- Ek duzeltme: nehir/sandal temasinda tek-frame kacislar icin `RIVER_SUPPORT_GRACE_S=0.22` eklendi; log ustunde iken grace yenileniyor, nehirde log bir an kaybolsa bile aninda su olumune dusmuyor.
+- Ek duzeltme: log destek toleransi gorsel/model uyumsuzluklarini absorbe edecek sekilde arttirildi (`LOG_SUPPORT_EXTRA_X=0.14`, `LOG_SUPPORT_EXTRA_Z=0.2`).
+- Dogrulama: `npm run build` basarili.
+- Follow-up prompt: "isınlanma olmasin, yurume animasyonu olsun; nehirde log varsa ustune binsin, yoksa baksin".
+- Follow-up prompt 28: yollaru bu görseldeki gibi yap.
+- Uygulama: `src/main.js` icindeki `road` lane texture mavi-gri low-poly pist asfaltina cevrildi; koyu omuz bantlari ve daha uzun beyaz yol cizgileriyle Atomic Realm benzeri bir yol paleti kuruldu.
+- Uygulama: `roadRumble` texture/material eklendi; `addLane` road kolu artik lane icinde acik gri shoulder + kirmizi/beyaz curb strip + yeni ic kenar cizgileri uretiyor.
+- Test: `node --check /Users/yakuperdem19/Desktop/CrossyRoad3D/src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game Playwright client ile menu/gorsel kontrolu (`output/web-game-road-reference-v1`) ve aktif oyun kontrolu (`output/web-game-road-reference-v2`) alindi; yeni yol stili screenshotlarda dogrulandi, ilgili klasorlerde `errors-*.json` olusmadi.
+- Test notu: `#startBtn` icin `--click-selector` animasyon/stability nedeniyle timeout verdi; workaround olarak click adimi `actions-json` icine yerlestirilerek aktif oyun screenshot'i alindi.
+- Uygulama: oyuncu hareketi `lerp+jump` modelinden step-interpolation (tile-to-tile yürüme) modeline tasindi.
+- Uygulama: yeni player state alanlari eklendi (`isMoving`, `moveFrom/To`, `moveT`, `moveDuration`, `queuedMoveDir`); hareket bitmeden gelen input bir sonraki adim icin kuyruga alinıyor.
+- Uygulama: nehirde log ustundeyken oyuncu logla beraber drift ediyor; drift, hareket segmentine de uygulanıyor (segment endpointleri kaydırılıyor).
+- Uygulama: nehir olum kontrolu hareket halindeyken bastirildi; tile adimi tamamlandiginda log yoksa su olumu devreye giriyor.
+- Uygulama: ölüm ve eagle başlangıcında `targetX/targetZ` zorla snap davranışı kaldırıldı; oyuncu mevcut konumundan devam ediyor.
+- Not: Kullanici istegi geregi bu adımda otomasyon/manual test komutu calistirilmadi.
+- Follow-up prompt 28: oyundaki araba modellerini verilen DevilsWorkshop assetleriyle degistir.
+- Uygulama: `public/assets/devilsworkshop-cars/` altina car01/car02/car03/carPolice/pickupTruck01/pickupTruck02/bus OBJ+PNG dosyalari kopyalandi.
+- Uygulama: `src/main.js` icine OBJLoader tabanli vehicle asset preload sistemi eklendi; modeller otomatik center/scale/shadow ayariyla normalize ediliyor ve `car`/`truck` mover'lari bu template'lerden clone ediliyor.
+- Uygulama: asset yukleme basarisiz olursa eski procedural arac olusturucu fallback olarak korunuyor; oyun akisi bu yuzden kirilmiyor.
+- Test: `node --check --input-type=module < src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game Playwright menu render kontrolu (`output/web-game-vehicle-models-menu-v1/shot-0.png`) ile yeni araba/pickup modelleri sahnede dogrulandi; error dosyasi olusmadi.
+- Test: ek menu screenshotlari (`output/web-game-vehicle-models-play-v1/shot-0.png`, `output/web-game-vehicle-models-play-v2/shot-0.png`) farkli varyantlarin (police/sedan/pickup) yon/oturus kontrolu icin acilip incelendi; error dosyasi olusmadi.
+- Not: `#startBtn` Playwright click'i menu pulse animasyonu nedeniyle hala stabil degil; state ciktilari menu modunda kaldi, fakat arac modeli render dogrulamasi screenshot uzerinden yapildi.
+- Follow-up prompt 29: yukari dogru cikan arabalar ters duruyor.
+- Uygulama: imported DevilsWorkshop arac template taban yaw'i `-PI/2` -> `+PI/2` cevrildi; spawn anindaki `headingYaw` ile ayni eksende dogru yone bakiyorlar.
+- Test: `node --check --input-type=module < src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game menu screenshot (`output/web-game-vehicle-direction-fix-v1/shot-0.png`) acilip incelendi; imported sedan/pickup/police araclar ters yone bakmiyor, error dosyasi olusmadi.
+- Follow-up prompt 30: tren hizini 3 kat arttir, tren rayinin ortasindaki yanip sonen cizgiyi kaldir.
+- Uygulama: `TRAIN_SPEED_BOOST = 3` eklendi; train lane olusurken taban hiz 3x carpiliyor.
+- Uygulama: rail warning sistemindeki orta `warningBar` mesh'i kaldirildi; yan uyarilar/material pulse sistemi korunuyor.
+- Test: `node --check --input-type=module < src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game beklemeli run (`output/web-game-train-speed-warning-fix-v1/state-0.json`) train hizlarini ~31-32 bandinda gosterdi (onceki ~10-11 bandinin yaklasik 3 kati); error dosyasi olusmadi.
+- Follow-up prompt 31: arabalari zorunlu tamamen yeni model yapma; otobusleri daha buyuk yap.
+- Uygulama: imported vehicle kullanimi oran bazli karisik hale getirildi (`car: 0.45`, `truck: 0.65`); kalan spawn'lar procedural fallback olarak kaliyor.
+- Uygulama: bus asset target/hitbox degerleri ciddi buyutuldu (`x: 4.85`, `hitbox.x: 4.7`) ve agirlik artirildi; ekranda pickup'tan belirgin buyuk gorunuyor.
+- Uygulama: buyuyen bus icin live spawn overlap tahmini `estimateMoverHalfX('truck')` 2.35'e cekildi.
+- Test: `node --check --input-type=module < src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game menu screenshotlari (`output/web-game-bus-scale-mix-v1/shot-0.png`, `shot-1.png`) incelendi; bus buyuk gorunuyor ve error dosyasi olusmadi.
+- Follow-up prompt 32: hayir, oyundaki hepsi yeni model olsun.
+- Uygulama: imported vehicle kullanim oran mantigi kaldirildi; `car` ve `truck` lane'lerinde asset varsa tekrar her spawn yeni DevilsWorkshop modelinden geliyor.
+- Uygulama: buyutulmus bus olcegi aynen korundu.
+- Test: `node --check --input-type=module < src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game menu screenshot (`output/web-game-all-imported-vehicles-v1/shot-0.png`) acilip incelendi; car/truck trafik yeniden full imported, bus buyuk, error dosyasi olusmadi.
+- Follow-up prompt 33: treni 2 vagon yap birleşik.
+- Follow-up prompt 34: `bike` lane'indeki motorsikletimsi araci da gercek arac yap; kullanilmayan model kullansin.
+- Uygulama (WIP): `bike` icin DevilsWorkshop `modLights/modPipes/modSpoiler/modEngine` assetleri compact-car profiliyle tanimlandi.
+- Uygulama (WIP): `spawnMover` artik `bike` tipinde de once imported vehicle deniyor; asset varsa procedural bike yerine kullanilmayan modlu araba modeli spawn oluyor.
+- Test: `node --check /Users/yakuperdem19/Desktop/CrossyRoad3D/src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game Playwright gameplay akisi (`output/web-game-bike-model-v1`) basarili; `state-0.json` icinde `bike` mover'lar compact hitbox ile gorundu ve `shot-0.png` ekraninda unused modlu kucuk araba modeli dogrulandi, errors-*.json olusmadi.
+- Follow-up fix: `bike` icin secilen mod assetleri sahnede bos/soluk gorundugu icin kaldirildi.
+- Uygulama (WIP): `bike` lane'i artik `car01/car02/car03/carPolice` gorunur sedan modellerini compact olcekte kullaniyor; spawn tahmini icin `estimateMoverHalfX('bike')` 0.8'e cekildi.
+- Test: `node --check /Users/yakuperdem19/Desktop/CrossyRoad3D/src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game Playwright gameplay akisi (`output/web-game-bike-model-visible-v1`) basarili; `state-0.json` icinde `bike` mover'lar `half_x: 0.77` ile compact araba olcusunde goruldu ve `shot-0.png` ekraninda bos mod asset yerine gorunur sedan/police model dokulari kullanildi, errors-*.json olusmadi.
+- Uygulama: train procedural mesh'i ayri helper'a tasindi; artik tek uzun blok yerine birbirine bagli 2 vagon (lokomotif + arka vagon) olarak uretiliyor.
+- Uygulama: iki vagon arasina baglanti korugu/tabani ve ic kapilar eklendi; bogie/wheel dizilimi vagon bazli kuruldu, train daha net tek kompozisyon gibi gorunuyor.
+- Uygulama: train spawn uzunlugu sabit 2-vagon oranina cekildi (`w = 8.4`); yeni burun/far cikintilari icin train collision/spawn halfX degeri `4.3` yapildi.
+- Test: `node --check --input-type=module < src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game Playwright smoke akisi (`output/web-game-train-2wagon-smoke-v2`) basarili; menu/canvas capture calisti.
+- Test: ozel Playwright proof akisi ile oyuncu ray sonrasi guvenli cimene tasinip aktif train gorunumu yakalandi (`output/web-game-train-2wagon-active-proof-v2/shot-final.png`); state'te `type:"train"` ve `half_x:4.3` dogrulandi.
+- Follow-up prompt 35: "sv aç ip ver acil"
+- Ops: 2026-03-11 tarihinde Vite dev server `npm run dev -- --host 0.0.0.0 --clearScreen false` ile baslatildi.
+- Ops: Yerel dogrulama `curl -I --max-time 5 http://127.0.0.1:5173` => HTTP 200.
+- Ops: LAN erisim adresi `http://192.168.1.8:5173/`.
+- Ops: Ek dogrulama `curl -I --max-time 5 http://192.168.1.8:5173` => HTTP 200; `netstat -an` cikisinda `*.5173 LISTEN` goruldu.
+- Follow-up prompt 36: Oasiz app icinde imported 3D araba modelleri gelmiyor; repo incelenip kok sebep cozuldu.
+- Kok sebep: Oasiz repo kokundeki `upload.ts` yalnizca `dist/index.html` HTML string'ini API'ye gonderiyor; `dist/assets/**` klasoru upload edilmiyor. Bu yuzden runtime'da `/assets/...` URL ile istenen OBJ/PNG dosyalari Oasiz app/WebView icinde fiziksel olarak bulunmuyor. Procedural veya kod-ici/self-drawn modeller etkilenmiyor.
+- Uygulama: DevilsWorkshop arac assetleri `public/assets` runtime fetch modelinden cikartilip `src/assets/devilsworkshop-cars/**` altina kopyalandi; yeni `src/devilsworkshopVehicleAssets.js` ile OBJ'ler `?raw`, texture'lar bundler import'u olarak source bundle'a alindi.
+- Uygulama: `src/main.js` vehicle preload hattinda `OBJLoader.loadAsync('/assets/...')` yerine `OBJLoader.parse(config.objSource)` ve imported texture URL kullanildi; boylece build tek HTML icine gomulebilir hale geldi.
+- Test: `node --check src/devilsworkshopVehicleAssets.js` basarili.
+- Test: `node --check src/main.js` basarili.
+- Test: `npm run build` basarili; `dist/` artik sadece `dist/index.html` iceriyor, `dist/index.html` icinde `/assets/devilsworkshop-cars` referansi kalmadi.
+- Test: develop-web-game Playwright menu kontrolu (`/tmp/webgame-test-inline/shot-0.png`) acilip incelendi; imported bus/car modelleri menude gorunuyor, `state-0.json` icinde `car/bike/truck` mover'lari mevcut, errors dosyasi yok.
+- Test: develop-web-game Playwright aktif oyun kontrolu (`/tmp/webgame-test-inline-play/shot-1.png`) acilip incelendi; score ilerlerken imported bus modeli sahnede gorunuyor, `state-0.json`/`state-1.json` playing modunda imported mover'lari raporluyor, errors dosyasi yok.
+- Not: Oasiz'in genel cozum noktasi kok `upload.ts` olsa da bu workspace tarafinda kalici ve guvenli fix self-contained bundle uretmek oldu; bu sayede app sadece HTML yuklese bile arac modelleri kaybolmuyor.
+- Follow-up prompt 37: oyun akici hissettirmiyor, FPS/smoothness iyilestir.
+- Uygulama: ana renderer performans profili eklendi; main pixel ratio dusuruldu (`desktop ~1.35`, `mobile ~0.9`), `powerPreference: 'high-performance'` verildi ve antialias kapatildi. Bu low-poly stil icin kabul edilebilir gorunumu korurken fill-rate maliyetini azaltti.
+- Uygulama: shadow pipeline hafifletildi; shadow map tipi `BasicShadowMap` oldu, boyut `desktop 1024 / mobile 512`'ye cekildi ve `renderer.shadowMap.autoUpdate = false` ile live shadow re-render her frame yerine ihtiyac anina indirildi.
+- Uygulama: imported vehicle, mover ve eagle mesh'lerinde dynamic cast/receive shadow kapatildi; static dunya/shadow haritasi `requestShadowRefresh()` ile lane ekleme/silme, world reset ve viewport resize gibi olaylarda yenileniyor.
+- Uygulama: live game loop fixed-step accumulator modeline cekildi (`1/60`, max 3 substep); degisken frame dt kaynakli mikro-titreme ve hissedilen pacing bozuklugu azaltildi.
+- Uygulama: karakter preview renderer'i de daha hafif ayarlara cekildi (daha dusuk pixel ratio, antialias kapali) ki menu acikken bosuna GPU tuketmesin.
+- Test: `node --check src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game menu smoke (`/tmp/webgame-fps-menu/shot-0.png`, `state-0.json`) basarili; error dosyasi yok.
+- Test: develop-web-game gameplay smoke (`/tmp/webgame-fps-play/shot-0.png`, `shot-1.png`, `state-0.json`, `state-1.json`) basarili; oyun akisi ve arac gorunurlugu korundu, errors-*.json olusmadi.
+- Follow-up prompt 38: sola gidis 7 blokla sinirlansin, oynayis daha smooth olsun.
+- Uygulama: oyuncu yatay clamp'i artik ayri helper ile yonetiliyor; sol limit `7 blok = 12.6 world unit` olacak sekilde `clampPlayerX()` eklendi. Sag limit mevcut genis dunya kapsamasini koruyor.
+- Uygulama: ana performans profili bir kademe daha agresiflestirildi (`desktop pixel ratio ~1.15`, `mobile ~0.85`, preview daha dusuk, shadow map 768/384) ki agir cihazlarda frame pacing daha iyi olsun.
+- Uygulama: oyuncu hareketi exponential-target kayma modelinden sabit sureli tile-step segmentine tasindi (`PLAYER_MOVE_DURATION_S = 0.12`). Her yeni input mevcut gorunur pozisyonu `moveFrom` alarak yeni hedefe akiyor; bu hem daha yumusak hem daha kontrollu hissediliyor.
+- Uygulama: input cooldown `0.16` -> `0.12` cekildi; boylece step animasyonla daha uyumlu ve daha cevabi bir hareket hissi veriyor.
+- Uygulama: log uzerinde drift olurken aktif hareket segmentinin `moveFromX/moveToX` endpointleri de kaydiriliyor; nehir ustunde hareket akisi bozulmuyor.
+- Test: `node --check src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game limit testi (`/tmp/webgame-left-limit-road-v1/state-0.json`) basarili; oyuncu yol seridinde art arda sola input sonrasi `player.x = -12.6` ile tam 7 blokta durdu, errors dosyasi olusmadi.
+- Test: ilgili screenshot (`/tmp/webgame-left-limit-road-v1/shot-0.png`) acilip incelendi; gameplay aciliyor ve yeni hareket/limit davranisi gorsel olarak tutarli.
+- Follow-up prompt 39: harita uretimi tamamen optimize edilsin, mesh pooling eklensin.
+- Uygulama: `src/main.js` icine agresif reuse katmani eklendi; box/cylinder/torus geometri cache'leri, mesh pool, mover group pool ve imported vehicle clone pool devreye alindi. Rastgele boyutlar pool hit rate artsin diye hafif quantize ediliyor.
+- Uygulama: lane olusumu (`addLane`) artik yol/nehir/rail/mud/dekor parcalarini `acquireBoxMesh()` uzerinden aliyor; lane cikarken `scene.remove` yerine `releaseLane()` ile mesh'ler havuza donuyor.
+- Uygulama: grass dekor spawn'lari (`spawnTree/spawnRock/spawnBush`) pooled mesh ve cached material kullaniyor; bush flower / rock highlight gibi once lane basina yeniden uretilen materyaller sabitlendi.
+- Uygulama: mover uretimi de pool'a tasindi; procedural log/barrel/vehicle/train parcalari pooled mesh'lerden kuruluyor, dis OBJ arac klonlari da `importedVehicleInstancePools` ile tekrar kullaniliyor, despawn/reset sirasinda `releaseMover()` ile geri donuyor.
+- Uygulama: train warning lamp materyalleri icin ayri pool eklendi; aksi halde her train lane removal sonrasinda unique material birikimi olusuyordu. Yeni `pool_stats` alani `render_game_to_text` icinde cached mesh/group/material sayilarini raporluyor.
+- Test: `node --check src/main.js` basarili.
+- Test: `npm run build` basarili.
+- Test: develop-web-game menu demo akisi (`/tmp/webgame-pooling-menu-v1/state-0.json`, `/tmp/webgame-pooling-menu-v1/shot-0.png`) basarili; `pool_stats` icinde `cached_meshes:328`, `cached_groups:8`, `cached_warning_materials:1` goruldu, errors dosyasi olusmadi.
+- Test: develop-web-game aktif oyun akisi (`/tmp/webgame-pooling-play-v3/state-0.json`, `/tmp/webgame-pooling-play-v3/shot-0.png`) basarili; oyun `mode:"playing"` durumunda, sola bir adim input sonrasi `player.x:-1.8`, pooled cache sayilari doluyor, errors dosyasi olusmadi.
+- Not: skill client'ta `--click` ile `--actions-json` ayni anda verilince `--click` yok sayiliyor; aktif oyun testi bunun yerine ilk action step'inde `left_mouse_button` kullanilarak stabil sekilde kosuldu.

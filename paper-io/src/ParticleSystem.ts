@@ -6,6 +6,7 @@ interface Particle {
   life: number;
   maxLife: number;
   active: boolean;
+  ownerId: number;
 }
 
 export class ParticleSystem {
@@ -46,15 +47,19 @@ export class ParticleSystem {
       life: 0,
       maxLife: 0.4,
       active: true,
+      ownerId: -1,
     };
   }
 
-  spawnDeathBurst(x: number, z: number, color: number): void {
+  spawnDeathBurst(x: number, z: number, color: number, ownerId = -1): void {
     const count = 12 + Math.floor(Math.random() * 5);
     for (let i = 0; i < count; i++) {
       const p = this.getParticle(color);
+      p.ownerId = ownerId;
       p.mesh.position.set(x, 0.2, z);
       p.mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      p.mesh.userData.deathBurstOwnerId = ownerId;
+      p.mesh.userData.deathBurstParticle = true;
       p.maxLife = 0.4;
 
       const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
@@ -105,6 +110,34 @@ export class ParticleSystem {
 
   hasActiveParticles(): boolean {
     return this.activeCount > 0;
+  }
+
+  getDebugBurstState(ownerId: number): {
+    activeCount: number;
+    visibleCount: number;
+    sceneCount: number;
+  } {
+    let activeCount = 0;
+    let visibleCount = 0;
+    for (let i = 0; i < this.activeCount; i++) {
+      const p = this.particles[i];
+      if (p.ownerId !== ownerId) continue;
+      activeCount++;
+      if (p.mesh.visible) visibleCount++;
+    }
+
+    let sceneCount = 0;
+    this.scene.traverse((obj) => {
+      const data = obj.userData as {
+        deathBurstParticle?: boolean;
+        deathBurstOwnerId?: number;
+      };
+      if (data?.deathBurstParticle && data.deathBurstOwnerId === ownerId) {
+        sceneCount++;
+      }
+    });
+
+    return { activeCount, visibleCount, sceneCount };
   }
 
   dispose(): void {

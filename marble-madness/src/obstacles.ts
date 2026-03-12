@@ -1,16 +1,16 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 
-const PINBALL_BOUNCER_IMPULSE_MULTIPLIER = 2;
-const PINBALL_BOUNCER_VISUAL_SCALE_PER_MULTIPLIER = 0.2;
+const PINBALL_BOUNCER_IMPULSE_MULTIPLIER = 2.35;
+const PINBALL_BOUNCER_VISUAL_SCALE_PER_MULTIPLIER = 0.26;
 const PINBALL_BOUNCER_HIT_COOLDOWN_SECONDS = 0.2;
 const PINBALL_BOUNCER_HIT_DISTANCE_PADDING = 0.34;
 const PINBALL_BOUNCER_MIN_OUTWARD_SPEED = 1.2;
 const PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED = 0.55;
-const PINBALL_BOUNCER_COLUMN_RADIUS_TOP = 0.22;
-const PINBALL_BOUNCER_COLUMN_RADIUS_BOTTOM = 0.3;
-const PINBALL_BOUNCER_COLUMN_Y_OFFSET_RATIO = -0.28;
-const PINBALL_BOUNCER_CAP_Y_RATIO = 0.46;
+const PINBALL_BOUNCER_COLUMN_RADIUS_TOP = 0.34;
+const PINBALL_BOUNCER_COLUMN_RADIUS_BOTTOM = 0.48;
+const PINBALL_BOUNCER_COLUMN_Y_OFFSET_RATIO = -0.1;
+const PINBALL_BOUNCER_CAP_Y_RATIO = 0.24;
 const BOUNCY_PAD_MAX_ANGULAR_SPEED = Math.PI * 3.2;
 const BOUNCY_PAD_WALL_INSET = 0.42;
 const BOUNCY_PAD_REACH_RATIO = 0.46;
@@ -31,6 +31,20 @@ const OBSTACLE_BLOCKER_TAP_MIN_SPEED = 4.8;
 const OBSTACLE_BLOCKER_TAP_MIN_FORWARD_SPEED = 3.2;
 const OBSTACLE_SECTION_ENTRY_SAFE_DISTANCE_MIN = 6;
 const OBSTACLE_SECTION_ENTRY_SAFE_RATIO = 0.24;
+const OBSTACLE_WALL_CLEARANCE = 0.24;
+const ROTATOR_SWEEP_WALL_PADDING = 0.22;
+const ROTATOR_ARM_LENGTH_SCALE = 0.82;
+const ROTATOR_ARM_THICKNESS_SCALE = 0.84;
+const BOUNCY_PAD_LENGTH_SCALE = 0.82;
+const BOUNCY_PAD_WIDTH_SCALE = 0.9;
+const SWINGING_HAMMER_SWEEP_ABS_RADIANS = Math.PI / 3;
+const SWINGING_HAMMER_TAP_MIN_SPEED = 3.8;
+const SWINGING_HAMMER_HIT_COOLDOWN_SECONDS = 0.2;
+const SWINGING_HAMMER_KNOCKBACK_BASE = 15;
+const FALLING_PLATFORM_FALL_DELAY = 2.0;
+const FALLING_PLATFORM_FALL_DURATION = 1.5;
+const FALLING_PLATFORM_FALL_DISTANCE = 20;
+const FALLING_PLATFORM_SHAKE_AMPLITUDE = 0.08;
 
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 const tempPoint = new THREE.Vector3();
@@ -66,6 +80,50 @@ function getBouncyPadSweepRange(side: "left" | "right"): {
       startYaw: -BOUNCY_PAD_SWEEP_ABS_RADIANS,
       endYaw: BOUNCY_PAD_SWEEP_ABS_RADIANS,
     };
+}
+
+function getSwingingHammerSweepRange(side: "left" | "right"): {
+  startYaw: number;
+  endYaw: number;
+} {
+  return side === "left"
+    ? {
+      startYaw: SWINGING_HAMMER_SWEEP_ABS_RADIANS,
+      endYaw: -SWINGING_HAMMER_SWEEP_ABS_RADIANS,
+    }
+    : {
+      startYaw: -SWINGING_HAMMER_SWEEP_ABS_RADIANS,
+      endYaw: SWINGING_HAMMER_SWEEP_ABS_RADIANS,
+    };
+}
+
+function getObstacleFootprintHalfSpanX(obstacle: ObstacleBase): number {
+  if (obstacle.kind === "rotator_x") {
+    const rotator = obstacle as RotatorXObstacle;
+    return rotator.armLength + rotator.armThickness * 0.5 + ROTATOR_SWEEP_WALL_PADDING;
+  }
+  if (obstacle.kind === "pinball_bouncer") {
+    const bouncer = obstacle as PinballBouncerObstacle;
+    return bouncer.capRadius * getPinballBouncerBaseScale() + 0.12;
+  }
+  if (obstacle.kind === "bouncy_pad") {
+    const pad = obstacle as BouncyPadObstacle;
+    const paddleRadius = Math.max(0.2, pad.paddleWidth * 0.42);
+    const paddleBodyLength = Math.max(0.24, pad.paddleLength - paddleRadius * 2);
+    const paddleCapsuleHalfLength = paddleBodyLength * 0.5 + paddleRadius;
+    const paddleHalfLength = paddleCapsuleHalfLength * BOUNCY_PAD_VISUAL_SCALE_Y * 0.98;
+    const paddleReach = pad.paddleLength * BOUNCY_PAD_REACH_RATIO;
+    return paddleReach + paddleHalfLength + 0.12;
+  }
+  if (obstacle.kind === "swinging_hammer") {
+    const hammer = obstacle as SwingingHammerObstacle;
+    return hammer.hammerLength + 0.2;
+  }
+  if (obstacle.kind === "falling_platform") {
+    const platform = obstacle as FallingPlatformObstacle;
+    return platform.platformWidth * 0.5;
+  }
+  return obstacle.radius;
 }
 
 function isObstaclePhysicsWireframeEnabled(): boolean {
@@ -140,7 +198,9 @@ export type ObstacleKind =
   | "horizontal_blocker"
   | "rotator_x"
   | "pinball_bouncer"
-  | "bouncy_pad";
+  | "bouncy_pad"
+  | "swinging_hammer"
+  | "falling_platform";
 export type WaveObstacleKind = Exclude<ObstacleKind, "horizontal_blocker">;
 
 export interface ObstacleBase {
@@ -187,12 +247,41 @@ export interface BouncyPadObstacle extends ObstacleBase {
   lastHitAt: number;
 }
 
+export interface SwingingHammerObstacle extends ObstacleBase {
+  kind: "swinging_hammer";
+  side: "left" | "right";
+  hammerLength: number;
+  pivotHeight: number;
+  currentAngle: number;
+  sweepAmplitude: number;
+  sweepSpeed: number;
+  phase: number;
+  knockbackImpulse: number;
+  lastHitAt: number;
+}
+
+export interface FallingPlatformObstacle extends ObstacleBase {
+  kind: "falling_platform";
+  state: "stable" | "warning" | "falling" | "fallen";
+  playerStandingStartTime: number;
+  fallStartTime: number;
+  platformLength: number;
+  platformWidth: number;
+  currentYOffset: number;
+  fallDelay: number;
+  fallDuration: number;
+  fallDistance: number;
+}
+
 export interface ObstacleAnimationHost {
+  world: RAPIER.World | null;
   fixedStep: number;
   runTimeSeconds: number;
   rotatorObstacles: RotatorXObstacle[];
   pinballBouncers: PinballBouncerObstacle[];
   bouncyPads: BouncyPadObstacle[];
+  swingingHammers: SwingingHammerObstacle[];
+  fallingPlatforms: FallingPlatformObstacle[];
   obstacleMeshById: Map<string, THREE.Object3D>;
   bouncyPadPaddleById: Map<string, THREE.Object3D>;
   bouncerCapById: Map<string, THREE.Mesh>;
@@ -208,10 +297,14 @@ export interface ObstacleInteractionHost {
   rotatorObstacles: RotatorXObstacle[];
   bouncyPads: BouncyPadObstacle[];
   pinballBouncers: PinballBouncerObstacle[];
+  swingingHammers: SwingingHammerObstacle[];
+  fallingPlatforms: FallingPlatformObstacle[];
   rotatorHitAtById: Map<string, number>;
   rotatorTouchingById: Map<string, boolean>;
   bouncyPadHitAtById: Map<string, number>;
   bouncyPadTouchingById: Map<string, boolean>;
+  hammerHitAtById: Map<string, number>;
+  hammerTouchingById: Map<string, boolean>;
   horizontalBlockers: TrackPhysicsHorizontalBlocker[];
   blockerHitAtByIndex: Map<number, number>;
   blockerTouchingByIndex: Map<number, boolean>;
@@ -220,6 +313,7 @@ export interface ObstacleInteractionHost {
   onBouncyPadHit?: (impact: number) => void;
   onHorizontalBlockerHit?: (impact: number) => void;
   onPinballBouncerHit?: () => void;
+  onSwingingHammerHit?: (impact: number) => void;
 }
 
 export interface WaveObstacleSection {
@@ -273,6 +367,16 @@ export interface WaveObstacleBuildContext {
   bouncyPadSweepAmplitude: number;
   bouncyPadSweepSpeedBase: number;
   bouncyPadLaunchImpulse: number;
+  swingingHammerLength: number;
+  swingingHammerPivotHeight: number;
+  swingingHammerSweepAmplitude: number;
+  swingingHammerSweepSpeedBase: number;
+  swingingHammerKnockbackImpulse: number;
+  fallingPlatformLength: number;
+  fallingPlatformWidth: number;
+  fallingPlatformFallDelay: number;
+  fallingPlatformFallDuration: number;
+  fallingPlatformFallDistance: number;
   marbleRadius: number;
   horizontalBlockers: WaveObstacleHorizontalBlocker[];
   hasFloorAtArcLength: (s: number) => boolean;
@@ -287,17 +391,67 @@ export interface WaveObstacleBuildResult {
   rotatorObstacles: RotatorXObstacle[];
   pinballBouncers: PinballBouncerObstacle[];
   bouncyPads: BouncyPadObstacle[];
+  swingingHammers: SwingingHammerObstacle[];
+  fallingPlatforms: FallingPlatformObstacle[];
 }
 
 export interface WaveObstacleMeshHost {
   rotatorObstacles: RotatorXObstacle[];
   pinballBouncers: PinballBouncerObstacle[];
   bouncyPads: BouncyPadObstacle[];
+  swingingHammers: SwingingHammerObstacle[];
+  fallingPlatforms: FallingPlatformObstacle[];
   obstacleMeshById: Map<string, THREE.Object3D>;
   bouncyPadPaddleById: Map<string, THREE.Object3D>;
   bouncerCapById: Map<string, THREE.Mesh>;
   bouncerPulseById: Map<string, number>;
   addLevelObject: (object: THREE.Object3D) => void;
+}
+
+function getWaveObstacleBudget(
+  wave: number,
+  growth: number,
+  obstacleMaxPerTypeCap: number,
+): number {
+  let budget = 1;
+  if (wave <= 4) {
+    budget = wave;
+  } else {
+    budget = 4 + Math.ceil((wave - 4) / 2);
+  }
+
+  const growthBonus = Math.max(0, growth - 1) * Math.floor((wave - 1) / 3);
+  const hardCap = Math.max(6, obstacleMaxPerTypeCap);
+  return THREE.MathUtils.clamp(budget + growthBonus, 1, hardCap);
+}
+
+function getWaveClusterSize(wave: number, remainingBudget: number): number {
+  if (remainingBudget <= 1) {
+    return 1;
+  }
+  if (wave <= 2) {
+    return 1;
+  }
+  if (wave <= 4) {
+    return Math.min(remainingBudget, Math.random() < 0.7 ? 1 : 2);
+  }
+  if (wave <= 7) {
+    return Math.min(remainingBudget, Math.random() < 0.45 ? 1 : 2);
+  }
+  return Math.min(remainingBudget, 2 + Math.floor(Math.random() * 2));
+}
+
+function getClusterSpacingMultiplierForWave(wave: number): number {
+  if (wave <= 2) {
+    return 1.45;
+  }
+  if (wave <= 4) {
+    return 1.25;
+  }
+  if (wave <= 6) {
+    return 1.1;
+  }
+  return 1;
 }
 
 export interface ObstacleVisualStateHost {
@@ -349,6 +503,8 @@ export interface TrackPhysicsContext {
   rotatorObstacles: RotatorXObstacle[];
   pinballBouncers: PinballBouncerObstacle[];
   bouncyPads: BouncyPadObstacle[];
+  swingingHammers: SwingingHammerObstacle[];
+  fallingPlatforms: FallingPlatformObstacle[];
   buildPhysicsRuns(): TrackRunPhysicsPoint[][];
   getHalfPipeHeightAtOffset(xOffsetAbs: number, width: number): number;
 }
@@ -361,6 +517,8 @@ export function createRunObstacleOrder(
     "rotator_x",
     "pinball_bouncer",
     "bouncy_pad",
+    "swinging_hammer",
+    // "falling_platform", // Disabled - use falling_tiles platform type instead
   ];
   for (let i = order.length - 1; i > 0; i -= 1) {
     const j = Math.floor(randomFn() * (i + 1));
@@ -406,13 +564,27 @@ function tryCreateWaveObstacle(
     | RotatorXObstacle
     | PinballBouncerObstacle
     | BouncyPadObstacle
+    | SwingingHammerObstacle
+    | FallingPlatformObstacle
     | null = null;
   if (kind === "rotator_x") {
     const side = Math.random() < 0.5 ? "left" : "right";
     const sideSign = side === "left" ? -1 : 1;
+    const scaledRotatorArmLength =
+      context.rotatorArmLength * ROTATOR_ARM_LENGTH_SCALE;
+    const scaledRotatorArmThickness =
+      context.rotatorArmThickness * ROTATOR_ARM_THICKNESS_SCALE;
+    const rotatorHalfSpanX =
+      scaledRotatorArmLength +
+      scaledRotatorArmThickness * 0.5 +
+      ROTATOR_SWEEP_WALL_PADDING;
+    const maxSideOffset = innerHalf - rotatorHalfSpanX - OBSTACLE_WALL_CLEARANCE;
+    if (maxSideOffset < 0.9) {
+      return null;
+    }
     const x =
       centerX +
-      sideSign * Math.max(2.1, innerHalf - (context.rotatorArmLength * 0.55 + 0.65));
+      sideSign * context.randomRange(0.9, Math.max(0.9, maxSideOffset));
     obstacle = {
       id: context.nextObstacleId(kind),
       kind,
@@ -424,10 +596,10 @@ function tryCreateWaveObstacle(
         0.12,
       z: centerZ,
       tilt: context.getTrackTiltAtArcLength(s),
-      radius: context.rotatorArmLength + 1.1,
+      radius: scaledRotatorArmLength + 1.1,
       side,
-      armLength: context.rotatorArmLength,
-      armThickness: context.rotatorArmThickness,
+      armLength: scaledRotatorArmLength,
+      armThickness: scaledRotatorArmThickness,
       height: context.rotatorHeight,
       spinSpeed: context.rotatorSpinSpeedBase + context.randomRange(-0.45, 0.55),
       spinDir: Math.random() < 0.5 ? 1 : -1,
@@ -445,21 +617,38 @@ function tryCreateWaveObstacle(
       x,
       y:
         context.getTrackSurfaceYAtPosition(x, centerZ) +
-        context.bouncerColumnHeight +
-        context.bouncerCapRadius * 0.45,
+        context.bouncerColumnHeight * 0.56 +
+        context.bouncerCapRadius * 0.08,
       z: centerZ,
       tilt: context.getTrackTiltAtArcLength(s),
-      radius: context.bouncerCapRadius + 0.72,
+      radius: context.bouncerCapRadius + 1.05,
       columnHeight: context.bouncerColumnHeight,
       capRadius: context.bouncerCapRadius,
       bounceImpulse:
         context.bouncerImpulse * PINBALL_BOUNCER_IMPULSE_MULTIPLIER,
       lastHitAt: -999,
     };
-  } else {
+  } else if (kind === "bouncy_pad") {
     const sideSign = Math.random() < 0.5 ? -1 : 1;
     const side: "left" | "right" = sideSign < 0 ? "left" : "right";
-    const x = centerX + sideSign * Math.max(2.1, innerHalf - BOUNCY_PAD_WALL_INSET);
+    const scaledPadLength = context.bouncyPadLength * BOUNCY_PAD_LENGTH_SCALE;
+    const scaledPadWidth = context.bouncyPadWidth * BOUNCY_PAD_WIDTH_SCALE;
+    const paddleRadius = Math.max(0.2, scaledPadWidth * 0.42);
+    const paddleBodyLength = Math.max(
+      0.24,
+      scaledPadLength - paddleRadius * 2,
+    );
+    const paddleCapsuleHalfLength = paddleBodyLength * 0.5 + paddleRadius;
+    const paddleHalfLength =
+      paddleCapsuleHalfLength * BOUNCY_PAD_VISUAL_SCALE_Y * 0.98;
+    const paddleReach = scaledPadLength * BOUNCY_PAD_REACH_RATIO;
+    const bouncyPadHalfSpanX = paddleReach + paddleHalfLength + 0.12;
+    const maxSideOffset =
+      innerHalf - bouncyPadHalfSpanX - OBSTACLE_WALL_CLEARANCE;
+    if (maxSideOffset < 0.9) {
+      return null;
+    }
+    const x = centerX + sideSign * context.randomRange(0.9, Math.max(0.9, maxSideOffset));
     obstacle = {
       id: context.nextObstacleId(kind),
       kind,
@@ -471,9 +660,9 @@ function tryCreateWaveObstacle(
         context.marbleRadius * 0.75,
       z: centerZ,
       tilt: context.getTrackTiltAtArcLength(s),
-      radius: context.bouncyPadLength * 0.66,
-      paddleLength: context.bouncyPadLength,
-      paddleWidth: context.bouncyPadWidth,
+      radius: scaledPadLength * 0.66,
+      paddleLength: scaledPadLength,
+      paddleWidth: scaledPadWidth,
       sweepAmplitude: context.bouncyPadSweepAmplitude,
       sweepSpeed: context.bouncyPadSweepSpeedBase + context.randomRange(-0.75, 0.75),
       phase: context.randomRange(0, Math.PI * 2),
@@ -481,12 +670,82 @@ function tryCreateWaveObstacle(
       launchImpulse: context.bouncyPadLaunchImpulse,
       lastHitAt: -999,
     };
+  } else if (kind === "swinging_hammer") {
+    const side = Math.random() < 0.5 ? "left" : "right";
+    const sideSign = side === "left" ? -1 : 1;
+    const hammerHalfSpanX = context.swingingHammerLength + 0.2;
+    const maxSideOffset = innerHalf - hammerHalfSpanX - OBSTACLE_WALL_CLEARANCE;
+    if (maxSideOffset < 0.9) {
+      return null;
+    }
+    const x =
+      centerX +
+      sideSign * context.randomRange(0.9, Math.max(0.9, maxSideOffset));
+    obstacle = {
+      id: context.nextObstacleId(kind),
+      kind,
+      s,
+      x,
+      y:
+        context.getTrackSurfaceYAtPosition(x, centerZ) +
+        context.swingingHammerPivotHeight,
+      z: centerZ,
+      tilt: context.getTrackTiltAtArcLength(s),
+      radius: context.swingingHammerLength + 0.8,
+      side,
+      hammerLength: context.swingingHammerLength,
+      pivotHeight: context.swingingHammerPivotHeight,
+      currentAngle: 0,
+      sweepAmplitude: context.swingingHammerSweepAmplitude,
+      sweepSpeed: context.swingingHammerSweepSpeedBase + context.randomRange(-0.5, 0.5),
+      phase: context.randomRange(0, Math.PI * 2),
+      knockbackImpulse: context.swingingHammerKnockbackImpulse,
+      lastHitAt: -999,
+    };
+  } else if (kind === "falling_platform") {
+    const platformHalfWidth = context.fallingPlatformWidth * 0.5;
+    const platformHalfLength = context.fallingPlatformLength * 0.5;
+    const maxSideOffset = innerHalf - platformHalfWidth - OBSTACLE_WALL_CLEARANCE;
+    if (maxSideOffset < 0.5) {
+      return null;
+    }
+    const sideSign = Math.random() < 0.5 ? -1 : 1;
+    const x =
+      centerX +
+      sideSign * context.randomRange(0.5, Math.max(0.5, maxSideOffset));
+    obstacle = {
+      id: context.nextObstacleId(kind),
+      kind,
+      s,
+      x,
+      y: context.getTrackSurfaceYAtPosition(x, centerZ) + 0.05,
+      z: centerZ,
+      tilt: context.getTrackTiltAtArcLength(s),
+      radius: Math.max(platformHalfWidth, platformHalfLength) + 0.5,
+      state: "stable",
+      playerStandingStartTime: -999,
+      fallStartTime: -999,
+      platformLength: context.fallingPlatformLength,
+      platformWidth: context.fallingPlatformWidth,
+      currentYOffset: 0,
+      fallDelay: context.fallingPlatformFallDelay,
+      fallDuration: context.fallingPlatformFallDuration,
+      fallDistance: context.fallingPlatformFallDistance,
+    };
   }
 
   if (!obstacle) {
     return null;
   }
-  if (Math.abs(obstacle.x - centerX) < 1.7) {
+  if (Math.abs(obstacle.x - centerX) < 0.75) {
+    return null;
+  }
+
+  const footprintHalfSpanX = getObstacleFootprintHalfSpanX(obstacle);
+  if (
+    Math.abs(obstacle.x - centerX) + footprintHalfSpanX >
+    innerHalf - OBSTACLE_WALL_CLEARANCE
+  ) {
     return null;
   }
 
@@ -519,6 +778,8 @@ export function buildWaveObstacles(
   const rotatorObstacles: RotatorXObstacle[] = [];
   const pinballBouncers: PinballBouncerObstacle[] = [];
   const bouncyPads: BouncyPadObstacle[] = [];
+  const swingingHammers: SwingingHammerObstacle[] = [];
+  const fallingPlatforms: FallingPlatformObstacle[] = [];
 
   const wave = context.loopsCompleted + 1;
   const activeTypeCount = THREE.MathUtils.clamp(wave, 1, 3);
@@ -541,67 +802,87 @@ export function buildWaveObstacles(
 
   if (candidateSections.length === 0 || activeKinds.length === 0) {
     console.log("[BuildWaveObstacles]", "No valid sections for obstacle wave");
-    return { rotatorObstacles, pinballBouncers, bouncyPads };
+    return { rotatorObstacles, pinballBouncers, bouncyPads, swingingHammers, fallingPlatforms };
+  }
+
+  const targetBudget = getWaveObstacleBudget(
+    wave,
+    context.obstacleWaveLinearGrowth,
+    context.obstacleMaxPerTypeCap,
+  );
+  const clusterSpacing =
+    context.obstacleClusterSpacing * getClusterSpacingMultiplierForWave(wave);
+
+  const plannedKinds: WaveObstacleKind[] = [];
+  for (let i = 0; i < targetBudget; i += 1) {
+    plannedKinds.push(activeKinds[i % activeKinds.length]);
+  }
+  for (let i = plannedKinds.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = plannedKinds[i];
+    plannedKinds[i] = plannedKinds[j];
+    plannedKinds[j] = tmp;
   }
 
   const placed: ObstacleBase[] = [];
-  for (let kindIndex = 0; kindIndex < activeKinds.length; kindIndex += 1) {
-    const kind = activeKinds[kindIndex];
-    const targetCount = Math.min(
-      context.obstacleMaxPerTypeCap,
-      2 + context.loopsCompleted * context.obstacleWaveLinearGrowth + kindIndex,
+  let attempts = 0;
+  let planCursor = 0;
+  const maxAttempts = Math.max(targetBudget * 80, 120);
+
+  while (placed.length < targetBudget && attempts < maxAttempts) {
+    attempts += 1;
+    const kind = plannedKinds[planCursor % plannedKinds.length];
+    planCursor += 1;
+
+    const section =
+      candidateSections[Math.floor(Math.random() * candidateSections.length)];
+    const arcRange = context.sectionArcRanges[section.index];
+    if (!arcRange) {
+      continue;
+    }
+
+    const sectionSpan = Math.max(0, arcRange.sEnd - arcRange.sStart);
+    const sectionEntrySafeDistance = Math.max(
+      OBSTACLE_SECTION_ENTRY_SAFE_DISTANCE_MIN,
+      sectionSpan * OBSTACLE_SECTION_ENTRY_SAFE_RATIO,
     );
+    const sMin = Math.max(
+      arcRange.sStart + sectionEntrySafeDistance,
+      context.obstacleStartSafeDistance,
+    );
+    const sMax = Math.min(
+      arcRange.sEnd - 3,
+      context.trackArcLength - context.obstacleFinishSafeDistance,
+    );
+    if (sMax <= sMin) {
+      continue;
+    }
 
-    let placedCount = 0;
-    let attempts = 0;
-    while (placedCount < targetCount && attempts < targetCount * 40) {
-      attempts += 1;
-      const section =
-        candidateSections[Math.floor(Math.random() * candidateSections.length)];
-      const arcRange = context.sectionArcRanges[section.index];
-      if (!arcRange) {
+    const anchorS = context.randomRange(sMin, sMax);
+    const remainingBudget = targetBudget - placed.length;
+    const clusterSize = getWaveClusterSize(wave, remainingBudget);
+
+    for (let i = 0; i < clusterSize; i += 1) {
+      if (placed.length >= targetBudget) {
+        break;
+      }
+      const s = anchorS + i * clusterSpacing;
+      const obstacle = tryCreateWaveObstacle(context, kind, s, placed);
+      if (!obstacle) {
         continue;
       }
-      const sectionSpan = Math.max(0, arcRange.sEnd - arcRange.sStart);
-      const sectionEntrySafeDistance = Math.max(
-        OBSTACLE_SECTION_ENTRY_SAFE_DISTANCE_MIN,
-        sectionSpan * OBSTACLE_SECTION_ENTRY_SAFE_RATIO,
-      );
-      const sMin = Math.max(
-        arcRange.sStart + sectionEntrySafeDistance,
-        context.obstacleStartSafeDistance,
-      );
-      const sMax = Math.min(
-        arcRange.sEnd - 3,
-        context.trackArcLength - context.obstacleFinishSafeDistance,
-      );
-      if (sMax <= sMin) {
-        continue;
+      placed.push(obstacle);
+      if (kind === "rotator_x") {
+        rotatorObstacles.push(obstacle as RotatorXObstacle);
+      } else if (kind === "pinball_bouncer") {
+        pinballBouncers.push(obstacle as PinballBouncerObstacle);
+      } else if (kind === "bouncy_pad") {
+        bouncyPads.push(obstacle as BouncyPadObstacle);
+      } else if (kind === "swinging_hammer") {
+        swingingHammers.push(obstacle as SwingingHammerObstacle);
+      } else if (kind === "falling_platform") {
+        fallingPlatforms.push(obstacle as FallingPlatformObstacle);
       }
-      const anchorS = context.randomRange(sMin, sMax);
-      const clusterSize = Math.min(
-        targetCount - placedCount,
-        3 + Math.floor(Math.random() * 3),
-      );
-      let clusterPlaced = 0;
-
-      for (let i = 0; i < clusterSize; i += 1) {
-        const s = anchorS + i * context.obstacleClusterSpacing;
-        const obstacle = tryCreateWaveObstacle(context, kind, s, placed);
-        if (!obstacle) {
-          continue;
-        }
-        placed.push(obstacle);
-        clusterPlaced += 1;
-        if (kind === "rotator_x") {
-          rotatorObstacles.push(obstacle as RotatorXObstacle);
-        } else if (kind === "pinball_bouncer") {
-          pinballBouncers.push(obstacle as PinballBouncerObstacle);
-        } else {
-          bouncyPads.push(obstacle as BouncyPadObstacle);
-        }
-      }
-      placedCount += clusterPlaced;
     }
   }
 
@@ -609,15 +890,23 @@ export function buildWaveObstacles(
     "[BuildWaveObstacles]",
     "wave=" +
       String(wave) +
+      " target=" +
+      String(targetBudget) +
+      " placed=" +
+      String(placed.length) +
       " rotators=" +
       String(rotatorObstacles.length) +
       " bouncers=" +
       String(pinballBouncers.length) +
       " pads=" +
-      String(bouncyPads.length),
+      String(bouncyPads.length) +
+      " hammers=" +
+      String(swingingHammers.length) +
+      " platforms=" +
+      String(fallingPlatforms.length),
   );
 
-  return { rotatorObstacles, pinballBouncers, bouncyPads };
+  return { rotatorObstacles, pinballBouncers, bouncyPads, swingingHammers, fallingPlatforms };
 }
 
 export function addWaveObstacleMeshes(host: WaveObstacleMeshHost): void {
@@ -856,13 +1145,156 @@ export function addWaveObstacleMeshes(host: WaveObstacleMeshHost): void {
     host.bouncyPadPaddleById.set(pad.id, pivot);
   }
 
+  const hammerMaterial = new THREE.MeshStandardMaterial({
+    color: "#d87536",
+    roughness: 0.5,
+    metalness: 0.6,
+    emissive: "#4a2010",
+    emissiveIntensity: 0.15,
+  });
+
+  for (const hammer of host.swingingHammers) {
+    const group = new THREE.Group();
+
+    // Create a pivot group that will rotate for the swing
+    const swingPivot = new THREE.Group();
+
+    // Pivot mount - horizontal cylinder along Z-axis
+    const pivotMount = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.22, 0.35, 12),
+      hammerMaterial,
+    );
+    pivotMount.rotation.x = Math.PI / 2; // Rotate to align with Z-axis
+    pivotMount.position.set(0, 0, 0);
+
+    // Hammer arm - extends downward from pivot
+    const armLength = hammer.hammerLength * 0.7;
+    const arm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.15, armLength, 0.15),
+      hammerMaterial,
+    );
+    arm.position.set(0, -armLength * 0.5, 0);
+
+    // Hammer head - at the bottom of the arm (wider for better hits)
+    const headSize = hammer.hammerLength * 0.3;
+    const head = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, headSize, 1.2),
+      hammerMaterial,
+    );
+    head.position.set(0, -(armLength + headSize * 0.5), 0);
+
+    // Pivot cylinder wireframe (along Z-axis)
+    const pivotWireframe = createObstaclePhysicsWireframeMesh(
+      new THREE.CylinderGeometry(0.22, 0.22, 0.35, 12),
+    );
+    pivotWireframe.rotation.x = Math.PI / 2;
+    pivotWireframe.position.set(0, 0, 0);
+    group.add(pivotWireframe);
+
+    // Hammer collider wireframe - vertical
+    const hammerWireframe = createObstaclePhysicsWireframeMesh(
+      new THREE.BoxGeometry(0.2, hammer.hammerLength, 0.2),
+    );
+    hammerWireframe.position.set(0, -hammer.hammerLength * 0.5, 0);
+    swingPivot.add(hammerWireframe);
+
+    swingPivot.add(pivotMount);
+    swingPivot.add(arm);
+    swingPivot.add(head);
+
+    group.add(swingPivot);
+    group.rotation.x = -hammer.tilt;
+    group.position.set(hammer.x, hammer.y, hammer.z);
+    group.traverse((node) => {
+      if (node instanceof THREE.Mesh && !node.userData.obstaclePhysicsWireframe) {
+        node.castShadow = true;
+        node.receiveShadow = true;
+      }
+    });
+    host.addLevelObject(group);
+    host.obstacleMeshById.set(hammer.id, group);
+    // Store the swing pivot for animation
+    group.userData.swingPivot = swingPivot;
+  }
+
+  const platformMaterial = new THREE.MeshStandardMaterial({
+    color: "#5a4a3a",
+    roughness: 0.8,
+    metalness: 0.1,
+    emissive: "#2a1a0a",
+    emissiveIntensity: 0.1,
+  });
+
+  for (const platform of host.fallingPlatforms) {
+    const group = new THREE.Group();
+
+    // Platform surface
+    const surface = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        platform.platformLength,
+        0.15,
+        platform.platformWidth,
+      ),
+      platformMaterial,
+    );
+    surface.position.set(0, 0, 0);
+
+    // Crack lines (darker material)
+    const crackMaterial = new THREE.MeshStandardMaterial({
+      color: "#3a2a1a",
+      roughness: 0.9,
+      metalness: 0.05,
+      emissive: "#1a0a00",
+      emissiveIntensity: 0.15,
+    });
+
+    const crack1 = new THREE.Mesh(
+      new THREE.BoxGeometry(platform.platformLength * 0.95, 0.16, 0.05),
+      crackMaterial,
+    );
+    crack1.position.set(0, 0.01, -platform.platformWidth * 0.15);
+
+    const crack2 = new THREE.Mesh(
+      new THREE.BoxGeometry(platform.platformLength * 0.95, 0.16, 0.05),
+      crackMaterial,
+    );
+    crack2.position.set(0, 0.01, platform.platformWidth * 0.15);
+
+    // Physics wireframe
+    const platformWireframe = createObstaclePhysicsWireframeMesh(
+      new THREE.BoxGeometry(
+        platform.platformLength,
+        0.15,
+        platform.platformWidth,
+      ),
+    );
+    platformWireframe.position.set(0, 0, 0);
+    group.add(platformWireframe);
+
+    group.add(surface);
+    group.add(crack1);
+    group.add(crack2);
+    group.rotation.x = -platform.tilt;
+    group.position.set(platform.x, platform.y, platform.z);
+    group.traverse((node) => {
+      if (node instanceof THREE.Mesh && !node.userData.obstaclePhysicsWireframe) {
+        node.castShadow = true;
+        node.receiveShadow = true;
+      }
+    });
+    host.addLevelObject(group);
+    host.obstacleMeshById.set(platform.id, group);
+  }
+
   console.log(
     "[AddWaveObstacleMeshes]",
     "Added obstacle meshes total=" +
       String(
         host.rotatorObstacles.length +
           host.pinballBouncers.length +
-          host.bouncyPads.length,
+          host.bouncyPads.length +
+          host.swingingHammers.length +
+          host.fallingPlatforms.length,
       ),
   );
 }
@@ -1103,50 +1535,135 @@ export function applyObstacleInteractions(host: ObstacleInteractionHost): void {
     const currentVelocity = host.marbleBody.linvel();
     const outwardSpeed =
       currentVelocity.x * outwardX + currentVelocity.z * outwardZ;
+    const incomingSpeed = Math.max(0, -outwardSpeed);
     const blockedFactor = clamp01(
       (PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED - outwardSpeed) /
         (PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED + PINBALL_BOUNCER_MIN_OUTWARD_SPEED),
     );
-    const horizontalWeight = THREE.MathUtils.lerp(0.9, 0.52, blockedFactor);
-    const verticalWeight = THREE.MathUtils.lerp(0.32, 0.88, blockedFactor);
-    const impulseMagnitude =
-      bouncer.bounceImpulse * THREE.MathUtils.lerp(1, 1.18, blockedFactor);
-    const bounceDir = new THREE.Vector3(
-      outwardX * horizontalWeight,
-      verticalWeight,
-      outwardZ * horizontalWeight,
-    ).normalize();
-    host.marbleBody.applyImpulse(
-      {
-        x: bounceDir.x * impulseMagnitude,
-        y: bounceDir.y * impulseMagnitude,
-        z: bounceDir.z * impulseMagnitude,
-      },
-      true,
-    );
-    const minOutwardSpeed = THREE.MathUtils.lerp(
+    const tangentX = currentVelocity.x - outwardX * outwardSpeed;
+    const tangentZ = currentVelocity.z - outwardZ * outwardSpeed;
+    const targetOutwardSpeed = Math.max(
       PINBALL_BOUNCER_MIN_OUTWARD_SPEED,
-      PINBALL_BOUNCER_BLOCKED_OUTWARD_SPEED,
-      blockedFactor,
+      incomingSpeed * THREE.MathUtils.lerp(0.96, 1.04, blockedFactor),
     );
-    const postImpulseVelocity = host.marbleBody.linvel();
-    const postOutwardSpeed =
-      postImpulseVelocity.x * outwardX + postImpulseVelocity.z * outwardZ;
-    const outwardSpeedFix = Math.max(0, minOutwardSpeed - postOutwardSpeed);
     host.marbleBody.setLinvel(
       {
-        x: postImpulseVelocity.x + outwardX * outwardSpeedFix,
-        y: Math.max(
-          postImpulseVelocity.y,
-          bouncer.bounceImpulse * THREE.MathUtils.lerp(0.28, 0.62, blockedFactor),
-        ),
-        z: postImpulseVelocity.z + outwardZ * outwardSpeedFix,
+        x: tangentX + outwardX * targetOutwardSpeed,
+        y: Math.max(currentVelocity.y, 0.8 + incomingSpeed * 0.08),
+        z: tangentZ + outwardZ * targetOutwardSpeed,
       },
       true,
     );
     bouncer.lastHitAt = host.runTimeSeconds;
     host.bouncerPulseById.set(bouncer.id, 1.35);
     host.onPinballBouncerHit?.();
+  }
+
+  if (marbleSpeed >= SWINGING_HAMMER_TAP_MIN_SPEED) {
+    for (const hammer of host.swingingHammers) {
+      const wasTouching = host.hammerTouchingById.get(hammer.id) === true;
+      const lastHammerHit = host.hammerHitAtById.get(hammer.id) ?? -999;
+
+      // Hammer hangs downward, center offset by half length in -Y direction
+      tempCenter.set(hammer.x, hammer.y, hammer.z);
+      tempRotation.setFromEuler(tempEuler.set(-hammer.tilt, 0, hammer.currentAngle));
+
+      // Offset the center downward by the rotated hammer position
+      const offset = new THREE.Vector3(0, -hammer.hammerLength * 0.5, 0)
+        .applyQuaternion(tempRotation);
+      tempCenter.add(offset);
+
+      const hitHammer = isPointInsideExpandedOrientedBox(
+        tempPoint,
+        tempCenter,
+        tempRotation,
+        0.225,
+        hammer.hammerLength * 0.5,
+        0.6,
+        host.marbleRadius + OBSTACLE_THUD_PADDING,
+      );
+
+      if (!hitHammer) {
+        if (wasTouching) {
+          host.hammerTouchingById.delete(hammer.id);
+        }
+        continue;
+      }
+
+      host.hammerTouchingById.set(hammer.id, true);
+      if (wasTouching) {
+        continue;
+      }
+      if (host.runTimeSeconds - lastHammerHit < SWINGING_HAMMER_HIT_COOLDOWN_SECONDS) {
+        continue;
+      }
+
+      host.hammerHitAtById.set(hammer.id, host.runTimeSeconds);
+
+      // Calculate knockback direction based on hammer swing
+      // The hammer face points in X direction when at rest, rotates around Z
+      const hammerFaceNormal = new THREE.Vector3(1, 0, 0)
+        .applyQuaternion(tempRotation)
+        .normalize();
+
+      // Convert any downward force into horizontal force
+      // Project onto horizontal plane and add strong upward impulse
+      const knockbackMagnitude = hammer.knockbackImpulse;
+      const horizontalX = hammerFaceNormal.x;
+      const horizontalZ = hammerFaceNormal.z;
+
+      // If hammer has downward component, add that energy to horizontal
+      const downwardComponent = Math.min(0, hammerFaceNormal.y);
+      const extraHorizontalScale = 1 + Math.abs(downwardComponent);
+
+      host.marbleBody.applyImpulse(
+        {
+          x: horizontalX * knockbackMagnitude * extraHorizontalScale,
+          y: 4.0,
+          z: horizontalZ * knockbackMagnitude * extraHorizontalScale,
+        },
+        true,
+      );
+
+      host.onSwingingHammerHit?.(Math.max(3.0, marbleSpeed * 0.95));
+    }
+  }
+
+  // Falling platform detection (check even at low speeds for grounded detection)
+  for (const platform of host.fallingPlatforms) {
+    if (platform.state === "falling" || platform.state === "fallen") {
+      continue;
+    }
+
+    // AABB check
+    const halfLength = platform.platformLength * 0.5;
+    const halfWidth = platform.platformWidth * 0.5;
+    const dx = Math.abs(marblePosition.x - platform.x);
+    const dz = Math.abs(marblePosition.z - platform.z);
+
+    const isOnPlatformXZ = dx <= halfLength + host.marbleRadius && dz <= halfWidth + host.marbleRadius;
+
+    // Y-proximity check (marble must be close to platform surface)
+    const platformTop = platform.y + 0.075 + platform.currentYOffset;
+    const dy = marblePosition.y - platformTop;
+    const isOnPlatformY = dy > -host.marbleRadius * 0.5 && dy < host.marbleRadius * 1.5;
+
+    // Grounded check - marble must not be airborne
+    const isGrounded = Math.abs(marbleVelocity.y) < 1.5;
+
+    const isStandingOnPlatform = isOnPlatformXZ && isOnPlatformY && isGrounded;
+
+    if (isStandingOnPlatform) {
+      if (platform.state === "stable") {
+        platform.state = "warning";
+        platform.playerStandingStartTime = host.runTimeSeconds;
+      }
+    } else {
+      if (platform.state === "warning") {
+        platform.state = "stable";
+        platform.playerStandingStartTime = -999;
+      }
+    }
   }
 }
 
@@ -1425,6 +1942,83 @@ export function createTrackPhysicsBodies(context: TrackPhysicsContext): void {
     context.world.createCollider(guardCollider, body);
     context.obstacleBodyById.set(pad.id, body);
   }
+
+  for (const hammer of context.swingingHammers) {
+    const { startYaw } = getSwingingHammerSweepRange(hammer.side);
+    hammer.currentAngle = startYaw;
+    const hammerRotation = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(-hammer.tilt, 0, hammer.currentAngle),
+    );
+    const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
+      .setTranslation(hammer.x, hammer.y, hammer.z)
+      .setRotation({
+        x: hammerRotation.x,
+        y: hammerRotation.y,
+        z: hammerRotation.z,
+        w: hammerRotation.w,
+      })
+      .setCanSleep(false)
+      .setCcdEnabled(true);
+    const body = context.world.createRigidBody(bodyDesc);
+    context.trackRigidBodies.push(body);
+
+    // Pivot cylinder collider - horizontal along Z-axis
+    const pivotRotation = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(1, 0, 0),
+      Math.PI / 2,
+    );
+    const pivotCollider = RAPIER.ColliderDesc.cylinder(0.175, 0.22)
+      .setTranslation(0, 0, 0)
+      .setRotation({
+        x: pivotRotation.x,
+        y: pivotRotation.y,
+        z: pivotRotation.z,
+        w: pivotRotation.w,
+      })
+      .setFriction(0.7)
+      .setRestitution(0);
+    context.world.createCollider(pivotCollider, body);
+
+    // Hammer arm collider - vertical extending downward
+    const hammerCollider = RAPIER.ColliderDesc.cuboid(
+      0.1,
+      hammer.hammerLength * 0.5,
+      0.1,
+    )
+      .setTranslation(0, -hammer.hammerLength * 0.5, 0)
+      .setFriction(0.7)
+      .setRestitution(0);
+    context.world.createCollider(hammerCollider, body);
+
+    context.obstacleBodyById.set(hammer.id, body);
+  }
+
+  for (const platform of context.fallingPlatforms) {
+    const platformRotation = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(-platform.tilt, 0, 0),
+    );
+    const bodyDesc = RAPIER.RigidBodyDesc.fixed()
+      .setTranslation(platform.x, platform.y, platform.z)
+      .setRotation({
+        x: platformRotation.x,
+        y: platformRotation.y,
+        z: platformRotation.z,
+        w: platformRotation.w,
+      });
+    const body = context.world.createRigidBody(bodyDesc);
+    context.trackRigidBodies.push(body);
+
+    const platformCollider = RAPIER.ColliderDesc.cuboid(
+      platform.platformLength * 0.5,
+      0.075,
+      platform.platformWidth * 0.5,
+    )
+      .setFriction(0.4)
+      .setRestitution(0);
+    context.world.createCollider(platformCollider, body);
+
+    context.obstacleBodyById.set(platform.id, body);
+  }
 }
 
 export function updateWaveObstacleAnimation(host: ObstacleAnimationHost): void {
@@ -1504,5 +2098,107 @@ export function updateWaveObstacleAnimation(host: ObstacleAnimationHost): void {
       lerpFactor,
     );
     cap.scale.setScalar(nextScale);
+  }
+
+  for (const hammer of host.swingingHammers) {
+    const cycle = 0.5 + 0.5 * Math.sin(host.runTimeSeconds * hammer.sweepSpeed + hammer.phase);
+    const { startYaw, endYaw } = getSwingingHammerSweepRange(hammer.side);
+    const targetAngle = THREE.MathUtils.lerp(startYaw, endYaw, cycle);
+    const maxStep = BOUNCY_PAD_MAX_ANGULAR_SPEED * host.fixedStep;
+    const angleDelta = THREE.MathUtils.clamp(
+      targetAngle - hammer.currentAngle,
+      -maxStep,
+      maxStep,
+    );
+    hammer.currentAngle += angleDelta;
+
+    const mesh = host.obstacleMeshById.get(hammer.id);
+    if (mesh) {
+      mesh.rotation.x = -hammer.tilt;
+      // Rotate the swing pivot around Z-axis for pendulum motion
+      const swingPivot = mesh.userData.swingPivot;
+      if (swingPivot) {
+        swingPivot.rotation.z = hammer.currentAngle;
+      }
+    }
+
+    const body = host.obstacleBodyById.get(hammer.id);
+    if (body) {
+      // Rotate around Z-axis for pendulum swing
+      const rotation = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(-hammer.tilt, 0, hammer.currentAngle),
+      );
+      body.setNextKinematicRotation({
+        x: rotation.x,
+        y: rotation.y,
+        z: rotation.z,
+        w: rotation.w,
+      });
+    }
+  }
+
+  for (const platform of host.fallingPlatforms) {
+    const mesh = host.obstacleMeshById.get(platform.id);
+    const body = host.obstacleBodyById.get(platform.id);
+
+    if (platform.state === "warning") {
+      const elapsed = host.runTimeSeconds - platform.playerStandingStartTime;
+      const warningProgress = elapsed / platform.fallDelay;
+
+      if (warningProgress >= 1) {
+        platform.state = "falling";
+        platform.fallStartTime = host.runTimeSeconds;
+        // Reset mesh position before starting fall animation
+        if (mesh) {
+          mesh.position.y = platform.y;
+        }
+      } else {
+        // Shake effect
+        const shakeOffset = Math.sin(host.runTimeSeconds * 28) * FALLING_PLATFORM_SHAKE_AMPLITUDE;
+        if (mesh) {
+          mesh.position.y = platform.y + shakeOffset;
+        }
+
+        // Flicker emissive
+        const emissiveIntensity = 0.1 + warningProgress * 0.3;
+        mesh?.traverse((node) => {
+          if (node instanceof THREE.Mesh && !node.userData.obstaclePhysicsWireframe) {
+            const material = node.material as THREE.MeshStandardMaterial;
+            material.emissiveIntensity = emissiveIntensity;
+          }
+        });
+      }
+    } else if (platform.state === "falling") {
+      const elapsed = host.runTimeSeconds - platform.fallStartTime;
+      const fallT = Math.min(1, elapsed / platform.fallDuration);
+      const easeT = fallT * fallT * (3 - 2 * fallT); // smoothstep
+      platform.currentYOffset = -easeT * platform.fallDistance;
+
+      if (mesh) {
+        mesh.position.y = platform.y + platform.currentYOffset;
+      }
+
+      if (fallT >= 1) {
+        platform.state = "fallen";
+        // Remove physics body
+        if (body && host.world && host.obstacleBodyById.has(platform.id)) {
+          try {
+            host.world.removeRigidBody(body);
+          } catch (e) {
+            console.error("[FallingPlatform] Error removing body:", e);
+          }
+          host.obstacleBodyById.delete(platform.id);
+        }
+        // Hide mesh
+        if (mesh) {
+          mesh.visible = false;
+        }
+      }
+    } else if (platform.state === "fallen") {
+      // Already fallen, nothing to animate
+      if (mesh) {
+        mesh.visible = false;
+      }
+    }
   }
 }

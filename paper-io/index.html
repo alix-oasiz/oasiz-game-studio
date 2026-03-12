@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Paper.io 3D</title>
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Russo+One&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #f0fae8; font-family: 'Quicksand', sans-serif; color: #5A5A5A; touch-action: none; }
@@ -343,6 +343,65 @@
     #pause-overlay.visible { display: flex; }
     #pause-overlay h2 { font-family: 'Quicksand', sans-serif; font-size: 2rem; font-weight: 700; color: #E8736C; opacity: 0.7; }
 
+    #start-countdown {
+      position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+      background: transparent; z-index: 75;
+      pointer-events: none;
+    }
+    #start-countdown.visible { display: flex; }
+    .start-countdown-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      transform: translateY(-0.5vh);
+    }
+    #start-countdown-value {
+      color: #00A1E4;
+      display: grid; place-items: center;
+      font-family: 'Russo One', sans-serif; font-size: clamp(6.8rem, 29vw, 11rem); font-weight: 400;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      text-shadow:
+        0 2px 0 #0a7db0,
+        0 4px 0 #086890,
+        0 6px 0 #055370,
+        0 8px 0 #04445c,
+        0 12px 20px rgba(0, 0, 0, 0.26);
+    }
+    #start-countdown-ground {
+      width: clamp(168px, 40vw, 240px);
+      height: 18px;
+      border-radius: 999px;
+      background:
+        radial-gradient(ellipse at center,
+          rgba(0,161,228,0.28) 0%,
+          rgba(0,161,228,0.12) 58%,
+          rgba(0,161,228,0.01) 100%);
+      filter: blur(2px);
+      transform: translateY(-14px);
+    }
+    .countdown-pop #start-countdown-value {
+      animation: countdownScoreSlam 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes countdownScoreSlam {
+      0% {
+        transform: translateY(-28px) scale(0.56) rotate(-4deg);
+      }
+      14% {
+        transform: translateY(6px) scale(1.16) rotate(2deg);
+      }
+      28% {
+        transform: translateY(-2px) scale(0.94) rotate(-1deg);
+      }
+      44% {
+        transform: translateY(0) scale(1.03) rotate(0deg);
+      }
+      100% {
+        transform: translateY(0) scale(1) rotate(0deg);
+      }
+    }
+
     /* ─── Settings Button ─── */
     #settings-btn {
       position: absolute; bottom: 30px; right: 20px; width: 48px; height: 48px;
@@ -483,6 +542,13 @@
 
   <!-- Pause -->
   <div id="pause-overlay"><h2>Paused</h2></div>
+
+  <div id="start-countdown">
+    <div class="start-countdown-inner">
+      <div id="start-countdown-value">3</div>
+      <div id="start-countdown-ground"></div>
+    </div>
+  </div>
 
   <!-- Joystick -->
   <div id="joystick-zone" class="hidden">

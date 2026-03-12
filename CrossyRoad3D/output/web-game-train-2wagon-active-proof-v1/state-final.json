@@ -1,0 +1,253 @@
+{
+  "mode": "playing",
+  "character": "rabbit",
+  "coordinate_system": "origin at spawn; x positive right, y positive up, z negative is forward",
+  "lane_width": 60,
+  "lane_depth": 4.4,
+  "forward_step": 4.4,
+  "player_hitbox": {
+    "halfX": 0.34,
+    "halfZ": 0.34
+  },
+  "score": 6,
+  "player": {
+    "x": 0,
+    "y": 0.12,
+    "z": -26.4
+  },
+  "lane_here": "grass",
+  "hazard_here": "open",
+  "nearby_lanes": [
+    {
+      "z": -44,
+      "type": "river",
+      "hazard": "logs",
+      "channels": [
+        {
+          "kind": "log",
+          "z": -44,
+          "speed": 1.47
+        }
+      ]
+    },
+    {
+      "z": -39.6,
+      "type": "grass",
+      "hazard": "open",
+      "channels": []
+    },
+    {
+      "z": -35.2,
+      "type": "road",
+      "hazard": "bikes",
+      "channels": [
+        {
+          "kind": "bike",
+          "z": -35.2,
+          "speed": 3.36
+        }
+      ]
+    },
+    {
+      "z": -30.8,
+      "type": "road",
+      "hazard": "cars",
+      "channels": [
+        {
+          "kind": "car",
+          "z": -30.8,
+          "speed": 3.79
+        }
+      ]
+    },
+    {
+      "z": -26.4,
+      "type": "grass",
+      "hazard": "open",
+      "channels": []
+    },
+    {
+      "z": -22,
+      "type": "rail",
+      "hazard": "trains",
+      "channels": [
+        {
+          "kind": "train",
+          "z": -22,
+          "speed": -27.54,
+          "warning_active": false,
+          "warning_timer": 0,
+          "train_speed_multiplier": 1.35,
+          "train_period_s": 7
+        }
+      ]
+    },
+    {
+      "z": -17.6,
+      "type": "road",
+      "hazard": "trucks",
+      "channels": [
+        {
+          "kind": "truck",
+          "z": -17.6,
+          "speed": -1.87
+        }
+      ]
+    },
+    {
+      "z": -13.2,
+      "type": "mud",
+      "hazard": "barrels",
+      "channels": [
+        {
+          "kind": "barrel",
+          "z": -13.2,
+          "speed": 2.44
+        }
+      ]
+    },
+    {
+      "z": -8.8,
+      "type": "road",
+      "hazard": "bikes",
+      "channels": [
+        {
+          "kind": "bike",
+          "z": -8.8,
+          "speed": 3.79
+        }
+      ]
+    }
+  ],
+  "train_channels": [
+    {
+      "lane_z": -22,
+      "z": -22,
+      "speed": -27.54,
+      "warning_active": false,
+      "warning_timer": 0,
+      "cooldown": 6.12,
+      "train_speed_multiplier": 1.35
+    },
+    {
+      "lane_z": -66,
+      "z": -66,
+      "speed": -30.97,
+      "warning_active": false,
+      "warning_timer": 0,
+      "cooldown": 6.12,
+      "train_speed_multiplier": 1.35
+    }
+  ],
+  "movers": [
+    {
+      "type": "barrel",
+      "x": 24.49,
+      "y": 0,
+      "z": -13.2,
+      "speed": 2.44,
+      "half_x": 0.35,
+      "half_z": 0.36
+    },
+    {
+      "type": "barrel",
+      "x": 11.17,
+      "y": 0,
+      "z": -13.2,
+      "speed": 2.44,
+      "half_x": 0.35,
+      "half_z": 0.36
+    },
+    {
+      "type": "truck",
+      "x": -26.53,
+      "y": 0,
+      "z": -17.57,
+      "speed": -1.78,
+      "half_x": 1.21,
+      "half_z": 0.64
+    },
+    {
+      "type": "truck",
+      "x": -21.45,
+      "y": 0.03,
+      "z": -17.57,
+      "speed": -1.81,
+      "half_x": 1.21,
+      "half_z": 0.64
+    },
+    {
+      "type": "car",
+      "x": 19.27,
+      "y": 0.01,
+      "z": -30.78,
+      "speed": 4,
+      "half_x": 0.95,
+      "half_z": 0.6
+    },
+    {
+      "type": "bike",
+      "x": 30.13,
+      "y": 0.04,
+      "z": -35.22,
+      "speed": 3.25,
+      "half_x": 0.58,
+      "half_z": 0.41
+    },
+    {
+      "type": "bike",
+      "x": 20.08,
+      "y": 0.01,
+      "z": -35.2,
+      "speed": 3.46,
+      "half_x": 0.54,
+      "half_z": 0.41
+    },
+    {
+      "type": "barrel",
+      "x": -14.45,
+      "y": 0,
+      "z": -13.2,
+      "speed": 2.44,
+      "half_x": 0.39,
+      "half_z": 0.4
+    },
+    {
+      "type": "car",
+      "x": -7.7,
+      "y": 0,
+      "z": -30.81,
+      "speed": 3.97,
+      "half_x": 0.95,
+      "half_z": 0.6
+    },
+    {
+      "type": "car",
+      "x": -26.16,
+      "y": 0.03,
+      "z": -30.78,
+      "speed": 3.69,
+      "half_x": 0.95,
+      "half_z": 0.6
+    },
+    {
+      "type": "train",
+      "x": 6.37,
+      "y": 0,
+      "z": -22,
+      "speed": -27.54,
+      "half_x": 4.2,
+      "half_z": 1.05
+    },
+    {
+      "type": "bike",
+      "x": -30.65,
+      "y": -0.01,
+      "z": -35.23,
+      "speed": 3.32,
+      "half_x": 0.59,
+      "half_z": 0.41
+    }
+  ],
+  "obstacles": []
+}

@@ -24,23 +24,6 @@ Thumbs.db
 .env.local
 .env.*.local
 
-# Assets and audio
-assets/
-*/assets/sfx/
-*/sfx/
-music/
-*/music/
-*/public/assets/audio/
-*/public/assets/sfx/
-*/public/sfx/
-*/src/sfx/
-*/src/music/
-
-# abyssal-fall game-specific override — track its assets + sfx
-!abyssal-fall/public/
-!abyssal-fall/public/assets/
-!abyssal-fall/public/assets/**
-
 # Track asset folders inside Space Force only
 !space-force/**/asset/
 !space-force/**/asset/**
@@ -58,4 +41,32 @@ space-force/server/observed-runs/*
 !space-force/server/observed-runs/dashboard/**
 !space-force/server/observed-runs/index.json
 
+# Unity - auto-generated folders (safe to regenerate)
+Unity/*/Library/
+Unity/*/Temp/
+Unity/*/Logs/
+Unity/*/obj/
+Unity/*/Build/
+Unity/*/Builds/
+Unity/*/UserSettings/
+Unity/*/.vs/
+
+# Unity - OS & editor artifacts inside Unity projects
+Unity/**/.DS_Store
+Unity/**/Thumbs.db
+Unity/**/*.pidb
+Unity/**/*.suo
+Unity/**/*.userprefs
+Unity/**/*.unityproj
+Unity/**/*.booproj
+
+# Unity - crash & sysinfo files
+Unity/**/crashlytics-build.properties
+Unity/**/sysinfo.txt
+
+# Unity - compiled output
+Unity/**/*.apk
+Unity/**/*.aab
+Unity/**/*.unitypackage
+Unity/**/*.app
 

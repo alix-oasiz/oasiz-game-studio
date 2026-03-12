@@ -4,11 +4,13 @@
 <head>
     <meta charset="utf-8">
     <title>My Game</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <style>
-        html, body {
+        html,
+        body {
             padding: 0;
             margin: 0;
             width: 100%;
@@ -114,7 +116,7 @@
             align-items: center;
             justify-content: center;
             border-radius: 50%;
-            background: rgba(0,0,0,0.4);
+            background: rgba(0, 0, 0, 0.4);
             border: 1px solid #444;
         }
 
@@ -229,6 +231,49 @@
 
         .hidden {
             display: none !important;
+        }
+
+        /* ── SAHNE GEÇİŞ ÖRTÜSÜ ───────────────────── */
+        #scene-fade {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 500;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.45s ease;
+        }
+        #scene-fade.fade-in  { opacity: 1; }
+        #scene-fade.fade-out { opacity: 0; }
+
+        /* ── MENU ENTER ANIMATIONS ─────────────────── */
+        @keyframes menu-slide-down {
+            from { opacity: 0; transform: translateY(-28px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes menu-slide-up {
+            from { opacity: 0; transform: translateY(36px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes menu-fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        /* Üst alan (skor HUD) yukarıdan aşağı iner */
+        #ui-layer.menu-entering .top-safe-area {
+            opacity: 0;
+            animation: menu-slide-down 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+        }
+        /* Alt menü (play btn + motorcycles + nav) aşağıdan yukarı çıkar */
+        #ui-layer.menu-entering #bottom-menu {
+            opacity: 0;
+            animation: menu-slide-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.22s forwards;
+        }
+        /* Sağ floating ikonlar fade in */
+        #ui-layer.menu-entering #right-floaters {
+            opacity: 0;
+            animation: menu-fade-in 0.45s ease 0.32s forwards;
         }
 
         /* --- SETTINGS MODAL --- */
@@ -355,13 +400,13 @@
             transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
         }
 
-        .toggle-wrap input:checked + .toggle-track {
+        .toggle-wrap input:checked+.toggle-track {
             background: #001f1f;
             border-color: #00ffff;
             box-shadow: 0 0 10px #00ffff66;
         }
 
-        .toggle-wrap input:checked + .toggle-track::after {
+        .toggle-wrap input:checked+.toggle-track::after {
             transform: translateX(26px);
             background: #00ffff;
             box-shadow: 0 0 8px #00ffff;
@@ -396,11 +441,177 @@
         .settings-close-btn:active {
             transform: scale(0.96);
         }
+
+        /* --- MENU MOTORCYCLE PREVIEW --- */
+        #menu-moto-preview {
+            position: fixed;
+            left: 50%;
+            bottom: 280px;
+            transform: translateX(-50%);
+            width: 260px;
+            height: auto;
+            object-fit: contain;
+            z-index: 9;
+            pointer-events: none;
+            filter: drop-shadow(0 0 24px #ff003caa);
+            display: none;
+        }
+
+        /* --- MOTORCYCLES BUTTON --- */
+        .moto-btn {
+            background: transparent;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 14px #00ffff44;
+            border-radius: 6px;
+            padding: 10px 40px;
+            color: #00ffff;
+            font-size: 18px;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: box-shadow 0.15s, transform 0.1s, background 0.15s;
+            margin-bottom: 20px;
+            transform: skew(-10deg);
+        }
+
+        .moto-btn span {
+            display: inline-block;
+            transform: skew(10deg);
+        }
+
+        .moto-btn:hover {
+            background: #00ffff18;
+            box-shadow: 0 0 22px #00ffff88;
+        }
+
+        .moto-btn:active {
+            transform: skew(-10deg) scale(0.96);
+        }
+
+        /* --- SKIN MODAL --- */
+        #skin-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.72);
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        #skin-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #skin-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.92);
+            z-index: 101;
+            width: min(380px, 90vw);
+            background: #06091a;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 30px #00ffff33;
+            border-radius: 10px;
+            padding: 24px 18px 18px;
+            box-sizing: border-box;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #skin-modal.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .skin-title {
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #00ffff;
+            text-transform: uppercase;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #00ffff33;
+        }
+
+        .skin-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+
+        .skin-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 10px 12px;
+            border: 1px solid #1a2a3a;
+            border-radius: 6px;
+            background: #0a0f1e;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .skin-row:hover {
+            border-color: #00ffff55;
+            background: #0d1525;
+        }
+
+        .skin-row.selected {
+            border-color: #00ffff;
+            background: #0a1a25;
+        }
+
+        .skin-row img {
+            width: 72px;
+            height: 36px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            flex-shrink: 0;
+        }
+
+        .skin-row-name {
+            flex: 1;
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #8899aa;
+        }
+
+        .skin-row.selected .skin-row-name {
+            color: #00ffff;
+        }
+
+        .skin-row-check {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #2a3a4a;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .skin-row.selected .skin-row-check {
+            background: #00ffff;
+            border-color: #00ffff;
+            box-shadow: 0 0 6px #00ffff;
+        }
     </style>
 </head>
 
 <body>
     <div id="game-container"></div>
+
+    <!-- Sahne geçiş örtüsü — JS ile opacity kontrol edilir -->
+    <div id="scene-fade"></div>
 
     <div id="ui-layer">
         <!-- TOP SAFE AREA (120px) -->
@@ -427,9 +638,12 @@
 
         <!-- BOTTOM MENU -->
         <div id="bottom-menu" class="bottom-menu">
+
             <div id="play-btn" class="play-btn">
                 <span id="play-btn-text">PLAY</span>
             </div>
+
+            <div id="skin-btn" class="moto-btn"><span>MOTORCYCLES</span></div>
 
             <div class="nav-bar">
                 <div class="nav-icon"><span style="font-size:1.5em">🛒</span></div>
@@ -440,6 +654,9 @@
             </div>
         </div>
     </div>
+
+    <!-- MOTORCYCLE PREVIEW — ekranın ortasında, ui-layer dışında -->
+    <img id="menu-moto-preview" src="/assets/Motorcycles/blue.png" alt="Motorcycle" />
 
     <!-- SETTINGS GEAR — always visible, outside ui-layer -->
     <div id="settings-btn">&#9881;</div>
@@ -488,7 +705,105 @@
         </div>
     </div>
 
+    <!-- SKIN OVERLAY + MODAL -->
+    <div id="skin-overlay"></div>
+    <div id="skin-modal">
+        <div class="skin-title">MOTORCYCLES</div>
+        <div class="skin-list">
+            <div class="skin-row" data-skin="blue">
+                <img src="/assets/Motorcycles/blue.png" alt="Blue" />
+                <div class="skin-row-name">Blue</div>
+                <div class="skin-row-check"></div>
+            </div>
+            <div class="skin-row" data-skin="brown">
+                <img src="/assets/Motorcycles/brown.png" alt="Brown" />
+                <div class="skin-row-name">Brown</div>
+                <div class="skin-row-check"></div>
+            </div>
+            <div class="skin-row" data-skin="red">
+                <img src="/assets/Motorcycles/red.png" alt="Red" />
+                <div class="skin-row-name">Red</div>
+                <div class="skin-row-check"></div>
+            </div>
+            <div class="skin-row" data-skin="purple">
+                <img src="/assets/Motorcycles/purple.png" alt="Purple" />
+                <div class="skin-row-name">Purple</div>
+                <div class="skin-row-check"></div>
+            </div>
+        </div>
+        <div class="settings-close-row">
+            <button id="skin-close" class="settings-close-btn">CLOSE</button>
+        </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
+
+    <script>
+        // ---- SKIN SELECTION LOGIC ----
+        const SKIN_KEY = 'selectedSkin';
+        const DEFAULT_SKIN = 'blue';
+
+        const SKIN_KEY_MAP = {
+            'motorcycle_blue': 'blue',
+            'motorcycle_brown': 'brown',
+            'motorcycle_red': 'red',
+            'motorcycle_neon_purple': 'purple',
+        };
+
+        function getSelectedSkin() {
+            let skin = localStorage.getItem(SKIN_KEY) || DEFAULT_SKIN;
+            if (SKIN_KEY_MAP[skin]) {
+                skin = SKIN_KEY_MAP[skin];
+                localStorage.setItem(SKIN_KEY, skin);
+            }
+            return skin;
+        }
+
+        function applySelectedSkin(skinKey) {
+            localStorage.setItem(SKIN_KEY, skinKey);
+            document.querySelectorAll('.skin-row').forEach(row => {
+                row.classList.toggle('selected', row.dataset.skin === skinKey);
+            });
+            const preview = document.getElementById('menu-moto-preview');
+            if (preview) {
+                preview.src = '/assets/Motorcycles/' + skinKey + '.png?t=' + Date.now();
+            }
+        }
+
+        const skinBtn = document.getElementById('skin-btn');
+        const skinOverlay = document.getElementById('skin-overlay');
+        const skinModal = document.getElementById('skin-modal');
+        const skinClose = document.getElementById('skin-close');
+
+        function openSkinModal() {
+            applySelectedSkin(getSelectedSkin());
+            skinOverlay.classList.add('visible');
+            skinModal.classList.add('visible');
+        }
+        function closeSkinModal() {
+            skinOverlay.classList.remove('visible');
+            skinModal.classList.remove('visible');
+        }
+
+        skinBtn.addEventListener('click', openSkinModal);
+        skinOverlay.addEventListener('click', closeSkinModal);
+        skinClose.addEventListener('click', closeSkinModal);
+
+        document.querySelectorAll('.skin-row').forEach(row => {
+            row.addEventListener('click', () => {
+                applySelectedSkin(row.dataset.skin);
+            });
+        });
+
+        applySelectedSkin(getSelectedSkin());
+
+        // Cache-bust: resimler değişince tarayıcı cache'ini bypass et
+        const cacheBust = '?t=' + Date.now();
+        document.querySelectorAll('.skin-row img').forEach(img => {
+            const base = img.getAttribute('src').split('?')[0];
+            img.src = base + cacheBust;
+        });
+    </script>
 </body>
 
 </html>

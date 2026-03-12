@@ -1,0 +1,412 @@
+{
+  "_meta": {
+    "description": "Sprite manifest for all projectile effect assets. Use this file to quickly find projectile spritesheets by type, color, and size.",
+    "basePath": "assets/projectile-effects",
+    "format": "Each sprite has individual PNG frame sequences in PNG/ and packed spritesheets (spritesheet.png + spritesheet.txt) in spritesheet/",
+    "namingConvention": "{id}_{size}_{color}"
+  },
+  "packs": [
+    {
+      "name": "Super Pixel Projectiles Pack 1",
+      "path": "Super Pixel Projectiles Pack 1",
+      "sprites": [
+        {
+          "id": "pj1_blob",
+          "description": "Luminous round blob projectile with glowing aura trail",
+          "colors": ["black", "blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 14,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_blob_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_blob_{size}_{color}/"
+        },
+        {
+          "id": "pj1_electricity",
+          "description": "Multi-pointed star projectile with jagged electric energy aura",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 16,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_electricity_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_electricity_{size}_{color}/"
+        },
+        {
+          "id": "pj1_energy",
+          "description": "Simple glowing energy orb projectile",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 4,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_energy_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_energy_{size}_{color}/"
+        },
+        {
+          "id": "pj1_fireball",
+          "description": "Flaming fireball projectile with smoky tail and bright glow",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 12,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_fireball_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_fireball_{size}_{color}/"
+        },
+        {
+          "id": "pj1_laser",
+          "description": "Simple straight laser beam projectile",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 4,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_laser_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_laser_{size}_{color}/"
+        },
+        {
+          "id": "pj1_magic_missile",
+          "description": "Basic magic missile projectile with energy trail",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 4,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_magic_missile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_magic_missile_{size}_{color}/"
+        },
+        {
+          "id": "pj1_rock",
+          "description": "Teardrop-shaped rocky projectile with energetic glow",
+          "colors": ["blue", "dark_brown", "gray", "light_brown", "red"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_rock_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_rock_{size}_{color}/"
+        },
+        {
+          "id": "pj1_scifi_missile",
+          "description": "Sci-fi styled missile projectile with exhaust trail",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 6,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_scifi_missile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_scifi_missile_{size}_{color}/"
+        },
+        {
+          "id": "pj1_slash",
+          "description": "Curved energy wave slash with motion blur streaks",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 6,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_slash_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_slash_{size}_{color}/"
+        },
+        {
+          "id": "pj1_toon_missile",
+          "description": "Cartoon-styled missile with animated exhaust trail",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 12,
+          "pngPath": "Super Pixel Projectiles Pack 1/PNG/pj1_toon_missile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 1/spritesheet/pj1_toon_missile_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Projectiles Pack 2",
+      "path": "Super Pixel Projectiles Pack 2",
+      "sprites": [
+        {
+          "id": "pj2_fireball",
+          "description": "Enhanced fireball projectile with fiery aura",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_fireball_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_fireball_{size}_{color}/"
+        },
+        {
+          "id": "pj2_ground_shockwave",
+          "description": "Ground-based circular shockwave expansion effect",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 5,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_ground_shockwave_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_ground_shockwave_{size}_{color}/"
+        },
+        {
+          "id": "pj2_helix_beam",
+          "description": "Spiraling double-helix energy beam projectile",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 30,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_helix_beam_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_helix_beam_{size}_{color}/"
+        },
+        {
+          "id": "pj2_ice_spike",
+          "description": "Triangular ice spike projectile with shimmering snowflake patterns",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_ice_spike_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_ice_spike_{size}_{color}/"
+        },
+        {
+          "id": "pj2_kunai",
+          "description": "Elongated kunai blade projectile with glowing energy trail",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_kunai_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_kunai_{size}_{color}/"
+        },
+        {
+          "id": "pj2_lightning_orb",
+          "description": "Lightning-charged orb projectile crackling with electricity",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_lightning_orb_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_lightning_orb_{size}_{color}/"
+        },
+        {
+          "id": "pj2_magic_missile",
+          "description": "Enhanced magic missile with swirling energy trail",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_magic_missile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_magic_missile_{size}_{color}/"
+        },
+        {
+          "id": "pj2_meteor",
+          "description": "Pitted meteor projectile with bright fiery trail",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_meteor_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_meteor_{size}_{color}/"
+        },
+        {
+          "id": "pj2_scifi_missile",
+          "description": "Sci-fi missile variant with tech-styled exhaust",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_scifi_missile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_scifi_missile_{size}_{color}/"
+        },
+        {
+          "id": "pj2_shuriken",
+          "description": "Four-pointed spinning shuriken with motion trail",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 2/PNG/pj2_shuriken_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 2/spritesheet/pj2_shuriken_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Projectiles Pack 3",
+      "path": "Super Pixel Projectiles Pack 3",
+      "sprites": [
+        {
+          "id": "pj3_acid",
+          "description": "Acid splash projectile with dripping corrosive trail",
+          "colors": ["black", "blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_acid_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_acid_{size}_{color}/"
+        },
+        {
+          "id": "pj3_arrow_impact",
+          "description": "Arrow impact explosion effect with debris",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 13,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_arrow_impact_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_arrow_impact_{size}_{color}/"
+        },
+        {
+          "id": "pj3_arrow_loop",
+          "description": "Animated arrow projectile with looping flight trail",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 12,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_arrow_loop_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_arrow_loop_{size}_{color}/"
+        },
+        {
+          "id": "pj3_death_wave",
+          "description": "Dark energy wave projectile with shadowy aura",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 10,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_death_wave_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_death_wave_{size}_{color}/"
+        },
+        {
+          "id": "pj3_demon_bite_impact",
+          "description": "Demon bite impact with snapping jaws explosion",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 16,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_demon_bite_impact_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_demon_bite_impact_{size}_{color}/"
+        },
+        {
+          "id": "pj3_demon_bite_loop",
+          "description": "Animated demon bite projectile with chomping loop",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 12,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_demon_bite_loop_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_demon_bite_loop_{size}_{color}/"
+        },
+        {
+          "id": "pj3_knife",
+          "description": "Knife blade projectile with wing-like energy trails",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 16,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_knife_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_knife_{size}_{color}/"
+        },
+        {
+          "id": "pj3_light_spark",
+          "description": "Bright light spark projectile with shimmering particles",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 12,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_light_spark_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_light_spark_{size}_{color}/"
+        },
+        {
+          "id": "pj3_magic_hex",
+          "description": "Hexagonal magic projectile with geometric angular shapes",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 24,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_magic_hex_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_magic_hex_{size}_{color}/"
+        },
+        {
+          "id": "pj3_magic_missile",
+          "description": "Magic missile variant with arcane energy trail",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 4,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_magic_missile_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_magic_missile_{size}_{color}/"
+        },
+        {
+          "id": "pj3_magic_orb",
+          "description": "Large animated magic orb with swirling energy core",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 32,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_magic_orb_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_magic_orb_{size}_{color}/"
+        },
+        {
+          "id": "pj3_magic_spike",
+          "description": "Magic spike projectile with crystalline energy",
+          "colors": ["black", "blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 3/PNG/pj3_magic_spike_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 3/spritesheet/pj3_magic_spike_{size}_{color}/"
+        }
+      ]
+    },
+    {
+      "name": "Super Pixel Projectiles Pack 4",
+      "path": "Super Pixel Projectiles Pack 4",
+      "sprites": [
+        {
+          "id": "pj4_dark_matter",
+          "description": "Dark matter energy projectile with void-like aura",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 40,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_dark_matter_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_dark_matter_{size}_{color}/"
+        },
+        {
+          "id": "pj4_energy_blast_A",
+          "description": "Energy blast variant A with radial burst",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 6,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_energy_blast_A_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_energy_blast_A_{size}_{color}/"
+        },
+        {
+          "id": "pj4_energy_blast_B",
+          "description": "Energy blast variant B with condensed burst",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 4,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_energy_blast_B_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_energy_blast_B_{size}_{color}/"
+        },
+        {
+          "id": "pj4_energy_pellet",
+          "description": "Small rapid-fire energy pellet projectile",
+          "colors": ["blue", "green", "orange", "red", "violet", "white", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 16,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_energy_pellet_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_energy_pellet_{size}_{color}/"
+        },
+        {
+          "id": "pj4_laser_beam_A",
+          "description": "Laser beam variant A with continuous beam trail",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 9,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_laser_beam_A_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_laser_beam_A_{size}_{color}/"
+        },
+        {
+          "id": "pj4_laser_beam_B",
+          "description": "Laser beam variant B with pulsing beam trail",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 9,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_laser_beam_B_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_laser_beam_B_{size}_{color}/"
+        },
+        {
+          "id": "pj4_plasma_ball",
+          "description": "Layered plasma sphere with multi-colored energy bursts",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 24,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_plasma_ball_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_plasma_ball_{size}_{color}/"
+        },
+        {
+          "id": "pj4_sawblade",
+          "description": "Four-bladed spinning sawblade energy vortex",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 8,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_sawblade_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_sawblade_{size}_{color}/"
+        },
+        {
+          "id": "pj4_scifi_bomb",
+          "description": "Sci-fi bomb projectile with tech details",
+          "colors": ["blue", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 16,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_scifi_bomb_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_scifi_bomb_{size}_{color}/"
+        },
+        {
+          "id": "pj4_scrap_metal",
+          "description": "Tumbling scrap metal debris projectile",
+          "colors": ["blue", "gray", "green", "orange", "red", "violet", "yellow"],
+          "sizes": ["large", "small"],
+          "frameCount": 16,
+          "pngPath": "Super Pixel Projectiles Pack 4/PNG/pj4_scrap_metal_{size}_{color}/",
+          "spritesheetPath": "Super Pixel Projectiles Pack 4/spritesheet/pj4_scrap_metal_{size}_{color}/"
+        }
+      ]
+    }
+  ]
+}

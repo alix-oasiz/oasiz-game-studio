@@ -5,17 +5,51 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { C, type GameState, type HapticType, type BlockRow, type Particle, type Collectible } from "./config";
+import {
+  C,
+  type GameState,
+  type HapticType,
+  type BlockRow,
+  type Particle,
+  type Collectible,
+} from "./config";
 import { oasiz } from "@oasiz/sdk";
 import { AudioManager } from "./audio";
 import { createJet, updateJetFX, loadShipFBX, type JetModel } from "./jet";
 import { Shop } from "./shop";
-import { buildGround, recycleGround, spawnRow, destroyRow, updateBlockAnimations, OUTLINE_BASE_COLORS } from "./world";
-import { spawnExplosion, tickExplosion, releaseAllParticles, setTrailColor, spawnSpeedLines } from "./particles";
-import { spawnCollectible, tickCollectibles, destroyCollectible } from "./collectibles";
+import {
+  buildGround,
+  recycleGround,
+  spawnRow,
+  destroyRow,
+  updateBlockAnimations,
+  OUTLINE_BASE_COLORS,
+} from "./world";
+import {
+  spawnExplosion,
+  tickExplosion,
+  releaseAllParticles,
+  setTrailColor,
+  spawnSpeedLines,
+} from "./particles";
+import {
+  spawnCollectible,
+  tickCollectibles,
+  destroyCollectible,
+} from "./collectibles";
 import { getCorridorCenter } from "./world";
 import { initInput, resetInput, type InputState } from "./input";
-import { cacheUI, loadSettings, applySettingsUI, bindSettingsUI, showPlaying, showGameOver, showStartScreen, updateStartOrbTotal, type UIElements } from "./ui";
+import {
+  cacheUI,
+  loadSettings,
+  applySettingsUI,
+  bindSettingsUI,
+  showPlaying,
+  showGameOver,
+  showStartScreen,
+  updateStartOrbTotal,
+  type UIElements,
+} from "./ui";
 
 class JetRush {
   /* Three.js core */
@@ -89,18 +123,18 @@ class JetRush {
     console.log("[JetRush]", "Init");
     this.mobile = window.matchMedia("(pointer: coarse)").matches;
 
-    /* Scene — tighter fog on mobile to hide reduced draw distance */
+    /* Scene — keep a longer forward view so the skyline reads earlier. */
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x020a18);
     this.scene.fog = this.mobile
-      ? new THREE.Fog(0x020a18, 60, 200)
-      : new THREE.Fog(0x020a18, 80, 320);
+      ? new THREE.Fog(0x020a18, 75, 280)
+      : new THREE.Fog(0x020a18, 95, 430);
 
     this.cam = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
       0.5,
-      this.mobile ? 250 : 500,
+      this.mobile ? 340 : 700,
     );
     this.cam.position.set(0, C.CAM_UP, C.CAM_BACK);
 
@@ -108,7 +142,11 @@ class JetRush {
       antialias: !this.mobile,
       powerPreference: "high-performance",
     });
-    this.ren.setPixelRatio(this.mobile ? Math.min(window.devicePixelRatio, 1.5) : Math.min(window.devicePixelRatio, 2));
+    this.ren.setPixelRatio(
+      this.mobile
+        ? Math.min(window.devicePixelRatio, 1.5)
+        : Math.min(window.devicePixelRatio, 2),
+    );
     this.ren.setSize(window.innerWidth, window.innerHeight);
     this.ren.toneMapping = THREE.ACESFilmicToneMapping;
     this.ren.toneMappingExposure = 1.0;
@@ -119,7 +157,10 @@ class JetRush {
     this.composer.addPass(new RenderPass(this.scene, this.cam));
 
     const bloomRes = this.mobile
-      ? new THREE.Vector2(Math.floor(window.innerWidth / 2), Math.floor(window.innerHeight / 2))
+      ? new THREE.Vector2(
+          Math.floor(window.innerWidth / 2),
+          Math.floor(window.innerHeight / 2),
+        )
       : new THREE.Vector2(window.innerWidth, window.innerHeight);
     this.bloomPass = new UnrealBloomPass(
       bloomRes,
@@ -143,9 +184,13 @@ class JetRush {
     /* Shop (needs to init before jet so we know which model to load) */
     this.shop = new Shop(
       () => this.totalOrbs,
-      (n) => { this.totalOrbs = n; this.saveTotalOrbs(); updateStartOrbTotal(this.ui, this.totalOrbs); },
+      (n) => {
+        this.totalOrbs = n;
+        this.saveTotalOrbs();
+        updateStartOrbTotal(this.ui, this.totalOrbs);
+      },
       (t) => this.hap(t),
-      () => this.playFX("ui"),
+      () => this.playFX("nav"),
       (modelPath) => loadShipFBX(this.jet.body, modelPath),
     );
 
@@ -190,7 +235,7 @@ class JetRush {
       e.stopPropagation();
       if (this.state !== "PLAYING") return;
       this.hap("light");
-      this.playFX("ui");
+      this.playFX("nav");
       this.state = "PAUSED";
       document.getElementById("pauseModal")?.classList.remove("hidden");
     });
@@ -199,7 +244,7 @@ class JetRush {
     document.getElementById("resumeBtn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       this.hap("light");
-      this.playFX("ui");
+      this.playFX("nav");
       document.getElementById("pauseModal")?.classList.add("hidden");
       if (this.state === "PAUSED") this.state = "PLAYING";
     });
@@ -208,7 +253,7 @@ class JetRush {
     this.ui.quitBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       this.hap("light");
-      this.playFX("ui");
+      this.playFX("nav");
       document.getElementById("pauseModal")?.classList.add("hidden");
       this.returnToStart();
     });
@@ -245,8 +290,10 @@ class JetRush {
     });
 
     /* Pre-allocate trail ring buffers */
-    for (let i = 0; i < this.PLAY_TRAIL_MAX; i++) this.trailRing.push(new THREE.Vector3());
-    for (let i = 0; i < this.IDLE_TRAIL_MAX_POINTS; i++) this.idleTrailRing.push(new THREE.Vector3());
+    for (let i = 0; i < this.PLAY_TRAIL_MAX; i++)
+      this.trailRing.push(new THREE.Vector3());
+    for (let i = 0; i < this.IDLE_TRAIL_MAX_POINTS; i++)
+      this.idleTrailRing.push(new THREE.Vector3());
 
     window.addEventListener("resize", () => this.resize());
     this.ren.setAnimationLoop((t) => this.loop(t));
@@ -271,13 +318,16 @@ class JetRush {
     if (this.state === "PAUSED") {
       this.state = "PLAYING";
     }
-    if (this.settings.music && (this.state === "PLAYING" || this.state === "START")) {
+    if (
+      this.settings.music &&
+      (this.state === "PLAYING" || this.state === "START")
+    ) {
       this.sfx.musicOn();
     }
   }
 
   private get rowAhead(): number {
-    return this.mobile ? 120 : C.ROW_AHEAD;
+    return this.mobile ? 220 : C.ROW_AHEAD;
   }
 
   /* ═══ Lights ═══ */
@@ -325,7 +375,10 @@ class JetRush {
   private triggerSparkle(): void {
     let idx = -1;
     for (let i = 0; i < this.sparkles.length; i++) {
-      if (!this.sparkleActive[i]) { idx = i; break; }
+      if (!this.sparkleActive[i]) {
+        idx = i;
+        break;
+      }
     }
     if (idx === -1) idx = 0;
 
@@ -338,12 +391,16 @@ class JetRush {
     s.rotation.set(0, 0, 0);
     s.scale.set(1, 0.1, 1);
 
-    s.children.forEach(child => {
+    s.children.forEach((child) => {
       const beam = child as THREE.Mesh;
       const angle = Math.random() * Math.PI * 2;
       const radius = 0.6 + Math.random() * 0.8;
       const yOffset = (Math.random() - 0.5) * 0.8;
-      beam.position.set(Math.cos(angle) * radius, yOffset, Math.sin(angle) * radius);
+      beam.position.set(
+        Math.cos(angle) * radius,
+        yOffset,
+        Math.sin(angle) * radius,
+      );
       beam.scale.set(1, 0.5 + Math.random() * 1.0, 1);
     });
   }
@@ -368,8 +425,10 @@ class JetRush {
       const scaleY = Math.sin(progress * Math.PI) * 1.5;
       s.scale.set(1, Math.max(0.01, scaleY), 1);
 
-      s.children.forEach(child => {
-        (child as THREE.Mesh).material.opacity = Math.sin(progress * Math.PI) * 0.7;
+      s.children.forEach((child) => {
+        const beamMaterial = (child as THREE.Mesh)
+          .material as THREE.MeshBasicMaterial;
+        beamMaterial.opacity = Math.sin(progress * Math.PI) * 0.7;
       });
     }
   }
@@ -382,8 +441,13 @@ class JetRush {
 
   private resize(): void {
     const { w, h } = this.getViewportSize();
+    this.mobile = window.matchMedia("(pointer: coarse)").matches;
+    this.cam.far = this.mobile ? 340 : 700;
     this.cam.aspect = w / h;
     this.cam.updateProjectionMatrix();
+    this.scene.fog = this.mobile
+      ? new THREE.Fog(0x020a18, 75, 280)
+      : new THREE.Fog(0x020a18, 95, 430);
     this.ren.setSize(w, h);
     this.composer.setSize(w, h);
     this.bloomPass.resolution.set(
@@ -395,7 +459,6 @@ class JetRush {
       1 / (w * pixelRatio),
       1 / (h * pixelRatio),
     );
-    this.mobile = window.matchMedia("(pointer: coarse)").matches;
   }
 
   /* ═══ Idle Blocks (start screen atmosphere) ═══ */
@@ -448,7 +511,16 @@ class JetRush {
     const safeLimit = -60;
     while (this.nextRowZ > safeLimit) {
       this.rows.push(
-        spawnRow(this.scene, this.nextRowZ, this.runSeed, true, this.score, false, this.mobile, this.planeX),
+        spawnRow(
+          this.scene,
+          this.nextRowZ,
+          this.runSeed,
+          true,
+          this.score,
+          false,
+          this.mobile,
+          this.planeX,
+        ),
       );
       this.nextRowZ -= C.ROW_SPACING;
     }
@@ -458,7 +530,6 @@ class JetRush {
     showPlaying(this.ui);
     if (this.settings.music) this.sfx.musicOn();
     this.hap("light");
-    this.playFX("ui");
   }
 
   private clearAll(): void {
@@ -509,7 +580,13 @@ class JetRush {
     this.lastT = t;
     this.elapsed += dt;
 
-    updateBlockAnimations(this.rows, this.elapsed, this.cam.position.z);
+    updateBlockAnimations(
+      this.rows,
+      this.elapsed,
+      this.cam.position.z,
+      this.planeX,
+      this.planeZ,
+    );
 
     if (this.state === "PLAYING") this.tick(dt);
     else if (this.state === "START") this.idle(dt);
@@ -530,7 +607,11 @@ class JetRush {
   private updateCamera(dt: number): void {
     if (this.state === "START") return;
 
-    if (this.state === "PLAYING" || this.state === "PAUSED" || this.state === "GAME_OVER") {
+    if (
+      this.state === "PLAYING" ||
+      this.state === "PAUSED" ||
+      this.state === "GAME_OVER"
+    ) {
       const px = this.jet.group.position.x;
       const pz = this.jet.group.position.z;
 
@@ -549,11 +630,7 @@ class JetRush {
         this.cam.position.y += (Math.random() - 0.5) * this.shake * 0.4;
       }
 
-      this.cam.lookAt(
-        px,
-        C.PLANE_Y - 0.5,
-        pz - C.CAM_LOOK_AHEAD,
-      );
+      this.cam.lookAt(px, C.PLANE_Y - 0.5, pz - C.CAM_LOOK_AHEAD);
     }
   }
 
@@ -589,8 +666,13 @@ class JetRush {
     this.jet.group.position.x = this.idleX;
     this.jet.group.position.y = C.PLANE_Y;
     this.jet.group.position.z = this.idleZ;
-    const idleBank = THREE.MathUtils.clamp((this.idleXTarget - this.idleX) * -0.09, -0.35, 0.35);
-    this.jet.body.rotation.z += (idleBank - this.jet.body.rotation.z) * Math.min(1, dt * 5);
+    const idleBank = THREE.MathUtils.clamp(
+      (this.idleXTarget - this.idleX) * -0.09,
+      -0.35,
+      0.35,
+    );
+    this.jet.body.rotation.z +=
+      (idleBank - this.jet.body.rotation.z) * Math.min(1, dt * 5);
     this.jet.body.rotation.x = 0;
 
     updateJetFX(this.jet.body, this.elapsed);
@@ -601,7 +683,17 @@ class JetRush {
 
     let idleSpawned = 0;
     while (this.idleNextRowZ > this.idleZ - this.rowAhead && idleSpawned < 4) {
-      this.rows.push(spawnRow(this.scene, this.idleNextRowZ, 42, false, 0, true, this.mobile));
+      this.rows.push(
+        spawnRow(
+          this.scene,
+          this.idleNextRowZ,
+          42,
+          false,
+          0,
+          true,
+          this.mobile,
+        ),
+      );
       this.idleNextRowZ -= C.ROW_SPACING;
       idleSpawned++;
     }
@@ -629,8 +721,10 @@ class JetRush {
       this.idleTrailTimer = 0;
       const pos = this.jet.group.position;
       this.idleTrailRing[this.idleTrailHead].set(pos.x, pos.y, pos.z);
-      this.idleTrailHead = (this.idleTrailHead + 1) % this.IDLE_TRAIL_MAX_POINTS;
-      if (this.idleTrailCount < this.IDLE_TRAIL_MAX_POINTS) this.idleTrailCount++;
+      this.idleTrailHead =
+        (this.idleTrailHead + 1) % this.IDLE_TRAIL_MAX_POINTS;
+      if (this.idleTrailCount < this.IDLE_TRAIL_MAX_POINTS)
+        this.idleTrailCount++;
     }
 
     const count = this.idleTrailCount;
@@ -652,45 +746,78 @@ class JetRush {
       this.idleTrailGeo = new THREE.BufferGeometry();
       const maxVerts = this.IDLE_TRAIL_MAX_POINTS * 2;
       const maxIdx = (this.IDLE_TRAIL_MAX_POINTS - 1) * 6;
-      this.idleTrailGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(maxVerts * 3), 3));
-      this.idleTrailGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(maxVerts * 4), 4));
-      this.idleTrailGeo.setIndex(new THREE.BufferAttribute(new Uint16Array(maxIdx), 1));
+      this.idleTrailGeo.setAttribute(
+        "position",
+        new THREE.BufferAttribute(new Float32Array(maxVerts * 3), 3),
+      );
+      this.idleTrailGeo.setAttribute(
+        "color",
+        new THREE.BufferAttribute(new Float32Array(maxVerts * 4), 4),
+      );
+      this.idleTrailGeo.setIndex(
+        new THREE.BufferAttribute(new Uint16Array(maxIdx), 1),
+      );
     }
 
-    const posArr = (this.idleTrailGeo.attributes.position as THREE.BufferAttribute).array as Float32Array;
-    const colArr = (this.idleTrailGeo.attributes.color as THREE.BufferAttribute).array as Float32Array;
+    const posArr = (
+      this.idleTrailGeo.attributes.position as THREE.BufferAttribute
+    ).array as Float32Array;
+    const colArr = (this.idleTrailGeo.attributes.color as THREE.BufferAttribute)
+      .array as Float32Array;
     const idxArr = this.idleTrailGeo.index!.array as Uint16Array;
 
-    const start = (this.idleTrailHead - count + this.IDLE_TRAIL_MAX_POINTS) % this.IDLE_TRAIL_MAX_POINTS;
+    const start =
+      (this.idleTrailHead - count + this.IDLE_TRAIL_MAX_POINTS) %
+      this.IDLE_TRAIL_MAX_POINTS;
     for (let i = 0; i < count; i++) {
       const t = i / (count - 1);
       const width = (0.3 + t * 1.8) * 0.3;
       const p = this.idleTrailRing[(start + i) % this.IDLE_TRAIL_MAX_POINTS];
       const vi = i * 2 * 3;
-      posArr[vi] = p.x - width;     posArr[vi + 1] = p.y; posArr[vi + 2] = p.z;
-      posArr[vi + 3] = p.x + width; posArr[vi + 4] = p.y; posArr[vi + 5] = p.z;
+      posArr[vi] = p.x - width;
+      posArr[vi + 1] = p.y;
+      posArr[vi + 2] = p.z;
+      posArr[vi + 3] = p.x + width;
+      posArr[vi + 4] = p.y;
+      posArr[vi + 5] = p.z;
 
       const alpha = t * t;
       const g = 0.6 + t * 0.2;
       const ci = i * 2 * 4;
-      colArr[ci] = 0;     colArr[ci + 1] = g; colArr[ci + 2] = 1; colArr[ci + 3] = alpha * 0.6;
-      colArr[ci + 4] = 0; colArr[ci + 5] = g; colArr[ci + 6] = 1; colArr[ci + 7] = alpha * 0.6;
+      colArr[ci] = 0;
+      colArr[ci + 1] = g;
+      colArr[ci + 2] = 1;
+      colArr[ci + 3] = alpha * 0.6;
+      colArr[ci + 4] = 0;
+      colArr[ci + 5] = g;
+      colArr[ci + 6] = 1;
+      colArr[ci + 7] = alpha * 0.6;
 
       if (i < count - 1) {
         const bi = i * 2;
         const ii = i * 6;
-        idxArr[ii] = bi;     idxArr[ii + 1] = bi + 1; idxArr[ii + 2] = bi + 2;
-        idxArr[ii + 3] = bi + 1; idxArr[ii + 4] = bi + 3; idxArr[ii + 5] = bi + 2;
+        idxArr[ii] = bi;
+        idxArr[ii + 1] = bi + 1;
+        idxArr[ii + 2] = bi + 2;
+        idxArr[ii + 3] = bi + 1;
+        idxArr[ii + 4] = bi + 3;
+        idxArr[ii + 5] = bi + 2;
       }
     }
 
     this.idleTrailGeo.setDrawRange(0, idxCount);
-    (this.idleTrailGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (this.idleTrailGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+    (
+      this.idleTrailGeo.attributes.position as THREE.BufferAttribute
+    ).needsUpdate = true;
+    (this.idleTrailGeo.attributes.color as THREE.BufferAttribute).needsUpdate =
+      true;
     this.idleTrailGeo.index!.needsUpdate = true;
 
     if (!this.idleTrailStrip) {
-      this.idleTrailStrip = new THREE.Mesh(this.idleTrailGeo, this.idleTrailMat);
+      this.idleTrailStrip = new THREE.Mesh(
+        this.idleTrailGeo,
+        this.idleTrailMat,
+      );
       this.idleTrailStrip.frustumCulled = false;
       this.scene.add(this.idleTrailStrip);
     }
@@ -730,27 +857,44 @@ class JetRush {
       this.trailGeo = new THREE.BufferGeometry();
       const maxVerts = this.PLAY_TRAIL_MAX * 2;
       const maxIdx = (this.PLAY_TRAIL_MAX - 1) * 6;
-      this.trailGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(maxVerts * 3), 3));
-      this.trailGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(maxVerts * 4), 4));
-      this.trailGeo.setIndex(new THREE.BufferAttribute(new Uint16Array(maxIdx), 1));
+      this.trailGeo.setAttribute(
+        "position",
+        new THREE.BufferAttribute(new Float32Array(maxVerts * 3), 3),
+      );
+      this.trailGeo.setAttribute(
+        "color",
+        new THREE.BufferAttribute(new Float32Array(maxVerts * 4), 4),
+      );
+      this.trailGeo.setIndex(
+        new THREE.BufferAttribute(new Uint16Array(maxIdx), 1),
+      );
     }
 
-    const posArr = (this.trailGeo.attributes.position as THREE.BufferAttribute).array as Float32Array;
-    const colArr = (this.trailGeo.attributes.color as THREE.BufferAttribute).array as Float32Array;
+    const posArr = (this.trailGeo.attributes.position as THREE.BufferAttribute)
+      .array as Float32Array;
+    const colArr = (this.trailGeo.attributes.color as THREE.BufferAttribute)
+      .array as Float32Array;
     const idxArr = this.trailGeo.index!.array as Uint16Array;
     const trailYOffset = -0.5;
 
     const needIdxUpdate = count > this.trailIdxFilled;
-    const start = (this.trailHead - count + this.PLAY_TRAIL_MAX) % this.PLAY_TRAIL_MAX;
-    const tr = this.trailColor.r, tg = this.trailColor.g, tb = this.trailColor.b;
+    const start =
+      (this.trailHead - count + this.PLAY_TRAIL_MAX) % this.PLAY_TRAIL_MAX;
+    const tr = this.trailColor.r,
+      tg = this.trailColor.g,
+      tb = this.trailColor.b;
     for (let i = 0; i < count; i++) {
       const t = i / (count - 1);
       const width = t * 0.2;
       const p = this.trailRing[(start + i) % this.PLAY_TRAIL_MAX];
       const y = p.y + trailYOffset;
       const vi = i * 6;
-      posArr[vi] = p.x - width;     posArr[vi + 1] = y; posArr[vi + 2] = p.z;
-      posArr[vi + 3] = p.x + width; posArr[vi + 4] = y; posArr[vi + 5] = p.z;
+      posArr[vi] = p.x - width;
+      posArr[vi + 1] = y;
+      posArr[vi + 2] = p.z;
+      posArr[vi + 3] = p.x + width;
+      posArr[vi + 4] = y;
+      posArr[vi + 5] = p.z;
 
       const alpha = t * t;
       const bright = 0.55 + t * 0.25;
@@ -759,21 +903,33 @@ class JetRush {
       const b = tb * bright;
       const a = alpha * 0.55;
       const ci = i * 8;
-      colArr[ci] = r;     colArr[ci + 1] = g; colArr[ci + 2] = b; colArr[ci + 3] = a;
-      colArr[ci + 4] = r; colArr[ci + 5] = g; colArr[ci + 6] = b; colArr[ci + 7] = a;
+      colArr[ci] = r;
+      colArr[ci + 1] = g;
+      colArr[ci + 2] = b;
+      colArr[ci + 3] = a;
+      colArr[ci + 4] = r;
+      colArr[ci + 5] = g;
+      colArr[ci + 6] = b;
+      colArr[ci + 7] = a;
 
       if (needIdxUpdate && i < count - 1) {
         const bi = i * 2;
         const ii = i * 6;
-        idxArr[ii] = bi;     idxArr[ii + 1] = bi + 1; idxArr[ii + 2] = bi + 2;
-        idxArr[ii + 3] = bi + 1; idxArr[ii + 4] = bi + 3; idxArr[ii + 5] = bi + 2;
+        idxArr[ii] = bi;
+        idxArr[ii + 1] = bi + 1;
+        idxArr[ii + 2] = bi + 2;
+        idxArr[ii + 3] = bi + 1;
+        idxArr[ii + 4] = bi + 3;
+        idxArr[ii + 5] = bi + 2;
       }
     }
     if (needIdxUpdate) this.trailIdxFilled = count;
 
     this.trailGeo.setDrawRange(0, idxCount);
-    (this.trailGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (this.trailGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+    (this.trailGeo.attributes.position as THREE.BufferAttribute).needsUpdate =
+      true;
+    (this.trailGeo.attributes.color as THREE.BufferAttribute).needsUpdate =
+      true;
     if (needIdxUpdate) this.trailGeo.index!.needsUpdate = true;
 
     if (!this.trailMesh) {
@@ -874,9 +1030,21 @@ class JetRush {
     /* Spawn rows ahead (capped per frame to avoid stutter) */
     const MAX_ROWS_PER_FRAME = 6;
     let spawned = 0;
-    while (this.nextRowZ > this.planeZ - this.rowAhead && spawned < MAX_ROWS_PER_FRAME) {
+    while (
+      this.nextRowZ > this.planeZ - this.rowAhead &&
+      spawned < MAX_ROWS_PER_FRAME
+    ) {
       this.rows.push(
-        spawnRow(this.scene, this.nextRowZ, this.runSeed, false, this.score, false, this.mobile, this.planeX),
+        spawnRow(
+          this.scene,
+          this.nextRowZ,
+          this.runSeed,
+          false,
+          this.score,
+          false,
+          this.mobile,
+          this.planeX,
+        ),
       );
       this.nextRowZ -= C.ROW_SPACING;
       spawned++;
@@ -963,7 +1131,13 @@ class JetRush {
 
     /* Speed lines during hyper boost */
     if (this.invincible && this.state === "PLAYING") {
-      spawnSpeedLines(this.scene, this.planeX, C.PLANE_Y, this.planeZ, this.explParts);
+      spawnSpeedLines(
+        this.scene,
+        this.planeX,
+        C.PLANE_Y,
+        this.planeZ,
+        this.explParts,
+      );
     }
 
     /* Collision detection */
@@ -1054,7 +1228,10 @@ class JetRush {
     const pct = (this.stealthEnergy / 20) * 100;
     this.ui.stealthFill.style.width = `${pct}%`;
     this.ui.stealthBtn.classList.toggle("disabled", this.stealthEnergy <= 0);
-    this.ui.stealthBtn.classList.toggle("stealth-full", this.stealthEnergy === 20);
+    this.ui.stealthBtn.classList.toggle(
+      "stealth-full",
+      this.stealthEnergy === 20,
+    );
   }
 
   private _cachedBtnRect: DOMRect | null = null;
@@ -1116,7 +1293,17 @@ class JetRush {
     }
   }
 
-  private playFX(kind: "ui" | "crash" | "collect" | "stealth_on" | "stealth_loop_start" | "stealth_loop_stop" | "milestone"): void {
+  private playFX(
+    kind:
+      | "ui"
+      | "nav"
+      | "crash"
+      | "collect"
+      | "stealth_on"
+      | "stealth_loop_start"
+      | "stealth_loop_stop"
+      | "milestone",
+  ): void {
     if (kind === "stealth_loop_stop") {
       this.sfx.stealthLoopStop();
       return;
@@ -1124,6 +1311,7 @@ class JetRush {
     if (!this.settings.fx) return;
 
     if (kind === "ui") this.sfx.ui();
+    else if (kind === "nav") this.sfx.nav();
     else if (kind === "crash") this.sfx.crash();
     else if (kind === "collect") this.sfx.collect();
     else if (kind === "stealth_on") this.sfx.stealthOn();
@@ -1172,7 +1360,6 @@ class JetRush {
 
     setTimeout(() => banner.remove(), 2000);
   }
-
 }
 
 document.addEventListener("DOMContentLoaded", () => {

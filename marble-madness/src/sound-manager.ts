@@ -31,7 +31,6 @@ export class SoundManager {
   private pendingRandomTrackStart = false;
   private initialized = false;
   private readonly musicTrackPaths = [
-    "/assets/sky-rider.mp3",
     "/assets/playthrough-in-pastel.mp3",
     "/assets/playthrough-in-pastel-alt.mp3",
     "/assets/soft-corners-sharp-focus.mp3",
@@ -97,9 +96,20 @@ export class SoundManager {
     this.musicGain.connect(this.audioCtx.destination);
   }
 
-  private startTrack(trackIndex: number): void {
+  private async startTrack(trackIndex: number): Promise<void> {
     if (!this.audioCtx || this.musicBuffers.length === 0) return;
     if (trackIndex < 0 || trackIndex >= this.musicBuffers.length) return;
+
+    // Resume AudioContext if suspended (critical for mobile)
+    if (this.audioCtx.state === "suspended") {
+      try {
+        await this.audioCtx.resume();
+        console.log("[SoundManager]", "AudioContext resumed, state=" + this.audioCtx.state);
+      } catch (e) {
+        console.error("[SoundManager]", "Failed to resume AudioContext", e);
+        return;
+      }
+    }
 
     this.ensureMusicGain();
     if (!this.musicGain) return;
@@ -120,25 +130,28 @@ export class SoundManager {
     this.musicSource.connect(this.musicGain);
     this.musicSource.start(0);
     this.currentMusicTrackIndex = trackIndex;
-    console.log("[SoundManager]", "Now playing track index=" + String(trackIndex));
+    console.log("[SoundManager]", "Now playing track index=" + String(trackIndex) + ", gain=" + this.musicGain.gain.value);
   }
 
   private startRandomRunTrack(): void {
     if (this.musicBuffers.length === 0) {
       this.pendingRandomTrackStart = true;
+      console.log("[SoundManager]", "Music buffers not loaded yet, pending start");
       return;
     }
     const randomIndex = Math.floor(Math.random() * this.musicBuffers.length);
-    this.startTrack(randomIndex);
+    void this.startTrack(randomIndex);
   }
 
   public onRunStart(): void {
+    console.log("[SoundManager]", "onRunStart called, audioCtx state=" + this.audioCtx?.state + ", music setting=" + this.getSettings().music);
+
     if (this.currentMusicTrackIndex === null) {
       this.startRandomRunTrack();
       return;
     }
     if (!this.musicSource) {
-      this.startTrack(this.currentMusicTrackIndex);
+      void this.startTrack(this.currentMusicTrackIndex);
     }
   }
 
@@ -166,11 +179,28 @@ export class SoundManager {
 
   public resume(): void {
     if (this.audioCtx?.state === "suspended") {
-      this.audioCtx.resume();
+      void this.audioCtx.resume();
     }
     this.ensureRollingSource();
+    this.updateMusicState();
     if (this.currentMusicTrackIndex !== null && !this.musicSource) {
       this.startTrack(this.currentMusicTrackIndex);
+    }
+  }
+
+  public pause(): void {
+    if (!this.audioCtx) {
+      return;
+    }
+    const t = this.audioCtx.currentTime;
+    if (this.rollingGain) {
+      this.rollingGain.gain.setTargetAtTime(0, t, 0.05);
+    }
+    if (this.musicGain) {
+      this.musicGain.gain.setTargetAtTime(0, t, 0.05);
+    }
+    if (this.audioCtx.state === "running") {
+      void this.audioCtx.suspend();
     }
   }
 

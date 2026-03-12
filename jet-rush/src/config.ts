@@ -111,7 +111,7 @@ export const C = {
   /** Scale multiplier for the plane model. Use case: resize ship model to fit game proportions. */
   PLANE_SCALE: 0.003,
   /** Plane collision radius used for front/back and vertical checks. Use case: make hits more forgiving/strict. */
-  PLANE_HIT_R: 0.60,
+  PLANE_HIT_R: 0.6,
   /** Half-width of plane collision body. Use case: lateral overlap checks against block width. */
   PLANE_HIT_HALF_W: 1.0,
 
@@ -149,8 +149,8 @@ export const C = {
 
   /** Distance between spawned obstacle rows on Z axis. Use case: denser rows = more city density. */
   ROW_SPACING: 3,
-  /** How far ahead rows are generated. Use case: prevent pop-in at high speed. */
-  ROW_AHEAD: 250,
+  /** How far ahead rows are generated. Use case: prevent pop-in at high speed and extend the visible skyline. */
+  ROW_AHEAD: 340,
   /** How far behind rows are kept before disposal. Use case: balance memory and cleanup churn. */
   ROW_BEHIND: 40,
 

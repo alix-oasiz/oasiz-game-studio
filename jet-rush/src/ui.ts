@@ -88,7 +88,7 @@ export function bindSettingsUI(
   settings: Settings,
   sfx: AudioManager,
   haptic: (type: HapticType) => void,
-  playFX: (kind: "ui" | "crash") => void,
+  playFX: (kind: "ui" | "nav" | "crash") => void,
   onSettingsOpen?: () => void,
   onSettingsClose?: () => void,
 ): void {
@@ -103,7 +103,7 @@ export function bindSettingsUI(
     onSettingsOpen?.();
     modal.classList.remove("hidden");
     haptic("light");
-    playFX("ui");
+    playFX("nav");
   });
 
   modal.addEventListener("click", (e) => {
@@ -130,7 +130,11 @@ export function bindSettingsUI(
       saveSettings(settings);
       applySettingsUI(settings);
       playFX("ui");
-      if (settings.music && (getState() === "PLAYING" || getState() === "PAUSED")) sfx.musicOn();
+      if (
+        settings.music &&
+        (getState() === "PLAYING" || getState() === "PAUSED")
+      )
+        sfx.musicOn();
       else sfx.musicOff();
     }),
   );
@@ -193,7 +197,7 @@ export function showGameOver(
 }
 
 export function updateStartOrbTotal(ui: UIElements, total: number): void {
-  ui.startOrbTotal.textContent = String(total)+" Orbs";
+  ui.startOrbTotal.textContent = String(total) + " Orbs";
 }
 
 export function showStartScreen(ui: UIElements, total: number): void {
