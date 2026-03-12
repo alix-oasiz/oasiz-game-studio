@@ -1,0 +1,201 @@
+cat >/root/deploy-space-force.sh <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+BRANCH="${BRANCH:-space-force-dev}"
+PM2_NAME="${PM2_NAME:-space-force-colyseus}"
+LOCAL_HEALTH_URL="${LOCAL_HEALTH_URL:-http://127.0.0.1:2567/healthz}"
+PUBLIC_HEALTH_URL="${PUBLIC_HEALTH_URL:-https://api.aiisourdaddy.com/healthz}"
+OPS_STATS_URL="${OPS_STATS_URL:-http://127.0.0.1:2567/ops/stats}"
+OPS_STATS_TOKEN="${OPS_STATS_TOKEN:-}"
+OPS_STATS_REQUIRED="${OPS_STATS_REQUIRED:-false}"
+HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
+HEALTH_SLEEP_SEC="${HEALTH_SLEEP_SEC:-1}"
+NPM_INSTALL_MODE="${NPM_INSTALL_MODE:-auto}" # auto|ci|install
+
+# Prefer /root/space-force (new), fallback to old /root/space-force-repo
+REPO_DIR="/root/space-force"
+if [ ! -d "${REPO_DIR}/.git" ]; then
+  REPO_DIR="/root/space-force-repo"
+fi
+
+log() {
+  echo "[deploy-space-force] $*"
+}
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+require_cmd git
+require_cmd npm
+require_cmd pm2
+require_cmd curl
+
+if [ ! -d "${REPO_DIR}/.git" ]; then
+  echo "Repo not found in /root/space-force or /root/space-force-repo" >&2
+  exit 1
+fi
+
+cd "${REPO_DIR}"
+log "Fetching branch ${BRANCH}"
+
+# Clear any drift from previous deploy runs before switching branches.
+git reset --hard
+git clean -fd
+
+git fetch origin "${BRANCH}"
+
+if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+  git switch --discard-changes "${BRANCH}"
+else
+  git switch -c "${BRANCH}" "origin/${BRANCH}"
+fi
+
+git reset --hard "origin/${BRANCH}"
+git clean -fd
+log "Using commit $(git rev-parse --short HEAD)"
+
+git sparse-checkout init --cone
+git sparse-checkout set space-force/server space-force/shared
+
+
+APP_DIR="${REPO_DIR}/space-force"
+SERVER_DIR="${APP_DIR}/server"
+
+if [ ! -d "${SERVER_DIR}" ]; then
+  echo "Server directory missing: ${SERVER_DIR}" >&2
+  exit 1
+fi
+
+log "Installing server deps"
+cd "${SERVER_DIR}"
+if [ "${NPM_INSTALL_MODE}" = "ci" ]; then
+  npm ci
+elif [ "${NPM_INSTALL_MODE}" = "install" ]; then
+  npm install --no-package-lock
+else
+  if [ -f package-lock.json ]; then
+    if npm ci; then
+      log "npm ci succeeded"
+    else
+      log "npm ci failed, falling back to npm install"
+      npm install --no-package-lock
+    fi
+  else
+    npm install --no-package-lock
+  fi
+fi
+
+log "Building server"
+npm run build
+
+# Recreate process so cwd/script always points to new server path
+if pm2 describe "${PM2_NAME}" >/dev/null 2>&1; then
+  log "Replacing pm2 process ${PM2_NAME}"
+  pm2 delete "${PM2_NAME}"
+fi
+pm2 start npm --name "${PM2_NAME}" --cwd "${SERVER_DIR}" -- start
+pm2 save
+
+log "Waiting for backend to become healthy..."
+for i in $(seq 1 "${HEALTH_RETRIES}"); do
+  if curl -fsS "${LOCAL_HEALTH_URL}" >/dev/null 2>&1; then
+    break
+  fi
+  sleep "${HEALTH_SLEEP_SEC}"
+done
+
+if ! curl -fsS "${LOCAL_HEALTH_URL}" >/dev/null 2>&1; then
+  pm2 logs "${PM2_NAME}" --lines 80 --nostream || true
+  echo "Local health check failed: ${LOCAL_HEALTH_URL}" >&2
+  exit 1
+fi
+
+if ! curl -fsS "${PUBLIC_HEALTH_URL}" >/dev/null 2>&1; then
+  log "Public health check failed (non-fatal): ${PUBLIC_HEALTH_URL}"
+fi
+
+if [ -n "${OPS_STATS_URL}" ]; then
+  log "Fetching ops stats snapshot from ${OPS_STATS_URL}"
+  set +e
+  if [ -n "${OPS_STATS_TOKEN}" ]; then
+    OPS_JSON="$(curl -fsS -H "x-ops-token: ${OPS_STATS_TOKEN}" "${OPS_STATS_URL}")"
+  else
+    OPS_JSON="$(curl -fsS "${OPS_STATS_URL}")"
+  fi
+  OPS_STATUS=$?
+  set -e
+
+  if [ "${OPS_STATUS}" -ne 0 ]; then
+    if [ "${OPS_STATS_REQUIRED}" = "true" ]; then
+      echo "Ops stats check failed: ${OPS_STATS_URL}" >&2
+      exit 1
+    fi
+    log "Ops stats check failed (non-fatal): ${OPS_STATS_URL}"
+  else
+    echo "${OPS_JSON}" | node -e '
+      let data = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", (chunk) => data += chunk);
+      process.stdin.on("end", () => {
+        try {
+          const parsed = JSON.parse(data);
+          const generatedAtIso = parsed?.generatedAtIso ?? "n/a";
+          const clients = parsed?.clients ?? {};
+          const rooms = parsed?.rooms ?? {};
+          const rtt = parsed?.rttMs ?? {};
+          const leaves = Array.isArray(clients.recentLeaves) ? clients.recentLeaves : [];
+          const lastUnconsented = [...leaves].reverse().find((e) => e && e.consented === false) ?? null;
+
+          console.log("[deploy-space-force] ops generatedAtIso=" + generatedAtIso);
+          console.log(
+            "[deploy-space-force] ops clients.active=" + (clients.active ?? "n/a") +
+            " joinedTotal=" + (clients.joinedTotal ?? "n/a") +
+            " leftTotal=" + (clients.leftTotal ?? "n/a") +
+            " leftConsentedTotal=" + (clients.leftConsentedTotal ?? "n/a") +
+            " leftUnconsentedTotal=" + (clients.leftUnconsentedTotal ?? "n/a")
+          );
+          console.log(
+            "[deploy-space-force] ops rooms.active=" + (rooms.active ?? "n/a") +
+            " createdTotal=" + (rooms.createdTotal ?? "n/a") +
+            " disposedTotal=" + (rooms.disposedTotal ?? "n/a")
+          );
+          console.log(
+            "[deploy-space-force] ops rtt.p95=" + (rtt.p95 ?? "n/a") +
+            "ms samples=" + (rtt.samples ?? "n/a")
+          );
+
+          if (lastUnconsented) {
+            console.log(
+              "[deploy-space-force] ops lastUnconsentedLeave at=" + (lastUnconsented.atIso ?? "n/a") +
+              " roomId=" + (lastUnconsented.roomId ?? "") +
+              " sessionId=" + (lastUnconsented.sessionId ?? "") +
+              " phase=" + (lastUnconsented.phase ?? "n/a")
+            );
+          } else {
+            console.log("[deploy-space-force] ops lastUnconsentedLeave none");
+          }
+        } catch (error) {
+          console.log("[deploy-space-force] ops parse failed: " + String(error));
+          process.exit(1);
+        }
+      });
+    ' || {
+      if [ "${OPS_STATS_REQUIRED}" = "true" ]; then
+        echo "Ops stats parse failed" >&2
+        exit 1
+      fi
+      log "Ops stats parse failed (non-fatal)"
+    }
+  fi
+fi
+
+log "Deploy OK"
+EOF
+
+chmod +x /root/deploy-space-force.sh
+/root/deploy-space-force.sh

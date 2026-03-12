@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Astro Party - Neon Vector Variant</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --n-bg: #05050a;
+    --n-grid: #1a1a2e;
+    --n-cyan: #00f0ff;
+    --n-magenta: #ff0055;
+    --n-yellow: #fcee0a;
+    --n-green: #00ffaa;
+    
+    --font-ui: 'Rajdhani', sans-serif;
+    --font-mono: 'Share Tech Mono', monospace;
+  }
+
+  body {
+    margin: 0; padding: 0;
+    background-color: #000;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    font-family: var(--font-ui);
+    color: #fff;
+  }
+
+  #canvas-container {
+    position: absolute;
+    width: 1280px;
+    height: 720px;
+    background-color: var(--n-bg);
+    background-image: 
+      linear-gradient(var(--n-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--n-grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    transform-origin: top left;
+    box-sizing: border-box;
+    display: flex;
+    box-shadow: inset 0 0 100px rgba(0,240,255,0.1);
+  }
+  
+  /* Scanline overlay */
+  #canvas-container::after {
+    content: " ";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.15),
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  /* Dev Toolbar */
+  #dev-toolbar {
+    position: fixed; bottom: 20px; right: 20px;
+    background: rgba(0,0,0,0.9); color: var(--n-cyan);
+    padding: 16px; border: 1px solid var(--n-cyan);
+    z-index: 9999; font-family: var(--font-mono); font-size: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #dev-toolbar label { display: flex; justify-content: space-between; gap: 12px; }
+
+  /* Utilities */
+  .bracket-box {
+    position: relative;
+    padding: 20px;
+  }
+  .bracket-box::before, .bracket-box::after {
+    content: ''; position: absolute; width: 20px; height: 20px;
+    border-color: var(--n-cyan); border-style: solid;
+  }
+  .bracket-box::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+  .bracket-box::after { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+  .btn {
+    background: transparent;
+    color: var(--n-cyan);
+    border: 1px solid var(--n-cyan);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    padding: 10px 20px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn:hover:not(:disabled) {
+    background: rgba(0, 240, 255, 0.2);
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+  }
+  .btn:disabled { opacity: 0.3; border-color: #555; color: #555; }
+  
+  .btn.launch {
+    border-color: var(--n-magenta);
+    color: var(--n-magenta);
+    font-size: 28px;
+    padding: 15px 40px;
+    font-weight: bold;
+  }
+  .btn.launch:hover:not(:disabled) {
+    background: rgba(255, 0, 85, 0.2);
+    box-shadow: 0 0 20px rgba(255, 0, 85, 0.6);
+  }
+
+  /* Layout Segments */
+  .col-players {
+    width: 500px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    border-right: 1px solid rgba(0,240,255,0.2);
+    background: rgba(0,0,0,0.4);
+    z-index: 10;
+  }
+
+  .col-sys {
+    flex: 1;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+
+  .title {
+    font-family: var(--font-mono);
+    font-size: 48px;
+    color: var(--n-cyan);
+    margin: 0 0 20px 0;
+    text-shadow: 0 0 10px var(--n-cyan);
+    letter-spacing: 4px;
+  }
+  .title::before { content: 'SYS.INIT // '; opacity: 0.5; font-size: 24px; }
+
+  /* Player Rows */
+  .player-row {
+    height: 100px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(20,20,30,0.6);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+    transition: all 0.3s;
+  }
+  .player-row.empty { opacity: 0.3; border-style: dashed; }
+  .player-row.empty .p-details, .player-row.empty .p-art { display: none; }
+  .p-empty-text { display: none; font-family: var(--font-mono); font-size: 20px; letter-spacing: 2px;}
+  .player-row.empty .p-empty-text { display: block; }
+
+  .player-row[data-slot="1"] { border-left: 4px solid var(--n-cyan); }
+  .player-row[data-slot="2"] { border-left: 4px solid var(--n-magenta); }
+  .player-row[data-slot="3"] { border-left: 4px solid var(--n-yellow); }
+  .player-row[data-slot="4"] { border-left: 4px solid var(--n-green); }
+
+  .p-art {
+    width: 60px; height: 60px;
+    background: transparent;
+    border: 1px solid currentColor;
+    display: flex; justify-content: center; align-items: center;
+    box-shadow: inset 0 0 10px currentColor;
+  }
+  .player-row[data-slot="1"] .p-art { color: var(--n-cyan); }
+  .player-row[data-slot="2"] .p-art { color: var(--n-magenta); }
+  .player-row[data-slot="3"] .p-art { color: var(--n-yellow); }
+  .player-row[data-slot="4"] .p-art { color: var(--n-green); }
+
+  .p-art::after {
+    content: '';
+    width: 40px; height: 40px;
+    background: currentColor;
+    -webkit-mask: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M50 0 L100 80 L50 60 L0 80 Z"/></svg>') no-repeat center;
+    -webkit-mask-size: contain;
+  }
+
+  .p-details { flex: 1; }
+  .p-name { font-size: 28px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+  .p-type { font-family: var(--font-mono); font-size: 14px; opacity: 0.7; }
+  
+  .player-row[data-slot="1"] .p-name { color: var(--n-cyan); }
+  .player-row[data-slot="2"] .p-name { color: var(--n-magenta); }
+  .player-row[data-slot="3"] .p-name { color: var(--n-yellow); }
+  .player-row[data-slot="4"] .p-name { color: var(--n-green); }
+
+  .btn-kick {
+    background: transparent; border: 1px solid #555; color: #aaa;
+    padding: 4px 8px; cursor: pointer; font-family: var(--font-mono);
+  }
+  .btn-kick:hover { border-color: var(--n-magenta); color: var(--n-magenta); }
+
+  /* System Config Area (Right) */
+  .config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+    flex: 1;
+  }
+
+  .sys-panel {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(0,240,255,0.3);
+    padding: 20px;
+    display: flex; flex-direction: column;
+  }
+  .sys-header {
+    font-family: var(--font-mono);
+    color: var(--n-cyan);
+    font-size: 18px;
+    border-bottom: 1px solid rgba(0,240,255,0.3);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    display: flex; justify-content: space-between;
+  }
+
+  .map-canvas-container {
+    flex: 1;
+    border: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 15px;
+    position: relative;
+  }
+  .map-canvas-container canvas { width: 100%; height: 100%; }
+
+  .data-line {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono); font-size: 18px; margin-bottom: 15px;
+  }
+  .data-val { color: var(--n-yellow); font-weight: bold; }
+
+  .launch-container {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border: 1px solid var(--n-magenta);
+    background: rgba(255,0,85,0.05);
+  }
+  .status-readout {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    color: #fff;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: absolute; inset:0;
+    background: rgba(0,0,5,0.9);
+    display: none; justify-content: center; align-items: center;
+    z-index: 100;
+  }
+  .modal-overlay.open { display: flex; }
+  .vector-modal {
+    width: 900px;
+    border: 1px solid var(--n-cyan);
+    background: #000;
+    padding: 30px;
+    box-shadow: 0 0 50px rgba(0,240,255,0.2);
+  }
+  .map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .map-opt {
+    border: 1px solid rgba(0,240,255,0.3);
+    cursor: pointer;
+    background: rgba(0,0,0,0.8);
+    transition: all 0.2s;
+  }
+  .map-opt:hover { border-color: var(--n-cyan); }
+  .map-opt.selected { border-color: var(--n-yellow); box-shadow: inset 0 0 20px rgba(252,238,10,0.2); }
+  .map-opt canvas { width: 100%; height: 120px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .map-opt p { font-family: var(--font-mono); font-size: 16px; text-align: center; margin: 10px 0; color: #fff;}
+
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+  
+  <div class="col-players">
+    <div class="bracket-box" style="padding:10px; margin-bottom:20px;">
+      <div style="font-family: var(--font-mono); color: var(--n-cyan);">SESSION.ID</div>
+      <div id="room-code-disp" style="font-size: 24px; letter-spacing:4px; color:#fff;">LOCAL_NODE</div>
+    </div>
+
+    <!-- P1 -->
+    <div class="player-row" data-slot="1" id="slot-1">
+      <div class="p-art"></div>
+      <div class="p-details">
+        <div class="p-name">USER_1</div>
+        <div class="p-type" id="type-1">HOST // LOCAL</div>
+      </div>
+      <button class="btn-kick" style="visibility:hidden;">KICK</button>
+      <div class="p-empty-text">[ AWAITING CONNECTION ]</div>
+    </div>
+    <!-- P2 -->
+    <div class="player-row empty" data-slot="2" id="slot-2">
+      <div class="p-art"></div>
+      <div class="p-details">
+        <div class="p-name">AI_UNIT_Alpha</div>
+        <div class="p-type" id="type-2">BOT // CPU</div>
+      </div>
+      <button class="btn-kick">KICK</button>
+      <div class="p-empty-text">[ AWAITING CONNECTION ]</div>
+    </div>
+    <!-- P3 -->
+    <div class="player-row empty" data-slot="3" id="slot-3">
+      <div class="p-art"></div>
+      <div class="p-details">
+        <div class="p-name">USER_3</div>
+        <div class="p-type" id="type-3">GUEST // LOCAL</div>
+      </div>
+      <button class="btn-kick">KICK</button>
+      <div class="p-empty-text">[ AWAITING CONNECTION ]</div>
+    </div>
+    <!-- P4 -->
+    <div class="player-row empty" data-slot="4" id="slot-4">
+      <div class="p-art"></div>
+      <div class="p-details">
+        <div class="p-name">REMOTE_USER</div>
+        <div class="p-type" id="type-4">GUEST // NET</div>
+      </div>
+      <button class="btn-kick">KICK</button>
+      <div class="p-empty-text">[ AWAITING CONNECTION ]</div>
+    </div>
+  </div>
+
+  <div class="col-sys">
+    <h1 class="title">ASTRO_PARTY_LOBBY</h1>
+    
+    <div class="config-grid">
+      <!-- Arena Panel -->
+      <div class="sys-panel">
+        <div class="sys-header">
+          <span>ARENA_DATA</span>
+          <span id="map-name" style="color:#fff;">Classic Rotation</span>
+        </div>
+        <div class="map-canvas-container"><canvas id="main-map"></canvas></div>
+        <button class="btn" id="btn-map">OVERRIDE ARENA</button>
+      </div>
+      
+      <!-- Logic Panel -->
+      <div class="sys-panel">
+        <div class="sys-header"><span>LOGIC_PARAMS</span></div>
+        <div style="flex:1;">
+          <div class="data-line">
+            <span>RULESET:</span>
+            <span class="data-val" id="mode-val">STANDARD</span>
+          </div>
+          <button class="btn" id="btn-mode" style="width:100%; margin-bottom:20px;">CYCLE RULESET</button>
+
+          <div class="data-line">
+            <span>NETWORK:</span>
+            <span class="data-val" id="sess-val">LOCAL</span>
+          </div>
+          <button class="btn" id="btn-session" style="width:100%;">TOGGLE NET</button>
+        </div>
+      </div>
+
+      <!-- Launch Panel -->
+      <div class="launch-container bracket-box">
+        <div class="status-readout" id="status-text">STATUS: INSUFFICIENT ENTITIES</div>
+        <button class="btn launch" id="btn-launch" disabled>EXECUTE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Modal -->
+  <div class="modal-overlay" id="map-modal">
+    <div class="vector-modal">
+      <div style="display:flex; justify-content:space-between; margin-bottom: 20px; font-family: var(--font-mono); color: var(--n-cyan); font-size: 24px;">
+        <span>SELECT_TARGET_COORDINATES</span>
+        <button class="btn" id="btn-close-map">ABORT</button>
+      </div>
+      <div class="map-grid">
+        <div class="map-opt selected" data-map="0"><canvas id="m0"></canvas><p>0x00: Classic Rotation</p></div>
+        <div class="map-opt" data-map="1"><canvas id="m1"></canvas><p>0x01: The Cache</p></div>
+        <div class="map-opt" data-map="2"><canvas id="m2"></canvas><p>0x02: Fortress</p></div>
+        <div class="map-opt" data-map="3"><canvas id="m3"></canvas><p>0x03: Void Ring</p></div>
+        <div class="map-opt" data-map="4"><canvas id="m4"></canvas><p>0x04: Nebula Cross</p></div>
+        <div class="map-opt" data-map="5"><canvas id="m5"></canvas><p>0x05: Asteroid Field</p></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Dev Toolbar -->
+<div id="dev-toolbar">
+  <strong style="color:#fff;">DEBUG_TERMINAL</strong>
+  <label>Entities <input type="range" id="d-pl" min="1" max="4" value="1"><span id="d-pl-v">1</span></label>
+  <label>SysAdmin <input type="checkbox" id="d-host" checked></label>
+  <label>Protocol 
+    <select id="d-sess" style="background:#000;color:var(--n-cyan);border:1px solid var(--n-cyan);">
+      <option value="local">LOCAL</option><option value="online">NET</option>
+    </select>
+  </label>
+</div>
+
+<script>
+  function resize() {
+    const c = document.getElementById('canvas-container');
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    c.style.transform = `scale(${scale})`;
+    c.style.left = `${(window.innerWidth - 1280 * scale) / 2}px`;
+    c.style.top = `${(window.innerHeight - 720 * scale) / 2}px`;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const state = { players: 1, isHost: true, session: 'local', modeIdx: 0, mapIdx: 0 };
+  const modes = ["STANDARD", "SANE", "CHAOTIC"];
+  const mapNames = ["Classic Rotation", "The Cache", "Fortress", "Void Ring", "Nebula Cross", "Asteroid Field"];
+
+  function drawVectorMap(cid, type) {
+    const c = document.getElementById(cid);
+    if(!c) return;
+    c.width = c.parentElement.clientWidth;
+    c.height = c.parentElement.clientHeight;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0,0,c.width,c.height);
+    
+    // Grid background
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.1)';
+    ctx.lineWidth = 1;
+    for(let i=0;i<c.width;i+=20){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,c.height); ctx.stroke(); }
+    for(let i=0;i<c.height;i+=20){ ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(c.width,i); ctx.stroke(); }
+
+    ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 2;
+    ctx.shadowBlur = 10; ctx.shadowColor = '#00f0ff';
+    const w = c.width, h = c.height;
+
+    if(type===0) { ctx.strokeRect(w*0.2, h*0.2, w*0.6, h*0.6); ctx.beginPath(); ctx.arc(w/2,h/2,h*0.15,0,Math.PI*2); ctx.stroke(); }
+    else if(type===1) { ctx.fillStyle='rgba(255,0,85,0.5)'; ctx.fillRect(w*0.35,h*0.35,w*0.3,h*0.3); ctx.strokeRect(w*0.35,h*0.35,w*0.3,h*0.3); }
+    else if(type===2) { ctx.strokeRect(20,20,w*0.15,h-40); ctx.strokeRect(w-w*0.15-20,20,w*0.15,h-40); }
+    else if(type===3) { ctx.beginPath(); ctx.arc(w/2,h/2,h*0.4,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(w/2,h/2,h*0.35,0,Math.PI*2); ctx.stroke(); }
+    else if(type===4) { ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke(); }
+    else if(type===5) { for(let i=0;i<12;i++){ ctx.strokeRect(Math.random()*w,Math.random()*h,10,10); } }
+  }
+
+  function renderMaps() {
+    drawVectorMap('main-map', state.mapIdx);
+    for(let i=0;i<6;i++) drawVectorMap(`m${i}`, i);
+  }
+
+  function update() {
+    for(let i=1;i<=4;i++) {
+      const el = document.getElementById(`slot-${i}`);
+      if(i <= state.players) el.classList.remove('empty');
+      else el.classList.add('empty');
+      
+      const kick = el.querySelector('.btn-kick');
+      if(kick) kick.style.display = (state.isHost && i!==1) ? 'block' : 'none';
+    }
+
+    document.getElementById('type-1').textContent = state.isHost ? 'SYS_ADMIN // LOCAL' : 'USER // LOCAL';
+    document.getElementById('room-code-disp').textContent = state.session === 'online' ? 'NET_ID: 9X-A7B' : 'LOCAL_NODE';
+    document.getElementById('sess-val').textContent = state.session.toUpperCase();
+    document.getElementById('mode-val').textContent = modes[state.modeIdx];
+    document.getElementById('map-name').textContent = mapNames[state.mapIdx];
+
+    const launch = document.getElementById('btn-launch');
+    const status = document.getElementById('status-text');
+    launch.textContent = state.isHost ? 'EXECUTE' : 'STANDBY';
+
+    if(state.players < 2) {
+      launch.disabled = true; status.textContent = "STATUS: INSUFFICIENT ENTITIES"; status.style.color = "#aaa";
+    } else {
+      if(!state.isHost) { launch.disabled = false; status.textContent = "STATUS: AWAITING ADMIN"; status.style.color = "var(--n-yellow)"; }
+      else { launch.disabled = false; status.textContent = "STATUS: READY FOR EXECUTION"; status.style.color = "var(--n-green)"; }
+    }
+
+    document.querySelectorAll('.map-opt').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.map) === state.mapIdx);
+    });
+    renderMaps();
+  }
+
+  document.getElementById('d-pl').addEventListener('input', e => { state.players = parseInt(e.target.value); document.getElementById('d-pl-v').textContent = state.players; update(); });
+  document.getElementById('d-host').addEventListener('change', e => { state.isHost = e.target.checked; update(); });
+  document.getElementById('d-sess').addEventListener('change', e => { state.session = e.target.value; update(); });
+  document.getElementById('btn-session').addEventListener('click', () => { state.session = state.session==='local'?'online':'local'; document.getElementById('d-sess').value=state.session; update(); });
+  document.getElementById('btn-mode').addEventListener('click', () => { state.modeIdx = (state.modeIdx+1)%modes.length; update(); });
+  
+  const mod = document.getElementById('map-modal');
+  document.getElementById('btn-map').addEventListener('click', () => { mod.classList.add('open'); setTimeout(renderMaps,10); });
+  document.getElementById('btn-close-map').addEventListener('click', () => mod.classList.remove('open'));
+  document.querySelectorAll('.map-opt').forEach(el => {
+    el.addEventListener('click', () => { state.mapIdx = parseInt(el.dataset.map); mod.classList.remove('open'); update(); });
+  });
+
+  setTimeout(update, 100);
+</script>
+</body>
+</html>

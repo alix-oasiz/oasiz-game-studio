@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40" role="img" aria-label="Ship cel shaded variant: Hero Neon">
+  <defs>
+    <style>
+      .slot-primary { fill: var(--slot-primary, #00f0ff); }
+      .slot-secondary { fill: var(--slot-secondary, #ffffff); }
+      .slot-stroke { stroke: var(--slot-stroke, #041018); }
+
+      .o { stroke: var(--slot-stroke, #041018); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+      .o3 { stroke: var(--slot-stroke, #041018); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+
+      .hullBase { fill: var(--slot-primary, #00f0ff); }
+      .hullShadow {
+        fill: #000;
+        opacity: 0.22;
+      }
+      .hullDeep {
+        fill: #000;
+        opacity: 0.38;
+      }
+
+      .wingBase { fill: var(--slot-primary, #00f0ff); }
+      .wingShadow {
+        fill: #000;
+        opacity: 0.22;
+      }
+
+      .panel {
+        fill: #000;
+        opacity: 0.12;
+      }
+      .rim {
+        fill: var(--slot-secondary, #ffffff);
+        opacity: 0.95;
+      }
+
+      .accent {
+        fill: var(--slot-secondary, #ffffff);
+        opacity: 0.85;
+      }
+      .accentNeon {
+        fill: var(--slot-secondary, #ffffff);
+        opacity: 0.95;
+      }
+
+      .glow { fill: var(--slot-primary, #00f0ff); opacity: 0.22; }
+    </style>
+  </defs>
+
+  <g id="visual" transform="scale(1 0.8) rotate(90) scale(0.35) translate(-0.25 -4.5)">
+    <!-- glow -->
+    <circle cx="0" cy="30" r="28" class="glow"/>
+
+    <!-- wings -->
+    <polygon points="-32.9,27.1 -49.9,22.7 -33.6,10.5 -19.2,23.0" data-role="wing-left" class="wingBase o3"/>
+    <polygon points="-33.6,10.5 -49.9,22.7 -33.2,18.0 -21.2,22.0" class="wingShadow"/>
+    <polygon points="36.2,27.1 50.4,23.0 34.3,10.3 19.3,22.4" data-role="wing-right" class="wingBase o3"/>
+    <polygon points="34.3,10.3 50.4,23.0 33.9,18.0 21.8,22.0" class="wingShadow"/>
+
+    <!-- hull -->
+    <polygon points="0,-32 37,3 16,18 -16,18 -37,3" data-role="hull-main" class="hullBase o"/>
+    <polygon points="0,-32 37,3 16,18 0,14" class="hullShadow"/>
+    <polygon points="0,-32 -37,3 -16,18 0,14" class="hullDeep"/>
+
+    <!-- rim light + highlight -->
+    <path d="M -12 -10 L 0 -20 L 12 -10 L 9 -8 L 0 -15 L -9 -8 Z" class="rim"/>
+    <path d="M -16 -14 L 0 -28 L 16 -14 L 12 -10 L 0 -20 L -12 -10 Z" class="slot-secondary" opacity="0.95"/>
+
+    <!-- cockpit -->
+    <polygon points="0,-24 15,-11 0,-7 -15,-11" fill="#041018" opacity="0.96"/>
+    <polygon points="-10,-12 0,-16 10,-12 0,-9" class="accentNeon" opacity="0.9"/>
+
+    <!-- central neon spine -->
+    <polygon points="-2.2,-30 2.2,-30 1.4,18 -1.4,18" class="accentNeon"/>
+
+    <!-- panels -->
+    <polygon points="-16,18 0,16 -6,8 -18,10" class="panel"/>
+    <polygon points="16,18 0,16 6,8 18,10" class="panel"/>
+
+    <!-- engine -->
+    <polygon points="0,34 13,24 0,14 -13,24" class="slot-primary o3" opacity="0.85"/>
+    <polygon points="0,31 9,24 0,17 -9,24" fill="#ffffff" opacity="0.85"/>
+    <polygon points="-6,34 0,48 6,34" class="accent"/>
+  </g>
+
+  <path id="collider"
+    d="M 12.775 -0.07 L 0.525 10.29 L -6.475 14.042 L -10.325 -0.07 L -6.37 -14.042 L 0.525 -10.43 Z"
+    fill="none" stroke="none"/>
+</svg>

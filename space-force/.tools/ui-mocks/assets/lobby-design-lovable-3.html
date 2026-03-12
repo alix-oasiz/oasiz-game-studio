@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astro Party Lobby — Arcade Pulse</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --c1:#00e5ff;--c2:#ff2d9b;--c3:#ffe500;--c4:#00ff88;
+  --bg:#0e0e14;--surface:#16161f;--surface2:#1e1e2a;--surface3:#262633;
+  --border:#33334a;--text:#f0f0f5;--text-dim:#8888a0;
+  --font-head:'Orbitron',sans-serif;--font-body:'Exo 2',sans-serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:#08080c;font-family:var(--font-body)}
+#scale-wrapper{position:absolute;width:1280px;height:720px;transform-origin:top left;overflow:hidden}
+.lobby{width:100%;height:100%;background:var(--bg);position:relative;display:flex;flex-direction:column}
+/* Gradient overlay */
+.lobby::before{content:'';position:absolute;top:0;left:0;right:0;height:200px;background:linear-gradient(180deg,rgba(0,229,255,.03),transparent);pointer-events:none}
+/* Top */
+.top{height:56px;display:flex;align-items:center;padding:0 28px;z-index:2;border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{font-family:var(--font-head);font-size:22px;font-weight:900;color:var(--text);letter-spacing:4px;text-transform:uppercase}
+.brand h1 span{background:linear-gradient(135deg,var(--c1),var(--c2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.brand .sub{font-family:var(--font-body);font-size:11px;color:var(--text-dim);letter-spacing:1px}
+.top .spacer{flex:1}
+.code-chip{font-family:var(--font-head);font-size:11px;background:var(--surface2);border:1.5px solid rgba(0,229,255,.2);color:var(--c1);border-radius:6px;padding:5px 14px;letter-spacing:3px;display:none;align-items:center;gap:6px;margin-right:12px}
+.code-chip button{background:none;border:none;color:var(--c1);cursor:pointer;font-size:12px}
+.top .leave{font-family:var(--font-body);font-size:12px;background:none;border:1.5px solid #ff445566;color:#ff6670;border-radius:6px;padding:5px 14px;cursor:pointer;transition:.2s}
+.top .leave:hover{background:rgba(255,68,85,.08)}
+/* Main content area */
+.main{flex:1;display:flex;padding:16px 28px;gap:20px;z-index:2}
+/* Left: Players stacked asymmetric */
+.players-col{display:flex;flex-direction:column;gap:10px;width:260px;flex-shrink:0}
+.pc{border-radius:10px;background:var(--surface);border:2px solid var(--border);padding:14px;display:flex;align-items:center;gap:14px;position:relative;transition:.2s;flex:1}
+.pc:hover{background:var(--surface2)}
+.pc.slot1{border:2px solid rgba(0,229,255,.2);background:linear-gradient(135deg,rgba(0,229,255,.04),transparent)}
+.pc.slot2{border-color:rgba(255,45,155,.15)}
+.pc.slot3{border-color:rgba(255,229,0,.15)}
+.pc.slot4{border-color:rgba(0,255,136,.15)}
+.pc.empty{border-style:dashed;border-color:var(--border);opacity:.35}
+.pc .ship{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;animation:bob 3s ease-in-out infinite}
+.slot1 .ship{background:rgba(0,229,255,.1);border:1.5px solid rgba(0,229,255,.3);color:var(--c1)}
+.slot2 .ship{background:rgba(255,45,155,.1);border:1.5px solid rgba(255,45,155,.3);color:var(--c2)}
+.slot3 .ship{background:rgba(255,229,0,.1);border:1.5px solid rgba(255,229,0,.3);color:var(--c3)}
+.slot4 .ship{background:rgba(0,255,136,.1);border:1.5px solid rgba(0,255,136,.3);color:var(--c4)}
+.pc.empty .ship{background:var(--surface2);border:1.5px dashed var(--border);color:var(--text-dim);animation:none}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.pc .info{display:flex;flex-direction:column;gap:3px;flex:1}
+.pc .nm{font-family:var(--font-head);font-size:12px;font-weight:600;color:var(--text);letter-spacing:1px}
+.pc .tags{display:flex;gap:6px;align-items:center}
+.pc .badge{font-family:var(--font-head);font-size:8px;letter-spacing:1.5px;padding:2px 8px;border-radius:3px;font-weight:700}
+.ty{background:rgba(0,229,255,.1);color:var(--c1);border:1px solid rgba(0,229,255,.2)}
+.tai{background:rgba(255,229,0,.08);color:var(--c3);border:1px solid rgba(255,229,0,.15)}
+.tlo{background:rgba(0,255,136,.08);color:var(--c4);border:1px solid rgba(0,255,136,.15)}
+.ton{background:rgba(255,45,155,.08);color:var(--c2);border:1px solid rgba(255,45,155,.15)}
+.pc .host-t{font-family:var(--font-head);font-size:7px;color:var(--c3);letter-spacing:2px}
+.pc .kick{position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;border:1px solid rgba(255,68,85,.2);background:none;color:#ff5566;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:.15s}
+.pc:hover .kick{opacity:1}
+.pc.empty .em{font-family:var(--font-body);font-size:11px;color:var(--text-dim)}
+/* Center: Large map preview */
+.map-area{flex:1;display:flex;flex-direction:column;gap:12px}
+.map-display{flex:1;border-radius:10px;border:2px solid var(--border);background:var(--surface);overflow:hidden;position:relative}
+.map-display canvas{width:100%;height:100%;display:block}
+.map-overlay{position:absolute;bottom:0;left:0;right:0;padding:14px 18px;background:linear-gradient(transparent,rgba(14,14,20,.95));display:flex;align-items:flex-end;justify-content:space-between}
+.map-overlay .m-info h3{font-family:var(--font-head);font-size:14px;color:var(--text);letter-spacing:1px;font-weight:700;margin-bottom:2px}
+.map-overlay .m-info p{font-family:var(--font-body);font-size:11px;color:var(--text-dim)}
+.map-overlay .ch-btn{font-family:var(--font-head);font-size:10px;letter-spacing:1.5px;padding:8px 18px;border-radius:6px;border:1.5px solid var(--c1);background:rgba(0,229,255,.06);color:var(--c1);cursor:pointer;transition:.2s;text-transform:uppercase}
+.map-overlay .ch-btn:hover{background:rgba(0,229,255,.12)}
+/* Right: controls + CTA */
+.right-col{width:220px;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+.ctrl-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.ctrl-label{font-family:var(--font-head);font-size:8px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+.ctrl-opts{display:flex;flex-direction:column;gap:6px}
+.ctrl-opt{font-family:var(--font-head);font-size:10px;padding:8px 12px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;transition:.2s;letter-spacing:1px;text-align:center}
+.ctrl-opt.active{border-color:var(--c1);color:var(--c1);background:rgba(0,229,255,.05)}
+.cta-box{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.big-btn{font-family:var(--font-head);font-size:14px;font-weight:800;letter-spacing:3px;text-transform:uppercase;width:100%;padding:16px;border-radius:8px;border:none;cursor:pointer;transition:.25s}
+.big-btn.launch{background:linear-gradient(180deg,rgba(0,229,255,.9),rgba(0,180,220,.9));color:#001820;box-shadow:0 4px 20px rgba(0,229,255,.25),inset 0 1px 0 rgba(255,255,255,.15)}
+.big-btn.launch:hover{box-shadow:0 8px 35px rgba(0,229,255,.4);transform:translateY(-2px)}
+.big-btn.ready{background:linear-gradient(180deg,rgba(0,255,136,.85),rgba(0,200,100,.9));color:#001a0a;box-shadow:0 4px 20px rgba(0,255,136,.2),inset 0 1px 0 rgba(255,255,255,.15)}
+.big-btn.ready:hover{box-shadow:0 8px 35px rgba(0,255,136,.35);transform:translateY(-2px)}
+.big-btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+.big-btn:active{transform:scale(.97)}
+.sts{display:flex;align-items:center;gap:6px;justify-content:center}
+.sts .dot{width:7px;height:7px;border-radius:50%;animation:p3 1.5s ease-in-out infinite}
+.dot.g{background:var(--c4);box-shadow:0 0 8px var(--c4)}.dot.y{background:var(--c3);box-shadow:0 0 8px var(--c3)}.dot.r{background:#ff4455;box-shadow:0 0 8px #ff4455}
+@keyframes p3{0%,100%{opacity:1}50%{opacity:.4}}
+.sts span{font-family:var(--font-body);font-size:11px;color:var(--text-dim)}
+/* Modal */
+.mo-bg{position:absolute;inset:0;background:rgba(8,8,12,.9);z-index:10;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.25s}
+.mo-bg.open{opacity:1;pointer-events:all}
+.mo-box{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:24px;width:700px;transform:scale(.93);transition:.25s}
+.mo-bg.open .mo-box{transform:scale(1)}
+.mo-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.mo-hd h2{font-family:var(--font-head);font-size:14px;color:var(--text);letter-spacing:2px;font-weight:700}
+.mo-cls{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
+.mo-cls:hover{color:var(--text)}
+.mo-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mo-c{border-radius:6px;border:1.5px solid var(--border);background:var(--surface2);padding:10px;cursor:pointer;transition:.2s}
+.mo-c:hover{border-color:rgba(0,229,255,.4);transform:translateY(-2px)}
+.mo-c.sel{border-color:var(--c1);box-shadow:0 0 12px rgba(0,229,255,.1)}
+.mo-c canvas{width:100%;height:70px;border-radius:4px;margin-bottom:6px;display:block}
+.mo-c span{font-family:var(--font-head);font-size:9px;color:var(--text);letter-spacing:1px}
+/* Dev */
+.dev-toolbar{position:fixed;bottom:0;left:0;right:0;height:48px;background:#0c0c14;border-top:1px solid #2a2a3a;display:flex;align-items:center;padding:0 20px;gap:20px;z-index:100;font-family:var(--font-body)}
+.dev-toolbar label{font-size:11px;color:#8888a0}
+.dev-toolbar select,.dev-toolbar button{font-family:var(--font-body);font-size:11px;background:#1a1a24;border:1px solid #333;color:#ccc;border-radius:4px;padding:4px 10px;cursor:pointer}
+.dev-toolbar button.on{background:var(--c1);color:#000;border-color:var(--c1)}
+.dev-toolbar .sep{width:1px;height:24px;background:#2a2a3a}
+</style>
+</head>
+<body>
+<div id="scale-wrapper">
+<div class="lobby" id="lobby">
+
+  <div class="top">
+    <div class="brand"><h1>ASTRO <span>PARTY</span></h1><span class="sub">Game Lobby</span></div>
+    <div class="spacer"></div>
+    <div class="code-chip" id="codechip"><span>XKRF42</span><button onclick="navigator.clipboard?.writeText('XKRF42')">⧉</button></div>
+    <button class="leave">✕ Leave</button>
+  </div>
+
+  <div class="main">
+    <div class="players-col" id="pcol"></div>
+
+    <div class="map-area">
+      <div class="map-display">
+        <canvas id="bigmap"></canvas>
+        <div class="map-overlay">
+          <div class="m-info"><h3 id="mn">Classic Rotation</h3><p id="md">Symmetrical arena with rotating obstacles</p></div>
+          <button class="ch-btn" onclick="oM()">Change Arena</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="ctrl-box">
+        <div class="ctrl-label">Game Mode</div>
+        <div class="ctrl-opts" id="modeOpts">
+          <div class="ctrl-opt active" data-v="standard">Standard</div>
+          <div class="ctrl-opt" data-v="sane">Sane</div>
+          <div class="ctrl-opt" data-v="chaotic">Chaotic</div>
+        </div>
+      </div>
+      <div class="ctrl-box">
+        <div class="ctrl-label">Session</div>
+        <div class="ctrl-opts" id="sessOpts">
+          <div class="ctrl-opt active" data-v="local">Local</div>
+          <div class="ctrl-opt" data-v="online">Online</div>
+        </div>
+      </div>
+      <div class="cta-box">
+        <button class="big-btn launch" id="cta">LAUNCH</button>
+        <div class="sts"><span class="dot g" id="sdot"></span><span id="sl">Ready to launch</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mo-bg" id="modal">
+    <div class="mo-box">
+      <div class="mo-hd"><h2>SELECT ARENA</h2><button class="mo-cls" onclick="cM()">✕</button></div>
+      <div class="mo-g" id="mgrid"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="dev-toolbar">
+  <label>Players</label>
+  <select id="dp" onchange="up()"><option>1</option><option>2</option><option>3</option><option selected>4</option></select>
+  <div class="sep"></div>
+  <label>Host</label>
+  <button id="dh" class="on" onclick="th()">Yes</button>
+  <div class="sep"></div>
+  <label>Session</label>
+  <button id="dsl" class="on" onclick="setS('local')">Local</button>
+  <button id="dso" onclick="setS('online')">Online</button>
+  <div class="sep"></div>
+  <label>Mode</label>
+  <select id="dm" onchange="setM(this.value)"><option>standard</option><option>sane</option><option>chaotic</option></select>
+  <div class="sep"></div>
+  <label>Map</label>
+  <select id="dmap" onchange="sMap(+this.value)"></select>
+</div>
+
+<script>
+const MAPS=[{n:'Classic Rotation',d:'Symmetrical arena with rotating obstacles'},{n:'The Cache',d:'Central loot zone surrounded by cover'},{n:'Fortress',d:'Fortified corners with open center'},{n:'Void Ring',d:'Circular arena with gravity well'},{n:'Nebula Cross',d:'Cross-shaped corridors through nebula'},{n:'Asteroid Field',d:'Dense floating debris field'}];
+const PL=[{n:'Captain',t:'you',c:'slot1',b:'ty'},{n:'Nova-7',t:'ai',c:'slot2',b:'tai'},{n:'Player 3',t:'local',c:'slot3',b:'tlo'},{n:'Zephyr',t:'online',c:'slot4',b:'ton'}];
+let S={p:4,h:true,se:'local',mo:'standard',ma:0};
+
+function dM(cv,i,w,h){const x=cv.getContext('2d');cv.width=w;cv.height=h;x.fillStyle='#0c0c16';x.fillRect(0,0,w,h);x.strokeStyle='rgba(0,229,255,.25)';x.lineWidth=1.5;const cx=w/2,cy=h/2;
+if(i===0){x.strokeRect(w*.15,h*.15,w*.7,h*.7);x.beginPath();x.arc(cx,cy,Math.min(w,h)*.1,0,Math.PI*2);x.stroke()}
+else if(i===1){x.fillStyle='rgba(0,229,255,.06)';x.fillRect(cx-22,cy-22,44,44);x.strokeRect(cx-22,cy-22,44,44)}
+else if(i===2){const z=16;[[w*.1,h*.1],[w*.9-z,h*.1],[w*.1,h*.9-z],[w*.9-z,h*.9-z]].forEach(p=>{x.strokeRect(p[0],p[1],z,z)})}
+else if(i===3){x.beginPath();x.arc(cx,cy,Math.min(w,h)*.35,0,Math.PI*2);x.stroke();x.beginPath();x.arc(cx,cy,6,0,Math.PI*2);x.fillStyle='rgba(255,45,155,.25)';x.fill()}
+else if(i===4){x.beginPath();x.moveTo(cx,h*.08);x.lineTo(cx,h*.92);x.moveTo(w*.08,cy);x.lineTo(w*.92,cy);x.stroke()}
+else{for(let j=0;j<12;j++){x.beginPath();x.arc(w*.08+Math.random()*w*.84,h*.08+Math.random()*h*.84,2+Math.random()*5,0,Math.PI*2);x.stroke()}}}
+
+function render(){
+  const c=document.getElementById('pcol');c.innerHTML='';
+  for(let i=0;i<4;i++){
+    if(i<S.p){const p=PL[i];let k=S.h&&i>0?'<button class="kick">✕</button>':'';let ho=i===0?'<span class="host-t">★ HOST</span>':'';
+    c.innerHTML+=`<div class="pc ${p.c}">${k}<div class="ship" style="animation-delay:${i*.4}s">🚀</div><div class="info"><div class="nm">${p.n}</div><div class="tags"><span class="badge ${p.b}">${p.t.toUpperCase()}</span>${ho}</div></div></div>`}
+    else{c.innerHTML+=`<div class="pc empty"><div class="ship">+</div><div class="info"><span class="em">Open Slot</span></div></div>`}
+  }
+  const btn=document.getElementById('cta'),dot=document.getElementById('sdot'),lb=document.getElementById('sl');
+  if(S.p<2){btn.disabled=true;btn.textContent='LAUNCH';btn.className='big-btn launch';dot.className='dot r';lb.textContent='Need more players'}
+  else if(S.h){btn.disabled=false;btn.textContent='LAUNCH';btn.className='big-btn launch';dot.className='dot g';lb.textContent='Ready to launch'}
+  else{btn.disabled=false;btn.textContent='READY';btn.className='big-btn ready';dot.className='dot y';lb.textContent='Waiting for host'}
+}
+
+function updMap(){document.getElementById('mn').textContent=MAPS[S.ma].n;document.getElementById('md').textContent=MAPS[S.ma].d;const cv=document.getElementById('bigmap');dM(cv,S.ma,cv.parentElement.offsetWidth,cv.parentElement.offsetHeight)}
+
+function bModal(){const g=document.getElementById('mgrid');g.innerHTML='';MAPS.forEach((m,i)=>{const d=document.createElement('div');d.className='mo-c'+(i===S.ma?' sel':'');d.innerHTML=`<canvas></canvas><span>${m.n}</span>`;d.onclick=()=>{sMap(i);cM()};g.appendChild(d);dM(d.querySelector('canvas'),i,200,70)})}
+
+function sMap(i){S.ma=i;updMap();bModal();document.getElementById('dmap').value=i}
+function oM(){document.getElementById('modal').classList.add('open')}
+function cM(){document.getElementById('modal').classList.remove('open')}
+
+function setS(v){S.se=v;document.querySelectorAll('#sessOpts .ctrl-opt').forEach(e=>e.classList.toggle('active',e.dataset.v===v));document.getElementById('codechip').style.display=v==='online'?'flex':'none';document.getElementById('dsl').classList.toggle('on',v==='local');document.getElementById('dso').classList.toggle('on',v==='online')}
+function setM(v){S.mo=v;document.querySelectorAll('#modeOpts .ctrl-opt').forEach(e=>e.classList.toggle('active',e.dataset.v===v));document.getElementById('dm').value=v}
+function th(){S.h=!S.h;document.getElementById('dh').classList.toggle('on',S.h);document.getElementById('dh').textContent=S.h?'Yes':'No';render()}
+function up(){S.p=+document.getElementById('dp').value;render()}
+
+document.querySelectorAll('#modeOpts .ctrl-opt').forEach(e=>e.onclick=()=>setM(e.dataset.v));
+document.querySelectorAll('#sessOpts .ctrl-opt').forEach(e=>e.onclick=()=>setS(e.dataset.v));
+
+const dms=document.getElementById('dmap');MAPS.forEach((m,i)=>{const o=document.createElement('option');o.value=i;o.textContent=m.n;dms.appendChild(o)});
+
+function rescale(){const s=Math.min(window.innerWidth/1280,(window.innerHeight-48)/720);const w=document.getElementById('scale-wrapper');const ox=(window.innerWidth-1280*s)/2;const oy=((window.innerHeight-48)-720*s)/2;w.style.transform=`translate(${ox}px,${oy}px) scale(${s})`}
+window.addEventListener('resize',rescale);
+
+render();updMap();bModal();rescale();
+// Resize map canvas on load
+setTimeout(()=>{const cv=document.getElementById('bigmap');dM(cv,S.ma,cv.parentElement.offsetWidth,cv.parentElement.offsetHeight)},100);
+</script>
+</body>
+</html>

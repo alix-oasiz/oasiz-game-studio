@@ -24,6 +24,23 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Track asset folders inside Space Force only
+!space-force/**/asset/
+!space-force/**/asset/**
+!space-force/**/assets/
+!space-force/**/assets/**
+!space-force/src/audio/
+!space-force/src/audio/**
+
+# Space Force: local tooling/runtime artifacts
+space-force/.tools/ffmpeg/
+space-force/.claude/
+space-force/docs/plans/
+space-force/server/observed-runs/*
+!space-force/server/observed-runs/dashboard/
+!space-force/server/observed-runs/dashboard/**
+!space-force/server/observed-runs/index.json
+
 # Unity - auto-generated folders (safe to regenerate)
 Unity/*/Library/
 Unity/*/Temp/

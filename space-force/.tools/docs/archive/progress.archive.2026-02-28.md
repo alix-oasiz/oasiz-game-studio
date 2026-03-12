@@ -1,0 +1,1299 @@
+Original prompt: On the client, never queue snapshots blindly. Always render the newest. This prevents latency buildup right? ... proceed with implementing it. clear out all redundant network code.
+
+## 2026-02-21
+- Mobile ship clarity fix:
+  - Removed embedded SVG Gaussian blur filter (`softGlow`) from `shared/assets/entities/ship.svg`.
+  - Removed `filter="url(#softGlow)"` from the ship `#visual` group so the ship silhouette renders sharper when zoomed.
+- Validation:
+  - `space-force`: `bun run build` passed and regenerated `shared/geometry/generated/EntitySvgData.ts`.
+- Notes:
+  - Attempted Playwright smoke run using the `develop-web-game` skill client, but process-spawn command was blocked by policy in this environment.
+
+## 2026-02-16
+- Audited space-force networking stack.
+- Identified latency sources in code:
+  - Server snapshot timer decoupled from sim tick (`snapshotHz` interval).
+  - Client `NetworkSyncSystem` buffering + interpolation + self-prediction pipeline.
+  - Input send path rate-limited by interval-only condition instead of immediate send on input edges.
+- Next: implement strict server-authoritative newest-snapshot flow with tiny capped extrapolation and remove redundant client prediction/buffering paths.
+- Implemented server tick-aligned snapshot delivery:
+  - Removed separate snapshot timer path in `server/src/rooms/SpaceForceRoom.ts`.
+  - Broadcast snapshots directly from simulation `onSnapshot` callback (per sim tick).
+  - Added per-client outbound buffer guard to drop stale sends when socket backlog grows.
+- Updated server transport setup in `server/src/index.ts`:
+  - Explicit `perMessageDeflate: false`.
+  - Increased configurable websocket max payload (`WS_MAX_PAYLOAD_BYTES`, default 262144).
+  - Enabled TCP no-delay on accepted sockets.
+- Replaced `src/network/NetworkSyncSystem.ts` with newest-snapshot authoritative sync:
+  - Removed snapshot buffering/interpolation pipeline and self-physics prediction path.
+  - Keep only latest authoritative snapshot by host tick.
+  - Added tiny client extrapolation cap using velocity fields (`remoteSmoothing.extrapolationCapBaseMs`).
+  - Kept asteroid collider hydration + authoritative FX/event handling.
+- Updated `src/systems/PlayerInputResolver.ts`:
+  - Inputs now send immediately on button edge changes.
+  - Still sends periodic keepalive at configured interval.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - `space-force/server`: `bun run build` passed.
+
+TODO / Follow-ups:
+- Verify runtime behavior against real server with packet loss simulation to tune `extrapolationCapBaseMs` (20-40ms target).
+- If desired, remove unused legacy files (`SelfShipPredictor`) in a separate cleanup-only pass.
+- Ran Playwright smoke automation via `web_game_playwright_client.js` against local Vite server.
+  - Artifacts: `output/web-game-network-smoke/shot-0.png`.
+  - No automated console error artifact emitted by the script for this run.
+- Simplified `src/network/gameFeel/NetworkGameFeelTuning.ts` to match new architecture:
+  - Removed interpolation/prediction tuning knobs no longer used.
+  - Set `remoteSmoothing.extrapolationCapBaseMs` to 32ms (small visual-only cap).
+  - Disabled self-prediction flag while keeping immediate input send cadence config.
+- Re-ran `space-force` build after tuning cleanup: passed.
+- Final verification rerun:
+  - `space-force`: `bun run build` passed.
+  - `space-force/server`: `bun run build` passed.
+- Re-ran Playwright smoke script after tuning cleanup; script completed successfully (module-type warning from script package only).
+- Removed unused dead file `src/network/gameFeel/SelfShipPredictor.ts` after authoritative-sync rewrite.
+- Re-ran `space-force` build after deletion: passed.
+## 2026-02-17
+- Implemented centralized scoring policy in `shared/sim/scoring.ts`:
+  - Point awards configurable in one place: `SHIP_DESTROY=5`, `PILOT_KILL=20`, `ROUND_WIN=50`, `GAME_WIN=100`.
+  - Score submission policy centralized: requires eligible lobby bot and currently treats `ai` bots as eligible.
+- Server/simulation is now authoritative for session score:
+  - Added `score` to runtime player model and player-list metadata.
+  - Awarded score in `shared/sim/GameFlowSystem.ts` for ship destroys, pilot kills, round wins, and game wins.
+  - Added `scoresById` to `RoundResultPayload` so round/game-end always include authoritative per-player session scores.
+- Propagated score through network stack:
+  - Updated room schema/state sync (`server/src/rooms/SpaceForceRoomState.ts`, `server/src/rooms/SpaceForceRoom.ts`).
+  - Updated transports/player meta mapping (`src/network/transports/*`).
+  - Updated client sync (`src/network/NetworkSyncSystem.ts`) to consume authoritative `score`.
+- Client score submission changes (`src/Game.ts`):
+  - Submits only local player's own authoritative score (`scoresById[myId]` fallback to synced player `score`).
+  - Submission is gated by centralized policy and lobby bot eligibility tracking.
+  - Prevents repeated submits with `finalScoreSubmittedForMatch` guard.
+- UI updates (`src/ui/screens.ts`):
+  - HUD rows now show session points.
+  - End-game leaderboard now sorts by session points and displays points/rounds/kills.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - `space-force/server`: `bun run build` passed.
+
+TODO / Follow-ups:
+- Optionally render `scoresById` in round-end overlay list (not just winner text) to expose full per-round session standings mid-match.
+- If desired, expand eligible submission bot types in `shared/sim/scoring.ts` (e.g., include `local`) without touching scoring flow code.
+- Updated in-game leave UX and single-leave entry behavior:
+  - Restyled HUD leave button to lobby back-button shape with contextual red theme (`index.html`).
+  - Leave action in settings is now mutually exclusive with HUD leave:
+    - HUD leave visible in normal gameplay views.
+    - Settings leave shown only when HUD leave is hidden (mobile with >=2 local players).
+  - Added compact settings state class when HUD leave is active.
+- Fixed mobile dodge inconsistency:
+  - Root cause: when host uses touch-zone controls (`useTouchForHost`), dash for slot 0 was detected but never consumed/sent.
+  - Added host touch dash consumption path in `Game` loop (`consumeHostTouchDash`) to route slot 0 dash events through existing `handleLocalDash()` logic.
+  - This aligns dash action + dash particles behavior between desktop and mobile host controls.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Follow-up UI polish pass based on review:
+  - Removed points text from in-game score track so HUD reflects only round progress state.
+  - Reworked game-end scoreboard into a column layout with a single header row (`Pilot | Pts | Rounds | Kills`) and per-row numeric values only.
+  - Added responsive column widths for narrow/mobile layouts.
+  - Tuned settings leave button sizing/styling for mobile-local flow and removed inline styling.
+- End-screen UX polish pass:
+  - Reworked game-end shell/panel hierarchy to anchor scoreboard beneath winner block.
+  - Final scoreboard now uses explicit grid-cell markup (header + numeric columns) to prevent collapsed inline label rendering.
+  - Improved readability: higher-contrast header, sticky header while scrolling, row dividers + subtle striping, tabular numeric alignment.
+  - Kept narrow/mobile column overrides aligned with new grid.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- UI alignment/width polish pass (match-end + settings modal):
+  - Introduced `.settings-actions` container in `index.html` so settings `Leave Game` and `Done` buttons share identical width/margins and stay aligned in mobile-only leave flow.
+  - Replaced ad-hoc `#settingsClose` top-margin behavior with container-level spacing (`#settingsModal.main-leave-active .settings-actions`).
+  - Constrained match-end scoreboard panel width to content-focused bounds:
+    - Desktop: `min-width` up to `520px`, capped at `620px`.
+    - Mobile: capped to `min(var(--box-width)-24px, 430px)`.
+  - Unified header/row column geometry via shared CSS vars (`--final-col-*`) to guarantee alignment for `Pilot/Pts/Rounds/Kills` cells.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Debug tooling hardening and score-protection wiring:
+  - Added client debug gate module: `src/debug/debugTools.ts`.
+    - Build gate: `import.meta.env.DEV || VITE_QA_DEBUG_TOOLS`.
+    - Runtime unlock: always in DEV, or `window.__SPACE_FORCE_DEBUG__ === true`, or `?debug=1` in QA builds.
+  - Existing in-game dev key path now follows gate end-to-end:
+    - `Game.setDevKeysEnabled()` now applies UI intent + room debug capability gate.
+    - `Input` no longer allows `Digit0` dev-mode toggle outside debug-enabled flow.
+    - `Game.processDevPowerUpRequests()` exits early unless debug is allowed for current session.
+  - Added authoritative debug-state propagation through network:
+    - New callbacks path `onDebugStateReceived({ enabled, tainted })`.
+    - Colyseus + Local transports now emit this from state/room meta.
+  - Server/sim authoritative gating:
+    - `SpaceForceSimulation` now accepts `debugToolsEnabled` option.
+    - `setDevMode` and `devGrantPowerUp` reject with `DEBUG_TOOLS_DISABLED` when unavailable.
+    - Any accepted debug action marks session as debug-tainted.
+  - New room/state fields for debug policy visibility:
+    - `debugToolsEnabled`, `debugSessionTainted` in room schema/state and room-meta sync.
+    - Server default policy: `SPACE_FORCE_DEBUG_TOOLS_ENABLED` env overrides, otherwise enabled only when `NODE_ENV !== production`.
+  - Score submission policy updated:
+    - Centralized in `shared/sim/scoring.ts` with `blockWhenDebugSessionTainted`.
+    - Client submit path now calls `shouldSubmitScoreToPlatform(hasEligibleBot, debugSessionTainted)`.
+    - Logs explicit reason when blocked due to debug-tainted session.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - `space-force/server`: `bun run build` passed.
+- Implemented QA/dev mobile debug sheet (build-gated only):
+  - Added `src/debug/debugPanel.ts` with touch-friendly floating `DBG` button + panel.
+  - Panel actions include UI preview shortcuts: `Live`, `Start`, `Lobby`, `Game HUD`, `Round End Mock`, `Match End Mock`.
+  - Added core debug actions in panel: `Toggle Dev Viz` + power-up grants.
+- Simplified client debug gate behavior per request:
+  - `isClientDebugToolsRequested()` now follows build gate only (`DEV` or `VITE_QA_DEBUG_TOOLS=true`).
+- Main wiring:
+  - `src/main.ts` now mounts debug panel only when `CLIENT_DEBUG_BUILD_ENABLED` is true.
+  - Refactored phase->screen sync into reusable `syncScreenToPhase(...)` and used it for panel `Live` restore.
+- Game API additions for panel:
+  - `requestDebugPowerUp(...)` and `getDebugStatus()` in `src/Game.ts`.
+- Docs updated:
+  - Added QA/debug panel + env/docs details to `space-force/README.md`.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - `space-force/server`: `bun run build` passed.
+- UI consistency pass for grouped buttons across contexts:
+  - Added shared grouped-button sizing contract for `start`, `join`, `lobby bottom`, `end`, `settings`, and `leave modal` action buttons.
+  - Enforced centered alignment + consistent min-height across desktop and coarse/mobile.
+  - End screen actions now use a fixed 2-column grid (1-column on narrow) with no text wrapping drift.
+  - Leave modal action row switched to equal 2-column grid for consistent widths.
+  - Prevented settings modal Done button from inheriting extra top margin in mobile (`.settings-actions .settings-close`).
+  - Shortened waiting label to `Waiting for leader` to reduce width pressure in end-screen disabled state.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Lobby map selection update:
+  - Added `Classic` as rotation selection mode (id `0`) and new fixed `Turret` option (id `5`) in second position.
+  - Map selector now renders 6 options and uses 3-column grid layout.
+  - Added `mapBtn5` wiring in UI elements/lobby logic (active/disabled/click handling).
+- Preview update:
+  - Map preview now draws a question-mark/`ROTATES` visual when `Classic` is selected.
+  - `Turret` preview shows the original turret map layout (old Classic preview).
+- Simulation behavior update:
+  - Added classic-rotation mode tracking (`useClassicMapRotation`) in simulation.
+  - Classic selection (`mapId=0`) rotates maps each round from fixed pool `[1,2,3,4,5]`.
+  - Non-classic selections keep the same map across rounds.
+  - Range validation updated to allow map id `5`.
+  - Restarting to lobby resets displayed map back to `Classic` when rotation mode is active.
+- Shared types/maps updated:
+  - `MapId` expanded to `0 | 1 | 2 | 3 | 4 | 5`.
+  - Added map definition `5: Turret`; `0` now acts as Classic Rotation selection definition.
+- Validation:
+  - `space-force`: `bun run format` + `bun run build` passed.
+  - `space-force/server`: `bun run build` passed.
+
+## 2026-02-18
+- Mobile rotated-portrait lobby and map-picker responsiveness pass (`index.html`):
+  - Prevented map picker overflow by sizing against `min(--box-width, --box-height)` and using `--box-top`/`--box-height` for vertical fit.
+  - Increased touch target sizes for mode/map controls (`.mode-option`, `.map-change-btn`).
+  - Added coarse+portrait override to compact lobby columns, reduce row density, and reserve right-edge space to avoid platform HUD overlap with CTA controls.
+  - Added compact map-picker card/canvas sizing in coarse+portrait to avoid clipped right-most content.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Follow-up mobile-only lobby fit pass for rotated portrait constraints:
+  - Changed base `.lobby-body` from `height: 100%` to `height: auto` to reduce body/footer competition.
+  - Added higher-specificity `html[data-layout="narrow"] .lobby-body` override under coarse+portrait to preserve intended two-column lobby in forced-rotation mode.
+  - Enabled controlled scrolling for `.lobby-side` and reduced short-phone (max-width 460) vertical density in lobby/map summary/footer CTA sizing.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-18
+- Lobby mode controls UX update for tighter mobile fit:
+  - Replaced 4-button mode segmented control with a single cycle pill in `index.html` (`#modeCycleBtn`, `#modeCycleValue`).
+  - Moved `#advancedSettingsBtn` inline with the mode pill in one row so actions consume less vertical space before the map summary.
+  - Added responsive CSS for the new inline row across base/mobile/very-narrow portrait breakpoints.
+- Updated UI wiring:
+  - `src/ui/elements.ts`: removed `modeStandard/modeSane/modeChaotic/modeCustom`; added `modeCycleBtn` + `modeCycleValue`.
+  - `src/ui/lobby.ts`: mode tap now cycles `STANDARD -> SANE -> CHAOTIC -> ...`.
+  - `CUSTOM` is display-only (shown when advanced settings diverge), and is not part of the cycle order.
+- Added `Game.getBaseMode()` in `src/Game.ts` so cycling from `CUSTOM` anchors to base mode progression.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Test tooling note:
+  - Attempted to run the `develop-web-game` Playwright client smoke test, but launching the local dev server process was blocked by environment policy in this session.
+- Lobby controls polish follow-up:
+  - Simplified mode cycle pill to value-only text (removed MODE label + chevron icon) and reduced visual weight/height.
+  - Tightened inline `Advanced` button sizing to match compact mode control.
+- Arena summary simplification:
+  - Removed lobby-only map description + fixed/rotation behavior text.
+  - Reworked summary to preview-first layout with only map name + `Change Map` action below preview.
+  - Updated responsive rules to preserve readability/tap targets on coarse pointer + portrait-rotated narrow layouts.
+- Cleaned corresponding TS wiring:
+  - Removed `mapCurrentDesc` / `mapCurrentBehavior` element references from `src/ui/elements.ts`.
+  - Removed `mapBehaviorLabel` and desc/behavior writes from `src/ui/lobby.ts`.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Follow-up UX/layout fix based on review:
+  - Mode/Advanced row is now true 50/50 (`grid-template-columns: repeat(2, minmax(0,1fr))`).
+  - Both controls are equal-width pills/buttons with matched compact sizing.
+- Right-side overflow regression fix (lobby/map):
+  - Reworked arena summary to `meta row + preview row` with `minmax(0,1fr)` and strict `min-height:0` behavior.
+  - Portrait coarse mode no longer uses side-column `overflow-y:auto`; side stays non-scrolling with resized content.
+  - Added portrait-specific constraints for preview/button sizing so the map section stays inside available height.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Requested rollback/tuning of stretched lobby map preview:
+  - Restored arena summary to compact side-by-side layout (preview left, name/button right), instead of stretch-to-fill block.
+  - Kept map description/behavior removed from lobby.
+  - Preview sizing now uses constrained widths per breakpoint (desktop/coarse/portrait narrow) rather than fill-growth.
+- Layout fit fixes retained:
+  - Mode + Advanced remain 50/50 split.
+  - Portrait coarse `lobby-side` remains non-scrolling (`overflow: hidden`) to prevent right-column scrollbar regression.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Further lobby map-layout correction per feedback:
+  - Kept compact, non-stretched preview model; adjusted preview sizing only.
+  - Increased map summary preview widths in portrait/phone breakpoints to avoid over-compression.
+  - Changed portrait coarse lobby body columns from fixed px minima to flexible fractions to stop crushing the right-side panel.
+  - Result: map panel keeps prior compact shape while avoiding the narrow/vertical-clipped look.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Reworked lobby responsiveness as one coherent system (not incremental tweaks):
+  - `lobby-side` switched to grid rows (`actions`, `arena`) with bounded `minmax(0,1fr)` behavior.
+  - `lobby-summary` switched to grid + overflow constraints, with explicit preview/meta proportional sizing.
+  - `map-summary-content` now uses ratio-based clamp sizing for preview column and fixed meta row model.
+  - `map-change-btn` now enforces nowrap/ellipsis to prevent vertical character wrapping.
+- Portrait coarse strategy reset:
+  - Removed conflicting fixed two-column portrait override and normalized to single-column lobby body in portrait.
+  - Explicit side/players ordering for portrait to avoid column-crush artifacts.
+  - Narrow portrait now adjusts preview column via clamp sizes rather than hard tiny pixel caps.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-20
+- Added visual bullet casings for Space Force firing events.
+- Implementation details:
+  - `src/network/NetworkSyncSystem.ts`: detect newly seen projectile IDs in authoritative snapshots and spawn one casing per shot.
+  - `src/systems/rendering/Renderer.ts`: added casing pool with capped size (`MAX_BULLET_CASINGS = 96`), drift/spin update, bounds bounce, fade-out, and draw pass.
+  - `src/systems/rendering/GameRenderer.ts`: render casings during gameplay before projectile pass.
+- Performance guardrails:
+  - Casings are visual-only (no physics/collision bodies).
+  - Oldest casings are evicted when cap is exceeded.
+- Validation:
+  - Ran `bun run build` in `space-force` (passed).
+- Follow-up: Added projectile baseline gating so clients do not spawn casings for bullets already in-flight when a snapshot stream starts (e.g., mid-round join).
+- Re-ran `bun run build` in `space-force` after baseline gating (passed).
+- Adjusted bullet casings per feedback:
+  - Removed time-based casing expiration (casings now persist until cap eviction).
+  - Increased casing dimensions by 1.8x.
+- Re-ran `bun run build` in `space-force` (passed).
+- Pilot dash behavior updated to hold-repeat with cooldown while preserving old edge-trigger path behind a local toggle:
+  - `shared/sim/systems/GameFlowSystem.ts`: `PILOT_DASH_USE_EDGE_TRIGGER = false`.
+  - Switch back to previous behavior by setting that constant to `true`.
+- Bullet casing scale adjusted from 1.8x to 1.5x in `src/systems/rendering/Renderer.ts`.
+- Re-ran `bun run build` in `space-force` (passed).
+- Updated STANDARD physics defaults to match requested tuning JSON:
+  - `SHIP_SPEED_RESPONSE`: 7
+  - `SHIP_DASH_BOOST`: 1.4
+  - `SHIP_DASH_DURATION`: 0.13
+- Confirmed requested material override values already matched existing defaults/presets.
+- Re-ran `bun run build` in `space-force` (passed).
+- Promoted gameplay-physics constants into debug tuning `globalOverrides` and surfaced them in Physics Lab.
+- Added new global tuning schema:
+  - `SHIP_DODGE_COOLDOWN_MS`, `SHIP_DODGE_ANGLE_DEG`
+  - `FIRE_COOLDOWN_MS`, `FIRE_HOLD_REPEAT_DELAY_MS`
+  - `RELOAD_MS`, `PROJECTILE_LIFETIME_MS`
+  - `PILOT_DASH_COOLDOWN_MS`
+- Wired through:
+  - `shared/sim/types.ts` (`DebugPhysicsGlobals`, payload/snapshot updates, `SimState.getGlobalConfig()`)
+  - `shared/sim/modules/simulationSettings.ts` (`DEBUG_GLOBAL_KEYS`)
+  - `shared/sim/modules/simulationPhysicsTuning.ts` (resolve/sanitize global overrides)
+  - `shared/sim/SpaceForceSimulation.ts` (global snapshot + getter + reset usages)
+  - `shared/sim/systems/ShipSystem.ts` and `shared/sim/systems/GameFlowSystem.ts` (runtime usage of global overrides)
+  - `src/debug/physicsLab.ts` (new Globals section sliders + copy/apply path includes `globalOverrides`)
+- Result: "Copy JSON" from Physics Lab now includes a dedicated global section under `tuning.globalOverrides`.
+- Validation: ran `bun run build` in `space-force` (passed).
+- Added Physics Lab `Paste JSON` action (clipboard-driven, no text field):
+  - Reads `navigator.clipboard.readText()` on button click.
+  - Accepts `{ baseMode, tuning }` and direct tuning payload shapes.
+  - Applies base mode + tuning immediately and refreshes sliders.
+  - Reports clear status for empty clipboard, invalid JSON, blocked clipboard, or unknown schema.
+- Updated Physics Lab controls layout to include the new button.
+- Re-ran `bun run build` in `space-force` (passed).
+- Applied requested global tuning defaults in constants:
+  - `SHIP_DODGE_COOLDOWN_MS = 270`
+  - `SHIP_DODGE_ANGLE_DEG = 65`
+- Physics Lab layout update:
+  - `Globals` now appears directly beneath `Materials` (stacked in right column).
+  - Material/global cards no longer stretch to match config panel height; they size to content.
+- Re-ran `bun run build` in `space-force` (passed).
+- Improved debug panel + physics lab mobile portrait usability (scenario-specific only):
+  - Added `@media (pointer: coarse) and (orientation: portrait)` rules in:
+    - `src/debug/debugPanel.ts`
+    - `src/debug/physicsLab.ts`
+- Debug panel portrait adjustments:
+  - Larger DBG/LAB toggle buttons.
+  - Wider/taller panel fit for narrow portrait view.
+  - Single-column action button grid and larger tap targets.
+- Physics Lab portrait adjustments:
+  - Better anchored position in portrait.
+  - Panel width/height tuned for narrow portrait and scrolling.
+  - 2-column controls and larger buttons/select tap targets.
+  - Sections collapse to one column in this scenario.
+- Re-ran `bun run build` in `space-force` (passed).
+## 2026-02-21 (Pilot Death Debris)
+- Added client-side pilot death burst system with 4 debris bodies (visor, shell left, shell right, core).
+- Debris pieces now have per-piece circle colliders, wall bounce, inter-piece collision response, and fast damping.
+- Debris is bumpable by live ships and pilots via renderer-side impulse transfer.
+- Pilot death detection now triggers this effect only when pilot disappears and the owner ship is not alive (avoids firing on normal pilot->ship respawn).
+- Added `pilot_death_burst` to entity manifest and render it as part of the implosion/explosion phase.
+- Render integration:
+  - New `Renderer.spawnPilotDeathBurst(...)`
+  - New `Renderer.drawPilotDeathDebris()` called from `GameRenderer` during gameplay.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-21 (Continue Sequence Mode)
+- Implemented new end-screen continue flow for match sequencing without lobby reset:
+  - Added `continueMatchSequence()` command path across client/network/server:
+    - `src/network/transports/NetworkTransport.ts`
+    - `src/network/NetworkManager.ts`
+    - `src/network/transports/LocalSharedSimTransport.ts`
+    - `src/network/transports/ColyseusTransport.ts` (`cmd:continue_sequence`)
+    - `server/src/rooms/SpaceForceRoom.ts` (`cmd:continue_sequence` handler)
+- Simulation sequence reset behavior updated in `shared/sim/SpaceForceSimulation.ts`:
+  - Added `continueMatchSequence(sessionId)` leader-only entry.
+  - Split sequence reset path into `beginMatchSequence(preserveScoreAndKills)` + `resetPlayersForNewSequence(...)`.
+  - `GAME_END -> COUNTDOWN` now preserves cumulative `kills` and `score`, while resetting `roundWins`, round counter (`currentRound=1`), and round/match runtime entities/state.
+  - `restartToLobby()` remains full reset (Play Again behavior unchanged).
+- Client phase transition handling updated in `src/Game.ts`:
+  - Non-authority `GAME_END -> COUNTDOWN` now runs cleanup/reset path (same entity/network cleanup as round transitions).
+  - Added sequence-specific reset for local player view state (`roundWins`/`state`) and cleared stale winner/sticky roster state for new sequence.
+  - Resets per-match score submission guard on countdown so score still submits at every `GAME_END` with cumulative value.
+- End-screen UI updated for leader/non-leader flow:
+  - Added `Continue` button in `index.html` and `src/ui/elements.ts`.
+  - Updated `src/ui/screens.ts` states:
+    - Leader: `Continue` + `Play Again` enabled.
+    - Non-leader: both show `Waiting for leader` and are disabled.
+    - Host-left flow keeps leader actions hidden.
+  - `Continue` triggers `game.continueMatchSequence()`; `Play Again` still triggers full lobby reset path.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Additional check:
+  - `space-force/server`: `bun run build` currently fails with existing ambient type issue:
+    - `TS7016` missing declaration for `poly-decomp` in `shared/sim/physics/Physics.ts`.
+  - This appears pre-existing and unrelated to continue-sequence changes.
+## 2026-02-21 (Ship Destroy + Pilot Kill FX wiring)
+- Fixed authoritative FX trigger logic in `src/network/NetworkSyncSystem.ts`:
+  - Ship destruction now triggers on `alive -> dead` transition per player instead of waiting for ship-id removal from snapshots.
+  - Player disconnect/remove no longer produces false ship explosion FX.
+  - Pilot kill burst trigger tightened to require owner ship present and `alive === false` to avoid false FX on disconnect/removal.
+- Added distinct renderer bursts in `src/systems/rendering/Renderer.ts`:
+  - `spawnShipDestroyedBurst(...)`: heavy hot-core blast ring + hull-plasma shards + ship debris.
+  - `spawnPilotKillBurst(...)`: compact suit/plasma pop layered over existing pilot debris burst.
+- Wiring changes:
+  - Ship death path now calls `renderer.spawnShipDestroyedBurst(...)`.
+  - Pilot death path now calls `renderer.spawnPilotKillBurst(...)`.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Playwright smoke run executed via `web_game_playwright_client.js`; screenshots generated in `output/web-game/` (starfield-only capture, no kill event reached in this automated burst).
+## 2026-02-21 (Server poly-decomp typing)
+- Fixed `space-force/server` TypeScript build failure (`TS7016` for `poly-decomp`) by adding shared ambient module types:
+  - Added `shared/types/poly-decomp.d.ts` with default-exported poly-decomp interface used by Matter `Common.setDecomp(...)`.
+- Also added explicit server runtime dependency:
+  - `space-force/server/package.json`: added `poly-decomp` to `dependencies`.
+- Validation:
+  - `space-force/server`: `bun run build` passed.
+  - `space-force`: `bun run build` passed.
+## 2026-02-21 (Mobile landscape left-rail offset)
+- Adjusted mobile-landscape left rail spacing so leave/back controls are nudged right by one leave-button width, and adjacent UI follows.
+- `index.html` changes:
+  - Added CSS vars: `--leave-btn-size`, `--mobile-landscape-left-offset`.
+  - `leave-btn` now uses `--leave-btn-size` and includes `--mobile-landscape-left-offset` in `left` calculation.
+  - `back-btn` margin-left now includes `--mobile-landscape-left-offset` so lobby title position shifts with it.
+  - In coarse pointer mode, `--leave-btn-size` set to `48px`.
+  - In coarse + landscape, `--mobile-landscape-left-offset` set to `var(--leave-btn-size)`.
+- Debug overlay alignment:
+  - Updated `src/debug/debugPanel.ts` (`.qa-debug-root` base + coarse rules) to include `--mobile-landscape-left-offset` so DBG/LAB buttons shift with leave button.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-21 (Mobile touch button SVGs + click wiring)
+- Added SVG icons to adaptive touch zones in `src/systems/input/touchZones.ts`:
+  - Rotate button (`A`) now shows a curved-arrow glyph.
+  - Fire button (`B`) now shows a crosshair glyph.
+- Input wiring update:
+  - Switched touch-zone interaction handling to pointer events (`pointerdown/up/cancel` + capture), so both touch taps and mouse clicks route through the same press/release path.
+  - This keeps hold behavior for rotate/fire and supports click-based interaction paths.
+- Added styling for icons in `index.html`:
+  - `.touch-zone-icon` sizing and pressed-state scale feedback.
+  - Touch-zone layout now supports icon + label stack.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-21 (Single-player triangular SVG touch buttons)
+- Added reusable triangle button SVG asset at `public/touch-buttons/triangle_corner.svg`.
+- Updated `src/systems/input/touchZones.ts` single-player layout:
+  - Replaced bottom rectangular buttons with corner triangles using the shared SVG mask.
+  - Left (rotate) uses player color; right (fire) uses a darker shade of player color.
+  - Kept existing pointer-based press/release wiring.
+  - Reused one SVG for both sides by horizontal mirroring.
+  - Initial sizing: `width: 35%`, `height: 50%`, anchored to bottom corners.
+- Updated `index.html` touch-zone CSS:
+  - Added triangle shape/mask classes and mirrored variant.
+  - Added triangle-specific label styling and pressed-state brightness response.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-21 (Mobile tap debounce for duplicate clicks)
+- Added coarse-pointer tap guards to prevent duplicate actions from single taps:
+  - Lobby kick buttons in `src/ui/lobby.ts` (per-player guard, 450ms).
+  - Debug panel toggles and section buttons in `src/debug/debugPanel.ts` (per-element guard, 340ms).
+  - Physics Lab action buttons (`Reload`, `Reset`, `Copy JSON`, `Paste JSON`, `Close`) in `src/debug/physicsLab.ts` (per-element guard, 340ms).
+- Scope: guards only activate on coarse-pointer devices.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Follow-up debounce pass (coarse-pointer only):
+  - Added mode cycle tap guard in `src/ui/lobby.ts`.
+  - Added shared tap-guard wrapper for advanced settings modal actions in `src/ui/advancedSettings.ts`:
+    - open/close/done, tabs, and all element/physics cycle/toggle controls.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Added mobile-only debounce to end-screen action buttons in `src/ui/screens.ts` (`bindEndScreenUI`):
+  - `Continue`, `Play Again`, `Leave` now use coarse-pointer tap guard (450ms, per-element).
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-23 (Pilot Swim Arms Animation)
+- Added procedural pilot arm-stroke animation in `src/systems/rendering/Renderer.ts` to make pilots look like they are frantically swimming.
+- Animation is deterministic (sin/cos time functions), velocity-reactive (faster pilot movement increases intensity), and layered behind the existing pilot sprite.
+- Added helper methods:
+  - `getPilotSwimArmIntensity(...)`
+  - `drawPilotSwimArms(...)`
+  - `drawSinglePilotSwimArm(...)`
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Pilot swim-arm visibility follow-up:
+  - Shifted arm anchor points outward on the pilot body (`y: +/-5.8`, `x: -0.8`) so strokes emerge from sides.
+  - Updated arm curve math to emphasize lateral extension over behind-body reach.
+  - Render order changed so arm strokes draw after pilot sprite for readability.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Pilot dash FX origin guide added in `shared/assets/entities/pilot.svg`:
+  - Added editor-only `#editor-hardpoints` marker at local `(0,0)` for dash burst spawn point.
+  - Added backward direction arrow toward local `-X` to represent release fan direction (`pilotAngle + PI`).
+  - Guide layer is stripped from runtime SVG by `generate-entity-assets`.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Pilot dash guide placement tweak:
+  - Moved editor-only dash guide marker/arrow in `shared/assets/entities/pilot.svg` from local center to bottom-of-pilot (`cy=5.8`) for easier visual inspection.
+  - Runtime dash FX origin logic is unchanged.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Corrected pilot dash guide placement semantics in `shared/assets/entities/pilot.svg`:
+  - Previous marker used screen-bottom (`+Y`) and was misleading for "pilot bottom when upright".
+  - Moved editor-only marker to aft/thruster side (`-X`, around `x=-11.8,y=0`) to match upright-bottom interpretation.
+  - Kept note that runtime dash origin logic remains unchanged at local `(0,0)`.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Minor pilot dash guide position tweak in `shared/assets/entities/pilot.svg`:
+  - Shifted aft guide marker/arrow +1.2 on X axis (rightward) from `x=-11.8` to `x=-10.6`.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-23 (Pilot hardpoint wiring, ship-style)
+- Audited ship hardpoint pipeline and mirrored it for pilot:
+  - SVG `#editor-hardpoints` ids -> `generate-entity-assets` extraction -> generated geometry -> runtime anchor use.
+- Added pilot hardpoint support in generator + schema:
+  - New hardpoint fields: `pilotDash`, `pilotArmLeft`, `pilotArmRight`.
+  - New editor ids recognized: `hardpoint-pilot-dash`, `hardpoint-pilot-arm-left`, `hardpoint-pilot-arm-right`.
+- Added pilot anchor module:
+  - New `shared/geometry/PilotRenderAnchors.ts`.
+  - Exposes `PILOT_EFFECT_LOCAL_POINTS` and `getPilotDashWorldPoint(...)`.
+- Removed pilot anchor hardcoding from runtime call sites:
+  - `shared/sim/systems/GameFlowSystem.ts` now spawns pilot dash particles from `getPilotDashWorldPoint(pilot)` instead of raw `pilot.x/pilot.y`.
+  - `src/systems/rendering/Renderer.ts` swim-arm anchor points now read from `PILOT_EFFECT_LOCAL_POINTS.armLeft/armRight` instead of inline literals.
+- Updated pilot SVG guide markers:
+  - Added extractable dots in `shared/assets/entities/pilot.svg` for dash + both arm anchors.
+- Updated docs in `shared/assets/entities/README.md` for new hardpoint keys/ids.
+- Validation:
+  - `space-force`: `bun run build` passed.
+
+## 2026-02-23
+- Main menu title update:
+  - Replaced the text `SPACE FORCE` with layered SVG title rendering using `space_force_exact_split_v2.svg`.
+  - Added staged intro animation: `SPACE` crashes in from the left with a ship/trail effect, followed immediately by `FORCE` settling beneath it.
+  - Added mobile-responsive sizing for the new title block.
+- Wiring:
+  - Added `playTitleIntro()` to `src/ui/startScreen.ts` and call sites in start reset + initial app boot (`src/main.ts`) so the animation triggers after splash and when returning to start.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Playwright skill script run completed; no console/page error artifact emitted (`output/web-game-title/shot-0.png`).
+  - Additional full-page verification screenshots captured:
+    - Desktop: `output/web-game-title/title-full.png`
+    - Mobile viewport: `output/web-game-title/title-mobile.png`
+- Tweaked title intro for debugging:
+  - Slowed `SPACE` animation to 1900ms and `FORCE` to 1600ms with 1200ms delay.
+  - Removed the added ship/star crash element and its related keyframes from start-screen title.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Fixed title split mismatch:
+  - Removed CSS hard split (`clip-path` 50/50) from `index.html`.
+  - Generated and added layer-specific SVGs from your source asset:
+    - `public/assets/space_force_exact_split_v2_space.svg`
+    - `public/assets/space_force_exact_split_v2_force.svg`
+  - Updated title layer image sources in start screen to use the two files directly.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Visual check screenshots:
+    - `output/web-game-title/title-anim-cutfix.png`
+    - `output/web-game-title/title-anim-cutfix-final.png`
+## 2026-02-24 (Start-screen spacing/button placement follow-up)
+- Addressed start-screen layout regressions in `index.html`:
+  - Reduced title block footprint so the `SPACE FORCE` art no longer consumes most of the vertical budget on 16:9.
+  - Added max-height constraints to `.game-title-wrap` and tuned spacing (`start-shell` gaps/padding, subtitle/body margins).
+  - Removed mobile-only downward offsets (`translateY`) that were pushing CTA buttons too low.
+  - Tightened start CTA button sizing/typography to keep labels single-line and avoid clipping at the bottom edge.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Playwright run (skill client): `output/web-game-title-layout/shot-0.png` ... `shot-6.png`.
+  - Full-page verification screenshots:
+    - Desktop: `output/web-game-title-layout/title-layout-desktop.png`
+    - Generic mobile landscape viewport: `output/web-game-title-layout/title-layout-mobile-landscape.png`
+    - iPhone 12 landscape: `output/web-game-title-layout/title-layout-iphone-landscape.png`
+    - iPhone 12 portrait (forced-rotation layout): `output/web-game-title-layout/title-layout-iphone-portrait.png`
+## 2026-02-24 (Title intro replay + motion cleanup)
+- Fixed duplicate title intro trigger that caused: title visible/final, then hidden/replayed.
+  - `src/ui/startScreen.ts`: `resetStartButtons` now accepts `replayTitleIntro` flag (default `true`).
+  - `src/main.ts`:
+    - Added tracked `currentPhase`.
+    - `onPhaseChange` now passes previous phase into `syncScreenToPhase`.
+    - `START` screen reset only replays intro when previous phase is not `START`.
+    - Initial boot now uses a single explicit `resetStartButtons(true)` after splash.
+- Retuned title animation in `index.html`:
+  - Hidden/offscreen base state for both layers (prevents pre-animation static flash).
+  - `FORCE` animation now moves on X axis only (removed diagonal Y offset).
+  - Shorter, non-overlapping timings to avoid `SPACE` jitter while `FORCE` enters.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Transition screenshots:
+    - `output/web-game-title-layout/title-transition-fix-2400ms.png` (splash fade state)
+    - `output/web-game-title-layout/title-transition-fix-3200ms.png` (mid intro, no diagonal force path)
+    - `output/web-game-title-layout/title-transition-fix-3600ms.png` (settled state)
+## 2026-02-24 (Percussive title pass: whoosh > bang x2)
+- Retuned title animation feel in `index.html` to avoid soft glide:
+  - `SPACE` now uses faster entry + stronger overshoot/recoil keyframes.
+  - `FORCE` now follows with its own independent impact/recoil beat (still X-axis only).
+  - Updated timing/easing:
+    - `SPACE`: `780ms` with aggressive decel curve.
+    - `FORCE`: `700ms` delayed by `620ms`.
+- Kept prior fixes intact:
+  - No diagonal `FORCE` motion.
+  - No startup double intro replay.
+  - No pre-animation static title flash.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Timed capture sequence:
+    - `output/web-game-title-layout/title-impact-3150ms.png` (mid-force impact phase)
+    - `output/web-game-title-layout/title-impact-3450ms.png` (post-impact settle)
+    - `output/web-game-title-layout/title-impact-3800ms.png` (final state)
+## 2026-02-24 (Pre-recoil stall removal)
+- Removed the noticeable pre-impact slowdown/hang before recoil in title animation:
+  - Simplified each word motion to a direct pass-through into overshoot, then recoil, then settle.
+  - Reduced keyframe count and removed intermediate near-stop points that caused the visual stall.
+  - Updated timings/easing:
+    - `SPACE`: `740ms`, delay `0ms`
+    - `FORCE`: `660ms`, delay `560ms`
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-24 (Staged start UI reveal after logo)
+- Added post-logo reveal sequence for start-screen UI elements:
+  - Subtitle, hints, helper text, and main button row now fade/lift in after the logo intro.
+  - Reveal uses blur+brightness recovery so elements feel like they emerge from the background.
+- Wiring:
+  - CSS in `index.html` under `.start-shell.ui-intro-active` with staggered delays.
+  - `src/ui/startScreen.ts` now toggles `.ui-intro-active` in the same replay path as title intro.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-24 (UI pre-flash fix for subtitle/hints/buttons)
+- Fixed initial flash for non-logo start UI (subtitle, hints, helper, and main buttons):
+  - Added hidden base state under `.start-shell` so these elements are not visible before intro class is applied.
+  - Intro now reveals from hidden state only via `.start-shell.ui-intro-active ...`.
+  - `#mainButtons` interaction is disabled while hidden (`pointer-events: none`) and re-enabled during reveal.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-24 (Splash forced-landscape parity on mobile portrait)
+- Added splash-screen portrait/coarse rotation rule to match main app forced-landscape behavior.
+- In `@media (orientation: portrait) and (pointer: coarse)`, `.splash-screen` now uses the same rotated geometry as `#game-wrapper`:
+  - `width: var(--vh)`, `height: var(--vw)`, `transform: rotate(-90deg)`, top/left based on viewport offsets.
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-24 (Build-only CDN asset URL rewrite)
+- Added a Vite build-only HTML rewrite plugin in `vite.config.js`:
+  - During `bun run build`, `src/href/url(...)` references to `assets/...` are rewritten to absolute CDN URLs.
+  - Default CDN base: `https://assets.oasiz.ai`.
+  - Optional override via env var: `OASIZ_ASSET_CDN_BASE`.
+- Dev behavior unchanged:
+  - `index.html` remains local asset paths for local development.
+  - Rewrite runs only with `apply: "build"`.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Verified in `dist/index.html`:
+    - `https://assets.oasiz.ai/assets/Oasiz-logo-transparent.png`
+    - `https://assets.oasiz.ai/assets/space_force_exact_split_v2_space.svg`
+    - `https://assets.oasiz.ai/assets/space_force_exact_split_v2_force.svg`
+## 2026-02-24 (Splash build/version label)
+- Added splash version label under the tagline for build verification on platform:
+  - New element: `#splashVersionLabel` in `index.html`.
+  - Styled with `.splash-version` and shown with splash tagline timing.
+- Wired build metadata injection:
+  - `vite.config.js` now defines:
+    - `__APP_VERSION__` (from `npm_package_version`)
+    - `__APP_BUILD_TAG__` (UTC timestamp `YYYYMMDD-HHmm`)
+  - Optional build-tag override via env: `OASIZ_BUILD_TAG`.
+- Runtime wiring:
+  - `src/main.ts` sets splash label text to `v<version> (<buildTag>)` before splash animation starts.
+- Validation:
+  - `space-force`: `bun run build` passed.
+  - Dist bundle contains the version-label wiring and injected values.
+- Gating update:
+  - Splash version label is now gated behind the same client QA/dev gate as debug tools (`CLIENT_DEBUG_BUILD_ENABLED`).
+  - Non-QA/non-dev builds hide the splash version label.
+
+## 2026-02-24
+- Gameplay tuning updates:
+  - Increased `SHIP_TARGET_SPEED` from `2.8` to `3.2` in `shared/sim/constants.ts`.
+  - Increased `SHIP_DASH_BOOST` from `1.4` to `2` in `shared/sim/constants.ts`.
+  - Updated scatter shot travel length by deriving `SCATTER_PROJECTILE_LIFETIME_MS` from arena width:
+    - `((ARENA_WIDTH * 0.48) / (SCATTER_PROJECTILE_SPEED * 60)) * 1000`
+    - This targets roughly 48% of arena width (almost half-map travel).
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-24
+- Renderer cleanup pass (`src/systems/rendering/Renderer.ts`):
+  - Removed unused projectile debug cache `previousProjectilePositions` and related cleanup paths.
+  - Consolidated repeated dev-radius drawing into `drawDebugRadius(...)` and routed homing/mine/turret/bullet/magnet overlays through it.
+  - Deduplicated mine visuals by removing the unused `drawMine(...)` path and introducing shared helpers `drawMineExplosionEffect(...)` + `drawMineBody(...)` used by `drawMineState(...)`.
+  - Unified remaining visual animation clocks to renderer time source (`getNowMs()`) for screen shake phase, stars twinkle, and homing missile flame/smoke.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Renderer split pass (next step):
+  - Extracted reusable drawing primitives from `Renderer.ts` into new module `src/systems/rendering/RendererVisualPrimitives.ts`.
+  - Moved debug radius primitive (`drawDebugRadius`) and mine visuals (`drawMineExplosionEffect`, `drawMineBody`) into that module.
+  - `Renderer` now delegates to these helpers for dev overlays and mine rendering.
+  - Removed unused screen-shake accessor methods (`getScreenShakeIntensity`, `getScreenShakeDuration`).
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Renderer major decomposition pass:
+  - Extracted ship trail subsystem into `src/systems/rendering/ShipTrailRenderer.ts`.
+    - Moved trail state, sampling, layered draw, and tuning clamp/equality logic out of `Renderer`.
+    - `Renderer` now delegates trail API methods to `ShipTrailRenderer` while preserving external API (`get/set/resetShipTrailVisualTuning`, `sampleShipTrail`, `drawShipTrails`).
+    - Re-exported `ShipTrailVisualTuning` from `Renderer` to keep existing imports stable.
+  - Removed dead starfield pipeline:
+    - Deleted `Renderer.initStars()` and `Renderer.drawStars()` plus star state storage.
+    - Removed obsolete `this.renderer.initStars()` call in `Game.start()`.
+  - Removed unused renderer API/state:
+    - Deleted unused `Renderer.getSize()` and `Renderer.getScale()`.
+    - Deleted unused viewport-centering fields previously written but never read (`offsetX`, `offsetY`).
+- Renderer control split pass:
+  - Added `src/systems/rendering/ScreenShakeController.ts` and moved shake state/update/apply/reset logic out of `Renderer`.
+  - `Renderer.beginFrame`, `updateScreenShake`, `addScreenShake`, and `clearEffects` now delegate to the controller.
+- Validation:
+  - `space-force`: `bun run build` passed after each pass.
+- Renderer decomposition pass (aggressive):
+  - Added `src/systems/rendering/RenderEffectsSystem.ts` and moved the full FX state/logic out of `Renderer`:
+    - particles, bullet casings, pilot death bursts/debris lifecycle
+    - spawn/update/draw methods for explosions, dash/nitro bursts, shield/mine debris
+    - pilot debris body bumping and debris scale helpers
+  - `Renderer` now delegates all FX APIs to `RenderEffectsSystem` while preserving external method names/signatures.
+  - Added `src/systems/rendering/MapEffectsRenderer.ts` and moved map/environment visual logic out of `Renderer`:
+    - arena border, yellow blocks
+    - center-hole rotation/vortex state + rendering
+    - repulsion-zone rendering
+  - `Renderer.clearEffects()` now clears map transient state via `MapEffectsRenderer.clearTransientState()`.
+  - Kept `hasMapOverlay` / `drawMapOverlay` in `Renderer` for now (store ownership unchanged).
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Size impact:
+  - `Renderer.ts` reduced to 1598 lines after this pass (from 1955 at start of pass).
+- Renderer decomposition follow-up pass:
+  - Added `src/systems/rendering/CombatVisualsRenderer.ts` and moved combat/hazard visuals out of `Renderer`:
+    - turret, turret bullet, power-up, laser beam, shield, mine, homing missile drawing.
+  - `Renderer` now delegates combat methods to `CombatVisualsRenderer` and only keeps thin wrapper APIs.
+  - Fixed extraction issues in `CombatVisualsRenderer`:
+    - corrected `drawMineState` signature to use `MineState` import.
+    - removed trailing extra closing brace so module compiles cleanly.
+- Renderer debug split pass:
+  - Added `src/systems/rendering/RenderDebugSystem.ts` and moved all dev-only debug visuals out of `Renderer`:
+    - homing/mine/turret/turret-bullet/magnet radius overlays
+    - ship collider debug draw
+    - projectile swept-collider history/visualization
+  - `Renderer` now gates by `devModeEnabled` and delegates actual debug drawing/state to `RenderDebugSystem`.
+  - Removed debug history state ownership from `Renderer` (`projectileDebugHistory` moved).
+  - `setDevMode(false)` and `clearEffects()` now clear debug state through `RenderDebugSystem.clear()`.
+- Validation:
+  - `space-force`: `bun run build` passed after combat split.
+  - `space-force`: `bun run build` passed after debug split.
+- Size impact:
+  - `Renderer.ts` reduced to 1076 lines after these follow-up passes.
+- Renderer entity split pass:
+  - Added `src/systems/rendering/EntityVisualsRenderer.ts` and moved core entity visual rendering out of `Renderer`:
+    - `drawShip` (including ammo/powerup indicators, invulnerability flash, joust swords)
+    - `drawPilot` (including swim-arm animation helpers + survival ring)
+    - `drawAsteroid`
+    - `drawProjectile` (with optional dev collider overlay)
+  - `Renderer` now delegates those APIs to `EntityVisualsRenderer` and no longer owns pilot arm helper methods or entity-specific constants.
+  - `EntityVisualsRenderer` uses callback dependencies for effect bumping, shield drawing, time, and blur scaling so behavior remains identical while reducing coupling.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Size impact:
+  - `Renderer.ts` reduced to 610 lines after this pass.
+- Renderer viewport/camera split pass:
+  - Added `src/systems/rendering/RenderViewportController.ts` and moved viewport sizing + camera transform responsibilities out of `Renderer`:
+    - canvas DPR resize/layout sizing
+    - camera focus/zoom state + clamping
+    - world-transform application
+    - screen-space blur scaling helper for effect glows
+  - `Renderer` now delegates `resize`, `setCamera`, `resetCamera`, `clear`, and camera transform application to `RenderViewportController`.
+  - Removed remaining inline camera utility methods from `Renderer` (`clampCameraZoom`, `getViewportZoomCompensation`, `getEffectiveCameraZoom`, `getClampedCameraFocus`, local `clamp`).
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Size impact:
+  - `Renderer.ts` reduced to 496 lines after this pass.
+- Renderer facade-surface trim pass (effects wrappers):
+  - Replaced external calls to `Renderer` FX wrappers with direct `RenderEffectsSystem` access via new `Renderer.getEffectsSystem()`:
+    - updated call sites in `src/Game.ts`, `src/network/NetworkSyncSystem.ts`, and `src/systems/rendering/GameRenderer.ts`.
+  - Removed redundant FX wrapper methods from `Renderer` that only forwarded to `RenderEffectsSystem`:
+    - spawn/draw/update particle/casing/burst/explosion methods and mine/shield debris forwarders.
+  - Removed unused `Renderer` API methods:
+    - `drawShield(...)` wrapper (internal consumers already use `CombatVisualsRenderer` directly)
+    - `getPlayerColor(...)` (unused in client code path)
+  - Kept rendering orchestration and major draw entry points intact to avoid broad API churn.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Size impact:
+  - `Renderer.ts` reduced to 397 lines after this pass.
+- Renderer dependency-injection pass (remove FX service-locator usage):
+  - Removed `Renderer.getEffectsSystem()` service-locator usage from runtime call paths.
+  - `RenderEffectsSystem` is now passed explicitly to call-site systems:
+    - `GameRenderer` constructor now takes `(renderer, effects)`.
+    - `NetworkSyncSystem` constructor now takes `(network, renderer, effects, ...)`.
+  - Composition root wiring in `Game` now captures effects once during `Renderer` init:
+    - `Renderer` constructor accepts optional `{ onEffectsReady }` callback.
+    - `Game` stores `effects` field and passes it directly to `GameRenderer` + `NetworkSyncSystem`.
+  - Updated `Game`/`NetworkSyncSystem` call-sites to use `this.effects` directly for all spawn/update/draw FX interactions.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Notes:
+  - Confirmed zero remaining `getEffectsSystem()` references in `space-force/src`.
+- GameRenderer pass-structure refactor (orchestration split):
+  - Refactored `src/systems/rendering/GameRenderer.ts` `render(...)` into explicit passes with unchanged draw order:
+    - `renderMapPass(...)`
+    - `renderGameplayPass(...)`
+    - `renderDebugOverlaysPass(...)`
+    - `renderCountdownPass(...)`
+  - Added small phase/time helpers to keep top-level flow readable:
+    - `usesSimTime(...)`
+    - `isGameplayRenderPhase(...)`
+    - `advanceMapVisualTime(...)`
+  - Added `getGameplayRenderData(...)` to isolate context-to-pass data shaping and reduce local clutter inside `render(...)`.
+  - Kept behavior parity:
+    - map effects still render before gameplay entities
+    - gameplay entity/layer ordering unchanged
+    - debug overlays still only render in gameplay + dev mode
+    - countdown still renders at end of frame for `COUNTDOWN` phase only
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Render effects internal split pass (step 1):
+  - Added `src/systems/rendering/RenderEffectsPilotDebrisLayer.ts` and moved pilot death burst/debris state, spawn/update/draw, and body-bump collision logic into it.
+  - Rewired `src/systems/rendering/RenderEffectsSystem.ts` into a thin coordinator delegating to:
+    - `RenderEffectsParticleLayer`
+    - `RenderEffectsBulletCasingLayer`
+    - `RenderEffectsPilotDebrisLayer`
+  - Preserved external `RenderEffectsSystem` API so existing call sites remain unchanged.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Rendering folder structure pass (step 2):
+  - Created `src/systems/rendering/effects/` and moved internal effect-layer implementations into it:
+    - `RenderEffectsParticleLayer.ts`
+    - `RenderEffectsBulletCasingLayer.ts`
+    - `RenderEffectsPilotDebrisLayer.ts`
+  - Updated `RenderEffectsSystem` imports to reference the new subfolder.
+  - Adjusted moved-file relative imports (`types`, `EntityAssets`, `EntitySpriteStore`) after relocation.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Rendering folder structure pass (step 3):
+  - Created `src/systems/rendering/controllers/` and moved controller modules into it:
+    - `RenderViewportController.ts`
+    - `ScreenShakeController.ts`
+  - Updated `Renderer.ts` imports to the new controller paths.
+  - Fixed moved `RenderViewportController.ts` relative imports (`types` and `cameraConstants`).
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Rendering folder structure pass (step 4):
+  - Created `src/systems/rendering/layers/` and moved internal draw-layer modules into it:
+    - `ShipTrailRenderer.ts`
+    - `MapEffectsRenderer.ts`
+    - `CombatVisualsRenderer.ts`
+    - `EntityVisualsRenderer.ts`
+    - `RenderDebugSystem.ts`
+  - Updated `Renderer.ts` imports/exports to new `layers/*` paths.
+  - Updated moved-file relative imports (`types`, shared geometry/sim utilities, and local rendering helpers/stores).
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Rendering folder structure pass (step 5):
+  - Created `src/systems/rendering/assets/` and moved rendering asset/store modules into it:
+    - `EntitySpriteStore.ts`
+    - `PowerUpSpriteStore.ts`
+    - `PowerUpSvgAssets.ts`
+    - `RenderAssetStore.ts`
+    - `MapOverlayRegistry.ts`
+    - `MapOverlayStore.ts`
+  - Updated imports in renderer systems and UI (`Renderer`, `RenderEffectsSystem`, layer/effects modules, `ui/mapPreview.ts`).
+  - Updated moved-file relative imports to `types` and shared asset/geometry paths.
+- Validation:
+  - `space-force`: `bun run build` passed.
+- Rendering folder structure pass (step 6):
+  - Moved `RendererVisualPrimitives.ts` into `src/systems/rendering/layers/` since it is only consumed by layer modules.
+  - Updated layer imports in:
+    - `layers/CombatVisualsRenderer.ts`
+    - `layers/RenderDebugSystem.ts`
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-24 (In-game Comic/Cel Pass)
+- Implemented first major in-game visual update focused on gameplay rendering layers (not main/lobby).
+- Refactored visual style to a comic/cel direction with stronger outlines and flatter color bands across:
+  - `src/systems/rendering/layers/MapEffectsRenderer.ts`
+    - Arena border now uses bold dual-stroke comic framing.
+    - Yellow blocks now use filled comic blocks with hatch detailing.
+    - Center holes now render with layered flat rings/core and outlined directional cues.
+    - Repulsion zones now use flat concentric bands/rings with outlined arrows.
+  - `src/systems/rendering/layers/EntityVisualsRenderer.ts`
+    - Asteroids now use bold outlines, facet highlights, and deterministic crater detailing.
+    - Projectiles now use flatter comic core+tail shapes instead of soft gradient glow style.
+  - `src/systems/rendering/layers/CombatVisualsRenderer.ts`
+    - Turret/turret bullets updated to flat comic silhouettes and outlined impacts.
+    - Power-ups now render with stronger framing and less glow dependence.
+    - Laser beam visuals updated to hard-edged layered strips + line accents.
+    - Shield rendering updated to outlined/dashed comic ring treatment.
+    - Homing missile art updated to flatter outlined style.
+  - `src/systems/rendering/layers/RendererVisualPrimitives.ts`
+    - Mine body/explosion primitives updated to match comic style language.
+- Updated map theme color values in `src/systems/rendering/GameRenderer.ts` to better match the new in-game comic palette.
+
+Validation
+- Ran `bun run build` in `space-force` (passed).
+
+Automation note
+- Attempted Playwright validation via `web_game_playwright_client.js` against local preview.
+- Browser launch failed in this environment with `browserType.launch: spawn EPERM`, so no screenshot artifact was produced from that run.
+
+TODO / Next suggestions
+- Apply the same comic style language to map overlay SVG (`shared/assets/maps/bunkers-overlay.svg`) for map 4 visual consistency.
+- Optionally add a client-side visual-style toggle scaffold (`NEON` vs `COMIC`) now that renderer is modular.
+- Continue with requested non-gameplay screens (start/lobby/main) as a separate pass.
+## 2026-02-24 (Follow-up fixes + remaining FX pass)
+- Fixed vortex direction visual regression by decoupling snake rendering from hard-coded ring color:
+  - Added `drawSnake?: boolean` in center-hole theme flow and enabled it for map 2.
+  - Files: `src/systems/rendering/GameRenderer.ts`, `src/systems/rendering/Renderer.ts`, `src/systems/rendering/layers/MapEffectsRenderer.ts`.
+- Updated comic border corner accents to sit outside arena bounds instead of inside.
+- Fixed map-1 cache block centering issue in shared map generation:
+  - Grid now computes centered start offsets for both axes to remove top/left overlap and opposite-side gaps.
+  - File: `shared/sim/maps.ts`.
+- Completed additional in-game FX visual pass (comic style language) across remaining effect layers:
+  - `RenderEffectsBulletCasingLayer` (outlined cartridge style)
+  - `RenderEffectsParticleLayer` (banded alpha + outlined particle puffs)
+  - `RenderEffectsPilotDebrisLayer` (outlined burst ring/rays)
+  - `ShipTrailRenderer` (non-additive, outlined comic trails)
+- Validation:
+  - `space-force`: `bun run build` passed.
+## 2026-02-25 (Start title audio sync + preload pass)
+- Preload changes (`src/preload.ts`):
+  - Startup now preloads all configured audio assets via `AudioManager.getConfiguredAssetIds()` before splash.
+  - Startup image preload now includes `splashLogoImage`, `titleSpaceImage`, and `titleForceImage`.
+- Start title/audio sync:
+  - `src/ui/startScreen.ts`: title intro now triggers `playSplashScreenCue()` with SPACE layer start.
+  - FORCE layer animation is now triggered when splash-cue playback reaches the prior FORCE offset (0.465s fallback to wall-clock), then `playLogoRevealCue()` is fired.
+  - Added RAF cancellation/token guard for repeated intro replays.
+  - `index.html`: FORCE title animation is now bound to `.game-title-wrap.force-active` (no fixed CSS delay), so runtime cue timing controls FORCE start.
+- Start BGM timing:
+  - `src/main.ts`: START scene music no longer starts immediately on START phase transitions.
+  - START BGM is scheduled to begin when start buttons reveal timing begins (1280ms), matching intro staging.
+  - Pending START music timer is cleared when leaving START or when music is toggled off.
+- Validation:
+  - `space-force`: `bun run typecheck` passed.
+  - Playwright smoke run attempted via `develop-web-game` script and produced `output/web-game/shot-0.png`.
+## 2026-02-25 (Audio/animation wiring correction)
+- Corrected mistaken dual-wiring between splash and title cues.
+- Splash flow (`src/main.ts`):
+  - Uses only `playSplashScreenCue()` and `SPLASH_STING` seek for splash stage timing.
+  - Removed splash-triggered `playLogoRevealCue()`.
+  - Removed splash post-roll `Loading audio...` extension branch tied to `LOGO_STING` load checks.
+- Start title flow (`src/ui/startScreen.ts`):
+  - Uses only `playLogoRevealCue()` for title sequence.
+  - SPACE starts with first logo cue.
+  - FORCE starts when first logo cue seek reaches FORCE offset, and triggers a second `playLogoRevealCue()` for FORCE beat.
+- Validation:
+  - `space-force`: `bun run typecheck` passed.
+## 2026-02-26 (Agent governance expansion)
+- Expanded `space-force/AGENTS.md` with stricter delivery/process rules:
+  - Small, iterable implementation steps by default unless explicit major rewrite request.
+  - Mandatory evaluate-first approach before implementation.
+  - Reuse-first / central-manager architecture policy to prevent logic duplication.
+  - Explicit escalation rule: present teardown/replacement options to user before major manager/module replacement.
+- Added canonical progress logging contract in `AGENTS.md`:
+  - `progress.md` is append-only, date-scoped, and must include validation status per milestone.
+  - Style aligned with existing `progress.md` convention (scope, files, validation, follow-ups).
+- Validation:
+  - `space-force`: `bun run typecheck` passed.
+  - `space-force`: `bun run build` passed.
+## 2026-02-26 (Architecture hydration + learning loop guardrails)
+- Expanded `space-force/AGENTS.md` with durable process guardrails:
+  - Added continuous architecture hydration rule:
+    - update architecture ownership/constraints in the same milestone as notable code changes
+    - explicitly capture user hard constraints as do/don't guardrails
+  - Added learning loop contract:
+    - document wrong-start assumptions, detection signal, corrected approach, and prevention guardrail
+    - mirror stable learnings from `progress.md` back into `AGENTS.md`
+- Intent:
+  - avoid repeating known mistakes
+  - keep guidance synchronized with real architecture evolution
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone
+## 2026-02-26 (Docs split: policy vs architecture vs learning)
+- Reorganized project guidance docs to reduce `AGENTS.md` bloat and clarify responsibilities:
+  - `AGENTS.md` now focuses on execution policy and hard guardrails.
+  - Added `ARCHITECTURE.md` as the living architecture/ownership map.
+  - Added `learning.md` as append-only implementation learning memory with anti-repeat guardrails.
+  - Updated `README.md` to surface these governance docs in one place.
+- Seeded `learning.md` with concrete recent lessons:
+  - demo tutorial input should reuse canonical input pipeline
+  - demo teardown must precede create/join transitions
+  - splash/logo/start cue sequencing needs single-owner timing control
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone
+## 2026-02-26 (Context bootstrap rule for agent workflow)
+- Updated `space-force/AGENTS.md` with a new "Context Bootstrap" section to prevent context-free file diving.
+- New rule requires selective pre-read flow:
+  - `AGENTS.md` -> `ARCHITECTURE.md` first
+  - then task-specific docs only (audio/shared/server/general)
+  - check `learning.md` before coding
+  - append `progress.md` milestone after implementation
+- Intent:
+  - preserve implementation speed while avoiding context misses
+  - reduce repeated mistakes caused by missing architectural/task constraints
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone
+## 2026-02-26 (Governance doc drift tracker)
+- Added governance drift detection tooling so root/game guidance updates cannot be silently missed:
+  - New script: `scripts/governance-docs.ts` with:
+    - `check`: fails when tracked governance docs changed since last acknowledgment.
+    - `ack`: records reviewed snapshot with required `--note`.
+  - New package scripts:
+    - `bun run governance:check`
+    - `bun run governance:ack -- --note "<review summary>"`
+  - New state file:
+    - `governance-docs-state.json` (snapshot of tracked governance-doc hashes + acknowledgment metadata).
+- Updated process docs:
+  - `AGENTS.md` Context Bootstrap now requires `governance:check` before deep implementation exploration.
+  - `README.md` now documents governance drift commands.
+- Tracked docs monitored by the script:
+  - repo root `AGENTS.md`, `README.md`
+  - `space-force/AGENTS.md`, `README.md`, `ARCHITECTURE.md`, `learning.md`
+- Validation:
+  - `space-force`: `bun run governance:ack -- --note "Initial governance baseline after adding drift tracking and review workflow."` passed.
+  - `space-force`: `bun run governance:check` passed.
+  - `space-force`: `bun run typecheck` passed.
+  - `space-force`: `bun run build` passed.
+## 2026-02-26 (Governance check rollback)
+- Removed local governance hash-check workflow (`governance:check` / `governance:ack`).
+- Reason:
+  - local repo snapshot checks are not a reliable signal for upstream/main maintenance updates
+  - this added process overhead without solving the actual source-of-truth drift problem
+- Changes:
+  - removed package scripts for governance checks from `space-force/package.json`
+  - removed governance command references from `space-force/AGENTS.md` bootstrap flow
+  - removed governance drift command section from `space-force/README.md`
+  - removed local governance checker artifacts (`scripts/governance-docs.ts`, `governance-docs-state.json`)
+- Follow-up direction:
+  - if reintroduced, tracking should be upstream-aware (main/default branch or maintainer source), not local-only hash state
+- Validation:
+  - docs/tooling-only rollback; no runtime code changes
+  - `bun run typecheck` not rerun for this docs/tooling rollback
+  - `bun run build` not rerun for this docs/tooling rollback
+## 2026-02-26 (Move agent-only learning doc under `.agents/`)
+- Updated doc layout so strictly agent-specific memory lives under `space-force/.agents/`.
+- Changes:
+  - moved `space-force/learning.md` -> `space-force/.agents/learning.md`
+  - updated active references in:
+    - `space-force/AGENTS.md`
+    - `space-force/README.md`
+- Architecture doc remains top-level (`ARCHITECTURE.md`) as a general team/system reference, not agent-only.
+- Validation:
+  - docs-only update; no runtime code changes
+  - `bun run typecheck` not rerun for this docs-only milestone
+  - `bun run build` not rerun for this docs-only milestone
+## 2026-02-26 (Minimal room-code loadtest flow)
+- Added a new minimal Colyseus loadtest path dedicated to joining an existing room code.
+- Behavior:
+  - joins a specific code via `/match/join` + `consumeSeatReservation`
+  - waits for `PLAYING`
+  - reads `evt:snapshot` payloads and discards them
+  - spams `cmd:input` (`buttonA` + `buttonB`) at client-default debounce (`1000/60`) and aligns interval with server `tickDurationMs` when available
+- Files:
+  - added `server/loadtest/minimal-roomcode.loadtest.ts`
+  - added `server/loadtest/run-roomcode-loadtest.ts`
+  - updated `server/package.json` (`loadtest:roomcode`)
+  - updated root `package.json` (`loadtest:roomcode`)
+  - updated `server/README.md` with usage and flags
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+## 2026-02-26 (Room-code loadtest pause/resume + legacy script removal)
+- Updated minimal room-code loadtest loop behavior:
+  - input spam loop now starts only during `PLAYING`
+  - spam loop is fully paused outside `PLAYING` and resumes if phase returns to `PLAYING`
+  - snapshot-based tick interval updates now restart the loop only when actively spamming
+- Added basic graceful disconnect handling:
+  - room `onError` now triggers a one-shot `leave(false)` attempt
+  - terminal cleanup still resolves via `onLeave`
+  - summary now tracks `serverDisconnects` (code `1006` or `4000-4999`)
+- Removed legacy loadtest script set:
+  - deleted `server/loadtest/space-force.loadtest.ts`
+  - deleted `server/loadtest/run-loadtest.ts`
+  - removed old preset script entries from `server/package.json` and root `package.json`
+  - `loadtest` now aliases the room-code runner baseline
+- Updated `server/README.md` load-testing section to reflect room-code-only flow.
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+## 2026-02-26 (Server Colyseus monitor integration)
+- Wired Colyseus Monitor into server bootstrap:
+  - mounted monitor middleware in `server/src/index.ts`
+  - optional Basic Auth gate via env vars
+  - safe config behavior: if only one of username/password is provided, monitor is disabled
+- Added monitor env handling:
+  - `COLYSEUS_MONITOR_ENABLED`
+  - `COLYSEUS_MONITOR_PATH`
+  - `COLYSEUS_MONITOR_USERNAME`
+  - `COLYSEUS_MONITOR_PASSWORD`
+- Added package dependency:
+  - `@colyseus/monitor` in `server/package.json` (+ lockfile update)
+- Updated docs:
+  - `server/README.md` with monitor usage and auth setup
+  - `ARCHITECTURE.md` server topology ownership line updated for monitor mounting/auth
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+## 2026-02-26 (Deploy script hardening pass)
+- Refined `server/server-deploy-script.txt` for safer, more repeatable deploys:
+  - added preflight command checks (`git`, `npm`, `pm2`, `curl`)
+  - added explicit repo existence guard with clear failure
+  - switched branch logic to `git switch` + tracked local-branch creation flow
+  - parameterized key values via env defaults (`BRANCH`, `PM2_NAME`, health URLs/retries)
+  - switched install path to `npm ci` when lockfile exists (fallback to `npm install`)
+  - improved health-check handling:
+    - retries configurable
+    - local health failure now prints recent PM2 logs and exits
+    - public health check marked non-fatal
+  - added consistent deploy logging prefix for easier scanning
+- Validation:
+  - could not run `bash -n` in this environment (`/bin/bash` unavailable)
+  - no runtime deploy execution performed from this workspace
+## 2026-02-26 (Deploy npm install mode fallback)
+- Adjusted deploy dependency install strategy to avoid hard failure when `npm ci` is incompatible with server npm/lock state.
+- Added `NPM_INSTALL_MODE` env selector in `server/server-deploy-script.txt`:
+  - `auto` (default): try `npm ci`, then fallback to `npm install` on failure
+  - `ci`: force `npm ci`
+  - `install`: force `npm install`
+- Motivation:
+  - keep reproducibility benefits when possible
+  - avoid unnecessary server resets for npm version/lockfile mismatches
+- Validation:
+  - script-only change; not executed in this workspace
+## 2026-02-26 (Monitor setup helper script example)
+- Added a reusable example file for monitor setup automation:
+  - `server/monitor-setup-example.txt`
+- Contents:
+  - creates `/root/setup-space-force-monitor.sh`
+  - upserts monitor env vars in server `.env`
+  - restarts PM2 process with `--update-env`
+  - runs local health check and monitor endpoint header check
+- Validation:
+  - docs/script-template only; not executed in this workspace
+## 2026-02-26 (Monitor setup script reliability update)
+- Updated `server/monitor-setup-example.txt` to reduce false negatives and improve diagnostics:
+  - added configurable health wait loop (`LOCAL_HEALTH_URL`, `HEALTH_RETRIES`, `HEALTH_SLEEP_SEC`)
+  - on health failure, prints recent PM2 logs before exiting
+  - added authenticated monitor header check when credentials are provided
+- Motivation:
+  - avoid immediate post-restart curl failures due startup timing
+  - make server-side failure cause visible without manual log commands
+- Validation:
+  - script-template update only; not executed in this workspace
+## 2026-02-26 (Ops stats + capacity sweep wiring)
+- Added lightweight server-side ops stats tracking and endpoint:
+  - new `server/src/monitoring/OpsStats.ts`
+  - instrumented `SpaceForceRoom` join/leave, command traffic, snapshot fanout, room errors, and client-reported RTT samples
+  - mounted `/ops/stats` endpoint in `server/src/index.ts`
+  - optional token gate via `OPS_STATS_TOKEN` (`x-ops-token` header)
+- Added staged capacity sweep runner:
+  - new `server/loadtest/run-capacity-sweep.ts`
+  - executes incremental `loadtest:roomcode` stages
+  - writes per-stage logs + summary JSON/CSV
+  - optional DigitalOcean monitoring metric capture per stage window (`DO_API_TOKEN` + `DO_DROPLET_ID`)
+- Script wiring:
+  - `server/package.json`: `loadtest:capacity`
+  - root `package.json`: `loadtest:capacity`
+- Docs/architecture updates:
+  - `server/README.md`: capacity sweep usage + `/ops/stats` details + new env vars
+  - `ARCHITECTURE.md`: server monitoring ownership map updated
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+## 2026-02-26 (Deploy branch-switch + lockfile drift fix)
+- Hardened `server/server-deploy-script.txt` to prevent checkout failures from local deploy drift:
+  - added pre-switch `git reset --hard` + `git clean -fd`
+  - switched branch with `git switch --discard-changes`
+- Prevented fallback dependency install from modifying tracked lockfile:
+  - changed fallback installs to `npm install --no-package-lock`
+- Motivation:
+  - avoid recurring `Your local changes would be overwritten by checkout` failures on subsequent deploys
+  - keep deploy repo clean between runs even when `npm ci` fallback path is used
+- Validation:
+  - script update only; not executed in this workspace
+## 2026-02-26 (Lobby-fill loadtest runner + capacity runner mode switch)
+- Added runnable lobby-fill loadtest launcher:
+  - new `server/loadtest/run-lobbyfill-loadtest.ts`
+  - wires CLI args/env to `lobbyfill.loadtest.ts`
+  - auto-resolves endpoint from `VITE_COLYSEUS_WS_URL` and writes default logs to `loadtest-logs/loadtest-lobbyfill-*.log`
+- Improved lobby-fill room code generation stability:
+  - `server/loadtest/lobbyfill.loadtest.ts` now salts generated room codes per run to avoid cross-run collisions
+  - room-code prefix input is sanitized against allowed room-code alphabet
+- Updated capacity sweep orchestration:
+  - `server/loadtest/run-capacity-sweep.ts` now supports `--runner roomcode|lobbyfill` (default `lobbyfill`)
+  - room-code is only required when using `roomcode` runner
+  - passes lobby-fill specific controls (`usersPerRoom`, `roomMaxPlayers`, `waitForGroupMs`, `startDelayMs`, `startFallbackMs`, `roomCodePrefix`) per stage
+- Script wiring:
+  - `server/package.json`: added `loadtest:lobbyfill`
+  - `space-force/package.json`: added `loadtest:lobbyfill`
+- Docs:
+  - `server/README.md` updated with lobby-fill usage, new capacity flags/env vars, and implementation file list
+- Validation:
+  - pending local command validation in this workspace (next step: run server loadtest scripts once against target endpoint)
+## 2026-02-26 (Lobby-fill create/join parity fix with game matchmaking)
+- Fixed lobby-fill room creation flow to mirror game client transport behavior:
+  - leaders now create rooms through `POST /match/create` and consume returned seat reservations
+  - followers continue joining through `POST /match/join` by returned room code
+- Root cause addressed:
+  - previous leader `client.create(...)` path bypassed server room-code registry population, causing follower `NOT_FOUND` on `/match/join`
+- Simplified loadtest knobs/docs to match actual server API behavior:
+  - removed `roomMaxPlayers` / `roomCodePrefix` passthrough from lobbyfill launcher and capacity-sweep lobbyfill runner
+  - updated `server/README.md` flags/env var list accordingly
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+## 2026-02-26 (Lobby-fill failure propagation + disconnect code terminology)
+- Improved group failure behavior in `server/loadtest/lobbyfill.loadtest.ts`:
+  - when a leader room-create promise rejects, the rejected group promise is now kept so group members fail immediately
+  - removed timeout cascade where non-leader clients waited for `waitForGroupMs` and reported `Timed out waiting for group`
+- Updated close-code output terminology:
+  - script summary now emits `disconnectCodes=...` and `topDisconnectCodes=...`
+  - legacy aliases (`leaveCodes`, `topLeaveCodes`) are still included for parser compatibility
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+## 2026-02-26 (Lobby-fill direct join path for loadtest panel visibility)
+- Switched lobby-fill connection flow from HTTP seat-reservation consume to direct Colyseus joins:
+  - leader: `client.create("space_force", ...)`
+  - followers: `client.joinById(roomId, ...)`
+- Kept existing lobby-fill behavior intact:
+  - grouped room creation
+  - per-group auto-start when full
+  - PLAYING-only input spam + snapshot read/discard
+- Motivation:
+  - restores `@colyseus/loadtest` terminal panel counters (connected/disconnected/network/serializer) which are hooked on `create/joinById` calls
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+  - smoke run: `npm run loadtest:lobbyfill -- --numClients 4 --delay 250 --durationSec 20` produced `Successful connections: 4`
+## 2026-02-27 (Disconnect correlation telemetry improvements)
+- Improved loadtest timeline readability in `server/loadtest/lobbyfill.loadtest.ts`:
+  - summary lines now include absolute ISO timestamp (`ts=...`) in addition to uptime
+  - `onLeave` logging now includes `ts`, `client`, `roomId`, `leaveCode`, `phase`, `inputSequence`, and `isServerDisconnect`
+  - `onError` logging now includes `ts`, `client`, `roomId`, and error code/message
+- Added server-side leave diagnostics in `server/src/rooms/SpaceForceRoom.ts`:
+  - `onLeave` now captures Colyseus `consented` flag
+  - unconsented leaves emit a focused warning log with `roomId`, `sessionId`, `phase`, and remaining clients
+- Extended `/ops/stats` payload in `server/src/monitoring/OpsStats.ts`:
+  - `clients.leftConsentedTotal`
+  - `clients.leftUnconsentedTotal`
+  - `clients.recentLeaves[]` (ring buffer of recent leave events with `atIso`, `roomId`, `sessionId`, `consented`, `phase`)
+- Validation:
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+## 2026-02-27 (Deploy script ops-stats post-check)
+- Updated `server/server-deploy-script.txt` to include post-deploy ops snapshot verification:
+  - new env vars:
+    - `OPS_STATS_URL` (default `http://127.0.0.1:2567/ops/stats`)
+    - `OPS_STATS_TOKEN` (optional; sent as `x-ops-token`)
+    - `OPS_STATS_REQUIRED` (`true|false`, default `false`)
+  - deploy now logs checked commit hash after checkout
+  - after health checks, script fetches and prints a compact ops summary:
+    - clients active/joined/left
+    - consented/unconsented leave totals
+    - rooms active/created/disposed
+    - RTT p95 + sample count
+  - latest unconsented leave event (if present)
+  - when `OPS_STATS_REQUIRED=true`, failed fetch/parse fails deploy
+## 2026-02-27 (Monitoring command reference doc)
+- Added `server/monitoring-command-reference.md` with ready-to-run operational commands for:
+  - PM2 monitor/log views
+  - unconsented leave focused server log stream
+  - `/ops/stats` watch (token + non-token variants)
+  - dmesg OOM/segfault watcher
+  - lobbyfill loadtest run command
+  - post-run correlation grep commands for `1006` / server disconnect signals
+  - host-load correlation commands (`vmstat` quick view + single combined host/pm2/ops timeline logger)
+  - fixed correlation logger awk quoting and interface detection for Linux shells
+  - clarified same-host vs split-host correlation workflows (droplet server + local loadtest)
+  - updated reference to split-host only (explicitly local loadtest + droplet server)
+  - normalized local commands to run from a single directory (`space-force/server`) without repeated `cd` hops
+## 2026-02-27 (Observed loadtest phases 1-3)
+- Implemented phase 1 observed orchestration pipeline:
+  - added droplet observer script `server/loadtest/space-force-observe.sh` with `start/stop/status/pack`
+  - observer captures per-run:
+    - PM2 log stream (`pm2 logs --time`)
+    - kernel OOM/segfault stream (`dmesg -wT` filtered)
+    - correlation metrics stream (`host.*`, `pm2.*`, `ops.*`, `net.*`)
+  - added local one-trigger orchestration script:
+    - `server/loadtest/run-observed-loadtest.ps1`
+    - flow: start observer -> warmup -> run loadtest -> always stop+pack -> pull archive -> extract artifacts -> write `run-meta.json`
+    - supports both `lobbyfill` and `roomcode` runners and exposes droplet/observer parameters
+- Implemented phase 2 parsing/indexing:
+  - added `server/loadtest/build-observed-runs-index.ts`
+  - parser outputs per-run `parsed-events.json` and global `server/observed-runs/index.json`
+  - extracts run summaries and incidents:
+    - mass client drops (`ops.clients`)
+    - unconsented leave jumps (`ops.leftUnconsented`)
+    - PM2 restart increases
+    - `leaveCode=1006` burst windows
+    - process boot and crash/OOM/segfault signals from PM2/kernel logs
+- Implemented phase 3 dashboard:
+  - added static dashboard files:
+    - `server/observed-runs/dashboard/index.html`
+    - `server/observed-runs/dashboard/app.js`
+  - dashboard behavior:
+    - reads `observed-runs/index.json`
+    - multi-select run IDs
+    - run comparison summary table
+    - correlated timeline overlays for:
+      - `ops.clients`, `ops.rooms`, `ops.leftUnconsented`
+      - `pm2.memMB`, `pm2.cpuPct`, `pm2.restarts`
+      - `host.memUsedPct`, `host.load1`, `net.rxBps`, `net.txBps`
+    - incident cards for extracted anomalies
+- Script and docs wiring:
+  - `server/package.json`:
+    - `loadtest:observed`
+    - `observed:index`
+  - `space-force/package.json`:
+    - `loadtest:observed`
+    - `observed:index`
+  - updated `server/README.md` with observed-run usage, flags, artifacts, and dashboard flow
+  - updated `ARCHITECTURE.md` server topology with observed-run tooling ownership
+- Scope note:
+  - Phase 4 (persistent DB-backed store) intentionally deferred.
+- Validation:
+  - `space-force/server`: `npm run observed:index` passed
+  - `space-force/server`: `npm run typecheck` passed
+  - `space-force/server`: `npm run build` passed
+  - `space-force`: `bun run build` passed
+  - `space-force`: `bun run typecheck` failed due pre-existing error in `src/demo/DemoOverlayUI.ts` (`Type 'number' is not assignable to type 'Timeout'`)

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astro Party Lobby — Neon Void</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --c1:#00e5ff;--c2:#ff2d9b;--c3:#ffe500;--c4:#00ff88;
+  --bg:#0a0a12;--surface:#12121e;--surface2:#1a1a2e;
+  --border:#2a2a3e;--text:#e8e8f0;--text-dim:#7a7a9a;
+  --font-head:'Orbitron',sans-serif;--font-body:'Exo 2',sans-serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:#050508;font-family:var(--font-body)}
+#scale-wrapper{position:absolute;width:1280px;height:720px;transform-origin:top left;overflow:hidden}
+/* ---- CANVAS BG ---- */
+.lobby-canvas{width:100%;height:100%;background:var(--bg);position:relative;display:flex;flex-direction:column;padding:16px 24px}
+/* Stars */
+.stars{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:twinkle 3s ease-in-out infinite alternate}
+@keyframes twinkle{0%{opacity:.15}100%{opacity:.7}}
+/* ---- TOP BAR ---- */
+.top-bar{display:flex;align-items:center;justify-content:space-between;height:48px;flex-shrink:0;z-index:2}
+.lobby-title{font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--text);letter-spacing:2px;text-transform:uppercase}
+.lobby-title span{color:var(--c1)}
+.top-right{display:flex;align-items:center;gap:12px}
+.room-code{font-family:var(--font-head);font-size:13px;background:var(--surface2);color:var(--c1);border:1.5px solid var(--c1);border-radius:6px;padding:6px 14px;letter-spacing:3px;display:flex;align-items:center;gap:8px}
+.room-code .copy-btn{background:none;border:none;color:var(--c1);cursor:pointer;font-size:14px;padding:2px 4px;border-radius:3px;transition:.15s}
+.room-code .copy-btn:hover{background:rgba(0,229,255,.15)}
+.leave-btn{font-family:var(--font-body);font-size:13px;font-weight:500;background:transparent;border:1.5px solid #ff4455;color:#ff4455;border-radius:6px;padding:6px 16px;cursor:pointer;transition:.2s;letter-spacing:.5px}
+.leave-btn:hover{background:rgba(255,68,85,.12)}
+/* ---- CENTER ---- */
+.center-section{flex:1;display:flex;align-items:center;justify-content:center;gap:16px;z-index:2;padding:8px 0}
+/* Player Card */
+.player-card{width:220px;height:280px;border-radius:12px;background:var(--surface);border:2px solid var(--border);position:relative;display:flex;flex-direction:column;align-items:center;padding:16px 12px;transition:.25s;overflow:hidden}
+.player-card:hover{transform:translateY(-4px)}
+.player-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
+.player-card[data-color="1"]::before{background:var(--c1)}.player-card[data-color="1"]{border-color:rgba(0,229,255,.25)}
+.player-card[data-color="2"]::before{background:var(--c2)}.player-card[data-color="2"]{border-color:rgba(255,45,155,.25)}
+.player-card[data-color="3"]::before{background:var(--c3)}.player-card[data-color="3"]{border-color:rgba(255,229,0,.25)}
+.player-card[data-color="4"]::before{background:var(--c4)}.player-card[data-color="4"]{border-color:rgba(0,255,136,.25)}
+.player-card.empty{border-style:dashed;border-color:var(--border);opacity:.4}
+.player-card.empty::before{display:none}
+.ship-container{width:100px;height:100px;margin:8px 0 12px;position:relative;display:flex;align-items:center;justify-content:center}
+.ship-placeholder{width:80px;height:80px;border-radius:50%;border:2.5px solid;display:flex;align-items:center;justify-content:center;font-size:32px;animation:shipFloat 3s ease-in-out infinite}
+.player-card[data-color="1"] .ship-placeholder{border-color:var(--c1);color:var(--c1);box-shadow:0 0 20px rgba(0,229,255,.2)}
+.player-card[data-color="2"] .ship-placeholder{border-color:var(--c2);color:var(--c2);box-shadow:0 0 20px rgba(255,45,155,.2)}
+.player-card[data-color="3"] .ship-placeholder{border-color:var(--c3);color:var(--c3);box-shadow:0 0 20px rgba(255,229,0,.2)}
+.player-card[data-color="4"] .ship-placeholder{border-color:var(--c4);color:var(--c4);box-shadow:0 0 20px rgba(0,255,136,.2)}
+@keyframes shipFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.ship-placeholder.empty-ship{border-color:var(--border);color:var(--text-dim);box-shadow:none;animation:none;font-size:28px}
+.player-name{font-family:var(--font-head);font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;letter-spacing:1px}
+.player-badge{font-family:var(--font-head);font-size:9px;font-weight:700;letter-spacing:1.5px;padding:3px 10px;border-radius:4px;text-transform:uppercase}
+.badge-you{background:rgba(0,229,255,.15);color:var(--c1);border:1px solid rgba(0,229,255,.3)}
+.badge-ai{background:rgba(255,229,0,.12);color:var(--c3);border:1px solid rgba(255,229,0,.25)}
+.badge-local{background:rgba(0,255,136,.12);color:var(--c4);border:1px solid rgba(0,255,136,.25)}
+.badge-online{background:rgba(255,45,155,.12);color:var(--c2);border:1px solid rgba(255,45,155,.25)}
+.host-tag{font-family:var(--font-head);font-size:8px;color:var(--c3);letter-spacing:2px;margin-top:6px;display:flex;align-items:center;gap:4px}
+.host-tag::before{content:'';width:6px;height:6px;background:var(--c3);border-radius:50%;box-shadow:0 0 6px var(--c3)}
+.kick-btn{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,68,85,.3);background:rgba(255,68,85,.08);color:#ff4455;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;opacity:0}
+.player-card:hover .kick-btn{opacity:1}
+.kick-btn:hover{background:rgba(255,68,85,.2)}
+.empty-label{font-family:var(--font-body);font-size:13px;color:var(--text-dim);margin-top:auto;margin-bottom:auto}
+/* ---- BOTTOM ---- */
+.bottom-section{height:160px;flex-shrink:0;display:flex;align-items:center;gap:24px;z-index:2}
+/* Map selector */
+.map-selector{display:flex;align-items:center;gap:16px;flex:1}
+.map-preview{width:180px;height:110px;border-radius:8px;border:2px solid var(--border);background:var(--surface);overflow:hidden;position:relative}
+.map-preview canvas{width:100%;height:100%}
+.map-info{display:flex;flex-direction:column;gap:6px}
+.map-name{font-family:var(--font-head);font-size:14px;color:var(--text);font-weight:600;letter-spacing:1px}
+.map-desc{font-family:var(--font-body);font-size:12px;color:var(--text-dim);max-width:200px;line-height:1.4}
+.change-map-btn{font-family:var(--font-head);font-size:10px;font-weight:600;letter-spacing:1.5px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:6px;padding:7px 16px;cursor:pointer;transition:.2s;text-transform:uppercase}
+.change-map-btn:hover{border-color:var(--c1);color:var(--c1)}
+/* Mode & Session */
+.controls-group{display:flex;flex-direction:column;gap:10px}
+.control-row{display:flex;align-items:center;gap:8px}
+.control-label{font-family:var(--font-head);font-size:9px;color:var(--text-dim);letter-spacing:1.5px;text-transform:uppercase;width:60px}
+.mode-btn,.session-btn{font-family:var(--font-head);font-size:10px;font-weight:600;padding:6px 14px;border-radius:5px;border:1.5px solid var(--border);background:var(--surface);color:var(--text-dim);cursor:pointer;transition:.2s;letter-spacing:1px}
+.mode-btn.active,.session-btn.active{border-color:var(--c1);color:var(--c1);background:rgba(0,229,255,.06)}
+/* CTA */
+.cta-area{display:flex;flex-direction:column;align-items:center;gap:8px;margin-left:auto}
+.launch-btn{font-family:var(--font-head);font-size:15px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:14px 48px;border-radius:8px;border:2px solid var(--c1);background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(0,229,255,.05));color:var(--c1);cursor:pointer;transition:.25s;position:relative;overflow:hidden}
+.launch-btn:hover{background:linear-gradient(135deg,rgba(0,229,255,.25),rgba(0,229,255,.1));box-shadow:0 0 30px rgba(0,229,255,.2);transform:scale(1.03)}
+.launch-btn:active{transform:scale(.98)}
+.launch-btn:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+.launch-btn.ready-btn{border-color:var(--c4);color:var(--c4);background:linear-gradient(135deg,rgba(0,255,136,.15),rgba(0,255,136,.05))}
+.launch-btn.ready-btn:hover{background:linear-gradient(135deg,rgba(0,255,136,.25),rgba(0,255,136,.1));box-shadow:0 0 30px rgba(0,255,136,.2)}
+.status-text{font-family:var(--font-body);font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px}
+.status-dot{width:7px;height:7px;border-radius:50%;animation:pulse 1.5s ease-in-out infinite}
+.status-dot.green{background:var(--c4);box-shadow:0 0 8px var(--c4)}
+.status-dot.yellow{background:var(--c3);box-shadow:0 0 8px var(--c3)}
+.status-dot.red{background:#ff4455;box-shadow:0 0 8px #ff4455}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+/* ---- MAP MODAL ---- */
+.modal-overlay{position:absolute;inset:0;background:rgba(5,5,8,.85);display:flex;align-items:center;justify-content:center;z-index:10;opacity:0;pointer-events:none;transition:.3s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal-box{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:24px;width:720px;transform:scale(.92);transition:.3s}
+.modal-overlay.open .modal-box{transform:scale(1)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-family:var(--font-head);font-size:16px;color:var(--text);font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.modal-close{width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s}
+.modal-close:hover{color:var(--text);border-color:var(--text-dim)}
+.maps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.map-card{border-radius:8px;border:2px solid var(--border);background:var(--surface2);padding:10px;cursor:pointer;transition:.2s}
+.map-card:hover{border-color:var(--c1);transform:translateY(-2px)}
+.map-card.selected{border-color:var(--c1);box-shadow:0 0 15px rgba(0,229,255,.15)}
+.map-card canvas{width:100%;height:80px;border-radius:4px;margin-bottom:8px;display:block}
+.map-card-name{font-family:var(--font-head);font-size:10px;color:var(--text);letter-spacing:1px;font-weight:600}
+/* ---- DEV TOOLBAR ---- */
+.dev-toolbar{position:fixed;bottom:0;left:0;right:0;height:48px;background:#111118;border-top:1px solid #2a2a3a;display:flex;align-items:center;padding:0 20px;gap:20px;z-index:100;font-family:var(--font-body)}
+.dev-toolbar label{font-size:11px;color:#8888aa;letter-spacing:.5px}
+.dev-toolbar select,.dev-toolbar button{font-family:var(--font-body);font-size:11px;background:#1a1a28;border:1px solid #333;color:#ccc;border-radius:4px;padding:4px 10px;cursor:pointer}
+.dev-toolbar button.active{background:var(--c1);color:#000;border-color:var(--c1)}
+.dev-toolbar .sep{width:1px;height:24px;background:#2a2a3a}
+</style>
+</head>
+<body>
+<div id="scale-wrapper">
+<div class="lobby-canvas" id="lobby">
+  <div class="stars" id="stars"></div>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="lobby-title">Astro <span>Party</span></div>
+    <div class="top-right">
+      <div class="room-code" id="room-code" style="display:none">
+        <span id="code-text">XKRF42</span>
+        <button class="copy-btn" onclick="navigator.clipboard?.writeText('XKRF42')" title="Copy">⧉</button>
+      </div>
+      <button class="leave-btn">✕ Leave</button>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center-section" id="player-area"></div>
+
+  <!-- BOTTOM -->
+  <div class="bottom-section">
+    <div class="map-selector">
+      <div class="map-preview"><canvas id="map-preview-canvas" width="180" height="110"></canvas></div>
+      <div class="map-info">
+        <div class="map-name" id="current-map-name">Classic Rotation</div>
+        <div class="map-desc" id="current-map-desc">Symmetrical arena with rotating obstacles</div>
+        <button class="change-map-btn" onclick="toggleModal(true)">Change Arena</button>
+      </div>
+    </div>
+    <div class="controls-group">
+      <div class="control-row">
+        <span class="control-label">Mode</span>
+        <button class="mode-btn active" data-mode="standard">Standard</button>
+        <button class="mode-btn" data-mode="sane">Sane</button>
+        <button class="mode-btn" data-mode="chaotic">Chaotic</button>
+      </div>
+      <div class="control-row">
+        <span class="control-label">Session</span>
+        <button class="session-btn active" data-session="local">Local</button>
+        <button class="session-btn" data-session="online">Online</button>
+      </div>
+    </div>
+    <div class="cta-area">
+      <button class="launch-btn" id="cta-btn">LAUNCH</button>
+      <div class="status-text"><span class="status-dot green" id="status-dot"></span><span id="status-label">Ready to launch</span></div>
+    </div>
+  </div>
+
+  <!-- MAP MODAL -->
+  <div class="modal-overlay" id="map-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title">Select Arena</div>
+        <button class="modal-close" onclick="toggleModal(false)">✕</button>
+      </div>
+      <div class="maps-grid" id="maps-grid"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- DEV TOOLBAR -->
+<div class="dev-toolbar">
+  <label>Players</label>
+  <select id="dev-players" onchange="setState()"><option>1</option><option>2</option><option>3</option><option selected>4</option></select>
+  <div class="sep"></div>
+  <label>Host</label>
+  <button id="dev-host" class="active" onclick="toggleHost()">Yes</button>
+  <div class="sep"></div>
+  <label>Session</label>
+  <button id="dev-local" class="active" onclick="setSession('local')">Local</button>
+  <button id="dev-online" onclick="setSession('online')">Online</button>
+  <div class="sep"></div>
+  <label>Mode</label>
+  <select id="dev-mode" onchange="setMode(this.value)"><option>standard</option><option>sane</option><option>chaotic</option></select>
+  <div class="sep"></div>
+  <label>Map</label>
+  <select id="dev-map" onchange="selectMap(+this.value)"></select>
+</div>
+
+<script>
+const MAPS=[
+  {name:'Classic Rotation',desc:'Symmetrical arena with rotating obstacles'},
+  {name:'The Cache',desc:'Central loot zone surrounded by cover'},
+  {name:'Fortress',desc:'Fortified corners with open center'},
+  {name:'Void Ring',desc:'Circular arena with gravity well'},
+  {name:'Nebula Cross',desc:'Cross-shaped corridors through nebula'},
+  {name:'Asteroid Field',desc:'Dense floating debris field'}
+];
+const PLAYERS=[
+  {name:'Captain',type:'you',color:1},
+  {name:'Nova-7',type:'ai',color:2},
+  {name:'Player 3',type:'local',color:3},
+  {name:'Zephyr',type:'online',color:4}
+];
+let state={players:4,host:true,session:'local',mode:'standard',map:0,modalOpen:false};
+
+// Stars
+(function(){const s=document.getElementById('stars');for(let i=0;i<60;i++){const d=document.createElement('div');d.className='star';d.style.left=Math.random()*100+'%';d.style.top=Math.random()*100+'%';d.style.animationDelay=Math.random()*3+'s';d.style.width=d.style.height=(1+Math.random()*1.5)+'px';s.appendChild(d)}})();
+
+function drawMapPreview(canvas,idx,w,h){
+  const ctx=canvas.getContext('2d');
+  canvas.width=w;canvas.height=h;
+  ctx.fillStyle='#0d0d1a';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='rgba(0,229,255,.3)';ctx.lineWidth=1.5;
+  const cx=w/2,cy=h/2;
+  if(idx===0){ctx.strokeRect(w*.15,h*.15,w*.7,h*.7);ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);ctx.stroke()}
+  else if(idx===1){ctx.fillStyle='rgba(0,229,255,.08)';ctx.fillRect(cx-25,cy-25,50,50);ctx.strokeRect(cx-25,cy-25,50,50);for(let i=0;i<4;i++){ctx.strokeRect(w*.1+i*(w*.22),h*.2,20,h*.6)}}
+  else if(idx===2){const s=18;[[w*.12,h*.12],[w*.88-s,h*.12],[w*.12,h*.88-s],[w*.88-s,h*.88-s]].forEach(p=>{ctx.strokeRect(p[0],p[1],s,s)});ctx.strokeRect(cx-30,cy-30,60,60)}
+  else if(idx===3){ctx.beginPath();ctx.arc(cx,cy,Math.min(w,h)*.35,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);ctx.fillStyle='rgba(255,45,155,.3)';ctx.fill()}
+  else if(idx===4){ctx.beginPath();ctx.moveTo(cx,h*.1);ctx.lineTo(cx,h*.9);ctx.moveTo(w*.1,cy);ctx.lineTo(w*.9,cy);ctx.stroke();ctx.fillStyle='rgba(0,255,136,.1)';ctx.fillRect(cx-15,cy-15,30,30)}
+  else{for(let i=0;i<12;i++){ctx.beginPath();ctx.arc(w*.1+Math.random()*w*.8,h*.1+Math.random()*h*.8,3+Math.random()*6,0,Math.PI*2);ctx.stroke()}}
+}
+
+function renderPlayers(){
+  const a=document.getElementById('player-area');a.innerHTML='';
+  for(let i=0;i<4;i++){
+    if(i<state.players){
+      const p=PLAYERS[i];
+      const cls=`badge-${p.type}`;
+      let kickHtml='';
+      if(state.host&&i>0)kickHtml='<button class="kick-btn" title="Remove">✕</button>';
+      let hostHtml='';
+      if(i===0)hostHtml='<div class="host-tag">★ HOST</div>';
+      a.innerHTML+=`<div class="player-card" data-color="${p.color}">
+        ${kickHtml}
+        <div class="ship-container"><div class="ship-placeholder" style="animation-delay:${i*.4}s">🚀</div></div>
+        <div class="player-name">${p.name}</div>
+        <div class="player-badge ${cls}">${p.type.toUpperCase()}</div>
+        ${hostHtml}
+      </div>`;
+    } else {
+      a.innerHTML+=`<div class="player-card empty"><div class="ship-container"><div class="ship-placeholder empty-ship">+</div></div><div class="empty-label">Open Slot</div></div>`;
+    }
+  }
+}
+
+function updateCTA(){
+  const btn=document.getElementById('cta-btn');
+  const dot=document.getElementById('status-dot');
+  const label=document.getElementById('status-label');
+  if(state.players<2){btn.disabled=true;btn.textContent='LAUNCH';dot.className='status-dot red';label.textContent='Need more players'}
+  else if(state.host){btn.disabled=false;btn.textContent='LAUNCH';btn.className='launch-btn';dot.className='status-dot green';label.textContent='Ready to launch'}
+  else{btn.disabled=false;btn.textContent='READY';btn.className='launch-btn ready-btn';dot.className='status-dot yellow';label.textContent='Waiting for host'}
+}
+
+function updateMap(){
+  const m=MAPS[state.map];
+  document.getElementById('current-map-name').textContent=m.name;
+  document.getElementById('current-map-desc').textContent=m.desc;
+  drawMapPreview(document.getElementById('map-preview-canvas'),state.map,180,110);
+}
+
+function buildMapModal(){
+  const g=document.getElementById('maps-grid');g.innerHTML='';
+  MAPS.forEach((m,i)=>{
+    const d=document.createElement('div');
+    d.className='map-card'+(i===state.map?' selected':'');
+    d.innerHTML=`<canvas width="200" height="80"></canvas><div class="map-card-name">${m.name}</div>`;
+    d.onclick=()=>{selectMap(i);toggleModal(false)};
+    g.appendChild(d);
+    drawMapPreview(d.querySelector('canvas'),i,200,80);
+  });
+}
+
+function selectMap(i){state.map=i;updateMap();buildMapModal();document.getElementById('dev-map').value=i}
+function toggleModal(v){state.modalOpen=v;document.getElementById('map-modal').classList.toggle('open',v)}
+
+function setSession(s){
+  state.session=s;
+  document.querySelectorAll('.session-btn').forEach(b=>b.classList.toggle('active',b.dataset.session===s));
+  document.getElementById('room-code').style.display=s==='online'?'flex':'none';
+  document.getElementById('dev-local').classList.toggle('active',s==='local');
+  document.getElementById('dev-online').classList.toggle('active',s==='online');
+}
+
+function setMode(m){
+  state.mode=m;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+  document.getElementById('dev-mode').value=m;
+}
+
+function toggleHost(){state.host=!state.host;document.getElementById('dev-host').classList.toggle('active',state.host);document.getElementById('dev-host').textContent=state.host?'Yes':'No';renderPlayers();updateCTA()}
+
+function setState(){
+  state.players=+document.getElementById('dev-players').value;
+  renderPlayers();updateCTA();
+}
+
+// Mode/Session button clicks
+document.querySelectorAll('.mode-btn').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+document.querySelectorAll('.session-btn').forEach(b=>b.onclick=()=>setSession(b.dataset.session));
+
+// Init map select in toolbar
+const ms=document.getElementById('dev-map');
+MAPS.forEach((m,i)=>{const o=document.createElement('option');o.value=i;o.textContent=m.name;ms.appendChild(o)});
+
+// Scaling
+function rescale(){
+  const s=Math.min(window.innerWidth/1280,(window.innerHeight-48)/720);
+  const w=document.getElementById('scale-wrapper');
+  const ox=(window.innerWidth-1280*s)/2;
+  const oy=((window.innerHeight-48)-720*s)/2;
+  w.style.transform=`translate(${ox}px,${oy}px) scale(${s})`;
+}
+window.addEventListener('resize',rescale);
+
+// Init
+renderPlayers();updateCTA();updateMap();buildMapModal();rescale();
+</script>
+</body>
+</html>

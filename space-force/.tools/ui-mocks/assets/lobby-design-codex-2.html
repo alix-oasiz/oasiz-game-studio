@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
+  <title>Astro Party - Lobby Design Codex V2</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:    #e9eef8;
+      --card:  #ffffff;
+      --text:  #0d1629;
+      --dim:   #64748b;
+      --bdr:   #dde5f0;
+      --blue:  #3b82f6;
+    }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg);
+      font-family: 'Exo 2', sans-serif;
+      color: var(--text);
+      user-select: none; -webkit-user-select: none; touch-action: none;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: radial-gradient(circle, rgba(10,20,60,0.055) 1px, transparent 1px);
+      background-size: 22px 22px;
+      pointer-events: none; z-index: 0;
+    }
+    #stage {
+      position: fixed; top: 0; left: 0;
+      width: 1280px; height: 720px;
+      transform-origin: top left; z-index: 1;
+    }
+    .root { width: 1280px; height: 720px; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* TOPBAR */
+    .topbar {
+      height: 52px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 26px;
+      background: var(--card); border-bottom: 1px solid var(--bdr);
+    }
+    .logo-wm {
+      font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 900;
+      letter-spacing: 0.13em; color: var(--text);
+    }
+    .logo-pip {
+      display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--blue); margin: 0 3px 1px; vertical-align: middle;
+    }
+    .tb-sep { width: 1px; height: 20px; background: var(--bdr); }
+    .tb-spacer { flex: 1; }
+    .sess-seg {
+      display: flex;
+      border: 1.5px solid var(--bdr); border-radius: 7px; overflow: hidden;
+    }
+    .sbtn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700;
+      letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--dim); background: transparent; border: none;
+      border-right: 1px solid var(--bdr);
+      padding: 6px 15px; cursor: pointer; transition: all 0.13s;
+    }
+    .sbtn:last-child { border-right: none; }
+    .sbtn.on { background: var(--text); color: #fff; }
+    .sbtn:not(.on):hover { background: var(--bg); color: var(--text); }
+    .room-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg); border: 1.5px solid var(--bdr); border-radius: 7px; padding: 5px 11px;
+    }
+    .rp-lbl { font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+    .rp-code { font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.17em; color: var(--text); }
+    .rp-copy { background: none; border: none; cursor: pointer; color: var(--dim); display: flex; align-items: center; padding: 1px; transition: color 0.12s; }
+    .rp-copy:hover { color: var(--text); }
+    .rp-copy svg { width: 12px; height: 12px; }
+    .leave-btn {
+      font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: #ef4444; background: rgba(239,68,68,0.07);
+      border: 1.5px solid rgba(239,68,68,0.2); border-radius: 6px;
+      padding: 6px 13px; cursor: pointer; transition: all 0.13s;
+    }
+    .leave-btn:hover { background: rgba(239,68,68,0.13); border-color: rgba(239,68,68,0.38); }
+
+    /* BODY */
+    .body {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; min-height: 0;
+    }
+    .card-row { display: flex; flex-direction: row; align-items: stretch; gap: 14px; }
+
+    /* PLAYER CARD */
+    .pcard {
+      width: 252px; height: 420px;
+      border-radius: 14px; overflow: hidden;
+      display: flex; flex-direction: column; flex-shrink: 0;
+      box-shadow: 0 2px 18px rgba(10,20,60,0.10), 0 1px 4px rgba(10,20,60,0.06);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .pcard--filled { background: var(--card); border: 1.5px solid var(--bdr); }
+    .pcard--filled:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(10,20,60,0.14); }
+    .pcard--empty {
+      background: rgba(255,255,255,0.55); border: 2px dashed var(--bdr);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .pcard--empty:hover { border-color: #93c5fd; background: rgba(219,234,254,0.3); }
+
+    /* colored header */
+    .card-head {
+      height: 230px; flex-shrink: 0;
+      background: var(--pc); position: relative;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .card-head::before {
+      content: ''; position: absolute;
+      width: 150px; height: 150px; border-radius: 50%;
+      background: rgba(255,255,255,0.32); filter: blur(28px);
+      animation: spl 3.5s ease-in-out infinite;
+    }
+    @keyframes spl { 0%,100%{opacity:.65;transform:scale(.9)} 50%{opacity:1;transform:scale(1.1)} }
+    .card-slot {
+      position: absolute; top: 9px; right: 11px;
+      font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.1em; color: rgba(255,255,255,0.52);
+      background: rgba(0,0,0,0.14); border-radius: 4px; padding: 2px 7px; z-index: 2;
+    }
+    .card-tbadge {
+      position: absolute; top: 9px; left: 10px;
+      display: inline-flex; align-items: center; gap: 3px;
+      font-family: 'Orbitron', sans-serif; font-size: 7.5px; font-weight: 700;
+      letter-spacing: 0.09em; text-transform: uppercase;
+      background: rgba(255,255,255,0.28); border: 1px solid rgba(255,255,255,0.44);
+      color: rgba(10,18,44,0.88); padding: 3px 7px; border-radius: 4px; z-index: 2;
+    }
+    .card-tbadge svg { width: 8px; height: 8px; }
+    .ship-wrap { position: relative; z-index: 1; animation: flt 4s ease-in-out infinite; }
+    @keyframes flt { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    .ship-svg { width: 72px; height: 90px; }
+
+    /* white body */
+    .card-body {
+      flex: 1; background: var(--card);
+      padding: 12px 15px 14px; display: flex; flex-direction: column;
+      border-top: 3px solid var(--pc);
+    }
+    .card-name { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+    .card-role { font-size: 10px; color: var(--dim); margin-top: 2px; }
+    .card-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .host-pip {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-family: 'Orbitron', sans-serif; font-size: 7.5px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      background: rgba(245,158,11,0.1); border: 1.5px solid rgba(245,158,11,0.3);
+      color: #b45309; border-radius: 4px; padding: 3px 8px;
+    }
+    .host-pip svg { width: 8px; height: 8px; }
+    .card-act {
+      font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: #ef4444; background: rgba(239,68,68,0.07);
+      border: 1.5px solid rgba(239,68,68,0.2); border-radius: 5px;
+      padding: 4px 10px; cursor: pointer; transition: all 0.12s;
+    }
+    .card-act:hover { background: rgba(239,68,68,0.13); border-color: rgba(239,68,68,0.36); }
+
+    /* empty */
+    .ep { color: #cbd5e1; } .ep svg { width: 32px; height: 32px; }
+    .el { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 0.08em; color: var(--dim); text-transform: uppercase; }
+    .ea { display: flex; gap: 6px; margin-top: 2px; }
+    .eab {
+      font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--dim); background: var(--bg); border: 1.5px solid var(--bdr);
+      border-radius: 5px; padding: 5px 12px; cursor: pointer; transition: all 0.12s;
+    }
+    .eab:hover { color: var(--blue); border-color: #93c5fd; background: rgba(219,234,254,0.4); }
+
+    /* CONTROL STRIP */
+    .ctrl {
+      height: 122px; flex-shrink: 0;
+      display: flex; align-items: stretch;
+      background: var(--card); border-top: 1px solid var(--bdr);
+      box-shadow: 0 -4px 20px rgba(10,20,60,0.07);
+    }
+    .cs-map { display: flex; align-items: center; gap: 14px; padding: 14px 20px 14px 28px; flex: 0 0 358px; }
+    .mbox { border-radius: 7px; overflow: hidden; border: 1.5px solid var(--bdr); flex-shrink: 0; }
+    .mthumb { display: block; width: 136px; height: 88px; }
+    .mmeta { display: flex; flex-direction: column; min-width: 0; }
+    .mslbl { font-family: 'Orbitron', sans-serif; font-size: 7.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin-bottom: 4px; }
+    .mname { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mdesc { font-size: 10px; color: var(--dim); margin-top: 2px; }
+    .mchg {
+      font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--blue); background: rgba(59,130,246,0.07);
+      border: 1.5px solid rgba(59,130,246,0.24); border-radius: 5px;
+      padding: 4px 11px; cursor: pointer; align-self: flex-start; margin-top: 6px; transition: all 0.12s;
+    }
+    .mchg:hover { background: rgba(59,130,246,0.13); border-color: rgba(59,130,246,0.4); }
+    .cvdiv { width: 1px; background: var(--bdr); margin: 16px 0; }
+    .cs-mode { display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 14px 22px; flex: 0 0 200px; }
+    .mode-lbl { font-family: 'Orbitron', sans-serif; font-size: 7.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+    .mode-val { font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.07em; color: var(--text); }
+    .cycle-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--dim); background: var(--bg); border: 1.5px solid var(--bdr);
+      border-radius: 5px; padding: 5px 10px; cursor: pointer; align-self: flex-start; transition: all 0.12s;
+    }
+    .cycle-btn svg { width: 10px; height: 10px; }
+    .cycle-btn:hover { color: var(--text); border-color: #94a3b8; background: var(--card); }
+    .cs-launch { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 14px 28px 14px 20px; }
+    .stat-row { display: flex; align-items: center; gap: 6px; }
+    .sdot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 7px #10b981; animation: blk 2s ease-in-out infinite; }
+    .sdot.w { background: #f59e0b; box-shadow: 0 0 7px #f59e0b; }
+    @keyframes blk { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .stxt { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 0.07em; color: var(--dim); white-space: nowrap; }
+    .lbtn {
+      height: 50px; min-width: 210px;
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 900;
+      letter-spacing: 0.13em; text-transform: uppercase;
+      color: #fff; background: var(--text); border: none; border-radius: 8px; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(10,18,44,0.28);
+      transition: all 0.16s ease; position: relative; overflow: hidden;
+    }
+    .lbtn::after { content: ''; position: absolute; top: 0; left: -110%; width: 75%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent); transition: left 0.4s ease; }
+    .lbtn:hover { background: #1e3a8a; box-shadow: 0 6px 22px rgba(10,18,44,0.38); transform: translateY(-1px); }
+    .lbtn:hover::after { left: 130%; }
+    .lbtn:active { transform: translateY(0); }
+    .lbtn:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
+    .lbtn svg { width: 16px; height: 16px; }
+
+    /* MAP PICKER */
+    .mbg { position: absolute; inset: 0; background: rgba(10,20,60,0.42); backdrop-filter: blur(5px); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .mbg.open { opacity: 1; pointer-events: all; }
+    .mmod {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(.95);
+      width: 760px; background: var(--card); border: 1.5px solid var(--bdr);
+      border-radius: 16px; padding: 24px; z-index: 51;
+      opacity: 0; pointer-events: none; transition: all .2s ease;
+      box-shadow: 0 20px 60px rgba(10,20,60,0.18);
+    }
+    .mmod.open { opacity: 1; pointer-events: all; transform: translate(-50%,-50%) scale(1); }
+    .mh { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .mt { font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.09em; color: var(--text); }
+    .mc { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: var(--bg); border: 1.5px solid var(--bdr); border-radius: 7px; cursor: pointer; color: var(--dim); transition: all .12s; }
+    .mc:hover { color: var(--text); border-color: #94a3b8; }
+    .mc svg { width: 14px; height: 14px; }
+    .mgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+    .mpc { border-radius: 9px; overflow: hidden; border: 2px solid var(--bdr); cursor: pointer; background: var(--bg); transition: all .13s; text-align: left; }
+    .mpc:hover { border-color: #93c5fd; }
+    .mpc.sel { border-color: var(--blue); box-shadow: 0 0 14px rgba(59,130,246,0.18); }
+    .mpc canvas { display: block; width: 100%; height: 100px; }
+    .mpci { padding: 7px 9px 9px; }
+    .mpcn { font-family: 'Orbitron', sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; color: var(--text); }
+    .mpcd { font-size: 8.5px; color: var(--dim); margin-top: 2px; }
+
+    /* DEMO BAR */
+    .dbar { position: fixed; bottom: 11px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; align-items: center; background: rgba(10,18,44,0.92); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 13px; z-index: 200; backdrop-filter: blur(12px); }
+    .dlbl { font-family: 'Orbitron', sans-serif; font-size: 7px; font-weight: 700; letter-spacing: 0.12em; color: rgba(255,255,255,0.3); text-transform: uppercase; }
+    .ds { width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 2px; }
+    .db { font-family: 'Exo 2', sans-serif; font-size: 10px; font-weight: 600; color: rgba(180,195,230,0.55); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 4px 10px; cursor: pointer; transition: all .12s; white-space: nowrap; }
+    .db:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .db.on { color: #93c5fd; background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.3); }
+  </style>
+</head>
+<body>
+<div id="stage">
+  <div class="root">
+    <div class="topbar">
+      <div class="logo-wm">ASTRO<span class="logo-pip"></span>PARTY</div>
+      <div class="tb-sep"></div>
+      <div class="tb-spacer"></div>
+      <div class="sess-seg">
+        <button class="sbtn" id="sgl" onclick="setSess('local')">Local</button>
+        <button class="sbtn on" id="sgo" onclick="setSess('online')">Online</button>
+      </div>
+      <div class="room-pill" id="rpill">
+        <span class="rp-lbl">Room</span>
+        <span class="rp-code">KXZQ</span>
+        <button class="rp-copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+      </div>
+      <button class="leave-btn">Leave</button>
+    </div>
+
+    <div class="body"><div class="card-row" id="cards"></div></div>
+
+    <div class="ctrl">
+      <div class="cs-map">
+        <div class="mbox"><canvas class="mthumb" id="mthumb" width="136" height="88"></canvas></div>
+        <div class="mmeta">
+          <div class="mslbl">Arena</div>
+          <div class="mname" id="mname">Classic Rotation</div>
+          <div class="mdesc" id="mdesc">Random map each round</div>
+          <button class="mchg" onclick="openP()">Change Arena</button>
+        </div>
+      </div>
+      <div class="cvdiv"></div>
+      <div class="cs-mode">
+        <div class="mode-lbl">Game Mode</div>
+        <div class="mode-val" id="mval">Standard</div>
+        <button class="cycle-btn" onclick="cycleM()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Cycle
+        </button>
+      </div>
+      <div class="cvdiv"></div>
+      <div class="cs-launch">
+        <div class="stat-row"><div class="sdot" id="sdot"></div><div class="stxt" id="stxt">Ready</div></div>
+        <button class="lbtn" id="lbtn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>Launch
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mbg" id="mbg" onclick="closeP()"></div>
+  <div class="mmod" id="mmod">
+    <div class="mh">
+      <div class="mt">Select Arena</div>
+      <button class="mc" onclick="closeP()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="mgrid" id="mgrid"></div>
+  </div>
+</div>
+
+<div class="dbar">
+  <span class="dlbl">Demo</span><div class="ds"></div>
+  <button class="db on" id="d4" onclick="setCnt(4)">4P</button>
+  <button class="db"    id="d3" onclick="setCnt(3)">3P</button>
+  <button class="db"    id="d2" onclick="setCnt(2)">2P</button>
+  <button class="db"    id="d1" onclick="setCnt(1)">1P</button>
+  <div class="ds"></div>
+  <button class="db on" id="dh" onclick="togHost()">Host</button>
+  <div class="ds"></div>
+  <button class="db"    id="dl" onclick="setSess('local')">Local</button>
+  <button class="db on" id="dol" onclick="setSess('online')">Online</button>
+  <div class="ds"></div>
+  <button class="db" id="dmap" onclick="quickMap()">Map +</button>
+  <button class="db" id="dmode" onclick="quickMode()">Mode +</button>
+</div>
+
+<script>
+const COLORS = ['#00e5ff','#ff2d9b','#ffe500','#00ff88'];
+const NAMES  = ['YOU','NovaBotX','StarChaser','CosmoRacer'];
+const MODES  = ['Standard','Sane','Chaotic'];
+const SLOTS  = ['P1','P2','P3','P4'];
+const MAPS   = [
+  {n:'Classic Rotation', d:'Random arena each round',     f:mRot},
+  {n:'The Cache',        d:'Corner blocks, center powerup',f:mCache},
+  {n:'Fortress',         d:'Fortified corners, open center',f:mFort},
+  {n:'Void Ring',        d:'Central singularity hazard',  f:mVoid},
+  {n:'Nebula Cross',     d:'Four-way corridors with walls',f:mCross},
+  {n:'Asteroid Field',   d:'Dense debris, dynamic paths', f:mAst},
+];
+const st = {sess:'online', isHost:true, cnt:3, map:0, mode:0};
+const types = () => st.sess==='online' ? ['you','ai','online','ai'] : ['you','ai','local','ai'];
+
+const BICO = {
+  you:   '<svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>',
+  ai:    '<svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/></svg>',
+  local: '<svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8"><path d="M7 9h10a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4h-1.2l-2-2H10.2l-2 2H7a4 4 0 0 1-4-4v-2a4 4 0 0 1 4-4zm1 2v2h2v-2H8zm6 0v2h2v-2h-2z"/></svg>',
+  online:'<svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8"><path d="M1 6l10.5 7L22 6M2 4h20a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg>',
+};
+const BLBL = {you:'YOU',ai:'AI BOT',local:'LOCAL',online:'ONLINE'};
+const ROLE = {you:'Room Leader',ai:'AI Opponent',local:'Local Player',online:'Remote Player'};
+
+function shipSVG() {
+  const c = 'rgba(8,14,36,0.8)';
+  return `<svg class="ship-svg" viewBox="0 0 72 90" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="36" cy="86" rx="11" ry="4.5" fill="${c}" opacity="0.16"/>
+    <path d="M28 54 L4 72 L16 68 L26 58 Z" fill="${c}" opacity="0.5"/>
+    <path d="M44 54 L68 72 L56 68 L46 58 Z" fill="${c}" opacity="0.5"/>
+    <path d="M36 6 L50 46 L50 72 L36 82 L22 72 L22 46 Z" fill="${c}"/>
+    <path d="M36 6 L42 30 L36 26 L30 30 Z" fill="rgba(255,255,255,0.3)"/>
+    <ellipse cx="36" cy="36" rx="9" ry="13" fill="rgba(255,255,255,0.1)"/>
+    <ellipse cx="36" cy="35" rx="5" ry="8" fill="rgba(255,255,255,0.18)"/>
+    <rect x="24" y="60" width="9" height="17" rx="4.5" fill="${c}" opacity="0.7"/>
+    <rect x="39" y="60" width="9" height="17" rx="4.5" fill="${c}" opacity="0.7"/>
+    <ellipse cx="28.5" cy="77" rx="4" ry="2" fill="rgba(255,255,255,0.4)"/>
+    <ellipse cx="43.5" cy="77" rx="4" ry="2" fill="rgba(255,255,255,0.4)"/>
+  </svg>`;
+}
+
+function filledCard(i) {
+  const c = COLORS[i], t = types()[i]||'online';
+  const ih = st.isHost && i===0, ca = st.isHost && i!==0;
+  return `<div class="pcard pcard--filled" style="--pc:${c}">
+    <div class="card-head">
+      <div class="card-slot">${SLOTS[i]}</div>
+      <div class="card-tbadge">${BICO[t]}${BLBL[t]}</div>
+      <div class="ship-wrap">${shipSVG()}</div>
+    </div>
+    <div class="card-body">
+      <div class="card-name">${NAMES[i]}</div>
+      <div class="card-role">${ROLE[t]}</div>
+      <div class="card-foot">
+        ${ih?'<span class="host-pip"><svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8"><path d="M5 19h14l1-9-4.5 3.5L12 6 8.5 13.5 4 10l1 9z"/></svg>Host</span>':'<span></span>'}
+        ${ca?`<button class="card-act">${t==='ai'||t==='local'?'Remove':'Kick'}</button>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function emptyCard(i) {
+  const can = st.isHost, loc = st.sess==='local';
+  return `<div class="pcard pcard--empty">
+    <div class="ep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+    <div class="el">${SLOTS[i]} — Empty</div>
+    <div class="ea">
+      <button class="eab" ${can?'':'disabled'}>+ Add AI</button>
+      ${loc?`<button class="eab" ${can?'':'disabled'}>+ Local</button>`:''}
+    </div>
+  </div>`;
+}
+
+/* map draw — light palette */
+function ca(ctx,w,h){ctx.fillStyle='#f0f5fa';ctx.fillRect(0,0,w,h);ctx.strokeStyle='rgba(0,0,0,0.04)';ctx.lineWidth=1;const s=Math.min(w,h)/6;for(let x=s;x<w;x+=s){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}for(let y=s;y<h;y+=s){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}ctx.strokeStyle='rgba(59,130,246,0.2)';ctx.lineWidth=1;ctx.strokeRect(1.5,1.5,w-3,h-3);}
+function mRot(ctx,w,h){ca(ctx,w,h);const cx=w/2,cy=h/2,r=Math.min(w,h)*.3;ctx.strokeStyle='rgba(59,130,246,0.28)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(cx,cy,r*.5,0,Math.PI*2);ctx.stroke();for(let i=0;i<8;i++){const a=i/8*Math.PI*2;ctx.fillStyle=`rgba(59,130,246,${.16+i*.04})`;ctx.beginPath();ctx.arc(cx+Math.cos(a)*r,cy+Math.sin(a)*r,2,0,Math.PI*2);ctx.fill();}ctx.fillStyle='rgba(59,130,246,0.16)';ctx.font=`bold ${Math.min(w,h)*.2}px Orbitron,monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('?',cx,cy+2);}
+function mCache(ctx,w,h){ca(ctx,w,h);ctx.fillStyle='rgba(234,179,8,0.55)';const bw=w*.13,bh=h*.19;[[.08,.12],[.79,.12],[.08,.69],[.79,.69]].forEach(([x,y])=>ctx.fillRect(x*w,y*h,bw,bh));ctx.fillRect(w*.36,h*.08,w*.28,h*.1);ctx.fillRect(w*.36,h*.82,w*.28,h*.1);const s=Math.min(w,h)*.065,cx=w/2,cy=h/2;ctx.strokeStyle='rgba(219,39,119,0.5)';ctx.lineWidth=1.5;ctx.strokeRect(cx-s,cy-s,s*2,s*2);ctx.fillStyle='rgba(219,39,119,0.35)';ctx.beginPath();ctx.arc(cx,cy,s*.5,0,Math.PI*2);ctx.fill();}
+function mFort(ctx,w,h){ca(ctx,w,h);ctx.fillStyle='rgba(59,130,246,0.22)';const fw=w*.15,fh=h*.22;[[.04,.04],[.81,.04],[.04,.74],[.81,.74]].forEach(([x,y])=>ctx.fillRect(x*w,y*h,fw,fh));ctx.fillStyle='rgba(59,130,246,0.09)';const pw=w*.22,ph=h*.22;ctx.fillRect(w/2-pw/2,h/2-ph/2,pw,ph);ctx.strokeStyle='rgba(59,130,246,0.2)';ctx.lineWidth=1;ctx.strokeRect(w/2-pw/2,h/2-ph/2,pw,ph);}
+function mVoid(ctx,w,h){ca(ctx,w,h);const cx=w/2,cy=h/2,r=Math.min(w,h)*.19;const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r*1.4);g.addColorStop(0,'rgba(0,0,0,0.5)');g.addColorStop(.55,'rgba(80,0,140,0.25)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r*1.6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(168,85,247,0.45)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();}
+function mCross(ctx,w,h){ca(ctx,w,h);ctx.fillStyle='rgba(239,68,68,0.14)';ctx.fillRect(0,h*.36,w,h*.28);ctx.fillRect(w*.4,0,w*.2,h);ctx.fillStyle='rgba(249,115,22,0.22)';[[0,0,.12,.36],[.88,0,.12,.36],[0,.64,.12,.36],[.88,.64,.12,.36]].forEach(([x,y,ww,hh])=>ctx.fillRect(x*w,y*h,ww*w,hh*h));}
+function mAst(ctx,w,h){ca(ctx,w,h);ctx.fillStyle='rgba(120,100,80,0.48)';[{x:.15,y:.2,r:.065},{x:.8,y:.28,r:.055},{x:.28,y:.72,r:.075},{x:.68,y:.76,r:.06},{x:.5,y:.22,r:.045},{x:.18,y:.52,r:.05},{x:.76,y:.52,r:.065}].forEach(a=>{ctx.beginPath();ctx.arc(a.x*w,a.y*h,Math.min(w,h)*a.r,0,Math.PI*2);ctx.fill();});}
+
+/* render */
+function renderCards(){document.getElementById('cards').innerHTML=Array.from({length:4},(_,i)=>i<st.cnt?filledCard(i):emptyCard(i)).join('');}
+function renderMap(){const c=document.getElementById('mthumb');c.width=136;c.height=88;MAPS[st.map].f(c.getContext('2d'),136,88);document.getElementById('mname').textContent=MAPS[st.map].n;document.getElementById('mdesc').textContent=MAPS[st.map].d;}
+function renderMode(){document.getElementById('mval').textContent=MODES[st.mode];}
+function renderStatus(){const d=document.getElementById('sdot'),t=document.getElementById('stxt'),b=document.getElementById('lbtn');if(st.cnt>=2){d.className='sdot';t.textContent=st.isHost?'Ready':'Waiting';b.disabled=false;}else{d.className='sdot w';t.textContent='Need more players';b.disabled=true;}b.innerHTML=st.isHost?'<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><polygon points=\"5,3 19,12 5,21\"/></svg>Launch':'<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><polygon points=\"5,3 19,12 5,21\"/></svg>Ready';}
+function renderTopbar(){document.getElementById('sgl').classList.toggle('on',st.sess==='local');document.getElementById('sgo').classList.toggle('on',st.sess==='online');document.getElementById('rpill').style.display=st.sess==='online'?'flex':'none';}
+function render(){renderCards();renderMap();renderMode();renderStatus();renderTopbar();}
+
+/* picker */
+function openP(){buildG();document.getElementById('mbg').classList.add('open');document.getElementById('mmod').classList.add('open');}
+function closeP(){document.getElementById('mbg').classList.remove('open');document.getElementById('mmod').classList.remove('open');}
+function buildG(){const g=document.getElementById('mgrid');if(g.children.length){g.querySelectorAll('.mpc').forEach((c,i)=>c.classList.toggle('sel',i===st.map));return;}g.innerHTML=MAPS.map((m,i)=>`<button class="mpc${i===st.map?' sel':''}" onclick="pickMap(${i})"><canvas id="pg${i}" width="220" height="100"></canvas><div class="mpci"><div class="mpcn">${m.n}</div><div class="mpcd">${m.d}</div></div></button>`).join('');MAPS.forEach((m,i)=>{const c=document.getElementById('pg'+i);m.f(c.getContext('2d'),220,100);});}
+function pickMap(i){st.map=i;renderMap();document.getElementById('mgrid').querySelectorAll('.mpc').forEach((c,j)=>c.classList.toggle('sel',j===i));closeP();}
+
+/* interactions */
+function cycleM(){st.mode=(st.mode+1)%MODES.length;renderMode();}
+function togHost(){st.isHost=!st.isHost;document.getElementById('dh').classList.toggle('on',st.isHost);render();}
+function setCnt(n){st.cnt=n;['d4','d3','d2','d1'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('d'+n).classList.add('on');render();}
+function setSess(s){st.sess=s;document.getElementById('dl').classList.toggle('on',s==='local');document.getElementById('dol').classList.toggle('on',s==='online');render();}
+function quickMap(){st.map=(st.map+1)%MAPS.length;renderMap();const g=document.getElementById('mgrid');if(g.children.length){g.querySelectorAll('.mpc').forEach((c,i)=>c.classList.toggle('sel',i===st.map));}}
+function quickMode(){st.mode=(st.mode+1)%MODES.length;renderMode();}
+
+/* scale */
+function rescale(){const e=document.getElementById('stage');const s=Math.min(window.innerWidth/1280,window.innerHeight/720);const ox=(window.innerWidth-1280*s)/2,oy=(window.innerHeight-720*s)/2;e.style.transform=`translate(${ox}px,${oy}px) scale(${s})`;}
+window.addEventListener('resize',rescale);rescale();render();
+</script>
+</body>
+</html>
+
+

@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Astro Party - Lobby</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --c-cyan: #00e5ff;
+    --c-pink: #ff2d9b;
+    --c-yellow: #ffe500;
+    --c-green: #00ff88;
+    --bg-dark: #0b0c10;
+    --bg-panel: #14161f;
+    --border-color: #2a2e3f;
+    --text-main: #e0e6ed;
+    --text-muted: #8492a6;
+    
+    --font-heading: 'Orbitron', sans-serif;
+    --font-body: 'Exo 2', sans-serif;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #000;
+    color: var(--text-main);
+    font-family: var(--font-body);
+    overflow: hidden;
+    /* Apple landscape fixes */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Fixed Canvas */
+  #canvas-container {
+    position: absolute;
+    width: 1280px;
+    height: 720px;
+    background: radial-gradient(circle at center, #121520 0%, var(--bg-dark) 100%);
+    transform-origin: top left;
+    box-sizing: border-box;
+    /* Removed the debugging border for final polish */
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 50px rgba(0,0,0,0.8);
+  }
+
+  /* Dev Toolbar */
+  #dev-toolbar {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0,0,0,0.8);
+    border: 1px solid var(--border-color);
+    padding: 16px;
+    border-radius: 8px;
+    z-index: 9999;
+    font-family: monospace;
+    font-size: 12px;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 250px;
+  }
+  #dev-toolbar select, #dev-toolbar input, #dev-toolbar button {
+    background: var(--bg-panel);
+    color: white;
+    border: 1px solid var(--border-color);
+    padding: 4px;
+    font-family: inherit;
+    font-size: 12px;
+  }
+  #dev-toolbar label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Utilities */
+  .heading { font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 1px; }
+  .btn {
+    background: var(--bg-panel);
+    border: 2px solid var(--border-color);
+    color: var(--text-main);
+    font-family: var(--font-heading);
+    padding: 12px 24px;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-size: 16px;
+    font-weight: 700;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn:hover:not(:disabled) {
+    border-color: var(--c-cyan);
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+    color: #fff;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn.primary {
+    background: var(--c-cyan);
+    color: #000;
+    border-color: var(--c-cyan);
+  }
+  .btn.primary:hover:not(:disabled) {
+    background: #fff;
+    border-color: #fff;
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.6);
+    color: #000;
+  }
+
+  /* Layout Segments */
+  .top-bar {
+    height: 80px;
+    padding: 0 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--border-color);
+    background: rgba(20, 22, 31, 0.5);
+  }
+
+  .room-title {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--c-yellow);
+    text-shadow: 0 0 10px rgba(255, 229, 0, 0.3);
+  }
+
+  .room-code-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .room-code-pill {
+    background: rgba(0,0,0,0.5);
+    border: 2px solid var(--c-pink);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-family: monospace;
+    font-size: 20px;
+    color: var(--c-pink);
+    letter-spacing: 2px;
+    box-shadow: 0 0 10px rgba(255, 45, 155, 0.2);
+    display: none;
+  }
+
+  .btn-leave {
+    border-color: #f04747;
+    color: #f04747;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  .btn-leave:hover {
+    background: #f04747;
+    color: #000;
+    box-shadow: 0 0 15px rgba(240, 71, 71, 0.4);
+  }
+
+  .center-section {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    padding: 40px;
+  }
+
+  .player-card {
+    width: 260px;
+    height: 380px;
+    background: var(--bg-panel);
+    border: 3px solid var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+  .player-card.active {
+    box-shadow: inset 0 0 40px rgba(255,255,255,0.05);
+  }
+
+  /* Player Colors */
+  .player-card[data-slot="1"] { border-color: var(--c-cyan); }
+  .player-card[data-slot="1"] .ship-art { filter: drop-shadow(0 0 15px rgba(0, 229, 255, 0.4)); }
+  .player-card[data-slot="1"] .player-name { color: var(--c-cyan); }
+
+  .player-card[data-slot="2"] { border-color: var(--c-pink); }
+  .player-card[data-slot="2"] .ship-art { filter: drop-shadow(0 0 15px rgba(255, 45, 155, 0.4)); }
+  .player-card[data-slot="2"] .player-name { color: var(--c-pink); }
+
+  .player-card[data-slot="3"] { border-color: var(--c-yellow); }
+  .player-card[data-slot="3"] .ship-art { filter: drop-shadow(0 0 15px rgba(255, 229, 0, 0.4)); }
+  .player-card[data-slot="3"] .player-name { color: var(--c-yellow); }
+
+  .player-card[data-slot="4"] { border-color: var(--c-green); }
+  .player-card[data-slot="4"] .ship-art { filter: drop-shadow(0 0 15px rgba(0, 255, 136, 0.4)); }
+  .player-card[data-slot="4"] .player-name { color: var(--c-green); }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px;
+  }
+  .badge {
+    background: rgba(255,255,255,0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .host-indicator {
+    color: var(--c-yellow);
+    font-size: 16px;
+    display: none;
+  }
+
+  .ship-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+  }
+  .ship-art {
+    width: 120px;
+    height: 120px;
+    background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="50,10 90,90 50,70 10,90" fill="white" stroke="black" stroke-width="4"/></svg>') no-repeat center center;
+    background-size: contain;
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+  }
+
+  .card-bottom {
+    padding: 16px;
+    text-align: center;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .player-name {
+    font-size: 22px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .btn-kick {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 4px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: all 0.2s ease;
+  }
+  .btn-kick:hover {
+    border-color: var(--c-pink);
+    color: var(--c-pink);
+  }
+
+  /* Empty Slot State */
+  .player-card.empty {
+    border-color: var(--border-color) !important;
+    border-style: dashed;
+    background: rgba(0,0,0,0.3);
+  }
+  .player-card.empty .ship-art { display: none; }
+  .player-card.empty .player-name { display: none; }
+  .player-card.empty .btn-kick { display: none; }
+  .player-card.empty .badge { display: none; }
+  .empty-text {
+    display: none;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-muted);
+    font-size: 18px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 700;
+  }
+  .player-card.empty .empty-text { display: block; }
+
+  /* Bottom Section */
+  .bottom-section {
+    height: 140px;
+    padding: 0 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 2px solid var(--border-color);
+    background: rgba(20, 22, 31, 0.8);
+  }
+
+  .map-selector {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .map-preview {
+    width: 160px;
+    height: 90px;
+    background: #000;
+    border: 2px solid var(--text-muted);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .map-preview canvas {
+    width: 100%; height: 100%;
+  }
+  .map-info h3 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    color: #fff;
+  }
+  .map-info p {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--text-muted);
+    max-width: 250px;
+  }
+  .btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .session-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+  .mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mode-label {
+    color: var(--text-muted);
+    font-size: 14px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .mode-value {
+    color: var(--c-cyan);
+    font-size: 18px;
+    font-weight: 700;
+    width: 120px;
+    text-align: center;
+  }
+
+  .launch-area {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .btn-launch {
+    padding: 16px 48px;
+    font-size: 24px;
+  }
+  .status-text {
+    font-size: 14px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--c-green);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--c-green);
+    animation: pulse 1.5s infinite;
+  }
+  .status-dot.waiting {
+    background: var(--c-yellow);
+    box-shadow: 0 0 8px var(--c-yellow);
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(4px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .modal-overlay.open {
+    display: flex;
+    opacity: 1;
+  }
+  .map-modal {
+    background: var(--bg-panel);
+    border: 2px solid var(--c-cyan);
+    padding: 32px;
+    border-radius: 8px;
+    box-shadow: 0 0 40px rgba(0, 229, 255, 0.2);
+    width: 800px;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .map-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .map-option {
+    background: #000;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .map-option:hover {
+    border-color: var(--c-cyan);
+    transform: translateY(-4px);
+  }
+  .map-option.selected {
+    border-color: var(--c-cyan);
+    box-shadow: 0 0 15px rgba(0,229,255,0.3);
+  }
+  .map-opt-preview {
+    height: 100px;
+    background: #111;
+    position: relative;
+  }
+  .map-opt-preview canvas {
+    width: 100%; height: 100%;
+  }
+  .map-option p {
+    text-align: center;
+    padding: 12px;
+    margin: 0;
+    font-weight: 700;
+  }
+
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+  
+  <div class="top-bar">
+    <div class="heading room-title">ASTRO PARTY</div>
+    <div class="room-code-wrapper" id="room-code-section">
+      <div class="room-code-pill" id="room-code-pill">XY7-QW9</div>
+      <button class="btn btn-small" id="btn-copy" style="display: none;">COPY</button>
+    </div>
+    <button class="btn btn-leave">LEAVE</button>
+  </div>
+
+  <div class="center-section">
+    <!-- Slot 1 -->
+    <div class="player-card active" data-slot="1" id="slot-1">
+      <div class="card-top">
+        <span class="badge" id="badge-1">YOU</span>
+        <span class="host-indicator heading" id="host-icon-1">★ HOST</span>
+      </div>
+      <div class="ship-container">
+        <div class="ship-art" style="background-color: var(--c-cyan); -webkit-mask: url('data:image/svg+xml;utf8,<svg viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'><polygon points=\'50,10 90,90 50,70 10,90\'/></svg>') no-repeat center; -webkit-mask-size: contain; background-image: none;"></div>
+      </div>
+      <div class="empty-text">OPEN SLOT</div>
+      <div class="card-bottom">
+        <div class="heading player-name" id="name-1">Player 1</div>
+        <button class="btn-kick" style="visibility: hidden;">KICK</button>
+      </div>
+    </div>
+    
+    <!-- Slot 2 -->
+    <div class="player-card empty" data-slot="2" id="slot-2">
+      <div class="card-top">
+        <span class="badge" id="badge-2">AI BOT</span>
+      </div>
+      <div class="ship-container">
+        <div class="ship-art" style="background-color: var(--c-pink); -webkit-mask: url('data:image/svg+xml;utf8,<svg viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'><polygon points=\'50,10 90,90 50,70 10,90\'/></svg>') no-repeat center; -webkit-mask-size: contain; background-image: none;"></div>
+      </div>
+      <div class="empty-text">OPEN SLOT</div>
+      <div class="card-bottom">
+        <div class="heading player-name" id="name-2">Player 2</div>
+        <button class="btn-kick">KICK</button>
+      </div>
+    </div>
+    
+    <!-- Slot 3 -->
+    <div class="player-card empty" data-slot="3" id="slot-3">
+      <div class="card-top">
+        <span class="badge" id="badge-3">LOCAL</span>
+      </div>
+      <div class="ship-container">
+        <div class="ship-art" style="background-color: var(--c-yellow); -webkit-mask: url('data:image/svg+xml;utf8,<svg viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'><polygon points=\'50,10 90,90 50,70 10,90\'/></svg>') no-repeat center; -webkit-mask-size: contain; background-image: none;"></div>
+      </div>
+      <div class="empty-text">OPEN SLOT</div>
+      <div class="card-bottom">
+        <div class="heading player-name" id="name-3">Player 3</div>
+        <button class="btn-kick">KICK</button>
+      </div>
+    </div>
+    
+    <!-- Slot 4 -->
+    <div class="player-card empty" data-slot="4" id="slot-4">
+      <div class="card-top">
+        <span class="badge" id="badge-4">ONLINE</span>
+      </div>
+      <div class="ship-container">
+        <div class="ship-art" style="background-color: var(--c-green); -webkit-mask: url('data:image/svg+xml;utf8,<svg viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'><polygon points=\'50,10 90,90 50,70 10,90\'/></svg>') no-repeat center; -webkit-mask-size: contain; background-image: none;"></div>
+      </div>
+      <div class="empty-text">OPEN SLOT</div>
+      <div class="card-bottom">
+        <div class="heading player-name" id="name-4">Player 4</div>
+        <button class="btn-kick">KICK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-section">
+    <div class="map-selector">
+      <div class="map-preview">
+        <canvas id="main-map-canvas"></canvas>
+      </div>
+      <div class="map-info">
+        <h3 class="heading" id="current-map-name">Classic Rotation</h3>
+        <p id="current-map-desc">The standard arena. Balanced and symmetrical.</p>
+        <button class="btn btn-small" id="btn-change-map">CHANGE ARENA</button>
+      </div>
+    </div>
+
+    <div class="session-controls">
+      <div class="mode-toggle">
+        <span class="mode-label">Session:</span>
+        <button class="btn btn-small" id="btn-toggle-session">LOCAL</button>
+      </div>
+      <div class="mode-toggle">
+        <button class="btn btn-small" id="btn-prev-mode">◀</button>
+        <div class="heading mode-value" id="mode-display">STANDARD</div>
+        <button class="btn btn-small" id="btn-next-mode">▶</button>
+      </div>
+    </div>
+
+    <div class="launch-area">
+      <button class="btn primary btn-launch" id="btn-launch" disabled>LAUNCH</button>
+      <div class="status-text">
+        <div class="status-dot waiting" id="status-indicator"></div>
+        <span id="status-label">NEED MORE PLAYERS</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Modal -->
+  <div class="modal-overlay" id="map-modal">
+    <div class="map-modal">
+      <div class="modal-header">
+        <h2 class="heading" style="margin:0; font-size: 28px;">SELECT ARENA</h2>
+        <button class="btn btn-small" id="btn-close-map">CLOSE</button>
+      </div>
+      <div class="map-grid">
+        <div class="map-option selected" data-map="0">
+          <div class="map-opt-preview"><canvas id="mc-0"></canvas></div>
+          <p class="heading">Classic Rotation</p>
+        </div>
+        <div class="map-option" data-map="1">
+          <div class="map-opt-preview"><canvas id="mc-1"></canvas></div>
+          <p class="heading">The Cache</p>
+        </div>
+        <div class="map-option" data-map="2">
+          <div class="map-opt-preview"><canvas id="mc-2"></canvas></div>
+          <p class="heading">Fortress</p>
+        </div>
+        <div class="map-option" data-map="3">
+          <div class="map-opt-preview"><canvas id="mc-3"></canvas></div>
+          <p class="heading">Void Ring</p>
+        </div>
+        <div class="map-option" data-map="4">
+          <div class="map-opt-preview"><canvas id="mc-4"></canvas></div>
+          <p class="heading">Nebula Cross</p>
+        </div>
+        <div class="map-option" data-map="5">
+          <div class="map-opt-preview"><canvas id="mc-5"></canvas></div>
+          <p class="heading">Asteroid Field</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Interactive Dev Toolbar -->
+<div id="dev-toolbar">
+  <strong>DEV TOOLBAR</strong>
+  <label>Player Count
+    <input type="range" id="dev-players" min="1" max="4" value="1">
+    <span id="dev-players-val">1</span>
+  </label>
+  <label>Is Host
+    <input type="checkbox" id="dev-host" checked>
+  </label>
+  <label>Session
+    <select id="dev-session">
+      <option value="local">Local</option>
+      <option value="online">Online</option>
+    </select>
+  </label>
+</div>
+
+<script>
+  // Scaling Logic
+  function resize() {
+    const canvas = document.getElementById('canvas-container');
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    canvas.style.transform = `scale(${scale})`;
+    
+    // Center it
+    const scaledWidth = 1280 * scale;
+    const scaledHeight = 720 * scale;
+    const left = (window.innerWidth - scaledWidth) / 2;
+    const top = (window.innerHeight - scaledHeight) / 2;
+    canvas.style.left = `${left}px`;
+    canvas.style.top = `${top}px`;
+  }
+  
+  window.addEventListener('resize', resize);
+  resize();
+
+  // State
+  const state = {
+    players: 1,
+    isHost: true,
+    session: 'local',
+    modeIdx: 0,
+    mapIdx: 0
+  };
+
+  const modes = ["STANDARD", "SANE", "CHAOTIC"];
+  const maps = [
+    { name: "Classic Rotation", desc: "The standard arena. Balanced and symmetrical." },
+    { name: "The Cache", desc: "High resource density in the center." },
+    { name: "Fortress", desc: "Tight corridors and defensive structures." },
+    { name: "Void Ring", desc: "A hazardous center with no escape." },
+    { name: "Nebula Cross", desc: "Four quadrants split by nebula clouds." },
+    { name: "Asteroid Field", desc: "Constantly moving cover and chaos." }
+  ];
+
+  // Draw simple geometric maps
+  function drawMap(canvasId, type) {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    const p = c.parentElement;
+    // ensure canvas resizes to parent
+    c.width = p.clientWidth;
+    c.height = p.clientHeight;
+    
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0,0,c.width, c.height);
+    
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2;
+    const w = c.width; const h = c.height;
+
+    if (type === 0) { // Classic
+      ctx.strokeRect(w*0.2, h*0.2, w*0.6, h*0.6);
+      ctx.beginPath(); ctx.arc(w/2, h/2, h*0.15, 0, Math.PI*2); ctx.stroke();
+    } else if (type === 1) { // Cache
+      ctx.fillStyle = '#ff2d9b';
+      ctx.fillRect(w*0.4, h*0.4, w*0.2, h*0.2);
+    } else if (type === 2) { // Fortress
+      ctx.strokeRect(10,10, w*0.2, h-20);
+      ctx.strokeRect(w-w*0.2-10, 10, w*0.2, h-20);
+    } else if (type === 3) { // Void Ring
+      ctx.beginPath(); ctx.arc(w/2, h/2, h*0.4, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#0b0c10'; ctx.fill();
+    } else if (type === 4) { // Nebula Cross
+      ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+    } else if (type === 5) { // Asteroids
+      for(let i=0; i<15; i++){
+        ctx.beginPath();
+        ctx.arc(Math.random()*w, Math.random()*h, Math.random()*8+2, 0, Math.PI*2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function updateMaps() {
+    drawMap('main-map-canvas', state.mapIdx);
+    for(let i=0; i<6; i++) {
+      drawMap(`mc-${i}`, i);
+    }
+  }
+
+  // Update UI
+  function updateUI() {
+    // Players
+    for (let i = 1; i <= 4; i++) {
+      const card = document.getElementById(`slot-${i}`);
+      const btnKick = card.querySelector('.btn-kick');
+      
+      if (i <= state.players) {
+        card.classList.remove('empty');
+        card.classList.add('active');
+        if (i !== 1) {
+          btnKick.style.display = state.isHost ? 'inline-block' : 'none';
+        }
+      } else {
+        card.classList.add('empty');
+        card.classList.remove('active');
+      }
+    }
+
+    // Host
+    document.getElementById('host-icon-1').style.display = state.isHost ? 'inline' : 'none';
+    
+    // Session
+    const roomCodeSection = document.getElementById('room-code-section');
+    const roomCodePill = document.getElementById('room-code-pill');
+    const btnCopy = document.getElementById('btn-copy');
+    
+    if (state.session === 'online') {
+      roomCodePill.style.display = 'block';
+      btnCopy.style.display = 'block';
+    } else {
+      roomCodePill.style.display = 'none';
+      btnCopy.style.display = 'none';
+    }
+
+    // Button state
+    const btnLaunch = document.getElementById('btn-launch');
+    const statusDot = document.getElementById('status-indicator');
+    const statusLabel = document.getElementById('status-label');
+
+    btnLaunch.textContent = state.isHost ? 'LAUNCH' : 'READY';
+
+    if (state.players < 2) {
+      btnLaunch.disabled = true;
+      statusLabel.textContent = "NEED MORE PLAYERS";
+      statusDot.className = "status-dot waiting";
+    } else {
+      if (!state.isHost) {
+        btnLaunch.disabled = false;
+        statusLabel.textContent = "WAITING FOR HOST";
+        statusDot.className = "status-dot waiting";
+      } else {
+        btnLaunch.disabled = false;
+        statusLabel.textContent = "READY TO LAUNCH";
+        statusDot.className = "status-dot";
+      }
+    }
+
+    // Mode
+    document.getElementById('mode-display').textContent = modes[state.modeIdx];
+
+    // Map
+    document.getElementById('current-map-name').textContent = maps[state.mapIdx].name;
+    document.getElementById('current-map-desc').textContent = maps[state.mapIdx].desc;
+    
+    document.querySelectorAll('.map-option').forEach(el => {
+      if (parseInt(el.dataset.map) === state.mapIdx) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    });
+    
+    updateMaps();
+  }
+
+  // Event Listeners
+  document.getElementById('dev-players').addEventListener('input', (e) => {
+    state.players = parseInt(e.target.value);
+    document.getElementById('dev-players-val').textContent = state.players;
+    updateUI();
+  });
+
+  document.getElementById('dev-host').addEventListener('change', (e) => {
+    state.isHost = e.target.checked;
+    updateUI();
+  });
+
+  document.getElementById('dev-session').addEventListener('change', (e) => {
+    state.session = e.target.value;
+    document.getElementById('btn-toggle-session').textContent = state.session.toUpperCase();
+    updateUI();
+  });
+
+  document.getElementById('btn-toggle-session').addEventListener('click', () => {
+    state.session = state.session === 'local' ? 'online' : 'local';
+    document.getElementById('btn-toggle-session').textContent = state.session.toUpperCase();
+    document.getElementById('dev-session').value = state.session;
+    updateUI();
+  });
+
+  document.getElementById('btn-next-mode').addEventListener('click', () => {
+    state.modeIdx = (state.modeIdx + 1) % modes.length;
+    updateUI();
+  });
+  document.getElementById('btn-prev-mode').addEventListener('click', () => {
+    state.modeIdx = (state.modeIdx - 1 + modes.length) % modes.length;
+    updateUI();
+  });
+
+  // Modal
+  const modal = document.getElementById('map-modal');
+  document.getElementById('btn-change-map').addEventListener('click', () => {
+    modal.classList.add('open');
+    setTimeout(updateMaps, 10);
+  });
+  document.getElementById('btn-close-map').addEventListener('click', () => {
+    modal.classList.remove('open');
+  });
+  
+  document.querySelectorAll('.map-option').forEach(el => {
+    el.addEventListener('click', () => {
+      state.mapIdx = parseInt(el.dataset.map);
+      modal.classList.remove('open');
+      updateUI();
+    });
+  });
+
+  // Init
+  setTimeout(() => {
+    updateUI();
+  }, 100);
+
+</script>
+</body>
+</html>

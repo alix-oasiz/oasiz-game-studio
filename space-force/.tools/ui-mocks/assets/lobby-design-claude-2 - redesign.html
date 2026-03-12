@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
+  <title>Astro Party – Lobby Concept 3</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold:    #d97706;
+      --gold-lt: #f5a623;
+      --gold-dk: #92520a;
+      --bg:      #060b16;
+      --panel:   #0a1020;
+      --panel2:  #0e1628;
+      --border:  rgba(255,255,255,0.06);
+      --border2: rgba(255,255,255,0.11);
+      --text:    #ccd6f0;
+      --dim:     rgba(160,180,220,0.58);
+
+      /* ─── FONT SCALE (rem — base 16px on html) ─── */
+      --fs-nano:   0.5rem;     /* 8px  — ultra-small labels, demo bar */
+      --fs-micro:  0.5625rem;  /* 9px  — decorative section labels */
+      --fs-badge:  0.8125rem;  /* 13px — type badges, slot labels */
+      --fs-btn:    0.75rem;    /* 12px — buttons, interactive elements */
+      --fs-body:   0.875rem;   /* 14px — secondary body text */
+      --fs-title:  1.125rem;   /* 18px — card names, key display values */
+
+      /* ─── LAYOUT ─── */
+      --topbar-h:  3.625rem;   /* 58px */
+      --strip-h:   8.125rem;   /* 130px */
+      --side-pad: clamp(40px, 8vw, 100px);
+    }
+
+    html { font-size: clamp(13px, 1.8vw, 16px); }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: 'Exo 2', sans-serif;
+      color: var(--text);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    /* dot grid */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.032) 1px, transparent 1px);
+      background-size: 26px 26px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── ROOT ─── */
+    .root {
+      width: 100%;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ─── TOPBAR — fixed to device top ─── */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0 1.75rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(6,11,22,0.88);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+
+    /* occupies topbar space in flex flow so body starts below it */
+    .topbar-rail { height: var(--topbar-h); flex-shrink: 0; }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+    }
+    .logo-mark {
+      width: 1.75rem; height: 1.75rem;
+      border: 0.125rem solid var(--gold);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-mark svg { width: 0.875rem; height: 0.875rem; }
+    .logo-text {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-btn);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      color: var(--text);
+    }
+    .logo-sub {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+
+    .topbar-divider { width: 1px; height: 1.5rem; background: var(--border2); }
+    .topbar-spacer  { flex: 1; }
+
+    .session-group {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--border2);
+      border-radius: 0.375rem;
+      overflow: hidden;
+    }
+    .sgbtn {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border2);
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: all 0.14s;
+    }
+    .sgbtn:last-child { border-right: none; }
+    .sgbtn.on { background: var(--gold); color: #000; font-weight: 700; }
+    .sgbtn:not(.on):hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
+    .room-tag {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Space Mono', monospace;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(217,119,6,0.28);
+      border-radius: 0.3125rem;
+      padding: 0.375rem 0.75rem;
+    }
+    .room-tag-dot {
+      width: 0.375rem; height: 0.375rem;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 0.5rem var(--gold);
+      animation: blink 2.2s ease-in-out infinite;
+    }
+    .room-tag-label { font-size: var(--fs-micro); letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+    .room-tag-code  { font-size: var(--fs-badge); font-weight: 700; letter-spacing: 0.18em; color: var(--gold-lt); }
+    .room-tag-copy {
+      background: transparent; border: none; cursor: pointer;
+      color: var(--dim); display: flex; align-items: center;
+      padding: 1px; border-radius: 0.1875rem; transition: color 0.12s;
+    }
+    .room-tag-copy:hover { color: var(--gold-lt); }
+    .room-tag-copy svg { width: 0.75rem; height: 0.75rem; }
+
+    .leave-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(248,113,113,0.7);
+      background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(248,113,113,0.18);
+      border-radius: 0.3125rem;
+      padding: 0.4375rem 0.875rem;
+      cursor: pointer;
+      transition: all 0.13s;
+    }
+    .leave-btn:hover { color: #f87171; background: rgba(220,38,38,0.14); border-color: rgba(248,113,113,0.36); }
+
+    /* ─── BODY — fills space between topbar and ctrl-strip; padding-bottom reserves ctrl-strip zone ─── */
+    .body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      padding-bottom: var(--strip-h);
+    }
+
+    /* left edge bleed — tracks --side-pad so gradient scales with the gutter at any width */
+    .body::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: calc(var(--side-pad) + 20px);
+      background: linear-gradient(to right,
+        var(--bg)                           0px,
+        var(--bg)                           calc(var(--side-pad) * 0.5),
+        rgba(6,11,22,0.72)                  calc(var(--side-pad) * 0.72),
+        rgba(6,11,22,0.30)                  var(--side-pad),
+        transparent                         calc(var(--side-pad) + 20px)
+      );
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    /* right edge bleed — mirrors left */
+    .body::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: calc(var(--side-pad) + 20px);
+      background: linear-gradient(to left,
+        var(--bg)                           0px,
+        var(--bg)                           calc(var(--side-pad) * 0.5),
+        rgba(6,11,22,0.72)                  calc(var(--side-pad) * 0.72),
+        rgba(6,11,22,0.30)                  var(--side-pad),
+        transparent                         calc(var(--side-pad) + 20px)
+      );
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    /* bottom fade — softens card bottoms just above the ctrl-strip zone */
+    .body-fade-bottom {
+      position: absolute;
+      bottom: var(--strip-h); left: 0; right: 0;
+      height: 5.625rem;
+      background: linear-gradient(to bottom, transparent 0%, var(--bg) 100%);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* ─── CARD TRAY — fluid gutter: 100px on desktop, scales down to 12px on narrow screens ─── */
+    .card-tray {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
+      padding: 0 var(--side-pad);
+    }
+
+    /* ─── PLAYER CARD — full-height column; scene grows to fill, info anchors to bottom ─── */
+    .pcard {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden; /* default: contain glow within card */
+    }
+
+    /* P1: allow glow to bleed LEFT into padding only — clip right overflow so it doesn't enter P2 */
+    .pcard:first-child {
+      overflow: visible;
+      clip-path: inset(0 0 0 -300px);
+    }
+
+    /* P4: allow glow to bleed RIGHT into padding only — clip left overflow so it doesn't enter P3 */
+    .pcard:last-child {
+      overflow: visible;
+      clip-path: inset(0 -300px 0 0);
+    }
+
+    /* thin vertical divider between adjacent cards (gradient fade at top/bottom) */
+    .pcard + .pcard::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(255,255,255,0.07) 15%,
+        rgba(255,255,255,0.07) 80%,
+        transparent 100%
+      );
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .pcard--filled {
+      background: linear-gradient(to bottom, transparent 0%, var(--bg) 60%);
+    }
+    .pcard--filled:hover {
+      background: linear-gradient(to bottom, transparent 0%, var(--bg) 60%);
+    }
+    .pcard--filled:hover .card-glow {
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.60) 0%, rgba(var(--pc-rgb), 0.18) 45%, transparent 70%);
+    }
+    .pcard--filled:hover .viewport-ring {
+      border-color: rgba(var(--pc-rgb), 0.75);
+    }
+    .pcard--filled:hover .card-viewport {
+      transform: scale(1.08);
+    }
+    .pcard--filled:hover .card-info {
+      transform: translateY(-0.25rem);
+    }
+
+    .pcard--empty {
+      background: var(--bg);
+      /* centering is handled by pcard base via justify-content: center */
+    }
+
+    /* ambient radial color glow — single source of player color; bleeds into side padding on P1/P4 */
+    .card-glow {
+      position: absolute;
+      top: -2.5rem; left: -35%; right: -35%;
+      height: 85%;
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.45) 0%, rgba(var(--pc-rgb), 0.12) 45%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      transition: background 0.25s ease;
+    }
+
+    /* slot label P1–P4 — top right */
+    .card-slot {
+      position: absolute;
+      top: 0.5625rem; right: 0.875rem;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-badge);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: rgba(217,119,6,0.6);
+      z-index: 6;
+    }
+
+    /* type badge — top left */
+    .card-type {
+      position: absolute;
+      top: 0.5625rem; left: 0.875rem;
+      z-index: 6;
+    }
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.1875rem;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-badge);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.5625rem;
+      border-radius: 0.1875rem;
+    }
+    .type-badge svg { width: 0.5625rem; height: 0.5625rem; }
+    .tb--you    { background: rgba(var(--pc-rgb),0.14); border: 1px solid rgba(var(--pc-rgb),0.3); color: var(--pc); }
+    .tb--ai     { background: rgba(139,92,246,0.14); border: 1px solid rgba(139,92,246,0.28); color: #a78bfa; }
+    .tb--local  { background: rgba(251,191,36,0.14); border: 1px solid rgba(251,191,36,0.28); color: #fcd34d; }
+    .tb--online { background: rgba(52,211,153,0.13); border: 1px solid rgba(52,211,153,0.26); color: #6ee7b7; }
+
+    /* card scene — flex:1 zone; grows to fill all space above card-info;
+       container-type:size enables cqw/cqh so the viewport can constrain itself
+       against both scene width AND scene height simultaneously */
+    .card-scene {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      container-type: size;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ─── SHIP VIEWPORT ─── */
+    .card-viewport {
+      position: relative;
+      /* 3-way min: absolute cap | scene width | scene height
+         cqw/cqh refer to the card-scene container, so the circle is
+         always the largest square that fits inside the scene in both axes */
+      width: min(13.125rem, 85cqw, 85cqh);
+      aspect-ratio: 1;
+      flex-shrink: 0;
+      z-index: 1;
+      transition: transform 0.35s ease;
+    }
+    .viewport-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid rgba(var(--pc-rgb), 0.45);
+      animation: ring-pulse 3.8s ease-in-out infinite;
+      transition: border-color 0.25s ease;
+    }
+    @keyframes ring-pulse {
+      0%,100% { box-shadow: 0 0 0.875rem rgba(var(--pc-rgb),0.18), inset 0 0 1.375rem rgba(var(--pc-rgb),0.04); }
+      50%      { box-shadow: 0 0 1.875rem rgba(var(--pc-rgb),0.34), inset 0 0 2.25rem rgba(var(--pc-rgb),0.09); }
+    }
+    .viewport-inner {
+      position: absolute;
+      inset: 0.375rem;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, rgba(255,255,255,0.04) 0%, #050b15 60%);
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card-ship-svg {
+      width: 48%; height: auto;
+      filter: drop-shadow(0 0 0.75rem var(--pc));
+      animation: float 4.5s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-0.4375rem); }
+    }
+
+
+    /* ─── CARD INFO — name / role / footer ─── */
+    .card-info {
+      position: relative;
+      z-index: 6;
+      padding: 1.125rem 1.5rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.25s ease;
+      gap: 0;
+      flex-shrink: 0;
+      width: 100%;
+    }
+    .card-name {
+      font-size: var(--fs-title);
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+    .card-role {
+      font-size: var(--fs-body);
+      color: rgba(160,180,220,0.72);
+      margin-top: 0.25rem;
+      letter-spacing: 0.03em;
+    }
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1rem;
+      gap: 0.5rem;
+    }
+    .host-pip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.1875rem;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-badge);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: rgba(217,119,6,0.1);
+      border: 1px solid rgba(217,119,6,0.26);
+      padding: 0.25rem 0.5625rem;
+      border-radius: 0.1875rem;
+    }
+    .host-pip svg { width: 0.5625rem; height: 0.5625rem; }
+    .card-act {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgba(248,113,113,0.72);
+      background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(248,113,113,0.18);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.8125rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .card-act:hover { color: #f87171; background: rgba(220,38,38,0.13); border-color: rgba(248,113,113,0.35); }
+
+    /* ─── EMPTY CARD CONTENT ─── */
+    .empty-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .empty-icon { color: rgba(255,255,255,0.06); }
+    .empty-icon svg { width: 2.75rem; height: 2.75rem; }
+    .empty-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(160,180,220,0.45);
+    }
+    .empty-btns { display: flex; gap: 0.375rem; margin-top: 0.25rem; }
+    .empty-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(160,180,220,0.45);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.75rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .empty-btn:hover { color: var(--gold-lt); border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.05); }
+    .empty-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ─── CONTROL STRIP — fixed to device bottom, full width ─── */
+    .ctrl-strip {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--strip-h);
+      display: flex;
+      align-items: stretch;
+      background: linear-gradient(to bottom, rgba(6,11,22,0.82) 0%, rgba(6,11,22,0.96) 40%, rgba(6,11,22,0.99) 100%);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      z-index: 8;
+      pointer-events: none;
+    }
+    .cs-map, .cs-mode, .cs-launch { pointer-events: auto; }
+
+    /* MAP SECTION — flex:2 gives it proportionally the most space;
+       max-width caps growth at large viewports, min-width ensures thumbnail+meta always fit */
+    .cs-map {
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      padding: 1.75rem 1.25rem 1.25rem 1.75rem;
+      flex: 2 1 0;
+      max-width: 26.25rem;
+      min-width: 14rem;
+    }
+    .map-thumb-wrap {
+      border-radius: 0.4375rem;
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      flex-shrink: 0;
+    }
+    .map-thumb { display: block; width: 6.875rem; height: 4.625rem; }
+    .map-meta { display: flex; flex-direction: column; gap: 0; min-width: 0; flex: 1; }
+    .map-meta-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.1875rem;
+    }
+    .map-section-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(217,119,6,0.7);
+    }
+    .map-title {
+      font-family: 'Exo 2', sans-serif;
+      font-size: var(--fs-body);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .map-desc {
+      font-size: var(--fs-body);
+      color: var(--dim);
+      margin-top: 0.125rem;
+    }
+    .map-change {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gold-lt);
+      background: rgba(217,119,6,0.08);
+      border: 1px solid rgba(217,119,6,0.24);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.8125rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.13s;
+    }
+    .map-change:hover { background: rgba(217,119,6,0.15); border-color: rgba(217,119,6,0.42); }
+
+    /* STRIP DIVIDERS */
+    .cs-div { width: 1px; background: var(--border2); margin: 0.875rem 0; }
+
+    /* MODE SECTION — flex:1 keeps it proportionally smaller than map and launch;
+       max-width caps at original design width, min-width ensures stacked content fits */
+    .cs-mode {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.3125rem;
+      padding: 1.75rem 1.5rem 1.25rem;
+      flex: 1 1 0;
+      max-width: 11.875rem;
+      min-width: 9rem;
+    }
+    .cs-mode-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(217,119,6,0.7);
+    }
+    .cs-mode-val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-title);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text);
+    }
+    .cs-mode-cycle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3125rem;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-btn);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--dim);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border2);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.6875rem;
+      cursor: pointer;
+      align-self: flex-start;
+      transition: all 0.13s;
+    }
+    .cs-mode-cycle svg { width: 0.625rem; height: 0.625rem; }
+    .cs-mode-cycle:hover { color: var(--text); background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); }
+
+    /* LAUNCH SECTION — flex:1.5 gives it more space than mode, less than map;
+       min-width:0 ensures it can compress if needed without pushing siblings */
+    .cs-launch {
+      flex: 1.5 1 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1.75rem 1.75rem 1.25rem 1.5rem;
+    }
+    .launch-status {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    .lstatus-dot {
+      width: 0.375rem; height: 0.375rem;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0.5rem #10b981;
+      animation: blink 2.4s ease-in-out infinite;
+    }
+    .lstatus-dot.warn { background: var(--gold); box-shadow: 0 0 0.5rem var(--gold); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .lstatus-text { font-family: 'Space Mono', monospace; font-size: var(--fs-body); letter-spacing: 0.07em; color: var(--dim); }
+    .launch-btn {
+      height: 3.25rem;
+      width: min(100%, 14.375rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.625rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-btn);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #000;
+      background: linear-gradient(135deg, var(--gold-lt), var(--gold));
+      border: none;
+      border-radius: 0.4375rem;
+      cursor: pointer;
+      box-shadow: 0 0 1.75rem rgba(217,119,6,0.26), 0 0.25rem 0.625rem rgba(0,0,0,0.5);
+      transition: all 0.17s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .launch-btn::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -110%;
+      width: 75%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transition: left 0.42s ease;
+    }
+    .launch-btn:hover { background: linear-gradient(135deg, #fbbf24, var(--gold-lt)); box-shadow: 0 0 2.75rem rgba(217,119,6,0.42), 0 0.375rem 1.125rem rgba(0,0,0,0.55); transform: translateY(-0.0625rem); }
+    .launch-btn:hover::after { left: 130%; }
+    .launch-btn:active { transform: translateY(0); }
+    .launch-btn:disabled { background: rgba(217,119,6,0.18); color: rgba(0,0,0,0.3); cursor: not-allowed; box-shadow: none; transform: none; }
+    .launch-btn svg { width: 1rem; height: 1rem; }
+
+    /* ─── MAP PICKER MODAL ─── */
+    .modal-bg {
+      position: fixed; inset: 0;
+      background: rgba(4,8,18,0.82);
+      backdrop-filter: blur(6px);
+      z-index: 50;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-bg.open { opacity: 1; pointer-events: all; }
+    .map-modal {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.94);
+      width: min(47.5rem, calc(100vw - 3rem));
+      background: #0b1020;
+      border: 1px solid var(--border2);
+      border-radius: 0.875rem;
+      padding: 1.5rem;
+      z-index: 51;
+      opacity: 0; pointer-events: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 1.75rem 4.375rem rgba(0,0,0,0.88);
+    }
+    .map-modal.open { opacity: 1; pointer-events: all; transform: translate(-50%, -50%) scale(1); }
+    .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+    .modal-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-badge); font-weight: 700; letter-spacing: 0.1em; color: var(--text);
+    }
+    .modal-close {
+      width: 1.875rem; height: 1.875rem; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 0.3125rem;
+      cursor: pointer; color: var(--dim); transition: all 0.12s;
+    }
+    .modal-close:hover { color: var(--text); background: rgba(255,255,255,0.09); }
+    .modal-close svg { width: 0.875rem; height: 0.875rem; }
+    .modal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+    .mpcard {
+      border-radius: 0.5rem; overflow: hidden;
+      border: 2px solid var(--border);
+      cursor: pointer; background: #060b16;
+      transition: all 0.14s; text-align: left;
+    }
+    .mpcard:hover { border-color: rgba(217,119,6,0.3); }
+    .mpcard.sel { border-color: var(--gold); box-shadow: 0 0 1.125rem rgba(217,119,6,0.18); }
+    .mpcard canvas { display: block; width: 100%; height: 6.25rem; }
+    .mpcard-meta { padding: 0.4375rem 0.625rem 0.5625rem; }
+    .mpcard-name { font-family: 'Orbitron', sans-serif; font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; color: var(--text); }
+    .mpcard-desc { font-size: var(--fs-nano); color: var(--dim); margin-top: 0.125rem; }
+
+    /* ─── DEMO BAR ─── */
+    .demo-bar {
+      position: fixed; bottom: 0.6875rem; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 0.3125rem; align-items: center;
+      background: rgba(4,8,18,0.96); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 0.5rem; padding: 0.375rem 0.8125rem; z-index: 200;
+      backdrop-filter: blur(12px); font-family: 'Exo 2', sans-serif;
+    }
+    .dlabel { font-family: 'Space Mono', monospace; font-size: var(--fs-nano); font-weight: 700; letter-spacing: 0.12em; color: rgba(255,255,255,0.28); text-transform: uppercase; padding-right: 0.125rem; }
+    .dsep { width: 1px; height: 1rem; background: rgba(255,255,255,0.09); margin: 0 0.125rem; }
+    .dbtn { font-size: var(--fs-btn); font-weight: 600; color: rgba(180,195,230,0.55); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 0.25rem; padding: 0.25rem 0.625rem; cursor: pointer; transition: all 0.12s; white-space: nowrap; }
+    .dbtn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .dbtn.on { color: var(--gold-lt); background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.28); }
+  </style>
+</head>
+<body>
+
+<div class="root">
+
+  <!-- TOPBAR — fixed to device top -->
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none">
+          <polygon points="12,3 20,12 12,21 4,12" fill="none" stroke="#d97706" stroke-width="1.8"/>
+          <circle cx="12" cy="12" r="3" fill="#d97706"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">ASTRO PARTY</div>
+        <div class="logo-sub">Mission Lobby</div>
+      </div>
+    </div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-spacer"></div>
+    <div class="session-group">
+      <button class="sgbtn" id="sglocal"  onclick="setSession('local')">Local Skirmish</button>
+      <button class="sgbtn on" id="sgonline" onclick="setSession('online')">Online Match</button>
+    </div>
+    <div class="room-tag" id="room-tag">
+      <div class="room-tag-dot"></div>
+      <span class="room-tag-label">Room</span>
+      <span class="room-tag-code">KXZQ</span>
+      <button class="room-tag-copy" title="Copy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      </button>
+    </div>
+    <button class="leave-btn">Leave</button>
+  </div>
+
+  <!-- placeholder that takes topbar's space in the flex flow -->
+  <div class="topbar-rail"></div>
+
+  <!-- BODY: full-height card columns + edge/bottom fades -->
+  <div class="body">
+    <div class="card-tray" id="tray"></div>
+    <div class="body-fade-bottom"></div>
+  </div>
+
+</div>
+
+<!-- CONTROL STRIP — fixed to device bottom, full width -->
+<div class="ctrl-strip">
+  <div class="cs-map">
+    <div class="map-thumb-wrap">
+      <canvas class="map-thumb" id="map-thumb" width="110" height="74"></canvas>
+    </div>
+    <div class="map-meta">
+      <div class="map-meta-head">
+        <div class="map-section-label">Arena</div>
+        <button class="map-change" onclick="openPicker()">Change Arena</button>
+      </div>
+      <div class="map-title" id="map-title">Classic Rotation</div>
+      <div class="map-desc" id="map-desc">Random map each round</div>
+    </div>
+  </div>
+
+  <div class="cs-div"></div>
+
+  <div class="cs-mode">
+    <div class="cs-mode-label">Game Mode</div>
+    <div class="cs-mode-val" id="mode-val">Standard</div>
+    <button class="cs-mode-cycle" onclick="cycleMode()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Cycle Mode
+    </button>
+  </div>
+
+  <div class="cs-div"></div>
+
+  <div class="cs-launch">
+    <div class="launch-status">
+      <div class="lstatus-dot" id="ldot"></div>
+      <div class="lstatus-text" id="ltext">Ready to launch</div>
+    </div>
+    <button class="launch-btn" id="launch-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      Launch Match
+    </button>
+  </div>
+</div>
+
+<!-- MAP PICKER MODAL -->
+<div class="modal-bg" id="modal-bg" onclick="closePicker()"></div>
+<div class="map-modal" id="map-modal">
+  <div class="modal-head">
+    <div class="modal-title">Select Arena</div>
+    <button class="modal-close" onclick="closePicker()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="modal-grid" id="modal-grid"></div>
+</div>
+
+<!-- DEMO BAR -->
+<div class="demo-bar">
+  <span class="dlabel">Demo</span>
+  <div class="dsep"></div>
+  <button class="dbtn on" id="d4" onclick="setCount(4)">4 Players</button>
+  <button class="dbtn"    id="d3" onclick="setCount(3)">3 Players</button>
+  <button class="dbtn"    id="d2" onclick="setCount(2)">2 Players</button>
+  <button class="dbtn"    id="d1" onclick="setCount(1)">1 Player</button>
+  <div class="dsep"></div>
+  <button class="dbtn on" id="dhost" onclick="toggleHost()">Is Host</button>
+  <div class="dsep"></div>
+  <button class="dbtn"    id="dloc" onclick="setSession('local')">Local</button>
+  <button class="dbtn on" id="donl" onclick="setSession('online')">Online</button>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────
+
+// Change a player's color or name here — one place, everything updates automatically.
+const PLAYERS = [
+  { color: '#00e5ff', name: 'Ace Striker'  },  // P1
+  { color: '#ff2d9b', name: 'NovaBotX'     },  // P2
+  { color: '#ffe500', name: 'StarChaser'   },  // P3
+  { color: '#00ff88', name: 'CosmoRacer'   },  // P4
+];
+
+// Derives "r,g,b" from a "#rrggbb" hex — feeds --pc-rgb for rgba() usage in CSS.
+function hexToRgb(hex) {
+  return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+}
+
+const MODES = ['Standard', 'Sane', 'Chaotic'];
+const SLOTS = ['P1', 'P2', 'P3', 'P4'];
+
+const MAPS = [
+  { id:0, name:'Classic Rotation', desc:'Random arena each round',       draw: drawRotation },
+  { id:1, name:'The Cache',        desc:'Corner blocks, center powerup',  draw: drawCache    },
+  { id:2, name:'Fortress',         desc:'Fortified corners, open center', draw: drawFortress },
+  { id:3, name:'Void Ring',        desc:'Central singularity hazard',     draw: drawVoidRing },
+  { id:4, name:'Nebula Cross',     desc:'Four-way corridors with walls',  draw: drawCross    },
+  { id:5, name:'Asteroid Field',   desc:'Dense debris, dynamic paths',    draw: drawAsteroids},
+];
+
+const state = {
+  session: 'online',
+  isHost:  true,
+  count:   3,
+  map:     0,
+  mode:    0,
+  types:   ['you','ai','online','ai'],
+};
+
+// ── SHIP SVG ──────────────────────────────────────────────
+
+function shipSVG(color) {
+  return `<svg class="card-ship-svg" viewBox="0 0 72 90" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="36" cy="86" rx="11" ry="4.5" fill="${color}" opacity="0.18"/>
+    <ellipse cx="36" cy="83" rx="6"  ry="2.5" fill="${color}" opacity="0.38"/>
+    <path d="M28 54 L4 72 L16 68 L26 58 Z" fill="${color}" opacity="0.68"/>
+    <path d="M44 54 L68 72 L56 68 L46 58 Z" fill="${color}" opacity="0.68"/>
+    <path d="M36 6 L50 46 L50 72 L36 82 L22 72 L22 46 Z" fill="${color}"/>
+    <path d="M36 6 L42 30 L36 26 L30 30 Z" fill="rgba(255,255,255,0.22)"/>
+    <ellipse cx="36" cy="36" rx="9" ry="13" fill="rgba(255,255,255,0.08)"/>
+    <ellipse cx="36" cy="35" rx="5" ry="8"  fill="rgba(255,255,255,0.16)"/>
+    <ellipse cx="33" cy="31" rx="2" ry="3"  fill="rgba(255,255,255,0.35)" transform="rotate(-12 33 31)"/>
+    <rect x="24" y="60" width="9" height="17" rx="4.5" fill="${color}" opacity="0.82"/>
+    <rect x="39" y="60" width="9" height="17" rx="4.5" fill="${color}" opacity="0.82"/>
+    <ellipse cx="28.5" cy="77" rx="4.5" ry="2.5" fill="rgba(255,255,255,0.45)"/>
+    <ellipse cx="43.5" cy="77" rx="4.5" ry="2.5" fill="rgba(255,255,255,0.45)"/>
+    <ellipse cx="36"   cy="82" rx="5"   ry="2.5" fill="rgba(255,255,255,0.32)"/>
+  </svg>`;
+}
+
+// ── BADGE ─────────────────────────────────────────────────
+
+const BADGE_ICO = {
+  you:    `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>`,
+  ai:     `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/></svg>`,
+  local:  `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 9h10a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4h-1.2l-2-2H10.2l-2 2H7a4 4 0 0 1-4-4v-2a4 4 0 0 1 4-4zm1 2v2h2v-2H8zm6 0v2h2v-2h-2z"/></svg>`,
+  online: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 6l10.5 7L22 6M2 4h20a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg>`,
+};
+const BADGE_CLS = { you:'tb--you', ai:'tb--ai', local:'tb--local', online:'tb--online' };
+const BADGE_LBL = { you:'You', ai:'AI Bot', local:'Local', online:'Online' };
+
+
+// ── CARD HTML ─────────────────────────────────────────────
+
+function filledCard(i) {
+  const { color, name } = PLAYERS[i];
+  const raw    = hexToRgb(color);
+  const type   = state.types[i] || 'online';
+  const isHost = state.isHost && i === 0;
+  const canAct = state.isHost && i !== 0;
+  const role   = { you:'Room Leader', ai:'AI Opponent', local:'Local Player', online:'Remote Player' }[type];
+  const tbCls = type === 'you' ? '' : BADGE_CLS[type];
+  const tbStyle = type === 'you'
+    ? `style="background:rgba(${raw},0.14);border:1px solid rgba(${raw},0.3);color:${color}"`
+    : '';
+
+  return `
+    <div class="pcard pcard--filled" style="--pc:${color};--pc-rgb:${raw}">
+      <div class="card-glow"></div>
+      <div class="card-slot">${SLOTS[i]}</div>
+      <div class="card-type">
+        <span class="type-badge ${tbCls}" ${tbStyle}>
+          ${BADGE_ICO[type]}${BADGE_LBL[type]}
+        </span>
+      </div>
+      <div class="card-scene">
+        <div class="card-viewport">
+          <div class="viewport-ring"></div>
+          <div class="viewport-inner">${shipSVG(color)}</div>
+        </div>
+      </div>
+      <div class="card-info">
+        <div class="card-name">${name}</div>
+        <div class="card-role">${role}</div>
+        <div class="card-footer">
+          ${isHost
+            ? `<span class="host-pip"><svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8"><path d="M5 19h14l1-9-4.5 3.5L12 6 8.5 13.5 4 10l1 9z"/></svg>Host</span>`
+            : '<span></span>'}
+          ${canAct ? `<button class="card-act">${type==='ai'||type==='local'?'Remove':'Kick'}</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function emptyCard(i) {
+  const canAdd = state.isHost;
+  const localBtn = state.session === 'local'
+    ? `<button class="empty-btn" ${canAdd?'':'disabled'}>+ Local</button>` : '';
+  return `
+    <div class="pcard pcard--empty">
+      <div class="card-scene">
+        <div class="empty-content">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+          </div>
+          <div class="empty-label">${SLOTS[i]} — Empty</div>
+          <div class="empty-btns">
+            <button class="empty-btn" ${canAdd?'':'disabled'}>+ Add AI</button>
+            ${localBtn}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── MAP DRAW ──────────────────────────────────────────────
+
+function clearArena(ctx, w, h) {
+  ctx.fillStyle = '#050b14';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.024)';
+  ctx.lineWidth = 1;
+  const s = Math.min(w,h) / 6;
+  for (let x=s; x<w; x+=s) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (let y=s; y<h; y+=s) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(217,119,6,0.1)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(1.5,1.5,w-3,h-3);
+}
+
+function drawRotation(ctx, w, h) {
+  clearArena(ctx,w,h);
+  const cx=w/2,cy=h/2,r=Math.min(w,h)*0.3;
+  ctx.strokeStyle='rgba(217,119,6,0.22)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,r*0.5,0,Math.PI*2); ctx.stroke();
+  for (let i=0;i<8;i++) {
+    const a=(i/8)*Math.PI*2;
+    ctx.fillStyle=`rgba(217,119,6,${0.15+i*0.045})`;
+    ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r,cy+Math.sin(a)*r,2,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle='rgba(217,119,6,0.14)';
+  ctx.font=`bold ${Math.min(w,h)*0.2}px Orbitron,monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('?',cx,cy+2);
+}
+function drawCache(ctx,w,h) {
+  clearArena(ctx,w,h);
+  ctx.fillStyle='rgba(255,200,0,0.48)';
+  const bw=w*0.13,bh=h*0.19;
+  ctx.fillRect(w*0.08,h*0.12,bw,bh); ctx.fillRect(w*0.79,h*0.12,bw,bh);
+  ctx.fillRect(w*0.08,h*0.69,bw,bh); ctx.fillRect(w*0.79,h*0.69,bw,bh);
+  ctx.fillRect(w*0.36,h*0.08,w*0.28,h*0.1); ctx.fillRect(w*0.36,h*0.82,w*0.28,h*0.1);
+  const s=Math.min(w,h)*0.065,cx=w/2,cy=h/2;
+  ctx.strokeStyle='rgba(255,80,200,0.55)'; ctx.lineWidth=1.5;
+  ctx.strokeRect(cx-s,cy-s,s*2,s*2);
+  ctx.fillStyle='rgba(255,80,200,0.38)'; ctx.beginPath(); ctx.arc(cx,cy,s*0.5,0,Math.PI*2); ctx.fill();
+}
+function drawFortress(ctx,w,h) {
+  clearArena(ctx,w,h);
+  ctx.fillStyle='rgba(217,119,6,0.2)';
+  const fw=w*0.15,fh=h*0.22;
+  ctx.fillRect(w*0.04,h*0.04,fw,fh); ctx.fillRect(w*0.81,h*0.04,fw,fh);
+  ctx.fillRect(w*0.04,h*0.74,fw,fh); ctx.fillRect(w*0.81,h*0.74,fw,fh);
+  const pw=w*0.22,ph=h*0.22;
+  ctx.fillStyle='rgba(217,119,6,0.08)'; ctx.fillRect(w/2-pw/2,h/2-ph/2,pw,ph);
+  ctx.strokeStyle='rgba(217,119,6,0.16)'; ctx.lineWidth=1; ctx.strokeRect(w/2-pw/2,h/2-ph/2,pw,ph);
+}
+function drawVoidRing(ctx,w,h) {
+  clearArena(ctx,w,h);
+  const cx=w/2,cy=h/2,r=Math.min(w,h)*0.19;
+  const gr=ctx.createRadialGradient(cx,cy,0,cx,cy,r*1.4);
+  gr.addColorStop(0,'rgba(0,0,0,0.92)'); gr.addColorStop(0.55,'rgba(80,0,140,0.45)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(cx,cy,r*1.6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(190,80,255,0.45)'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(190,80,255,0.12)'; ctx.lineWidth=8;   ctx.beginPath(); ctx.arc(cx,cy,r*1.25,0,Math.PI*2); ctx.stroke();
+}
+function drawCross(ctx,w,h) {
+  clearArena(ctx,w,h);
+  ctx.fillStyle='rgba(255,55,55,0.14)';
+  ctx.fillRect(0,h*0.36,w,h*0.28); ctx.fillRect(w*0.4,0,w*0.2,h);
+  ctx.fillStyle='rgba(255,100,50,0.24)';
+  ctx.fillRect(w*0.0,h*0.0,w*0.12,h*0.36); ctx.fillRect(w*0.88,h*0.0,w*0.12,h*0.36);
+  ctx.fillRect(w*0.0,h*0.64,w*0.12,h*0.36); ctx.fillRect(w*0.88,h*0.64,w*0.12,h*0.36);
+}
+function drawAsteroids(ctx,w,h) {
+  clearArena(ctx,w,h);
+  const rocks=[{x:.15,y:.2,r:.065},{x:.8,y:.28,r:.055},{x:.28,y:.72,r:.075},{x:.68,y:.76,r:.06},{x:.5,y:.22,r:.045},{x:.18,y:.52,r:.05},{x:.76,y:.52,r:.065}];
+  ctx.fillStyle='rgba(155,135,115,0.44)';
+  for (const a of rocks) { ctx.beginPath(); ctx.arc(a.x*w,a.y*h,Math.min(w,h)*a.r,0,Math.PI*2); ctx.fill(); }
+}
+
+// ── RENDER ────────────────────────────────────────────────
+
+function renderCards() {
+  let html = '';
+  for (let i = 0; i < 4; i++) {
+    html += i < state.count ? filledCard(i) : emptyCard(i);
+  }
+  document.getElementById('tray').innerHTML = html;
+}
+
+function renderMap() {
+  const canvas = document.getElementById('map-thumb');
+  canvas.width = 110; canvas.height = 74;
+  MAPS[state.map].draw(canvas.getContext('2d'), 110, 74);
+  document.getElementById('map-title').textContent = MAPS[state.map].name;
+  document.getElementById('map-desc').textContent  = MAPS[state.map].desc;
+}
+
+function renderMode() { document.getElementById('mode-val').textContent = MODES[state.mode]; }
+
+function renderStatus() {
+  const dot = document.getElementById('ldot');
+  const txt = document.getElementById('ltext');
+  const btn = document.getElementById('launch-btn');
+  if (state.count >= 2) {
+    dot.className = 'lstatus-dot';
+    txt.textContent = state.isHost ? 'Ready to launch' : 'Waiting for host\u2026';
+    btn.disabled = !state.isHost;
+  } else {
+    dot.className = 'lstatus-dot warn';
+    txt.textContent = 'Need at least 2 players';
+    btn.disabled = true;
+  }
+}
+
+function renderTopbar() {
+  document.getElementById('sglocal').classList.toggle('on', state.session==='local');
+  document.getElementById('sgonline').classList.toggle('on', state.session==='online');
+  document.getElementById('room-tag').style.display = state.session==='online' ? 'flex' : 'none';
+}
+
+function render() {
+  renderCards();
+  renderMap();
+  renderMode();
+  renderStatus();
+  renderTopbar();
+}
+
+// ── MAP PICKER ────────────────────────────────────────────
+
+function openPicker() {
+  buildModalGrid();
+  document.getElementById('modal-bg').classList.add('open');
+  document.getElementById('map-modal').classList.add('open');
+}
+function closePicker() {
+  document.getElementById('modal-bg').classList.remove('open');
+  document.getElementById('map-modal').classList.remove('open');
+}
+function buildModalGrid() {
+  const grid = document.getElementById('modal-grid');
+  if (grid.children.length) {
+    grid.querySelectorAll('.mpcard').forEach((c,i) => c.classList.toggle('sel', i===state.map));
+    return;
+  }
+  grid.innerHTML = MAPS.map((m,i) =>
+    `<button class="mpcard${i===state.map?' sel':''}" onclick="selectMap(${i})">
+      <canvas id="mg${i}" width="220" height="100"></canvas>
+      <div class="mpcard-meta">
+        <div class="mpcard-name">${m.name}</div>
+        <div class="mpcard-desc">${m.desc}</div>
+      </div>
+    </button>`
+  ).join('');
+  MAPS.forEach((m,i) => { const c=document.getElementById('mg'+i); m.draw(c.getContext('2d'),220,100); });
+}
+function selectMap(i) {
+  state.map = i;
+  renderMap();
+  document.getElementById('modal-grid').querySelectorAll('.mpcard')
+    .forEach((c,j) => c.classList.toggle('sel', j===i));
+  closePicker();
+}
+
+// ── INTERACTIONS ──────────────────────────────────────────
+
+function cycleMode() { state.mode = (state.mode+1) % MODES.length; renderMode(); }
+function toggleHost() { state.isHost=!state.isHost; document.getElementById('dhost').classList.toggle('on',state.isHost); render(); }
+function setCount(n) {
+  state.count = n;
+  ['d4','d3','d2','d1'].forEach(id => document.getElementById(id).classList.remove('on'));
+  document.getElementById('d'+n).classList.add('on');
+  render();
+}
+function setSession(s) {
+  state.session = s;
+  state.types = s==='online' ? ['you','ai','online','ai'] : ['you','ai','local','ai'];
+  document.getElementById('dloc').classList.toggle('on', s==='local');
+  document.getElementById('donl').classList.toggle('on', s==='online');
+  render();
+}
+
+render();
+</script>
+</body>
+</html>

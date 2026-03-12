@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Astro Party - Clean Blueprint Variant</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --b-bg: #eef2f6;
+    --b-grid: #dce4ec;
+    --b-ink: #1e3a8a;
+    --b-accent: #3b82f6;
+    --b-alert: #ef4444;
+    --b-ready: #10b981;
+    --b-panel: #ffffff;
+    
+    --font-sans: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    margin: 0; padding: 0; background-color: #cbd5e1; overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    font-family: var(--font-sans); color: var(--b-ink);
+  }
+
+  #canvas-container {
+    position: absolute; width: 1280px; height: 720px;
+    background-color: var(--b-bg);
+    background-image: linear-gradient(var(--b-grid) 1px, transparent 1px), linear-gradient(90deg, var(--b-grid) 1px, transparent 1px);
+    background-size: 20px 20px;
+    transform-origin: top left; box-sizing: border-box;
+    display: grid; grid-template-columns: 1fr 350px; grid-template-rows: 80px 1fr;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    border: 10px solid #fff;
+  }
+
+  /* Header */
+  .header {
+    grid-column: 1 / -1; grid-row: 1;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 40px; border-bottom: 2px solid var(--b-ink);
+    background: #fff;
+  }
+  .title { font-weight: 800; font-size: 32px; letter-spacing: -1px; margin: 0; }
+  .draft-badge { font-family: var(--font-mono); font-size: 14px; background: var(--b-accent); color: #fff; padding: 4px 12px; border-radius: 4px; }
+  
+  /* Main area (Players) */
+  .roster-area {
+    grid-column: 1; grid-row: 2;
+    padding: 40px; display: flex; flex-direction: column; gap: 20px;
+  }
+  
+  .roster-header { font-family: var(--font-mono); font-size: 18px; border-bottom: 2px dashed var(--b-grid); padding-bottom: 10px; margin-bottom: 10px; }
+
+  .blueprint-card {
+    background: #fff; border: 2px solid var(--b-ink); border-radius: 8px;
+    display: flex; align-items: center; padding: 15px 25px; gap: 25px;
+    box-shadow: 4px 4px 0 rgba(30, 58, 138, 0.1);
+    transition: all 0.2s;
+  }
+  .blueprint-card.empty {
+    background: transparent; border-style: dashed; border-color: #94a3b8; box-shadow: none;
+    opacity: 0.7;
+  }
+  
+  .bc-num { font-family: var(--font-mono); font-size: 32px; font-weight: 700; color: var(--b-grid); width: 40px; }
+  .blueprint-card.empty .bc-num { color: #94a3b8; }
+  
+  .bc-art {
+    width: 60px; height: 60px; border: 2px solid var(--b-ink); border-radius: 50%;
+    display: flex; justify-content: center; align-items: center; background: var(--b-bg);
+  }
+  .bc-art::inner { content: 'SHIP'; font-size: 10px; font-family: var(--font-mono); }
+  
+  .bc-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .bc-name { font-size: 24px; font-weight: 800; }
+  .bc-tags { display: flex; gap: 10px; }
+  .bc-tag { font-size: 12px; font-weight: 600; background: var(--b-bg); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--b-grid); }
+  .bc-tag.host { background: var(--b-ink); color: #fff; border-color: var(--b-ink); }
+  
+  .bc-action { opacity: 0; transition: opacity 0.2s; }
+  .blueprint-card:hover .bc-action { opacity: 1; }
+  .bc-btn { background: #fff; border: 2px solid var(--b-alert); color: var(--b-alert); font-weight: 700; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+  .bc-btn:hover { background: var(--b-alert); color: #fff; }
+
+  /* Side Panel (Settings) */
+  .side-panel {
+    grid-column: 2; grid-row: 2;
+    background: #fff; border-left: 2px solid var(--b-ink);
+    padding: 30px; display: flex; flex-direction: column; gap: 30px;
+  }
+
+  .sp-section { display: flex; flex-direction: column; gap: 10px; }
+  .sp-label { font-family: var(--font-mono); font-size: 14px; color: #64748b; text-transform: uppercase; }
+  
+  .sp-map-view {
+    width: 100%; height: 180px; background: var(--b-bg); border: 2px solid var(--b-ink);
+    border-radius: 4px; position: relative; padding: 10px; box-sizing: border-box;
+  }
+  .sp-map-view canvas { width: 100%; height: 100%; }
+  
+  .sp-value { font-size: 20px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; border: 2px solid var(--b-grid); padding: 10px; border-radius: 4px; cursor:pointer;}
+  .sp-value:hover { border-color: var(--b-accent); background: #f8fafc; }
+
+  .sp-launch {
+    margin-top: auto; background: var(--b-ready); color: #fff; border: 2px solid var(--b-ink);
+    font-size: 24px; font-weight: 800; padding: 20px; border-radius: 8px; cursor: pointer;
+    box-shadow: 4px 4px 0 var(--b-ink); text-align: center; transition: transform 0.1s;
+  }
+  .sp-launch:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--b-ink); }
+  .sp-launch:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; box-shadow: none; border-color: #94a3b8; }
+
+  #dev-toolbar { position: fixed; bottom: 20px; left: 20px; background: #fff; padding: 10px; border: 1px solid #000; z-index:999; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="canvas-container">
+  
+  <div class="header">
+    <h1 class="title">ASTRO_PARTY // LOBBY</h1>
+    <div id="room-display" class="draft-badge">MODE: LOCAL_COUCH</div>
+  </div>
+
+  <div class="roster-area">
+    <div class="roster-header">ENTITY_ROSTER [ <span id="p-count">1</span>/4 ]</div>
+    
+    <div class="blueprint-card" id="slot-1">
+      <div class="bc-num">01</div>
+      <div class="bc-art"></div>
+      <div class="bc-info">
+        <div class="bc-name">PRIMARY_USER</div>
+        <div class="bc-tags"><span class="bc-tag host" id="tag-host-1">HOST</span><span class="bc-tag">LOCAL</span></div>
+      </div>
+      <div class="bc-action"></div>
+    </div>
+    
+    <div class="blueprint-card empty" id="slot-2">
+      <div class="bc-num">02</div>
+      <div class="bc-art" style="border-style:dashed;"></div>
+      <div class="bc-info">
+        <div class="bc-name" style="color:#94a3b8;">AWAITING...</div>
+      </div>
+      <div class="bc-action"><button class="bc-btn btn-kick">REMOVE</button></div>
+    </div>
+    
+    <div class="blueprint-card empty" id="slot-3">
+      <div class="bc-num">03</div>
+      <div class="bc-art" style="border-style:dashed;"></div>
+      <div class="bc-info">
+        <div class="bc-name" style="color:#94a3b8;">AWAITING...</div>
+      </div>
+      <div class="bc-action"><button class="bc-btn btn-kick">REMOVE</button></div>
+    </div>
+    
+    <div class="blueprint-card empty" id="slot-4">
+      <div class="bc-num">04</div>
+      <div class="bc-art" style="border-style:dashed;"></div>
+      <div class="bc-info">
+        <div class="bc-name" style="color:#94a3b8;">AWAITING...</div>
+      </div>
+      <div class="bc-action"><button class="bc-btn btn-kick">REMOVE</button></div>
+    </div>
+  </div>
+
+  <div class="side-panel">
+    <div class="sp-section">
+      <div class="sp-label">TOPOGRAPHY_SELECTION</div>
+      <div class="sp-map-view" id="btn-map" style="cursor:pointer;"><canvas id="main-map"></canvas></div>
+      <div class="sp-value" style="border:none; padding:0; cursor:default;"><span id="map-name">Classic Rotation</span></div>
+    </div>
+    
+    <hr style="width:100%; border:none; border-top:2px dashed var(--b-grid);">
+    
+    <div class="sp-section">
+      <div class="sp-label">RULESET_PARAMETERS</div>
+      <div class="sp-value" id="btn-mode"><span id="mode-val">STANDARD</span> <span style="font-size:12px;color:var(--b-accent)">[CHANGE]</span></div>
+    </div>
+    
+    <div class="sp-section">
+      <div class="sp-label">NETWORK_ROUTING</div>
+      <div class="sp-value" id="btn-session"><span id="sess-val">LOCAL</span> <span style="font-size:12px;color:var(--b-accent)">[TOGGLE]</span></div>
+    </div>
+
+    <button class="sp-launch" id="btn-launch" disabled>INITIALIZE</button>
+  </div>
+
+</div>
+
+<div id="dev-toolbar">
+  <label>P <input type="range" id="d-pl" min="1" max="4" value="1"></label> | 
+  <label>Host <input type="checkbox" id="d-host" checked></label> | 
+  <label>Net <select id="d-sess"><option>local</option><option>online</option></select></label>
+</div>
+
+<script>
+  function resize() {
+    const c = document.getElementById('canvas-container');
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    c.style.transform = `scale(${scale})`;
+    c.style.left = `${(window.innerWidth - 1280 * scale) / 2}px`;
+    c.style.top = `${(window.innerHeight - 720 * scale) / 2}px`;
+  }
+  window.addEventListener('resize', resize); resize();
+
+  const state = { players: 1, isHost: true, session: 'local', modeIdx: 0, mapIdx: 0 };
+  const modes = ["STANDARD", "SANE", "CHAOTIC"];
+  const mapNames = ["Classic Rotation", "The Cache", "Fortress", "Void Ring", "Nebula Cross", "Asteroid Field"];
+
+  function drawBlueprintMap() {
+    const c = document.getElementById('main-map'); if(!c) return;
+    c.width = c.parentElement.clientWidth-20; c.height = c.parentElement.clientHeight-20;
+    const ctx = c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height);
+    
+    ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 3;
+    const w = c.width, h = c.height, type = state.mapIdx;
+    
+    // Blueprint style drafting lines
+    ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke(); ctx.setLineDash([]);
+    
+    if(type===0) { ctx.strokeRect(w*0.2, h*0.2, w*0.6, h*0.6); ctx.beginPath(); ctx.arc(w/2,h/2,h*0.2,0,Math.PI*2); ctx.stroke(); }
+    else if(type===1) { ctx.fillStyle='rgba(59,130,246,0.2)'; ctx.fillRect(w*0.3,h*0.3,w*0.4,h*0.4); ctx.strokeRect(w*0.3,h*0.3,w*0.4,h*0.4); }
+    else if(type===2) { ctx.strokeRect(10,10,w*0.2,h-20); ctx.strokeRect(w-w*0.2-10,10,w*0.2,h-20); }
+    else if(type===3) { ctx.beginPath(); ctx.arc(w/2,h/2,h*0.4,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(w/2,h/2,h*0.3,0,Math.PI*2); ctx.stroke(); }
+    else if(type===4) { ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke(); }
+    else if(type===5) { for(let i=0;i<6;i++){ ctx.strokeRect(Math.random()*w,Math.random()*h, 20, 20); } }
+  }
+
+  function update() {
+    document.getElementById('p-count').textContent = state.players;
+    
+    for(let i=1;i<=4;i++) {
+      const el = document.getElementById(`slot-${i}`);
+      const name = el.querySelector('.bc-name');
+      if(i <= state.players) {
+        el.classList.remove('empty');
+        if(i===1) name.textContent = "PRIMARY_USER";
+        else if(i===2) name.textContent = "BOT_SUBROUTINE";
+        else name.textContent = "GUEST_ENTITY_" + i;
+      } else {
+        el.classList.add('empty');
+        name.textContent = "AWAITING...";
+      }
+    }
+
+    document.getElementById('tag-host-1').style.display = state.isHost ? 'inline-block' : 'none';
+    document.getElementById('room-display').textContent = state.session === 'online' ? 'NET_LINK: XT-99' : 'MODE: LOCAL_COUCH';
+    document.getElementById('room-display').style.background = state.session === 'online' ? 'var(--b-ink)' : 'var(--b-accent)';
+    
+    document.getElementById('sess-val').textContent = state.session.toUpperCase();
+    document.getElementById('mode-val').textContent = modes[state.modeIdx];
+    document.getElementById('map-name').textContent = mapNames[state.mapIdx];
+
+    const launch = document.getElementById('btn-launch');
+    launch.textContent = state.isHost ? 'INITIALIZE' : 'STANDBY';
+    launch.disabled = state.players < 2;
+
+    drawBlueprintMap();
+  }
+
+  document.getElementById('d-pl').addEventListener('input', e => { state.players = parseInt(e.target.value); update(); });
+  document.getElementById('d-host').addEventListener('change', e => { state.isHost = e.target.checked; update(); });
+  document.getElementById('d-sess').addEventListener('change', e => { state.session = e.target.value; update(); });
+  
+  document.getElementById('btn-session').addEventListener('click', () => { state.session = state.session==='local'?'online':'local'; document.getElementById('d-sess').value=state.session; update(); });
+  document.getElementById('btn-mode').addEventListener('click', () => { state.modeIdx = (state.modeIdx+1)%modes.length; update(); });
+  document.getElementById('btn-map').addEventListener('click', () => { state.mapIdx = (state.mapIdx+1)%mapNames.length; update(); });
+
+  setTimeout(update, 100);
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+{
+  "name": "space-force",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "generate:entities": "bun run scripts/generate-entity-assets.ts",
+    "generate:ship-skins": "bun run scripts/generate-ship-skins.ts",
+    "ffmpeg:install": "bun run scripts/install-ffmpeg.ts",
+    "ffmpeg:check": "bun run scripts/check-ffmpeg.ts",
+    "ffprobe:install": "bun run scripts/install-ffprobe.ts",
+    "ffprobe:check": "bun run scripts/check-ffprobe.ts",
+    "process:audio": "bun run scripts/process-audio-assets.ts",
+    "sim:collision-matrix": "bun run scripts/run-sim-collision-matrix.ts",
+    "generate:ship-skins:warn": "bun -e \"process.env.SHIP_SKIN_VALIDATION='warn'; await import('./scripts/generate-ship-skins.ts');\"",
+    "generate:ship-skins:off": "bun -e \"process.env.SHIP_SKIN_VALIDATION='off'; await import('./scripts/generate-ship-skins.ts');\"",
+    "prebuild": "bun run generate:entities && bun run generate:ship-skins",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "loadtest": "npm --prefix server run loadtest --",
+    "loadtest:roomcode": "npm --prefix server run loadtest:roomcode --",
+    "loadtest:lobbyfill": "npm --prefix server run loadtest:lobbyfill --",
+    "loadtest:capacity": "npm --prefix server run loadtest:capacity --",
+    "loadtest:observed": "npm --prefix server run loadtest:observed --",
+    "observed:index": "npm --prefix server run observed:index --",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write 'src/**/*.{ts,tsx,css,html}'"
+  },
+  "dependencies": {
+    "@oasiz/sdk": "^1.2.0",
+    "colyseus.js": "^0.16.18",
+    "howler": "^2.2.4",
+    "matter-js": "^0.20.0",
+    "poly-decomp": "^0.3.0"
+  },
+  "devDependencies": {
+    "@types/matter-js": "^0.19.7",
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "vite-plugin-singlefile": "^2.0.3"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "space-force-colyseus-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "npm@11.6.0",
+  "engines": {
+    "node": "22.19.0",
+    "npm": "11.6.0"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/server/src/index.js",
+    "loadtest": "npm run loadtest:roomcode --",
+    "loadtest:roomcode": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-roomcode-loadtest.ts",
+    "loadtest:lobbyfill": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-lobbyfill-loadtest.ts",
+    "loadtest:capacity": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/run-capacity-sweep.ts",
+    "loadtest:observed": "powershell -ExecutionPolicy Bypass -File ./loadtest/run-observed-loadtest.ps1",
+    "observed:index": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env loadtest/build-observed-runs-index.ts"
+  },
+  "dependencies": {
+    "@colyseus/monitor": "^0.16.7",
+    "@colyseus/redis-driver": "^0.16.1",
+    "@colyseus/redis-presence": "^0.16.4",
+    "@colyseus/schema": "^3.0.69",
+    "@colyseus/ws-transport": "^0.16.5",
+    "colyseus": "^0.16.5",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "matter-js": "^0.20.0",
+    "poly-decomp": "^0.3.0"
+  },
+  "devDependencies": {
+    "@colyseus/loadtest": "^0.16.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/matter-js": "^0.19.8",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  }
+}

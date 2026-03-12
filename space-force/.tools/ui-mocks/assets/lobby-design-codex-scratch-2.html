@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Astro Party Lobby Scratch Variant 2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Exo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; touch-action: none;
+      font-family: 'Exo 2', sans-serif;
+      background: radial-gradient(circle at 82% 8%, #2e4f58, transparent 33%), radial-gradient(circle at 12% 84%, #5c3a1f, transparent 30%), #101316;
+      color: #edf5ff;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none;
+      background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 30px 30px;
+      opacity: 0.45;
+    }
+    #stage {
+      position: fixed; left: 0; top: 0; width: 1280px; height: 720px;
+      transform-origin: top left;
+      border: 2px solid #4f6777; border-radius: 18px; overflow: hidden;
+      background: linear-gradient(160deg, #17212d, #101923);
+      box-shadow: 0 20px 42px rgba(0,0,0,0.45);
+    }
+    .scene {
+      width: 1280px; height: 720px; padding: 24px;
+      display: grid;
+      grid-template-rows: 74px 256px 1fr;
+      gap: 16px;
+    }
+
+    .topbar {
+      border: 2px solid #516a79; border-radius: 12px;
+      background: linear-gradient(180deg, #243445, #1a2735);
+      display: flex; align-items: center; gap: 12px; padding: 0 16px;
+    }
+    .title { font-family: 'Orbitron', sans-serif; font-size: 23px; letter-spacing: 0.07em; text-transform: uppercase; }
+    .room-pill {
+      margin-left: auto; min-height: 40px; border: 2px solid #638498; border-radius: 999px; padding: 0 12px;
+      display: flex; align-items: center; gap: 8px; background: #172735;
+    }
+    .room-pill.hidden { visibility: hidden; }
+    .room-label { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #a8c5dc; }
+    .room-code { font-family: 'Orbitron', sans-serif; font-size: 16px; letter-spacing: 0.11em; color: #7ff1ff; }
+    .top-btn {
+      min-height: 38px; border: 2px solid #6a879b; border-radius: 9px; padding: 0 13px;
+      background: #2e4658; color: #f0f6ff; font-weight: 600; cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+    .top-btn:hover { transform: translateY(-1px); }
+    .leave { border-color: #8f6957; background: #4a342b; color: #ffd7ca; }
+
+    .players-row {
+      border: 2px solid #4d6576; border-radius: 14px; padding: 12px;
+      background: linear-gradient(150deg, #202f3e, #192633);
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    }
+    .slot {
+      border: 2px solid #5a7387; border-radius: 12px;
+      background: linear-gradient(150deg, #2a3d50, #223241);
+      display: grid; grid-template-rows: 38px 1fr 46px;
+      overflow: hidden;
+    }
+    .slot.empty { border-style: dashed; opacity: 0.72; background: linear-gradient(150deg, #1c2935, #17222d); }
+    .slot-head, .slot-foot {
+      display: flex; align-items: center; justify-content: space-between; padding: 0 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .slot-foot { border-top: 1px solid rgba(255,255,255,0.1); border-bottom: none; }
+    .slot-name { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 0.05em; }
+    .host {
+      border: 1px solid rgba(124,255,201,0.35); background: rgba(124,255,201,0.16); color: #b9ffdf;
+      border-radius: 999px; padding: 3px 7px; font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase;
+      visibility: hidden;
+    }
+    .ship-zone { position: relative; display: flex; align-items: center; justify-content: center; }
+    .halo { position: absolute; width: 106px; height: 106px; border-radius: 50%; filter: blur(14px); opacity: 0.3; animation: pulse 2.8s ease-in-out infinite; }
+    .ship {
+      width: 90px; height: 66px; position: relative; animation: bob 3.2s ease-in-out infinite;
+    }
+    .ship::before {
+      content: ''; position: absolute; inset: 0;
+      clip-path: polygon(8% 56%, 30% 20%, 66% 20%, 92% 56%, 68% 82%, 32% 82%);
+      border: 3px solid #203449; background: linear-gradient(135deg, #d9e8ff, #89abc5);
+    }
+    .ship::after {
+      content: ''; position: absolute; left: 34px; top: 20px;
+      width: 20px; height: 20px; border-radius: 50%; border: 3px solid #294660;
+      background: #9dfffd;
+    }
+    .badge {
+      border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 5px 8px;
+      font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase;
+      background: rgba(255,255,255,0.06);
+    }
+    .act {
+      min-height: 28px; min-width: 60px; border-radius: 7px; border: 1px solid #8b665a;
+      background: #4d352e; color: #ffd6c7; font-size: 11px; font-weight: 600; cursor: pointer;
+    }
+    .act[hidden] { display: none; }
+
+    .lower {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+    }
+    .left-stack { display: grid; grid-template-rows: 1fr 92px; gap: 16px; }
+    .panel {
+      border: 2px solid #4d6778; border-radius: 14px;
+      background: linear-gradient(150deg, #1f2f3e, #16232f);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    .map-panel { padding: 16px; display: grid; grid-template-columns: 312px 1fr; gap: 14px; }
+    #map-main { width: 312px; height: 172px; border-radius: 10px; border: 2px solid #69869a; background: #122031; }
+    .kicker { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #afc8de; }
+    .map-name { font-family: 'Orbitron', sans-serif; font-size: 24px; margin: 8px 0; }
+    .map-desc { color: #cbdef4; font-size: 14px; line-height: 1.35; min-height: 60px; }
+    .main-btn {
+      min-height: 42px; border-radius: 10px; border: 2px solid #7397ad;
+      background: linear-gradient(180deg, #3e5b70, #30485a);
+      color: #f4f9ff; font-family: 'Orbitron', sans-serif; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+    }
+    .main-btn:hover { box-shadow: 0 0 12px rgba(127,241,255,0.22); }
+
+    .strip {
+      padding: 0 14px;
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      align-items: center; gap: 10px;
+    }
+    .mode-value { font-family: 'Orbitron', sans-serif; font-size: 14px; }
+    .session {
+      border: 2px solid #5f7d90; border-radius: 10px; padding: 4px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+      background: #192838;
+    }
+    .sbtn {
+      min-height: 32px; border: none; border-radius: 8px;
+      background: transparent; color: #a9c1d6;
+      font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+    }
+    .sbtn.active { background: #355062; color: #f6fbff; }
+
+    .side {
+      padding: 16px;
+      display: grid; grid-template-rows: auto auto auto 1fr;
+      gap: 10px;
+    }
+    .status {
+      min-height: 44px; border: 2px solid #627f92; border-radius: 10px;
+      display: flex; align-items: center; gap: 10px; padding: 0 12px; background: #1a2a37; font-weight: 600;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #ffca45; box-shadow: 0 0 10px #ffca45; animation: pulse 1.5s ease-in-out infinite; }
+    .count-label { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 0.08em; color: #aac2d8; text-transform: uppercase; }
+    .count { font-family: 'Orbitron', sans-serif; font-size: 24px; }
+    #cta {
+      align-self: end; min-height: 64px; border-radius: 12px; border: 2px solid #7ff1ff;
+      background: linear-gradient(180deg, #8af7ff, #4bbecb);
+      color: #14353a; font-family: 'Orbitron', sans-serif; font-size: 25px; letter-spacing: 0.07em; font-weight: 800; cursor: pointer;
+    }
+    #cta:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .modal { position: absolute; inset: 0; visibility: hidden; opacity: 0; display: flex; align-items: center; justify-content: center; background: rgba(9,12,16,0.72); transition: opacity 0.18s ease; }
+    .modal.open { visibility: visible; opacity: 1; }
+    .modal-card {
+      width: 1040px; height: 560px; border: 2px solid #5e7f93; border-radius: 16px;
+      background: linear-gradient(150deg, #1f3142, #162432);
+      padding: 20px; display: grid; grid-template-rows: 52px 1fr; gap: 10px;
+      transform: translateY(8px); transition: transform 0.18s ease;
+    }
+    .modal.open .modal-card { transform: translateY(0); }
+    .mhead { display: flex; align-items: center; justify-content: space-between; }
+    .mtitle { font-family: 'Orbitron', sans-serif; font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .mclose { width: 42px; height: 42px; border-radius: 10px; border: 2px solid #7699ad; background: #375365; color: #eef7ff; font-size: 19px; cursor: pointer; }
+    .mgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .map-item {
+      border: 2px solid #607f92; border-radius: 12px; background: #1a2a39; padding: 10px;
+      display: grid; grid-template-rows: 116px auto auto; gap: 8px; cursor: pointer;
+    }
+    .map-item.active { border-color: #8ff6ff; box-shadow: 0 0 16px rgba(143,246,255,0.3); }
+    .mini { width: 100%; height: 116px; border-radius: 8px; border: 2px solid #6b8b9d; background: #102130; }
+    .mini-title { font-family: 'Orbitron', sans-serif; font-size: 13px; }
+    .mini-desc { color: #c7daee; font-size: 12px; line-height: 1.3; }
+
+    .toolbar {
+      position: fixed; right: 18px; bottom: 18px; z-index: 8;
+      width: 360px; border: 2px solid #627f91; border-radius: 12px; background: rgba(11,17,23,0.94);
+      padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.35); font-size: 12px;
+    }
+    .toolbar-title { grid-column: 1 / -1; font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; }
+    .toolbar label { display: grid; gap: 4px; color: #b3c8dd; }
+    .toolbar input, .toolbar select {
+      min-height: 30px; border-radius: 8px; border: 1px solid #708ea2;
+      background: #203445; color: #f0f6ff; padding: 0 8px; font-family: 'Exo 2', sans-serif;
+    }
+
+    #portrait-guard {
+      position: fixed; inset: 0; display: none; z-index: 12;
+      align-items: center; justify-content: center;
+      background: rgba(10,12,14,0.95);
+      font-family: 'Orbitron', sans-serif; text-align: center; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    @keyframes bob { 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-5px); } }
+    @keyframes pulse { 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.34); opacity: 0.6; } }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div class="scene">
+      <header class="topbar">
+        <h1 class="title">Astro Party Lobby</h1>
+        <div id="room-pill" class="room-pill"><span class="room-label">Room</span><span id="room-code" class="room-code">R4Z9</span></div>
+        <button id="copy-btn" class="top-btn" type="button">Copy</button>
+        <button class="top-btn leave" type="button">Leave</button>
+      </header>
+
+      <section id="players" class="players-row"></section>
+
+      <section class="lower">
+        <div class="left-stack">
+          <article class="panel map-panel">
+            <canvas id="map-main" width="312" height="172"></canvas>
+            <div>
+              <p class="kicker">Map Selector</p>
+              <h2 id="map-name" class="map-name"></h2>
+              <p id="map-desc" class="map-desc"></p>
+              <button id="open-map" class="main-btn" type="button">Change Arena</button>
+            </div>
+          </article>
+
+          <article class="panel strip">
+            <div><p class="kicker">Game Mode</p><p id="mode-value" class="mode-value"></p></div>
+            <div class="session"><button id="session-local" class="sbtn" type="button">Local</button><button id="session-online" class="sbtn" type="button">Online</button></div>
+            <button id="cycle-mode" class="main-btn" type="button">Cycle Mode</button>
+          </article>
+        </div>
+
+        <article class="panel side">
+          <p class="count-label">Roster</p>
+          <p class="count"><span id="count-now"></span> / 4</p>
+          <div class="status"><span id="status-dot" class="dot"></span><span id="status-text">Waiting</span></div>
+          <button id="cta" type="button">Launch</button>
+        </article>
+      </section>
+    </div>
+
+    <div id="modal" class="modal" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <div class="mhead"><h3 class="mtitle">Select Arena</h3><button id="close-modal" class="mclose" type="button">X</button></div>
+        <div id="map-grid" class="mgrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="toolbar" aria-label="Dev toolbar">
+    <p class="toolbar-title">Dev Toolbar</p>
+    <label>Player Count<input id="dev-players" type="range" min="1" max="4" value="1"></label>
+    <label>Host<input id="dev-host" type="checkbox" checked></label>
+    <label>Session<select id="dev-session"><option value="local">Local</option><option value="online" selected>Online</option></select></label>
+    <label>Quick Map<select id="dev-map"></select></label>
+    <label>Quick Mode<select id="dev-mode"></select></label>
+  </aside>
+
+  <div id="portrait-guard">Landscape Only<br>Astro Party Lobby</div>
+
+  <script>
+    (function () {
+      const baseW = 1280;
+      const baseH = 720;
+      const colors = ['#00e5ff', '#ff2d9b', '#ffe500', '#00ff88'];
+      const modes = ['Standard', 'Sane', 'Chaotic'];
+      const maps = [
+        { name: 'Classic Rotation', desc: 'Balanced arena with lane loops and mirrored starts.' },
+        { name: 'The Cache', desc: 'Central vault pull with guarded corner entries.' },
+        { name: 'Fortress', desc: 'Hard cover blocks around controlled breach routes.' },
+        { name: 'Void Ring', desc: 'Outer dueling ring around a hazardous center.' },
+        { name: 'Nebula Cross', desc: 'Cross-lane pressure with shifting visibility zones.' },
+        { name: 'Asteroid Field', desc: 'Dense hazards reward micro-thrust precision.' }
+      ];
+      const asteroids = [[0.12,0.25,0.04],[0.24,0.61,0.05],[0.40,0.35,0.03],[0.53,0.52,0.06],[0.66,0.2,0.04],[0.74,0.68,0.05],[0.85,0.41,0.04],[0.45,0.78,0.03]];
+      const state = { playerCount: 1, isHost: true, session: 'online', mapIndex: 0, modeIndex: 0, ready: false, roomCode: 'R4Z9' };
+
+      const ids = {
+        stage: document.getElementById('stage'), portrait: document.getElementById('portrait-guard'), players: document.getElementById('players'),
+        roomPill: document.getElementById('room-pill'), roomCode: document.getElementById('room-code'), mapMain: document.getElementById('map-main'),
+        mapName: document.getElementById('map-name'), mapDesc: document.getElementById('map-desc'), modeValue: document.getElementById('mode-value'),
+        sessionLocal: document.getElementById('session-local'), sessionOnline: document.getElementById('session-online'),
+        statusText: document.getElementById('status-text'), statusDot: document.getElementById('status-dot'), countNow: document.getElementById('count-now'), cta: document.getElementById('cta'),
+        modal: document.getElementById('modal'), mapGrid: document.getElementById('map-grid'),
+        devPlayers: document.getElementById('dev-players'), devHost: document.getElementById('dev-host'), devSession: document.getElementById('dev-session'), devMap: document.getElementById('dev-map'), devMode: document.getElementById('dev-mode')
+      };
+
+      function log(fn, message) { console.log('[' + fn + ']', message); }
+      function scaleStage() {
+        const scale = Math.min(window.innerWidth / baseW, window.innerHeight / baseH);
+        const ox = (window.innerWidth - baseW * scale) * 0.5;
+        const oy = (window.innerHeight - baseH * scale) * 0.5;
+        ids.stage.style.transform = 'translate(' + ox + 'px,' + oy + 'px) scale(' + scale + ')';
+        ids.portrait.style.display = window.innerWidth < window.innerHeight ? 'flex' : 'none';
+      }
+
+      function slotType(slot) {
+        if (slot === 1) return 'YOU';
+        if (slot > state.playerCount) return 'OPEN';
+        if (state.session === 'online') return slot === 4 ? 'AI BOT' : 'ONLINE';
+        return slot === 4 ? 'AI BOT' : 'LOCAL';
+      }
+      function slotName(slot) {
+        if (slot > state.playerCount) return 'OPEN SLOT';
+        if (slot === 1) return 'YOU';
+        if (state.session === 'online') return ['YOU', 'NOVA RAZE', 'ORION PIKE', 'ASTRA UNIT'][slot - 1];
+        return ['YOU', 'WINGMATE A', 'WINGMATE B', 'DRONE ALLY'][slot - 1];
+      }
+
+      function drawMap(canvas, mapIndex) {
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width; const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        const g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#183042'); g.addColorStop(1, '#122334');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = 'rgba(170,206,230,0.2)'; ctx.lineWidth = 1;
+        for (let x = 0; x <= w; x += 24) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+        for (let y = 0; y <= h; y += 24) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+        ctx.strokeStyle = '#a9f6ff'; ctx.lineWidth = 3; ctx.fillStyle = 'rgba(127,241,255,0.22)';
+
+        if (mapIndex === 0) { ctx.strokeRect(w*0.22,h*0.2,w*0.56,h*0.6); ctx.beginPath(); ctx.arc(w*0.5,h*0.5,h*0.18,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+        if (mapIndex === 1) { ctx.strokeRect(w*0.16,h*0.22,w*0.2,h*0.2); ctx.strokeRect(w*0.64,h*0.22,w*0.2,h*0.2); ctx.strokeRect(w*0.16,h*0.58,w*0.2,h*0.2); ctx.strokeRect(w*0.64,h*0.58,w*0.2,h*0.2); ctx.fillRect(w*0.43,h*0.39,w*0.14,h*0.22); ctx.strokeRect(w*0.43,h*0.39,w*0.14,h*0.22); }
+        if (mapIndex === 2) { ctx.strokeRect(w*0.1,h*0.14,w*0.8,h*0.72); ctx.clearRect(w*0.45,h*0.1,w*0.1,h*0.12); ctx.clearRect(w*0.45,h*0.78,w*0.1,h*0.12); ctx.strokeRect(w*0.22,h*0.28,w*0.2,h*0.18); ctx.strokeRect(w*0.58,h*0.54,w*0.2,h*0.18); }
+        if (mapIndex === 3) { ctx.beginPath(); ctx.arc(w*0.5,h*0.5,h*0.34,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(w*0.5,h*0.5,h*0.17,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w*0.5,h*0.16); ctx.lineTo(w*0.5,h*0.84); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w*0.16,h*0.5); ctx.lineTo(w*0.84,h*0.5); ctx.stroke(); }
+        if (mapIndex === 4) { ctx.beginPath(); ctx.moveTo(w*0.5,h*0.08); ctx.lineTo(w*0.5,h*0.92); ctx.stroke(); ctx.beginPath(); ctx.moveTo(w*0.08,h*0.5); ctx.lineTo(w*0.92,h*0.5); ctx.stroke(); ctx.fillStyle = 'rgba(124,210,255,0.25)'; ctx.beginPath(); ctx.arc(w*0.34,h*0.38,h*0.18,0,Math.PI*2); ctx.arc(w*0.62,h*0.58,h*0.15,0,Math.PI*2); ctx.fill(); }
+        if (mapIndex === 5) { ctx.fillStyle = 'rgba(196,223,247,0.34)'; asteroids.forEach(function (a) { ctx.beginPath(); ctx.arc(w*a[0], h*a[1], h*a[2], 0, Math.PI*2); ctx.fill(); ctx.stroke(); }); }
+      }
+
+      function buildPlayers() {
+        let html = '';
+        for (let i = 1; i <= 4; i += 1) {
+          const filled = i <= state.playerCount;
+          const role = slotType(i);
+          const canAct = state.isHost && i > 1 && filled;
+          const actText = role === 'ONLINE' ? 'Kick' : 'Remove';
+          html += '<article class="slot ' + (filled ? '' : 'empty') + '" style="border-color:' + (filled ? colors[i-1] : '#5a7387') + '">';
+          html += '<div class="slot-head"><span class="slot-name">' + slotName(i) + '</span><span class="host" style="visibility:' + (state.isHost && i===1 ? 'visible' : 'hidden') + '">Host</span></div>';
+          html += '<div class="ship-zone"><div class="halo" style="background:' + colors[i-1] + '"></div><div class="ship"></div></div>';
+          html += '<div class="slot-foot"><span class="badge" style="border-color:' + (filled ? colors[i-1] : 'rgba(255,255,255,0.2)') + '">' + role + '</span><button class="act" ' + (canAct ? '' : 'hidden') + '>' + actText + '</button></div>';
+          html += '</article>';
+        }
+        ids.players.innerHTML = html;
+      }
+
+      function buildMapModal() {
+        let html = '';
+        for (let i = 0; i < maps.length; i += 1) {
+          html += '<button class="map-item" data-map="' + i + '"><canvas class="mini" width="292" height="116"></canvas><div class="mini-title">' + maps[i].name + '</div><div class="mini-desc">' + maps[i].desc + '</div></button>';
+        }
+        ids.mapGrid.innerHTML = html;
+        ids.mapGrid.querySelectorAll('.map-item').forEach(function (item, idx) {
+          drawMap(item.querySelector('canvas'), idx);
+          item.addEventListener('click', function () { state.mapIndex = idx; renderAll(); closeModal(); log('MapSelect', maps[idx].name); });
+        });
+      }
+
+      function updateStatus() {
+        let status = 'Waiting'; let color = '#ffca45';
+        if (state.playerCount < 2) { status = 'Need more players'; color = '#ff5f6d'; }
+        else if (state.isHost) { status = 'Ready'; color = '#2bfda5'; }
+        else { status = state.ready ? 'Ready' : 'Waiting'; color = state.ready ? '#2bfda5' : '#ffca45'; }
+        ids.statusText.textContent = status;
+        ids.statusDot.style.background = color;
+        ids.statusDot.style.boxShadow = '0 0 10px ' + color;
+      }
+
+      function renderAll() {
+        buildPlayers();
+        ids.mapName.textContent = maps[state.mapIndex].name;
+        ids.mapDesc.textContent = maps[state.mapIndex].desc;
+        drawMap(ids.mapMain, state.mapIndex);
+        ids.modeValue.textContent = modes[state.modeIndex];
+        ids.sessionLocal.classList.toggle('active', state.session === 'local');
+        ids.sessionOnline.classList.toggle('active', state.session === 'online');
+        ids.roomPill.classList.toggle('hidden', state.session !== 'online');
+        ids.roomCode.textContent = state.roomCode;
+        ids.countNow.textContent = String(state.playerCount);
+        ids.cta.textContent = state.isHost ? 'Launch' : 'Ready';
+        ids.cta.disabled = state.playerCount < 2;
+        updateStatus();
+
+        ids.devPlayers.value = String(state.playerCount);
+        ids.devHost.checked = state.isHost;
+        ids.devSession.value = state.session;
+        ids.devMap.value = String(state.mapIndex);
+        ids.devMode.value = String(state.modeIndex);
+
+        ids.mapGrid.querySelectorAll('.map-item').forEach(function (item) {
+          const idx = Number(item.getAttribute('data-map'));
+          item.classList.toggle('active', idx === state.mapIndex);
+        });
+      }
+
+      function openModal() { ids.modal.classList.add('open'); ids.modal.setAttribute('aria-hidden', 'false'); }
+      function closeModal() { ids.modal.classList.remove('open'); ids.modal.setAttribute('aria-hidden', 'true'); }
+
+      function bind() {
+        window.addEventListener('resize', scaleStage);
+        document.getElementById('open-map').addEventListener('click', openModal);
+        document.getElementById('close-modal').addEventListener('click', closeModal);
+        ids.modal.addEventListener('click', function (e) { if (e.target === ids.modal) closeModal(); });
+
+        document.getElementById('copy-btn').addEventListener('click', function () { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(state.roomCode); log('CopyRoomCode', state.roomCode); });
+        document.getElementById('cycle-mode').addEventListener('click', function () { state.modeIndex = (state.modeIndex + 1) % modes.length; renderAll(); log('ModeCycle', modes[state.modeIndex]); });
+        ids.sessionLocal.addEventListener('click', function () { state.session = 'local'; state.ready = false; renderAll(); log('SessionChange', 'local'); });
+        ids.sessionOnline.addEventListener('click', function () { state.session = 'online'; state.ready = false; renderAll(); log('SessionChange', 'online'); });
+
+        ids.cta.addEventListener('click', function () {
+          if (state.playerCount < 2) return;
+          if (state.isHost) log('Launch', 'Host launched preview');
+          else { state.ready = !state.ready; renderAll(); log('ReadyToggle', String(state.ready)); }
+        });
+
+        ids.devPlayers.addEventListener('input', function () { state.playerCount = Number(ids.devPlayers.value); if (state.playerCount < 2) state.ready = false; renderAll(); log('DevPlayers', String(state.playerCount)); });
+        ids.devHost.addEventListener('change', function () { state.isHost = ids.devHost.checked; state.ready = false; renderAll(); log('DevHost', String(state.isHost)); });
+        ids.devSession.addEventListener('change', function () { state.session = ids.devSession.value; state.ready = false; renderAll(); log('DevSession', state.session); });
+        ids.devMap.addEventListener('change', function () { state.mapIndex = Number(ids.devMap.value); renderAll(); log('DevMap', maps[state.mapIndex].name); });
+        ids.devMode.addEventListener('change', function () { state.modeIndex = Number(ids.devMode.value); renderAll(); log('DevMode', modes[state.modeIndex]); });
+      }
+
+      function initDevOptions() {
+        maps.forEach(function (m, i) { const opt = document.createElement('option'); opt.value = String(i); opt.textContent = m.name; ids.devMap.appendChild(opt); });
+        modes.forEach(function (m, i) { const opt = document.createElement('option'); opt.value = String(i); opt.textContent = m; ids.devMode.appendChild(opt); });
+      }
+
+      initDevOptions();
+      buildMapModal();
+      bind();
+      scaleStage();
+      renderAll();
+      log('Init', 'Scratch variant 2 ready');
+    })();
+  </script>
+</body>
+</html>

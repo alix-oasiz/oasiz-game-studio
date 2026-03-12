@@ -1,0 +1,455 @@
+# Space Force Server
+
+Authoritative multiplayer backend for Space Force.
+
+## Responsibilities
+
+- Hosts Colyseus room `space_force`.
+- Runs fixed-step simulation and broadcasts snapshots/events.
+- Exposes matchmaking and health HTTP endpoints.
+- Exposes Colyseus monitor dashboard endpoint.
+- Tracks room codes for friend joins.
+
+## Stack
+
+- Node.js + TypeScript
+- Colyseus (`colyseus`, `@colyseus/ws-transport`)
+- Colyseus Monitor (`@colyseus/monitor`)
+- Redis presence + driver (`@colyseus/redis-presence`, `@colyseus/redis-driver`) — optional, enabled when `REDIS_URL` is set
+- Express (`/healthz`, `/match/create`, `/match/join`)
+
+## Toolchain Baseline (Pinned)
+
+Server install/build/runtime are pinned to:
+
+- Node.js `22.19.0`
+- npm `11.6.0`
+
+Source-of-truth files:
+
+- `server/.nvmrc`
+- `server/package.json` (`engines`, `packageManager`)
+- `server/.npmrc` (`engine-strict=true`)
+
+Why this matters:
+
+- avoids local/remote/container dependency drift
+- makes `npm ci` behavior deterministic across environments
+
+Local setup before install/build:
+
+```bash
+cd space-force/server
+nvm use
+npm install -g npm@11.6.0
+npm --version
+node --version
+npm ci
+```
+
+## Run locally
+
+```bash
+cd space-force/server
+npm install
+npm run dev
+```
+
+Build/start:
+
+```bash
+cd space-force/server
+npm run build
+npm run start
+```
+
+Default port is `2567`.
+
+## Docker (GCP-ready baseline)
+
+Build context must be `space-force` (not `space-force/server`) because the Dockerfile copies both `server/` and `shared/`.
+
+Build image:
+
+```bash
+docker build -f space-force/server/Dockerfile -t space-force-server:local space-force
+```
+
+Run container locally:
+
+```bash
+docker run --rm -p 2567:2567 \
+  -e NODE_ENV=production \
+  -e PORT=2567 \
+  -e CORS_ORIGIN=http://localhost:5173 \
+  -e COLYSEUS_MONITOR_ENABLED=false \
+  -e OPS_STATS_ENABLED=false \
+  space-force-server:local
+```
+
+Local smoke test commands:
+
+```bash
+curl http://127.0.0.1:2567/healthz
+curl -X POST http://127.0.0.1:2567/match/create -H "content-type: application/json" -d "{}"
+```
+
+Container hardening now in Dockerfile:
+
+- multi-stage deterministic install with `npm ci`
+- pinned Node/npm in all stages
+- health check on `/healthz`
+- `.dockerignore` excludes `node_modules`, build artifacts, logs, and `.env`
+
+## Load testing
+
+This server includes a minimal Colyseus load-test harness powered by `@colyseus/loadtest`.
+
+Run from `space-force/server`:
+
+```bash
+npm run loadtest -- --roomCode BJ9H --numClients 24 --delay 20 --durationSec 90
+```
+
+Room-code runner (join pre-existing room):
+
+```bash
+npm run loadtest:roomcode -- --roomCode BJ9H --numClients 24 --delay 20 --durationSec 90
+```
+
+Lobby-fill runner (auto-create/fill rooms, auto-start each full lobby):
+
+```bash
+npm run loadtest:lobbyfill -- --numClients 40 --usersPerRoom 4 --delay 20 --durationSec 120
+```
+
+Staged single-droplet capacity sweep (run from your load-generator machine, not the server):
+
+```bash
+npm run loadtest:capacity -- --runner lobbyfill --stages 20,40,60,80 --usersPerRoom 4 --durationSec 300 --cooldownSec 20
+```
+
+Observed run orchestration (single trigger with server-side artifact capture):
+
+```bash
+npm run loadtest:observed -- --Runner lobbyfill --NumClients 40 --UsersPerRoom 4 --DurationSec 300 --WarmupSec 20 --DropletHost space-force-droplet
+```
+
+Behavior:
+
+- roomcode mode joins an exact room code via `/match/join` + seat reservation consume
+- lobbyfill mode groups clients (`usersPerRoom`), leader creates room directly via Colyseus `create`, followers join leader room via `joinById`, and leader sends `cmd:start_match` when group is full
+- input spam starts only in `PLAYING`, pauses in other phases, and resumes when `PLAYING` returns
+- reads `evt:snapshot` payloads and discards them (with metrics)
+- sends `cmd:input` (`buttonA` + `buttonB`) at default client debounce (`1000/60`), aligned to server `tickDurationMs` when available
+- on room errors, attempts a graceful leave (`leave(false)`) and relies on `onLeave` for terminal cleanup
+
+Room-code flags (`loadtest:roomcode`):
+
+- `--roomCode <ABCD>` (required)
+- `--numClients <n>`
+- `--delay <ms>`
+- `--durationSec <n>` / `--durationMs <n>`
+- `--requestTimeoutMs <n>` (default `15000`)
+- `--summaryIntervalMs <n>` (default `5000`)
+- `--inputDebounceMs <n>` (default `16.666...`)
+- `--autoExitOnComplete true|false` (default `true` when duration is set)
+
+Lobby-fill flags (`loadtest:lobbyfill`):
+
+- `--numClients <n>`
+- `--usersPerRoom <n>` (default `4`)
+- `--waitForGroupMs <n>` (default `30000`)
+- `--startDelayMs <n>` (default `500`)
+- `--startFallbackMs <n>` (default `12000`)
+- `--delay <ms>`
+- `--durationSec <n>` / `--durationMs <n>`
+- `--requestTimeoutMs <n>` (default `15000`)
+- `--summaryIntervalMs <n>` (default `5000`)
+- `--inputDebounceMs <n>` (default `16.666...`)
+- `--autoExitOnComplete true|false` (default `true` when duration is set)
+
+Capacity sweep flags (`loadtest:capacity`):
+
+- `--runner roomcode|lobbyfill` (default `lobbyfill`)
+- `--roomCode <ABCD>` (required only when `--runner roomcode`)
+- `--usersPerRoom <n>` (lobbyfill runner)
+- `--waitForGroupMs <n>` (lobbyfill runner)
+- `--startDelayMs <n>` (lobbyfill runner)
+- `--startFallbackMs <n>` (lobbyfill runner)
+- `--stages 20,40,60` (required capacity steps; default `20,40,60,80`)
+- `--durationSec <n>` (default `300`)
+- `--cooldownSec <n>` (default `20`)
+- `--delay <ms>` (default `20`)
+- `--outputDir <path>` (optional)
+- `--endpoint <ws://...>` (optional)
+- `--requestTimeoutMs <n>` (optional)
+- `--doToken <token>` + `--doDropletId <id>` (optional DigitalOcean metric capture)
+- `--doInterface public|private` (default `public`)
+
+Observed orchestration flags (`loadtest:observed`, PowerShell parameter names):
+
+- `-Runner lobbyfill|roomcode` (default `lobbyfill`)
+- `-NumClients <n>`
+- `-UsersPerRoom <n>` (`lobbyfill` only, default `4`)
+- `-RoomCode <ABCD>` (`roomcode` only)
+- `-Delay <ms>` (default `300`)
+- `-DurationSec <n>`
+- `-WarmupSec <n>` (default `15`)
+- `-SummaryIntervalMs <n>` (default `5000`)
+- `-RequestTimeoutMs <n>` (default `15000`)
+- `-DropletHost <ssh-host>` (or set `OBS_DROPLET_HOST`)
+- `-RemoteObserverPath <path>` (default `/root/space-force-observe.sh`)
+- `-RemoteObserveRoot <path>` (default `/tmp/space-force-observe`)
+- `-OpsUrl <url>` (default `http://127.0.0.1:2567/ops/stats`)
+- `-OpsToken <token>` (or set `OPS_STATS_TOKEN`)
+- `-ObserveIntervalSec <n>` (default `2`)
+- `-Interface <name>` (optional network interface override)
+- `-Pm2App <name>` (default `space-force-colyseus`)
+- `-SyncObserverScript true|false` (default `true`)
+
+Observed run output layout (`server/observed-runs/<runId>/`):
+
+- `run-meta.json`
+- `loadtest.log`
+- `pm2.log`
+- `kernel.log`
+- `metrics.log`
+- `parsed-events.json`
+
+Global observed index:
+
+- `server/observed-runs/index.json`
+
+Build/rebuild parser and index manually:
+
+```bash
+npm run observed:index
+```
+
+Serve and open dashboard:
+
+```bash
+cd observed-runs
+python -m http.server 8080
+# open http://localhost:8080/dashboard/
+```
+
+Endpoint resolution:
+
+- If `--endpoint` is provided, it is used.
+- Otherwise, `VITE_COLYSEUS_WS_URL` must be set.
+- If neither is available, loadtest exits with an error.
+
+Output logs:
+
+- If `--output <path>` is provided, that path is used.
+- If `--output` is omitted, the launcher writes to:
+  - `./loadtest-logs/loadtest-roomcode-YYYYMMDD-HHmmss.log`
+  - `./loadtest-logs/loadtest-lobbyfill-YYYYMMDD-HHmmss.log`
+- The launcher prints the chosen path on startup:
+  - `[LoadTest.run-roomcode] Using output log <path>`
+  - `[LoadTest.run-lobbyfill] Using output log <path>`
+
+Environment variable equivalents:
+
+- `LOADTEST_CAPACITY_RUNNER`
+- `LOADTEST_ROOM_CODE`
+- `LOADTEST_USERS_PER_ROOM`
+- `LOADTEST_WAIT_FOR_GROUP_MS`
+- `LOADTEST_START_DELAY_MS`
+- `LOADTEST_START_FALLBACK_MS`
+- `LOADTEST_REQUEST_TIMEOUT_MS`
+- `LOADTEST_DURATION_SEC` / `LOADTEST_DURATION_MS`
+- `LOADTEST_AUTO_EXIT_ON_COMPLETE`
+- `LOADTEST_SUMMARY_INTERVAL_MS`
+- `LOADTEST_INPUT_DEBOUNCE_MS`
+- `LOADTEST_CAPACITY_STAGES`
+- `LOADTEST_CAPACITY_OUTPUT_DIR`
+- `LOADTEST_COOLDOWN_SEC`
+- `DO_API_TOKEN`
+- `DO_DROPLET_ID`
+- `DO_DROPLET_INTERFACE`
+
+Implementation files:
+
+- `loadtest/minimal-roomcode.loadtest.ts`
+- `loadtest/lobbyfill.loadtest.ts`
+- `loadtest/run-roomcode-loadtest.ts`
+- `loadtest/run-lobbyfill-loadtest.ts`
+- `loadtest/run-capacity-sweep.ts`
+- `loadtest/space-force-observe.sh`
+- `loadtest/run-observed-loadtest.ps1`
+- `loadtest/build-observed-runs-index.ts`
+- `observed-runs/dashboard/index.html`
+- `observed-runs/dashboard/app.js`
+
+## Ops Stats Endpoint
+
+The server exposes a lightweight ops endpoint for app-level metrics:
+
+Production recommendation:
+
+- set `OPS_STATS_ENABLED=false` unless you explicitly need `/ops/stats`
+
+- default path: `/ops/stats`
+- payload includes:
+  - room/client counters
+  - consented vs unconsented leave totals
+  - recent leave event ring buffer (`clients.recentLeaves`) with timestamp, roomId, sessionId, consented flag, and phase
+  - input/ping/snapshot fanout totals and rates
+  - rolling RTT summary (`p50`, `p95`, `p99`) from client-reported `rttMs`
+  - process memory + load averages
+  - current matchMaker room/client snapshot
+
+Security:
+
+- set `OPS_STATS_TOKEN` to require `x-ops-token` header
+- if unset, endpoint is public on the server port
+
+## Colyseus Monitor
+
+The server mounts Colyseus Monitor on the same HTTP server.
+
+Production recommendation:
+
+- set `COLYSEUS_MONITOR_ENABLED=false` unless you explicitly need monitor access
+
+Default behavior:
+
+- enabled automatically when `NODE_ENV` is not `production`
+- default path is `/colyseus`
+- in `production`, set `COLYSEUS_MONITOR_ENABLED=true` to enable
+
+Quick local usage:
+
+```bash
+cd space-force/server
+npm run dev
+# open http://localhost:2567/colyseus
+```
+
+Optional password protection (Basic Auth):
+
+- set both `COLYSEUS_MONITOR_USERNAME` and `COLYSEUS_MONITOR_PASSWORD`
+- if only one is set, monitor is disabled for safety
+
+PowerShell example:
+
+```powershell
+cd space-force/server
+$env:COLYSEUS_MONITOR_ENABLED="true"
+$env:COLYSEUS_MONITOR_USERNAME="admin"
+$env:COLYSEUS_MONITOR_PASSWORD="change-me"
+npm run dev
+```
+
+## Validation snapshot (February 23, 2026)
+
+- `cd space-force/server && npm run typecheck`: passes.
+- `cd space-force/server && npm run build`: passes.
+- `cd space-force/server && npm run start`: uses compiled entry `dist/server/src/index.js`.
+
+## Environment variables
+
+These are read from `process.env`.
+
+`npm run dev` and `npm run start` load `.env` from `space-force/server/.env` via Node's `--env-file-if-exists=.env`.
+
+There is currently no `space-force/server/.env.example`; create `.env` manually if you want file-based local overrides.
+
+Shell-provided environment variables still work and take precedence over `.env`.
+
+- `PORT` (default: `2567`)
+- `CORS_ORIGIN` (default: `*`)
+- `MAX_PLAYERS` (default: `4`)
+- `SIM_TICK_HZ` (default: `60`)
+- `ROOM_CODE_LENGTH` (default: `4`)
+- `SNAPSHOT_HZ_LOBBY` (default: `12`, capped at tick rate)
+- `CLIENT_MAX_OUTBOUND_BUFFER_BYTES` (default: `262144`)
+- `WS_MAX_PAYLOAD_BYTES` (default: `262144`)
+- `COLYSEUS_MONITOR_ENABLED` (default: `true` outside production, `false` in production)
+- `COLYSEUS_MONITOR_PATH` (default: `/colyseus`)
+- `COLYSEUS_MONITOR_USERNAME` (optional; requires password too)
+- `COLYSEUS_MONITOR_PASSWORD` (optional; requires username too)
+- `OPS_STATS_ENABLED` (default: `true`)
+- `OPS_STATS_PATH` (default: `/ops/stats`)
+- `OPS_STATS_TOKEN` (optional; requires `x-ops-token` header when set)
+- `DEBUG_TOOLS_ENABLED` (default: `false`)
+- `REDIS_URL` (optional; when set, enables Redis-backed presence and room driver for multi-instance deployments — e.g. `redis://10.0.0.3:6379`)
+
+## Debug tools
+
+Debug commands are enabled only when both server and client gates are enabled.
+
+### 1) Enable on server
+
+Set `DEBUG_TOOLS_ENABLED=true` in the server process environment.
+
+PowerShell:
+
+```powershell
+cd space-force/server
+$env:DEBUG_TOOLS_ENABLED="true"
+npm run dev
+```
+
+Bash:
+
+```bash
+cd space-force/server
+DEBUG_TOOLS_ENABLED=true npm run dev
+```
+
+If your deploy runner does not use `.env`, set `DEBUG_TOOLS_ENABLED=true` in the process environment.
+If you run the server with custom commands (not `npm run dev` / `npm run start`), pass envs explicitly or include `--env-file-if-exists=.env`.
+
+### 2) Enable on client
+
+Client debug tools are enabled in either case:
+
+- Running a dev build (`import.meta.env.DEV === true`)
+- `VITE_QA_DEBUG_TOOLS=true`
+
+### 3) In-game debug keys
+
+- `0` toggle dev visualization
+- `1` Laser
+- `2` Shield
+- `3` Scatter
+- `4` Mine
+- `5` Reverse
+- `6` Joust
+- `7` Homing missile
+- `9` Spawn random power-up
+
+## HTTP API
+
+- `GET /healthz` -> `{ ok: true }`
+- `POST /match/create`
+  - body: `{ "playerName"?: string, "playerShipSkinId"?: string }`
+  - returns: `{ roomCode, roomId, seatReservation }`
+- `POST /match/join`
+  - body: `{ "roomCode": string, "playerName"?: string, "playerShipSkinId"?: string }`
+  - returns success payload: `{ ok: true, roomCode, roomId, seatReservation }`
+  - invalid/missing/locked room code cases return `{ ok: false, error, message }`
+  - unexpected join failures return HTTP `409` with `{ error: "JOIN_FAILED", message }`
+
+## Room message contract
+
+- `cmd:set_skin`
+  - client -> room payload: `{ "skinId": string }`
+  - behavior: applies the player's authoritative `shipSkinId` in simulation state and propagates through normal player-meta snapshots.
+
+## Deploy note
+
+`server-deploy-script.txt` contains a PM2-based deployment script used in production workflows.
+
+For container deploys (GCP VM/GKE/Cloud Run):
+
+- inject env vars from platform secrets/config (do not bake `.env` into image)
+- set `COLYSEUS_MONITOR_ENABLED=false` unless intentionally enabled
+- set `OPS_STATS_ENABLED=false` unless intentionally enabled
+- if `OPS_STATS_ENABLED=true`, set `OPS_STATS_TOKEN`
+- set `REDIS_URL` to a Cloud Memorystore Redis instance to enable multi-instance support (RedisPresence + RedisDriver). Room codes are resolved via `matchMaker.query()` across all instances — no per-instance registry.
+- without `REDIS_URL`, server falls back to in-memory presence/driver (single-instance only).

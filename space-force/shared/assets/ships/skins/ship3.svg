@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40" role="img" aria-label="Ship skin: Flat Panel">
+
+  <defs>
+    <style>
+      .outline {
+        stroke: var(--slot-stroke, #07121a);
+        stroke-width: 3.5;
+        stroke-linejoin: round;
+      }
+
+      .hull-base { fill: var(--slot-primary, #00f0ff); }
+      .hull-shadow {
+        fill: #000;
+        opacity: 0.22;
+      }
+      .hull-deep {
+        fill: #000;
+        opacity: 0.38;
+      }
+
+      .wing-base { fill: var(--slot-primary, #00f0ff); }
+      .wing-shadow {
+        fill: #000;
+        opacity: 0.22;
+      }
+
+      .highlight {
+        fill: var(--slot-secondary, #ffffff);
+        opacity: 0.9;
+      }
+      .highlight-soft {
+        fill: var(--slot-secondary, #ffffff);
+        opacity: 0.55;
+      }
+
+      .engine-core { fill: var(--slot-primary, #00f0ff); }
+      .engine-shadow {
+        fill: #000;
+        opacity: 0.25;
+      }
+
+      .glow-flat { fill: var(--slot-primary, #00f0ff); opacity: 0.18; }
+    </style>
+  </defs>
+
+  <g id="visual" transform="scale(1 0.8) rotate(90) scale(0.35) translate(-0.25 -4.5)">
+
+    <!-- flat glow instead of gradient -->
+    <circle cx="0" cy="30" r="26" class="glow-flat"/>
+
+    <!-- wings -->
+    <polygon
+      points="-32.9,27.1 -49.9,22.7 -33.6,10.5 -19.2,23.0"
+      data-role="wing-left"
+      class="wing-base outline"
+    />
+
+    <polygon
+      points="-33.6,10.5 -49.9,22.7 -33.6,18.0 -21.0,22.0"
+      class="wing-shadow"
+    />
+
+    <polygon
+      points="36.2,27.1 50.4,23.0 34.3,10.3 19.3,22.4"
+      data-role="wing-right"
+      class="wing-base outline"
+    />
+
+    <polygon
+      points="34.3,10.3 50.4,23.0 34.3,18.0 22.0,22.0"
+      class="wing-shadow"
+    />
+
+    <!-- hull main -->
+    <polygon
+      points="0,-32 37,3 16,18 -16,18 -37,3"
+      data-role="hull-main"
+      class="hull-base outline"
+    />
+
+    <!-- hull shadow band -->
+    <polygon
+      points="0,-32 37,3 16,18 0,14"
+      class="hull-shadow"
+    />
+
+    <!-- deeper shadow -->
+    <polygon
+      points="0,-32 -37,3 -16,18 0,14"
+      class="hull-deep"
+    />
+
+    <!-- hard highlight strip -->
+    <polygon
+      points="-10,-12 0,-26 10,-12 6,-10 0,-20 -6,-10"
+      class="highlight"
+    />
+
+    <!-- secondary highlight -->
+    <polygon
+      points="-14,-4 0,-16 14,-4 10,-2 0,-10 -10,-2"
+      class="highlight-soft"
+    />
+
+    <!-- cockpit -->
+    <polygon
+      points="0,-24 15,-11 0,-7 -15,-11"
+      fill="#07121a"
+      class="outline"
+      stroke-width="2"
+    />
+
+    <!-- engine -->
+    <polygon
+      points="0,34 13,24 0,14 -13,24"
+      class="engine-core outline"
+    />
+
+    <polygon
+      points="0,31 9,24 0,18 -9,24"
+      class="engine-shadow"
+    />
+
+  </g>
+
+  <!-- unchanged collider -->
+  <path
+    id="collider"
+    d="M 12.775 -0.07 L 0.525 10.29 L -6.475 14.042 L -10.325 -0.07 L -6.37 -14.042 L 0.525 -10.43 Z"
+    fill="none"
+  />
+
+</svg>

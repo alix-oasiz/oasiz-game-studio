@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40" role="img" aria-label="Ship cel shaded variant: Racer">
+  <defs>
+    <style>
+      .o { stroke: var(--slot-stroke, #08141c); stroke-width: 4.2; stroke-linejoin: round; stroke-linecap: round; }
+      .o3 { stroke: var(--slot-stroke, #08141c); stroke-width: 3.2; stroke-linejoin: round; stroke-linecap: round; }
+
+      .h { fill: var(--slot-primary, #00f0ff); }
+      .s1 {
+        fill: #000;
+        opacity: 0.22;
+      }
+      .s2 {
+        fill: #000;
+        opacity: 0.38;
+      }
+
+      .w { fill: var(--slot-primary, #00f0ff); }
+      .ws {
+        fill: #000;
+        opacity: 0.22;
+      }
+
+      .stripe { fill: var(--slot-secondary, #ffffff); opacity: 0.95; }
+      .stripe2 {
+        fill: #000;
+        opacity: 0.35;
+      }
+
+      .glow { fill: var(--slot-primary, #00f0ff); opacity: 0.16; }
+      .core { fill: var(--slot-secondary, #ffffff); opacity: 0.85; }
+    </style>
+  </defs>
+
+  <g id="visual" transform="scale(1 0.8) rotate(90) scale(0.35) translate(-0.25 -4.5)">
+    <circle cx="0" cy="30" r="26" class="glow"/>
+
+    <!-- wings -->
+    <polygon points="-32.9,27.1 -49.9,22.7 -33.6,10.5 -19.2,23.0" data-role="wing-left" class="w o3"/>
+    <polygon points="-33.6,10.5 -49.9,22.7 -33.2,18.0 -21.2,22.0" class="ws"/>
+    <polygon points="36.2,27.1 50.4,23.0 34.3,10.3 19.3,22.4" data-role="wing-right" class="w o3"/>
+    <polygon points="34.3,10.3 50.4,23.0 33.9,18.0 21.8,22.0" class="ws"/>
+
+    <!-- hull -->
+    <polygon points="0,-32 37,3 16,18 -16,18 -37,3" data-role="hull-main" class="h o"/>
+    <polygon points="0,-32 37,3 16,18 0,14" class="s1"/>
+    <polygon points="0,-32 -37,3 -16,18 0,14" class="s2"/>
+
+    <!-- diagonal racing stripes -->
+    <polygon points="-10,-22 -4,-28 10,-8 4,-2" class="stripe"/>
+    <polygon points="-6,-20 -3,-23 8,-8 5,-5" class="stripe2"/>
+
+    <!-- cockpit -->
+    <polygon points="0,-24 15,-11 0,-7 -15,-11" fill="#08141c" opacity="0.96"/>
+    <polygon points="-9,-12 0,-16 9,-12 0,-9" class="core"/>
+
+    <!-- engine -->
+    <polygon points="0,34 13,24 0,14 -13,24" fill="var(--slot-primary, #00f0ff)" class="o3" opacity="0.84"/>
+    <polygon points="0,31 9,24 0,17 -9,24" fill="#ffffff" opacity="0.86"/>
+    <!-- speed tick -->
+    <polygon points="-10,28 -3,24 -10,20" fill="#ffffff" opacity="0.7"/>
+    <polygon points="10,28 3,24 10,20" fill="#ffffff" opacity="0.7"/>
+  </g>
+
+  <path id="collider"
+    d="M 12.775 -0.07 L 0.525 10.29 L -6.475 14.042 L -10.325 -0.07 L -6.37 -14.042 L 0.525 -10.43 Z"
+    fill="none" stroke="none"/>
+</svg>

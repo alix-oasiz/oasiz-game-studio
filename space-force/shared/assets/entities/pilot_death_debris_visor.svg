@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 16 16" role="img" aria-label="Pilot death debris visor">
+  <defs>
+    <style>
+      .slot-stroke { stroke: var(--slot-stroke, #e8f5ff); }
+    </style>
+    <clipPath id="visorCrackClip">
+      <circle cx="0" cy="0" r="2.95"/>
+    </clipPath>
+  </defs>
+
+  <g id="visual">
+    <circle
+      cx="0"
+      cy="0"
+      r="3.2"
+      fill="var(--slot-secondary, #0b1120)"
+      class="slot-stroke"
+      stroke-width="0.8"
+    />
+    <ellipse
+      cx="1.2"
+      cy="-0.2"
+      rx="2.3"
+      ry="1.5"
+      fill="var(--slot-primary, #00f0ff)"
+      opacity="0.28"
+    />
+    <g clip-path="url(#visorCrackClip)" opacity="0.62">
+      <path
+        d="M -1.8 -1.6 L -0.6 -0.5 L -0.2 0.5 L 0.7 1.3 L 1.8 1.7"
+        fill="none"
+        stroke="#eaf9ff"
+        stroke-width="0.22"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M -0.5 -0.4 L -1.1 0.2 L -1.7 0.4"
+        fill="none"
+        stroke="#d6f5ff"
+        stroke-width="0.16"
+        stroke-linecap="round"
+      />
+      <path
+        d="M -0.2 0.5 L 0.4 0.0 L 1.0 -0.1"
+        fill="none"
+        stroke="#d6f5ff"
+        stroke-width="0.16"
+        stroke-linecap="round"
+      />
+      <path
+        d="M 0.6 1.2 L 0.2 1.8"
+        fill="none"
+        stroke="#d6f5ff"
+        stroke-width="0.14"
+        stroke-linecap="round"
+      />
+    </g>
+    <circle cx="1.3" cy="-1.3" r="0.6" fill="#eaf9ff" opacity="0.28"/>
+  </g>
+
+  <path
+    id="collider"
+    d="M 0 -3.4 L 2.4 -2.4 L 3.4 0 L 2.4 2.4 L 0 3.4 L -2.4 2.4 L -3.4 0 L -2.4 -2.4 Z"
+    fill="none"
+    stroke="none"
+  />
+</svg>

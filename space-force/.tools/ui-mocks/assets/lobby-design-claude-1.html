@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
+  <title>Astro Party – Lobby Design Prototype</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:    #00e5ff;
+      --magenta: #ff2d9b;
+      --yellow:  #ffe500;
+      --green:   #00ff88;
+      --bg:      #080818;
+      --panel:   #0c0c20;
+      --panel2:  #10102a;
+      --border:  rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --text:    #d8e6ff;
+      --dim:     rgba(200,215,255,0.45);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: 'Exo 2', sans-serif;
+      color: var(--text);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    /* starfield */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        radial-gradient(1.5px 1.5px at 8%  18%, rgba(255,255,255,0.55) 0%, transparent 100%),
+        radial-gradient(1px   1px   at 23% 72%, rgba(255,255,255,0.38) 0%, transparent 100%),
+        radial-gradient(2px   2px   at 41% 11%, rgba(200,220,255,0.45) 0%, transparent 100%),
+        radial-gradient(1px   1px   at 57% 63%, rgba(255,255,255,0.30) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 73% 28%, rgba(255,255,255,0.50) 0%, transparent 100%),
+        radial-gradient(1px   1px   at 88% 82%, rgba(200,220,255,0.40) 0%, transparent 100%),
+        radial-gradient(1px   1px   at 15% 48%, rgba(255,255,255,0.32) 0%, transparent 100%),
+        radial-gradient(2px   2px   at 65% 7%,  rgba(180,200,255,0.48) 0%, transparent 100%),
+        radial-gradient(1px   1px   at 33% 88%, rgba(255,255,255,0.35) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 92% 42%, rgba(255,255,255,0.44) 0%, transparent 100%),
+        radial-gradient(1px   1px   at 50% 53%, rgba(255,255,255,0.28) 0%, transparent 100%),
+        radial-gradient(1px   1px   at 78% 67%, rgba(200,220,255,0.38) 0%, transparent 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── SCALE STAGE ─── */
+    #lobby-stage {
+      position: fixed;
+      top: 0; left: 0;
+      width: 1280px;
+      height: 720px;
+      transform-origin: top left;
+      z-index: 1;
+    }
+
+    /* ─── ROOT ─── */
+    .lobby-root {
+      width: 1280px;
+      height: 720px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ─── TOPBAR ─── */
+    .topbar {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 22px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8,8,24,0.8);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      color: var(--cyan);
+      text-shadow: 0 0 24px rgba(0,229,255,0.45);
+      white-space: nowrap;
+    }
+    .logo em { color: rgba(255,255,255,0.35); font-style: normal; font-weight: 400; }
+
+    .session-tabs {
+      display: flex;
+      gap: 3px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .stab {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      background: transparent;
+      border: none;
+      border-radius: 5px;
+      padding: 5px 16px;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .stab.active { background: var(--cyan); color: #000; }
+    .stab:not(.active):hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+    .topbar-spacer { flex: 1; }
+
+    .room-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 6px 14px;
+    }
+    .room-pill-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .room-pill-code {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: var(--cyan);
+    }
+    .room-pill-copy {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--dim);
+      display: flex;
+      align-items: center;
+      padding: 2px;
+      border-radius: 4px;
+      transition: color 0.14s;
+    }
+    .room-pill-copy:hover { color: var(--cyan); }
+    .room-pill-copy svg { width: 13px; height: 13px; }
+
+    .leave-btn {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: rgba(255,70,70,0.8);
+      background: rgba(255,30,30,0.07);
+      border: 1px solid rgba(255,60,60,0.2);
+      border-radius: 7px;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all 0.14s;
+    }
+    .leave-btn:hover { color: #ff4444; background: rgba(255,30,30,0.14); border-color: rgba(255,60,60,0.38); }
+
+    /* ─── BODY ─── */
+    .body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* ─── CARDS SECTION ─── */
+    .cards-section {
+      flex: 0 0 714px;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 11px;
+    }
+
+    /* ─── PLAYER CARD ─── */
+    .pcard {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .pcard--filled {
+      background: var(--panel2);
+      border: 1px solid var(--border2);
+    }
+    .pcard--filled:hover { transform: translateY(-2px); }
+    .pcard--empty {
+      background: rgba(12,12,32,0.5);
+      border: 2px dashed rgba(255,255,255,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .pcard--empty:hover { border-color: rgba(0,229,255,0.28); background: rgba(0,229,255,0.03); }
+
+    /* top glow stripe */
+    .pcard--filled::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--pc);
+      box-shadow: 0 0 14px 2px var(--pc);
+      z-index: 2;
+    }
+
+    /* ambient color glow */
+    .card-ambient {
+      position: absolute;
+      top: -60px; left: 50%;
+      transform: translateX(-50%);
+      width: 240px; height: 240px;
+      border-radius: 50%;
+      background: var(--pc);
+      opacity: 0.055;
+      filter: blur(50px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* badges row */
+    .card-badges {
+      position: absolute;
+      top: 9px; left: 10px; right: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      z-index: 3;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 5px;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .badge svg { width: 9px; height: 9px; flex-shrink: 0; }
+    .badge--you    { background: rgba(0,229,255,0.14); border: 1px solid rgba(0,229,255,0.28); color: var(--cyan); }
+    .badge--ai     { background: rgba(160,90,255,0.14); border: 1px solid rgba(160,90,255,0.28); color: #b87dff; }
+    .badge--local  { background: rgba(255,190,0,0.13);  border: 1px solid rgba(255,190,0,0.28);  color: #fbbf24; }
+    .badge--online { background: rgba(0,255,136,0.12); border: 1px solid rgba(0,255,136,0.26); color: var(--green); }
+    .badge--host   { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.28); color: #f59e0b; }
+
+    /* ship art */
+    .card-ship-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+      padding: 12px;
+      min-height: 0;
+    }
+    .card-ship-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-ship-glow {
+      position: absolute;
+      width: 130px; height: 130px;
+      border-radius: 50%;
+      background: var(--pc);
+      opacity: 0.1;
+      filter: blur(28px);
+      animation: pulse 3.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 0.08; transform: scale(0.88); }
+      50%      { opacity: 0.16; transform: scale(1.06); }
+    }
+    .card-ship-svg {
+      position: relative;
+      z-index: 1;
+      width: 72px;
+      height: 90px;
+      filter: drop-shadow(0 0 10px var(--pc)) drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+      animation: float 4.2s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0px) rotate(0deg); }
+      35%      { transform: translateY(-5px) rotate(0.6deg); }
+      70%      { transform: translateY(2.5px) rotate(-0.4deg); }
+    }
+
+    /* card info strip */
+    .card-info {
+      position: relative;
+      z-index: 1;
+      padding: 9px 13px 11px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-info-text { flex: 1; min-width: 0; }
+    .card-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+    .card-role {
+      font-size: 10px;
+      color: var(--dim);
+      margin-top: 2px;
+      letter-spacing: 0.02em;
+    }
+    .card-act {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(255,70,70,0.75);
+      background: rgba(255,30,30,0.07);
+      border: 1px solid rgba(255,60,60,0.18);
+      border-radius: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.13s;
+      flex-shrink: 0;
+    }
+    .card-act:hover { color: #ff4444; background: rgba(255,30,30,0.14); border-color: rgba(255,70,70,0.38); }
+
+    /* empty card */
+    .empty-plus { font-size: 26px; color: rgba(255,255,255,0.12); line-height: 1; }
+    .empty-label { font-size: 11px; color: var(--dim); letter-spacing: 0.04em; }
+    .empty-actions { display: flex; gap: 7px; margin-top: 2px; }
+    .empty-add-btn {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--dim);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 5px 13px;
+      cursor: pointer;
+      transition: all 0.13s;
+    }
+    .empty-add-btn:hover { color: var(--cyan); border-color: rgba(0,229,255,0.28); background: rgba(0,229,255,0.05); }
+
+    /* ─── VERTICAL DIVIDER ─── */
+    .vdivider {
+      width: 1px;
+      background: var(--border);
+      margin: 10px 0;
+      flex-shrink: 0;
+    }
+
+    /* ─── RIGHT PANEL ─── */
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 14px 18px 16px;
+      gap: 0;
+      min-width: 0;
+    }
+
+    .section-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    /* MAP PREVIEW */
+    .map-preview-wrap {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .map-canvas {
+      display: block;
+      width: 100%;
+      height: 180px;
+    }
+    .map-badge {
+      position: absolute;
+      top: 8px; right: 8px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 7px;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      background: rgba(8,8,24,0.72);
+      border: 1px solid var(--border2);
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: var(--dim);
+    }
+
+    .map-info-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0 10px;
+      flex-shrink: 0;
+    }
+    .map-info-texts { flex: 1; min-width: 0; }
+    .map-name-text {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .map-desc-text {
+      font-size: 10px;
+      color: var(--dim);
+      margin-top: 2px;
+    }
+    .map-change-btn {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--cyan);
+      background: rgba(0,229,255,0.07);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 7px;
+      padding: 7px 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.14s;
+    }
+    .map-change-btn:hover { background: rgba(0,229,255,0.13); border-color: rgba(0,229,255,0.38); }
+
+    .hdivider { height: 1px; background: var(--border); flex-shrink: 0; }
+
+    /* MODE ROW */
+    .mode-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0 11px;
+      flex-shrink: 0;
+    }
+    .mode-main { }
+    .mode-heading {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+    .mode-val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text);
+      margin-top: 3px;
+    }
+    .cycle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Exo 2', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--dim);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border2);
+      border-radius: 7px;
+      padding: 7px 12px;
+      cursor: pointer;
+      transition: all 0.14s;
+    }
+    .cycle-btn svg { width: 11px; height: 11px; }
+    .cycle-btn:hover { color: var(--text); background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.18); }
+
+    /* SESSION INFO */
+    .session-info-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0 11px;
+      flex-shrink: 0;
+    }
+    .session-info-main { }
+    .session-info-heading {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+    .session-info-val {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 3px;
+    }
+    .session-info-sub {
+      font-size: 10px;
+      color: var(--dim);
+      margin-top: 1px;
+    }
+    .players-pips {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .pip {
+      width: 28px;
+      height: 7px;
+      border-radius: 4px;
+      background: var(--border2);
+      transition: background 0.2s ease;
+    }
+    .pip.filled { background: var(--cyan); box-shadow: 0 0 8px rgba(0,229,255,0.4); }
+
+    /* SPACER */
+    .rpanel-spacer { flex: 1; }
+
+    /* STATUS ROW */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 9px;
+      flex-shrink: 0;
+    }
+    .sdot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      flex-shrink: 0;
+      animation: blink 2s ease-in-out infinite;
+    }
+    .sdot.warn { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .stext { font-size: 11px; color: var(--dim); }
+
+    /* START BUTTON */
+    .start-btn {
+      width: 100%;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #000;
+      background: var(--green);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 0 30px rgba(0,255,136,0.28), 0 4px 12px rgba(0,0,0,0.5);
+      transition: all 0.17s ease;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .start-btn::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -120%;
+      width: 80%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+      transition: left 0.45s ease;
+    }
+    .start-btn:hover { background: #06ffaa; box-shadow: 0 0 48px rgba(0,255,136,0.45), 0 6px 20px rgba(0,0,0,0.5); transform: translateY(-1px); }
+    .start-btn:hover::after { left: 140%; }
+    .start-btn:active { transform: translateY(0); box-shadow: 0 0 18px rgba(0,255,136,0.28), 0 2px 6px rgba(0,0,0,0.4); }
+    .start-btn:disabled { background: rgba(0,255,136,0.18); color: rgba(0,0,0,0.35); cursor: not-allowed; box-shadow: none; transform: none; }
+    .start-btn svg { width: 17px; height: 17px; }
+
+    /* ─── MAP PICKER MODAL ─── */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(4,4,16,0.78);
+      backdrop-filter: blur(6px);
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+
+    .map-picker {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.94);
+      width: 740px;
+      background: #0c0c22;
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 22px;
+      z-index: 51;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.85);
+    }
+    .map-picker.open {
+      opacity: 1;
+      pointer-events: all;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .picker-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .picker-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--text);
+    }
+    .picker-close {
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      cursor: pointer;
+      color: var(--dim);
+      transition: all 0.13s;
+    }
+    .picker-close:hover { color: var(--text); background: rgba(255,255,255,0.11); }
+    .picker-close svg { width: 15px; height: 15px; }
+
+    .picker-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 11px;
+    }
+    .picker-card {
+      border-radius: 9px;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      background: #070714;
+      transition: all 0.14s ease;
+      text-align: left;
+    }
+    .picker-card:hover { border-color: rgba(0,229,255,0.28); }
+    .picker-card.sel { border-color: var(--cyan); box-shadow: 0 0 18px rgba(0,229,255,0.18); }
+    .picker-card canvas { display: block; width: 100%; height: 96px; }
+    .picker-card-meta { padding: 7px 9px 9px; }
+    .picker-card-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+    }
+    .picker-card-desc { font-size: 8.5px; color: var(--dim); margin-top: 2px; }
+
+    /* ─── DEMO TOOLBAR ─── */
+    .demo-bar {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      background: rgba(6,6,20,0.94);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 9px;
+      padding: 7px 14px;
+      z-index: 200;
+      backdrop-filter: blur(12px);
+      font-family: 'Exo 2', sans-serif;
+    }
+    .demo-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 7px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      padding-right: 2px;
+    }
+    .dsep { width: 1px; height: 18px; background: rgba(255,255,255,0.1); margin: 0 2px; }
+    .dbtn {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(200,215,255,0.6);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 5px;
+      padding: 4px 11px;
+      cursor: pointer;
+      transition: all 0.13s;
+      white-space: nowrap;
+    }
+    .dbtn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .dbtn.on { color: var(--cyan); background: rgba(0,229,255,0.09); border-color: rgba(0,229,255,0.25); }
+  </style>
+</head>
+<body>
+
+<div id="lobby-stage">
+  <div class="lobby-root">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="logo">ASTRO<em> · </em>PARTY</div>
+      <div class="session-tabs">
+        <button class="stab" id="stab-local"   onclick="setSession('local')">Local</button>
+        <button class="stab active" id="stab-online" onclick="setSession('online')">Online</button>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="room-pill" id="room-pill">
+        <span class="room-pill-label">Room</span>
+        <span class="room-pill-code">KXZQ</span>
+        <button class="room-pill-copy" title="Copy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+      <button class="leave-btn">Leave</button>
+    </div>
+
+    <!-- BODY -->
+    <div class="body">
+
+      <!-- CARDS -->
+      <div class="cards-section" id="cards"></div>
+
+      <!-- DIVIDER -->
+      <div class="vdivider"></div>
+
+      <!-- RIGHT PANEL -->
+      <div class="right-panel">
+        <div class="section-label">Arena</div>
+
+        <div class="map-preview-wrap">
+          <canvas class="map-canvas" id="map-canvas" width="530" height="180"></canvas>
+          <div class="map-badge" id="map-badge">Rotation</div>
+        </div>
+
+        <div class="map-info-row">
+          <div class="map-info-texts">
+            <div class="map-name-text" id="map-name">Classic Rotation</div>
+            <div class="map-desc-text" id="map-desc">Random map each round</div>
+          </div>
+          <button class="map-change-btn" onclick="openPicker()">Change Arena</button>
+        </div>
+
+        <div class="hdivider"></div>
+
+        <div class="mode-row">
+          <div class="mode-main">
+            <div class="mode-heading">Mode</div>
+            <div class="mode-val" id="mode-val">Standard</div>
+          </div>
+          <button class="cycle-btn" onclick="cycleMode()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            Cycle
+          </button>
+        </div>
+
+        <div class="hdivider"></div>
+
+        <div class="session-info-row">
+          <div class="session-info-main">
+            <div class="session-info-heading">Players</div>
+            <div class="session-info-val" id="players-val">3 / 4 joined</div>
+            <div class="session-info-sub" id="players-sub">One slot open</div>
+          </div>
+          <div class="players-pips" id="pips">
+            <div class="pip filled"></div>
+            <div class="pip filled"></div>
+            <div class="pip filled"></div>
+            <div class="pip"></div>
+          </div>
+        </div>
+
+        <div class="rpanel-spacer"></div>
+
+        <div class="status-row">
+          <div class="sdot" id="sdot"></div>
+          <div class="stext" id="stext">Ready to launch!</div>
+        </div>
+
+        <button class="start-btn" id="start-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          Launch Match
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP PICKER MODAL -->
+  <div class="modal-backdrop" id="backdrop" onclick="closePicker()"></div>
+  <div class="map-picker" id="map-picker">
+    <div class="picker-head">
+      <div class="picker-title">Select Arena</div>
+      <button class="picker-close" onclick="closePicker()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="picker-grid" id="picker-grid"></div>
+  </div>
+</div>
+
+<!-- DEMO TOOLBAR -->
+<div class="demo-bar">
+  <span class="demo-label">Demo</span>
+  <div class="dsep"></div>
+  <button class="dbtn on" id="d4p" onclick="setCount(4)">4 Players</button>
+  <button class="dbtn" id="d3p" onclick="setCount(3)">3 Players</button>
+  <button class="dbtn" id="d2p" onclick="setCount(2)">2 Players</button>
+  <button class="dbtn" id="d1p" onclick="setCount(1)">1 Player</button>
+  <div class="dsep"></div>
+  <button class="dbtn on" id="dhost" onclick="toggleHost()">Is Host</button>
+  <div class="dsep"></div>
+  <button class="dbtn" id="dloc" onclick="setSession('local')">Local</button>
+  <button class="dbtn on" id="donl" onclick="setSession('online')">Online</button>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────
+
+const COLORS = ['#00e5ff', '#ff2d9b', '#ffe500', '#00ff88'];
+const NAMES  = ['Ace Striker', 'NovaBotX', 'StarChaser', 'CosmoRacer'];
+const MODES  = ['Standard', 'Sane', 'Chaotic'];
+
+const MAPS = [
+  { id:0, name:'Classic Rotation', desc:'Random arena each round',       badge:'Rotation', draw: drawRotation },
+  { id:1, name:'The Cache',        desc:'Corner blocks, center powerup',  badge:'Fixed',    draw: drawCache    },
+  { id:2, name:'Fortress',         desc:'Fortified corners, open center', badge:'Fixed',    draw: drawFortress },
+  { id:3, name:'Void Ring',        desc:'Central singularity hazard',     badge:'Fixed',    draw: drawVoidRing },
+  { id:4, name:'Nebula Cross',     desc:'Four-way corridors with walls',  badge:'Fixed',    draw: drawCross    },
+  { id:5, name:'Asteroid Field',   desc:'Dense debris, dynamic paths',    badge:'Fixed',    draw: drawAsteroids},
+];
+
+const state = {
+  session:   'online',
+  isHost:    true,
+  count:     3,
+  map:       0,
+  mode:      0,
+  types:     ['you','ai','online','ai'],
+};
+
+// ── SVG SHIP ─────────────────────────────────────────────
+
+function shipSVG(color) {
+  return `<svg class="card-ship-svg" viewBox="0 0 72 90" xmlns="http://www.w3.org/2000/svg">
+    <!-- Engine exhaust bloom -->
+    <ellipse cx="36" cy="86" rx="11" ry="4.5" fill="${color}" opacity="0.18"/>
+    <ellipse cx="36" cy="83" rx="6"  ry="2.5" fill="${color}" opacity="0.38"/>
+    <!-- Left wing -->
+    <path d="M28 54 L4 72 L16 68 L26 58 Z" fill="${color}" opacity="0.68"/>
+    <!-- Right wing -->
+    <path d="M44 54 L68 72 L56 68 L46 58 Z" fill="${color}" opacity="0.68"/>
+    <!-- Main body -->
+    <path d="M36 6 L50 46 L50 72 L36 82 L22 72 L22 46 Z" fill="${color}"/>
+    <!-- Nose highlight -->
+    <path d="M36 6 L42 30 L36 26 L30 30 Z" fill="rgba(255,255,255,0.22)"/>
+    <!-- Cockpit outer -->
+    <ellipse cx="36" cy="36" rx="9" ry="13" fill="rgba(255,255,255,0.08)"/>
+    <!-- Cockpit inner -->
+    <ellipse cx="36" cy="35" rx="5" ry="8"  fill="rgba(255,255,255,0.16)"/>
+    <!-- Cockpit glint -->
+    <ellipse cx="33" cy="31" rx="2" ry="3"  fill="rgba(255,255,255,0.35)" transform="rotate(-12 33 31)"/>
+    <!-- Engine pods -->
+    <rect x="24" y="60" width="9" height="17" rx="4.5" fill="${color}" opacity="0.82"/>
+    <rect x="39" y="60" width="9" height="17" rx="4.5" fill="${color}" opacity="0.82"/>
+    <!-- Thruster glow -->
+    <ellipse cx="28.5" cy="77" rx="4.5" ry="2.5" fill="rgba(255,255,255,0.45)"/>
+    <ellipse cx="43.5" cy="77" rx="4.5" ry="2.5" fill="rgba(255,255,255,0.45)"/>
+    <!-- Center thruster -->
+    <ellipse cx="36"   cy="82" rx="5"   ry="2.5" fill="rgba(255,255,255,0.32)"/>
+  </svg>`;
+}
+
+// ── BADGE HTML ────────────────────────────────────────────
+
+const BADGE_ICON = {
+  you:    `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>`,
+  ai:     `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/></svg>`,
+  local:  `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 9h10a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4h-1.2l-2-2H10.2l-2 2H7a4 4 0 0 1-4-4v-2a4 4 0 0 1 4-4zm1 2v2h2v-2H8zm6 0v2h2v-2h-2z"/></svg>`,
+  online: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 6l10.5 7L22 6M2 4h20a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg>`,
+  host:   `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 19h14l1-9-4.5 3.5L12 6 8.5 13.5 4 10l1 9z"/></svg>`,
+};
+const BADGE_LABEL = { you:'You', ai:'AI Bot', local:'Local', online:'Online' };
+const BADGE_CLS   = { you:'badge--you', ai:'badge--ai', local:'badge--local', online:'badge--online' };
+
+function badgeHTML(type) {
+  return `<span class="badge ${BADGE_CLS[type]}">${BADGE_ICON[type]}${BADGE_LABEL[type]}</span>`;
+}
+
+// ── MAP DRAW HELPERS ──────────────────────────────────────
+
+function clearArena(ctx, w, h) {
+  ctx.fillStyle = '#050512';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 1;
+  const s = Math.min(w, h) / 7;
+  for (let x = s; x < w; x += s) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (let y = s; y < h; y += s) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(0,229,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(1.5, 1.5, w-3, h-3);
+}
+
+function drawRotation(ctx, w, h) {
+  clearArena(ctx, w, h);
+  const cx=w/2, cy=h/2, r=Math.min(w,h)*0.3;
+  ctx.strokeStyle = 'rgba(0,229,255,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,r*0.5,0,Math.PI*2); ctx.stroke();
+  for (let i=0; i<8; i++) {
+    const a=(i/8)*Math.PI*2;
+    ctx.fillStyle=`rgba(0,229,255,${0.12+i*0.055})`;
+    ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 2, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle='rgba(0,229,255,0.12)';
+  ctx.font=`bold ${Math.min(w,h)*0.22}px Orbitron,monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('?', cx, cy+2);
+}
+
+function drawCache(ctx, w, h) {
+  clearArena(ctx, w, h);
+  ctx.fillStyle='rgba(255,200,0,0.5)';
+  const bw=w*0.13, bh=h*0.19;
+  ctx.fillRect(w*0.08,h*0.12,bw,bh); ctx.fillRect(w*0.79,h*0.12,bw,bh);
+  ctx.fillRect(w*0.08,h*0.69,bw,bh); ctx.fillRect(w*0.79,h*0.69,bw,bh);
+  ctx.fillRect(w*0.36,h*0.08,w*0.28,h*0.1);
+  ctx.fillRect(w*0.36,h*0.82,w*0.28,h*0.1);
+  const s=Math.min(w,h)*0.065, cx=w/2, cy=h/2;
+  ctx.strokeStyle='rgba(255,80,200,0.55)'; ctx.lineWidth=1.5;
+  ctx.strokeRect(cx-s,cy-s,s*2,s*2);
+  ctx.fillStyle='rgba(255,80,200,0.38)';
+  ctx.beginPath(); ctx.arc(cx,cy,s*0.5,0,Math.PI*2); ctx.fill();
+}
+
+function drawFortress(ctx, w, h) {
+  clearArena(ctx, w, h);
+  ctx.fillStyle='rgba(0,229,255,0.18)';
+  const fw=w*0.15, fh=h*0.22;
+  ctx.fillRect(w*0.04,h*0.04,fw,fh); ctx.fillRect(w*0.81,h*0.04,fw,fh);
+  ctx.fillRect(w*0.04,h*0.74,fw,fh); ctx.fillRect(w*0.81,h*0.74,fw,fh);
+  const pw=w*0.22, ph=h*0.22;
+  ctx.fillStyle='rgba(0,229,255,0.09)';
+  ctx.fillRect(w/2-pw/2,h/2-ph/2,pw,ph);
+  ctx.strokeStyle='rgba(0,229,255,0.15)'; ctx.lineWidth=1;
+  ctx.strokeRect(w/2-pw/2,h/2-ph/2,pw,ph);
+}
+
+function drawVoidRing(ctx, w, h) {
+  clearArena(ctx, w, h);
+  const cx=w/2, cy=h/2, r=Math.min(w,h)*0.19;
+  const gr=ctx.createRadialGradient(cx,cy,0,cx,cy,r*1.4);
+  gr.addColorStop(0,'rgba(0,0,0,0.92)');
+  gr.addColorStop(0.55,'rgba(80,0,140,0.45)');
+  gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(cx,cy,r*1.6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(190,80,255,0.45)'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(190,80,255,0.14)'; ctx.lineWidth=8;
+  ctx.beginPath(); ctx.arc(cx,cy,r*1.25,0,Math.PI*2); ctx.stroke();
+}
+
+function drawCross(ctx, w, h) {
+  clearArena(ctx, w, h);
+  ctx.fillStyle='rgba(255,55,55,0.16)';
+  ctx.fillRect(0, h*0.36, w, h*0.28);
+  ctx.fillRect(w*0.4, 0, w*0.2, h);
+  ctx.fillStyle='rgba(255,100,50,0.26)';
+  ctx.fillRect(w*0.0, h*0.0, w*0.12, h*0.36);
+  ctx.fillRect(w*0.88,h*0.0, w*0.12, h*0.36);
+  ctx.fillRect(w*0.0, h*0.64,w*0.12, h*0.36);
+  ctx.fillRect(w*0.88,h*0.64,w*0.12, h*0.36);
+}
+
+function drawAsteroids(ctx, w, h) {
+  clearArena(ctx, w, h);
+  const rocks=[
+    {x:.15,y:.2,r:.065},{x:.8,y:.28,r:.055},{x:.28,y:.72,r:.075},
+    {x:.68,y:.76,r:.06},{x:.5,y:.22,r:.045},{x:.18,y:.52,r:.05},
+    {x:.76,y:.52,r:.065},
+  ];
+  ctx.fillStyle='rgba(155,135,115,0.45)';
+  for (const a of rocks) {
+    ctx.beginPath();
+    ctx.arc(a.x*w, a.y*h, Math.min(w,h)*a.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────────
+
+function renderCards() {
+  const el = document.getElementById('cards');
+  let html = '';
+  for (let i = 0; i < 4; i++) {
+    const color = COLORS[i];
+    const isFilled = i < state.count;
+    if (isFilled) {
+      const type   = state.types[i] || 'online';
+      const name   = NAMES[i];
+      const isHost = state.isHost && i === 0;
+      const canAct = state.isHost && i !== 0;
+      const role   = type==='you'?'Room Leader':type==='ai'?'AI Opponent':type==='local'?'Local Player':'Remote Player';
+      html += `
+        <div class="pcard pcard--filled" style="--pc:${color}">
+          <div class="card-ambient"></div>
+          <div class="card-badges">
+            ${badgeHTML(type)}
+            ${isHost ? `<span class="badge badge--host">${BADGE_ICON.host}Host</span>` : ''}
+          </div>
+          <div class="card-ship-area">
+            <div class="card-ship-wrap">
+              <div class="card-ship-glow"></div>
+              ${shipSVG(color)}
+            </div>
+          </div>
+          <div class="card-info">
+            <div class="card-info-text">
+              <div class="card-name">${name}${type==='you'?' <span style="font-weight:300;opacity:0.45;font-size:11px">(you)</span>':''}</div>
+              <div class="card-role">${role}</div>
+            </div>
+            ${canAct ? `<button class="card-act">${type==='ai'||type==='local'?'Remove':'Kick'}</button>` : ''}
+          </div>
+        </div>`;
+    } else {
+      const canAdd = state.isHost;
+      const localBtn = state.session === 'local'
+        ? `<button class="empty-add-btn" ${canAdd?'':'disabled'}>+ Local</button>` : '';
+      html += `
+        <div class="pcard pcard--empty">
+          <div class="empty-plus">+</div>
+          <div class="empty-label">Empty Slot</div>
+          <div class="empty-actions">
+            <button class="empty-add-btn" ${canAdd?'':'disabled'}>+ Add AI</button>
+            ${localBtn}
+          </div>
+        </div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+function renderMapPreview() {
+  const canvas = document.getElementById('map-canvas');
+  const w = canvas.offsetWidth || 530;
+  canvas.width = w; canvas.height = 180;
+  MAPS[state.map].draw(canvas.getContext('2d'), w, 180);
+  document.getElementById('map-name').textContent  = MAPS[state.map].name;
+  document.getElementById('map-desc').textContent  = MAPS[state.map].desc;
+  document.getElementById('map-badge').textContent = MAPS[state.map].badge;
+}
+
+function renderMode() {
+  document.getElementById('mode-val').textContent = MODES[state.mode];
+}
+
+function renderPlayers() {
+  const n = state.count;
+  const total = 4;
+  document.getElementById('players-val').textContent = `${n} / ${total} joined`;
+  document.getElementById('players-sub').textContent =
+    n===total ? 'All slots filled' : `${total-n} slot${total-n>1?'s':''} open`;
+  const pips = document.getElementById('pips');
+  pips.innerHTML = Array.from({length:total}, (_,i)=>
+    `<div class="pip${i<n?' filled':''}"></div>`
+  ).join('');
+}
+
+function renderStatus() {
+  const dot = document.getElementById('sdot');
+  const txt = document.getElementById('stext');
+  const btn = document.getElementById('start-btn');
+  if (state.count >= 2) {
+    dot.className = 'sdot';
+    txt.textContent = state.isHost ? 'Ready to launch!' : 'Waiting for host…';
+    btn.disabled = !state.isHost;
+  } else {
+    dot.className = 'sdot warn';
+    txt.textContent = 'Need at least 2 players';
+    btn.disabled = true;
+  }
+}
+
+function renderTopbar() {
+  document.getElementById('stab-local').classList.toggle('active', state.session==='local');
+  document.getElementById('stab-online').classList.toggle('active', state.session==='online');
+  document.getElementById('room-pill').style.display = state.session==='online' ? 'flex' : 'none';
+}
+
+function render() {
+  renderCards();
+  renderMapPreview();
+  renderMode();
+  renderPlayers();
+  renderStatus();
+  renderTopbar();
+}
+
+// ── MAP PICKER ────────────────────────────────────────────
+
+function openPicker() {
+  buildPickerGrid();
+  document.getElementById('backdrop').classList.add('open');
+  document.getElementById('map-picker').classList.add('open');
+}
+function closePicker() {
+  document.getElementById('backdrop').classList.remove('open');
+  document.getElementById('map-picker').classList.remove('open');
+}
+function buildPickerGrid() {
+  const grid = document.getElementById('picker-grid');
+  if (grid.children.length) {
+    grid.querySelectorAll('.picker-card').forEach((c,i)=>c.classList.toggle('sel',i===state.map));
+    return;
+  }
+  grid.innerHTML = MAPS.map((m,i) =>
+    `<button class="picker-card${i===state.map?' sel':''}" onclick="selectMap(${i})">
+      <canvas id="pc${i}" width="220" height="96"></canvas>
+      <div class="picker-card-meta">
+        <div class="picker-card-name">${m.name}</div>
+        <div class="picker-card-desc">${m.desc}</div>
+      </div>
+    </button>`
+  ).join('');
+  MAPS.forEach((m,i) => {
+    const c = document.getElementById('pc'+i);
+    m.draw(c.getContext('2d'), 220, 96);
+  });
+}
+function selectMap(i) {
+  state.map = i;
+  renderMapPreview();
+  // refresh picker active state without rebuilding
+  document.getElementById('picker-grid').querySelectorAll('.picker-card')
+    .forEach((c,j) => c.classList.toggle('sel', j===i));
+  closePicker();
+}
+
+// ── INTERACTIONS ──────────────────────────────────────────
+
+function cycleMode() { state.mode = (state.mode+1) % MODES.length; renderMode(); }
+function setCount(n) { state.count = n; ['d4p','d3p','d2p','d1p'].forEach(id=>document.getElementById(id).classList.remove('on')); document.getElementById('d'+n+'p').classList.add('on'); render(); }
+function toggleHost() { state.isHost=!state.isHost; document.getElementById('dhost').classList.toggle('on',state.isHost); render(); }
+function setSession(s) {
+  state.session = s;
+  state.types = s==='online' ? ['you','ai','online','ai'] : ['you','ai','local','ai'];
+  document.getElementById('dloc').classList.toggle('on', s==='local');
+  document.getElementById('donl').classList.toggle('on', s==='online');
+  render();
+}
+
+// ── SCALE ─────────────────────────────────────────────────
+
+function rescale() {
+  const stage = document.getElementById('lobby-stage');
+  const sx = window.innerWidth  / 1280;
+  const sy = window.innerHeight / 720;
+  const s  = Math.min(sx, sy);
+  const ox = (window.innerWidth  - 1280*s) / 2;
+  const oy = (window.innerHeight - 720*s)  / 2;
+  stage.style.transform = `translate(${ox}px,${oy}px) scale(${s})`;
+  // redraw map after layout settles
+  requestAnimationFrame(renderMapPreview);
+}
+
+window.addEventListener('resize', rescale);
+rescale();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "classic": {
+    "file": "../../entities/ship.svg",
+    "renderScale": 1.5
+  },
+  "chrome_angular": {
+    "file": "./ship2.svg",
+    "renderScale": 1.5
+  },
+  "flat_panel": {
+    "file": "./ship3.svg",
+    "renderScale": 1.5
+  },
+  "comic_pop": {
+    "file": "./ship4.svg",
+    "renderScale": 1.5
+  },
+  "racer_stripe": {
+    "file": "./ship5.svg",
+    "renderScale": 1.5
+  },
+  "chibi_core": {
+    "file": "./ship6.svg",
+    "renderScale": 1.5
+  },
+  "hero_neon": {
+    "file": "./ship7.svg",
+    "renderScale": 1.5
+  }
+}

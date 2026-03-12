@@ -1,0 +1,4597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Space Force</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kodchasan:wght@300;400;500;700&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html { font-size: clamp(13px, 1.8vw, 16px); }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0a12;
+      font-family: 'Exo 2', sans-serif;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* ============= SPLASH SCREEN ============= */
+    .splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      pointer-events: none;
+    }
+
+    .splash-black {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a12;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+
+    .splash-screen.fade-out .splash-black {
+      opacity: 0;
+    }
+
+    .splash-content {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+
+    .splash-logo {
+      max-width: 180px;
+      max-height: 180px;
+      width: 40vw;
+      height: auto;
+      object-fit: contain;
+      opacity: 0;
+      transform: scale(0.9);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .splash-screen.show-logo .splash-logo {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .splash-tagline {
+      font-family: 'Exo 2', sans-serif;
+      font-size: clamp(0.9rem, 3vw, 1.4rem);
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.7);
+      letter-spacing: 0.14em;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .splash-tagline-oasiz {
+      font-family: 'Kodchasan', sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .splash-tagline-tm {
+      font-family: 'Kodchasan', sans-serif;
+      font-weight: 700;
+      font-size: 0.52em;
+      line-height: 0;
+      vertical-align: super;
+      margin-left: 0.08em;
+    }
+
+    .splash-version {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(0.56rem, 1.55vw, 0.78rem);
+      color: rgba(200, 220, 255, 0.68);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0;
+      transform: translateY(8px);
+      margin-top: -0.75rem;
+      transition: opacity 0.45s ease, transform 0.45s ease;
+    }
+
+    .splash-screen.show-tagline .splash-tagline {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .splash-screen.show-tagline .splash-version {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .splash-loader {
+      position: absolute;
+      bottom: min(16vh, 110px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.55rem;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .splash-screen.preloading .splash-loader {
+      opacity: 1;
+    }
+
+    .splash-loader-spinner {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: rgba(255, 255, 255, 0.95);
+      animation: splash-loader-spin 0.85s linear infinite;
+    }
+
+    .splash-loader-text {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(0.62rem, 1.4vw, 0.76rem);
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: rgba(215, 228, 255, 0.72);
+      text-align: center;
+      min-width: 160px;
+    }
+
+    @keyframes splash-loader-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .splash-screen.fade-tagline .splash-tagline {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+
+    .splash-screen.fade-tagline .splash-version {
+      opacity: 0.2;
+      transform: translateY(-6px);
+    }
+
+    .splash-screen.fade-logo .splash-logo {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+
+    .splash-screen.fade-out .splash-black {
+      opacity: 0;
+    }
+
+    .splash-screen.done {
+      display: none;
+    }
+
+    :root {
+      --cyan: #00f0ff;
+      --magenta: #ff00aa;
+      --yellow: #ffee00;
+      --green: #00ff88;
+      --bg: #0a0a12;
+      --bg-panel: rgba(10, 10, 18, 0.95);
+      --vw: 100vw;
+      --vh: 100vh;
+      --layout-width: 100vw;
+      --layout-height: 100vh;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --box-left: 0px;
+      --box-top: 0px;
+      --box-right: 100vw;
+      --box-bottom: 100vh;
+      --box-width: 100vw;
+      --box-height: 100vh;
+      --vv-offset-x: 0px;
+      --vv-offset-y: 0px;
+      --hud-side-gap: 40px;
+      --hud-bottom-gap: 0px;
+      --hud-top-pad: 60px;
+      --leave-btn-size: 42px;
+      --z-modal-backdrop: 12000;
+      --z-modal-panel: 12010;
+      --z-leave-backdrop: 12020;
+      --z-leave-panel: 12030;
+    }
+
+    #game-wrapper {
+      position: fixed;
+      top: var(--vv-offset-y);
+      left: var(--vv-offset-x);
+      width: var(--vw);
+      height: var(--vh);
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    #gameCanvas {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ============= OVERLAYS ============= */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 100;
+      background: radial-gradient(ellipse at center, rgba(0, 100, 150, 0.2) 0%, rgba(10, 10, 18, 0.95) 70%);
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .ui-box {
+      position: absolute;
+      left: var(--box-left);
+      top: var(--box-top);
+      width: var(--box-width);
+      height: var(--box-height);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .screen-shell {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 16px;
+      align-items: stretch;
+      padding: 16px 20px;
+    }
+
+    .screen-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .screen-body {
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screen-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .screen-center {
+      justify-content: center;
+      text-align: center;
+    }
+
+    .start-shell .screen-header {
+      justify-content: center;
+      text-align: center;
+    }
+
+    .start-shell .screen-body {
+      justify-content: center;
+      text-align: center;
+    }
+
+    .start-shell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: auto;
+      max-height: 100%;
+      gap: clamp(16px, 2.6vh, 28px);
+      text-align: center;
+      width: min(1120px, 100%);
+      padding-block: clamp(8px, 2vh, 20px);
+    }
+
+    .start-header,
+    .start-footer {
+      flex: 0 0 auto;
+      width: 100%;
+    }
+
+    .start-footer {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(8px, 1.4vh, 14px);
+      width: 100%;
+      min-height: clamp(132px, 33vh, 152px);
+    }
+
+    .start-actions {
+      width: min(680px, 100%);
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .start-actions .btn {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .start-secondary-actions {
+      width: min(420px, 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .start-ghost-btn {
+      font-family: 'Exo 2', sans-serif;
+      font-size: clamp(0.88rem, 1.9vw, 1.04rem);
+      font-weight: 400;
+      color: rgba(180, 210, 255, 0.52);
+      letter-spacing: 0.07em;
+      border: none;
+      background: none;
+      padding: 0.28rem 0.4rem;
+      cursor: pointer;
+      transition: color 0.18s ease;
+    }
+
+    .start-ghost-btn:hover {
+      color: rgba(220, 238, 255, 0.72);
+    }
+
+    .start-ghost-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Shared sizing contract for grouped action buttons */
+    .start-actions .btn,
+    .join-section .btn-group .btn,
+    .end-actions .btn,
+    .settings-actions .btn,
+    #leaveModal .leave-actions .btn {
+      min-height: clamp(50px, 7vh, 62px);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.05;
+    }
+
+    .start-tap-hint {
+      display: none;
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(0.75rem, 1.8vw, 1rem);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.65);
+      text-align: center;
+      user-select: none;
+      pointer-events: none;
+    }
+    .start-tap-hint.visible {
+      display: block;
+      animation: start-tap-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes start-tap-pulse {
+      0%, 100% { opacity: 0.25; }
+      50%       { opacity: 0.9; }
+    }
+
+    html[data-layout="narrow"] .screen-shell {
+      padding: 12px;
+      gap: 12px;
+    }
+
+    /* ============= START SCREEN ============= */
+    .game-title-wrap {
+      position: relative;
+      width: clamp(300px, 62vw, 920px);
+      max-width: 100%;
+      /* Crop bottom ~40% blank SVG canvas (content ends at ~y=730 of 1365) */
+      aspect-ratio: 2048 / 1025;
+      max-height: min(42vh, 465px);
+      overflow: hidden;
+      margin: 0 auto;
+      pointer-events: none;
+    }
+
+    .title-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      /* Extend to full SVG height so it renders at correct 2048:1365 ratio */
+      height: calc(1365 / 1025 * 100%);
+      transform-origin: 50% 50%;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .title-layer.space {
+      transform: translate3d(-135%, 0, 0) scale(1.08);
+    }
+
+    .title-layer.force {
+      transform: translate3d(-118%, 0, 0) scale(1.02);
+    }
+
+    .title-layer img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: fill;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .game-title-wrap.intro-active .title-layer.space {
+      animation: titleSpaceCrash 620ms cubic-bezier(0.12, 0.98, 0.2, 1) both;
+    }
+
+    .game-title-wrap.force-active .title-layer.force {
+      animation: titleForceSettle 550ms cubic-bezier(0.12, 0.98, 0.2, 1) both;
+    }
+
+    .game-title-wrap.outro-active .title-layer.force {
+      animation: titleForceExit 430ms cubic-bezier(0.22, 0.78, 0.3, 1) both;
+    }
+
+    .game-title-wrap.outro-active .title-layer.space {
+      animation: titleSpaceExit 560ms cubic-bezier(0.2, 0.84, 0.28, 1) 110ms both;
+    }
+
+    @keyframes titleSpaceCrash {
+      0% {
+        opacity: 0;
+        transform: translate3d(-142%, 0, 0) scale(1.1);
+      }
+      58% {
+        opacity: 1;
+        transform: translate3d(7.2%, 0, 0) scale(1.02);
+      }
+      76% {
+        opacity: 1;
+        transform: translate3d(-2.4%, 0, 0) scale(0.996);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+
+    @keyframes titleForceSettle {
+      0% {
+        opacity: 0;
+        transform: translate3d(-132%, 0, 0) scale(1.04);
+      }
+      58% {
+        opacity: 1;
+        transform: translate3d(6.2%, 0, 0) scale(1.014);
+      }
+      78% {
+        opacity: 1;
+        transform: translate3d(-2.1%, 0, 0) scale(0.997);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+
+    @keyframes titleForceExit {
+      0% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(132%, 0, 0) scale(1.03);
+      }
+    }
+
+    @keyframes titleSpaceExit {
+      0% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(146%, 0, 0) scale(1.05);
+      }
+    }
+
+    .start-shell #mainButtons {
+      opacity: 0;
+      transform: translate3d(0, 18px, 0) scale(0.985);
+      filter: blur(10px) brightness(0.72);
+      pointer-events: none;
+    }
+
+    .start-shell.ui-intro-active #mainButtons {
+      animation: startUiReveal 560ms cubic-bezier(0.2, 0.96, 0.26, 1) 1280ms both;
+      /* pointer-events controlled by keyframe fill: none during delay, auto after reveal */
+    }
+
+    .start-shell #startSecondaryActions {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0) scale(0.988);
+      filter: blur(8px) brightness(0.78);
+      pointer-events: none;
+    }
+
+    .start-shell.ui-intro-active #startSecondaryActions {
+      animation: startUiReveal 500ms cubic-bezier(0.2, 0.96, 0.26, 1) 1400ms both;
+      /* pointer-events controlled by keyframe fill: none during delay, auto after reveal */
+    }
+
+    .start-shell.ui-outro-active #mainButtons {
+      animation: startUiExit 320ms cubic-bezier(0.35, 0.2, 0.7, 1) both;
+      pointer-events: none;
+    }
+
+    .start-shell.ui-outro-active #startSecondaryActions {
+      animation: startUiExit 280ms cubic-bezier(0.35, 0.2, 0.7, 1) both;
+      pointer-events: none;
+    }
+
+    @keyframes startUiReveal {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 18px, 0) scale(0.985);
+        filter: blur(10px) brightness(0.72);
+        pointer-events: none;
+      }
+      72% {
+        opacity: 1;
+        transform: translate3d(0, -2px, 0) scale(1.005);
+        filter: blur(0px) brightness(1.02);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0px) brightness(1);
+        pointer-events: auto;
+      }
+    }
+
+    @keyframes startUiExit {
+      0% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0px) brightness(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(0, -16px, 0) scale(0.988);
+        filter: blur(8px) brightness(0.7);
+      }
+    }
+    .btn {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(0.9rem, 2.5vw, 1.2rem);
+      font-weight: 700;
+      padding: 1rem 2.5rem;
+      background: transparent;
+      border: 2px solid var(--cyan);
+      color: var(--cyan);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      transition: all 0.2s ease;
+      margin: 0.5rem;
+    }
+
+    .btn.primary {
+      background: rgba(0, 240, 255, 0.12);
+      box-shadow: 0 0 18px rgba(0, 240, 255, 0.2);
+    }
+
+    .btn:hover {
+      background: rgba(0, 240, 255, 0.1);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn.secondary {
+      border-color: var(--magenta);
+      color: var(--magenta);
+    }
+
+    .btn.secondary:hover {
+      background: rgba(255, 0, 170, 0.1);
+      box-shadow: 0 0 20px rgba(255, 0, 170, 0.4);
+    }
+
+    .btn.tertiary {
+      border-color: rgba(255, 0, 170, 0.35);
+      color: rgba(255, 0, 170, 0.7);
+      background: transparent;
+    }
+
+    .btn.tertiary:hover {
+      background: rgba(255, 0, 170, 0.08);
+      box-shadow: 0 0 14px rgba(255, 0, 170, 0.25);
+    }
+
+    .btn.compact {
+      padding: 0.6rem 0.9rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .join-section {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .join-section .btn-group {
+      width: 100%;
+    }
+
+    .join-section .btn {
+      width: 100%;
+      margin: 0;
+    }
+
+    /* ============= JOIN ROOM ============= */
+    .join-section {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .join-section.active {
+      display: flex;
+    }
+
+    .room-input {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.5rem;
+      padding: 0.8rem 1.5rem;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid var(--cyan);
+      color: var(--cyan);
+      text-align: center;
+      letter-spacing: 0.3em;
+      width: 180px;
+      text-transform: uppercase;
+    }
+
+    .room-input::placeholder {
+      color: rgba(0, 240, 255, 0.3);
+    }
+
+    .error-message {
+      color: #ff4444;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    .error-message.active {
+      display: block;
+    }
+
+    /* ============= LOBBY SCREEN ============= */
+    .room-code {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(1.2rem, 3.5vw, 2rem);
+      font-weight: 800;
+      color: var(--yellow);
+      text-shadow: 0 0 14px rgba(255, 238, 0, 0.6);
+      letter-spacing: 0.2em;
+    }
+
+    .copy-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 6px;
+      opacity: 0.8;
+      transition: opacity 0.2s, background 0.2s;
+    }
+
+    .copy-btn:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .copy-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: var(--yellow);
+    }
+
+    .players-list {
+      display: none;
+    }
+
+    /* Add Bot Section */
+    .add-bot-section {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .add-bot-section.hidden {
+      display: none;
+    }
+
+    /* Game Mode Toggle */
+    .game-mode-section {
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    .game-mode-section.hidden {
+      display: none;
+    }
+
+    .mode-inline-controls {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .mode-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .mode-cycle-btn {
+      width: 100%;
+      min-height: 36px;
+      padding: 0.28rem 0.7rem;
+      cursor: pointer;
+      color: rgba(255, 255, 255, 0.82);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .mode-cycle-btn:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(0, 240, 255, 0.42);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.16);
+    }
+
+    .mode-cycle-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .mode-cycle-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.68rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #00f0ff;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .mode-cycle-btn.is-custom .mode-cycle-value {
+      color: #ff6ec7;
+    }
+
+    .mode-cycle-btn[data-ruleset="ENDLESS_RESPAWN"] .mode-cycle-value {
+      color: #ffee00;
+    }
+
+    .mode-inline-controls #advancedSettingsBtn {
+      margin: 0;
+      width: 100%;
+      min-width: 0;
+      white-space: nowrap;
+      align-self: stretch;
+      min-height: 36px;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+    }
+
+    .map-change-btn {
+      width: 100%;
+      margin: 0;
+      min-height: 42px;
+      padding: 0.62rem 0.9rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+    }
+
+    .map-summary-content {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      align-items: stretch;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .map-summary-meta {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr auto;
+      align-items: start;
+      gap: 4px;
+    }
+
+    .map-summary-meta .map-change-btn {
+      margin-top: 0;
+    }
+
+    .map-current-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.95);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: normal;
+      line-height: 1.08;
+      min-height: 2.16em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .map-current-desc {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.62);
+      line-height: 1.2;
+      min-height: 2.4em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .map-current-behavior {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+
+    .map-picker-modal {
+      width: min(780px, calc(var(--box-width) - 32px));
+      max-height: calc(var(--box-height) - 36px);
+      padding: 1.05rem 1.05rem 0.95rem;
+    }
+
+    .map-picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 0.55rem;
+    }
+
+    .map-picker-header .settings-title {
+      margin: 0;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    .map-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      max-height: calc(var(--box-height) - 140px);
+      overflow-y: auto;
+      padding: 2px;
+    }
+
+    .map-picker-card {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.04);
+      text-align: left;
+      color: rgba(255, 255, 255, 0.9);
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+      overflow: hidden;
+    }
+
+    .map-picker-card:hover {
+      border-color: rgba(0, 240, 255, 0.45);
+      background: rgba(0, 240, 255, 0.08);
+    }
+
+    .map-picker-card.active {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.45);
+      background: rgba(0, 240, 255, 0.12);
+    }
+
+    .map-picker-card:disabled {
+      opacity: 0.65;
+      cursor: default;
+    }
+
+    .btn.host-locked,
+    .btn.host-locked:hover,
+    .mode-cycle-btn.host-locked,
+    .mode-cycle-btn.host-locked:hover,
+    .map-picker-card.host-locked,
+    .map-picker-card.host-locked:hover {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .mode-cycle-btn.host-locked,
+    .mode-cycle-btn.host-locked:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .map-picker-card.host-locked,
+    .map-picker-card.host-locked:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .map-picker-canvas {
+      width: 120px;
+      height: 84px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(0, 0, 0, 0.45);
+      display: block;
+      position: relative;
+      inset: auto;
+      flex-shrink: 0;
+    }
+
+    .map-picker-meta {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .map-picker-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .map-picker-desc {
+      font-size: 0.66rem;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.25;
+    }
+
+    .map-picker-badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.56rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .map-picker-badge.rotation {
+      border-color: rgba(0, 240, 255, 0.45);
+      color: var(--cyan);
+    }
+
+    .icon-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+    }
+
+    .icon-btn svg {
+      flex-shrink: 0;
+    }
+
+    .icon-btn .btn-plus-icon {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      fill: none;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .icon-btn .btn-label {
+      letter-spacing: 0.08em;
+    }
+
+    /* Key Selection Modal */
+    .key-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .key-option {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+      padding: 0.75rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      text-align: left;
+    }
+
+    .key-option:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--cyan);
+    }
+
+    .key-option:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .key-option:disabled:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .key-name {
+      font-weight: 600;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    .key-hint {
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Local Player Hints (in-game overlay) */
+    .lobby-status {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .waiting-dots {
+      display: inline-flex;
+      gap: 4px;
+      margin-left: 8px;
+    }
+
+    .waiting-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--cyan);
+      border-radius: 50%;
+      animation: dotPulse 1.4s ease-in-out infinite;
+    }
+
+    .waiting-dot:nth-child(2) { animation-delay: 0.2s; }
+    .waiting-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes dotPulse {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+
+    /* ============= SCORE TRACK HUD ============= */
+    .hud {
+      position: absolute;
+      top: var(--box-top);
+      left: var(--box-left);
+      width: var(--box-width);
+      height: var(--box-height);
+      padding: 0;
+      z-index: 50;
+      pointer-events: none;
+      display: none;
+    }
+
+    .hud.active {
+      display: block;
+    }
+
+    /* ── Player list (top-left) ──────────────────────────────────── */
+    .score-track {
+      position: absolute;
+      top: var(--hud-top-pad);
+      left: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      pointer-events: none;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .score-row.departed  { opacity: 0.45; }
+    .score-row.eliminated { opacity: 0.5; }
+    .score-row.ejected   { opacity: 0.72; }
+
+    .score-player-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+      opacity: 0.5;
+    }
+
+    .score-row.self .score-player-dot {
+      opacity: 1;
+      box-shadow: 0 0 5px currentColor;
+    }
+
+    .score-player-name {
+      font-size: 0.62rem;
+      color: inherit;
+      width: 58px;
+      flex-shrink: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      opacity: 0.72;
+      letter-spacing: 0.04em;
+    }
+
+    .score-row.self .score-player-name {
+      opacity: 1;
+    }
+
+    .score-dots {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .score-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      border: 1.5px solid currentColor;
+      opacity: 0.28;
+      flex-shrink: 0;
+    }
+
+    .score-dot.filled {
+      opacity: 1;
+      background: currentColor;
+    }
+
+    .score-points {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.58rem;
+      letter-spacing: 0.06em;
+      color: inherit;
+      opacity: 0.88;
+    }
+
+    .score-kills {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.52rem;
+      letter-spacing: 0.04em;
+      color: inherit;
+      opacity: 0.5;
+    }
+
+    .score-kills-limit {
+      opacity: 0.6;
+    }
+
+    .score-row-stats {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    /* ── Endless timer (top-center) ──────────────────────────────── */
+    .hud-timer {
+      position: absolute;
+      top: var(--hud-top-pad);
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: rgba(255, 255, 255, 0.9);
+      text-shadow: 0 0 14px rgba(255, 255, 255, 0.2);
+      pointer-events: none;
+      white-space: nowrap;
+      display: none;
+    }
+
+    .hud-timer.active {
+      display: block;
+    }
+
+    .hud-timer.warning {
+      color: #ffa040;
+      text-shadow: 0 0 14px rgba(255, 160, 64, 0.45);
+    }
+
+    .hud-timer.urgent {
+      color: #ff4444;
+      text-shadow: 0 0 14px rgba(255, 68, 68, 0.55);
+      animation: timerUrgentPulse 0.9s ease-in-out infinite;
+    }
+
+    @keyframes timerUrgentPulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.5; }
+    }
+
+    /* ── Combo flash (top-center, transient) ─────────────────────── */
+    .hud-combo {
+      position: absolute;
+      top: calc(var(--hud-top-pad) + 32px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Orbitron', sans-serif;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .hud-combo.active {
+      opacity: 1;
+    }
+
+    .hud-combo-tag {
+      font-size: 0.45rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 1px;
+    }
+
+    .hud-combo-val {
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+    }
+
+    .round-result {
+      position: absolute;
+      top: max(calc(var(--safe-top, 0px) + 64px), 15vh);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 70;
+      pointer-events: none;
+      text-align: center;
+      padding: 18px 28px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(10, 10, 18, 0.75);
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(6px);
+    }
+    @media (pointer: coarse) {
+      .round-result {
+        top: max(calc(var(--safe-top, 0px) + 106px), 20vh);
+      }
+    }
+
+    .round-result.hidden {
+      display: none;
+    }
+
+    .round-result-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(1.1rem, 4vw, 1.8rem);
+      color: var(--yellow);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .round-result-subtitle {
+      margin-top: 0.35rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(0.9rem, 3vw, 1.3rem);
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .leave-btn {
+      position: absolute;
+      top: var(--hud-top-pad);
+      left: calc(var(--hud-side-gap) - var(--box-left));
+      width: var(--leave-btn-size);
+      height: var(--leave-btn-size);
+      border-radius: 12px;
+      background: rgba(255, 80, 80, 0.12);
+      border: 1px solid rgba(255, 120, 120, 0.45);
+      color: #ffd0d0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .leave-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    .leave-btn:hover {
+      background: rgba(255, 100, 100, 0.2);
+      border-color: rgba(255, 140, 140, 0.65);
+    }
+
+    .end-match-btn {
+      position: absolute;
+      top: var(--hud-top-pad);
+      right: calc(var(--hud-side-gap) + 52px);
+      z-index: 60;
+      min-height: 36px;
+      min-width: 102px;
+      padding: 0.3rem 0.7rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 238, 0, 0.55);
+      background: rgba(255, 238, 0, 0.12);
+      color: #fff4a3;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .end-match-btn:hover {
+      background: rgba(255, 238, 0, 0.2);
+      border-color: rgba(255, 238, 0, 0.82);
+    }
+
+    /* ============= SETTINGS ============= */
+    .settings-btn {
+      position: absolute;
+      top: calc(var(--box-top) + var(--hud-top-pad));
+      right: var(--hud-side-gap);
+      z-index: 60;
+      width: 42px;
+      height: 42px;
+      background: rgba(10, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .settings-btn:hover {
+      background: var(--bg-panel);
+    }
+
+    .settings-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: #fff;
+    }
+
+    .settings-center-hotspot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 45%;
+      height: 45%;
+      background: transparent;
+      border: none;
+      border-radius: 16px;
+      pointer-events: auto;
+      display: none;
+      z-index: 60;
+    }
+
+    .net-stats {
+      position: fixed;
+      bottom: 12px;
+      right: 100px;
+      z-index: 60;
+      font-family: 'Orbitron', monospace;
+      font-size: 10px;
+      line-height: 1;
+      color: rgba(255, 255, 255, 0.35);
+      pointer-events: none;
+      display: none;
+    }
+
+    .control-hints {
+      position: absolute;
+      bottom: calc(100% - var(--box-bottom) + 24px + var(--safe-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 65;
+      display: none;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      pointer-events: none;
+      max-width: min(80vw, 720px);
+    }
+
+    .control-hints.active {
+      display: flex;
+    }
+
+    .control-hint {
+      --hint-color: var(--cyan);
+      background: rgba(10, 10, 18, 0.72);
+      border: 1px solid color-mix(in srgb, var(--hint-color) 65%, transparent);
+      border-radius: 10px;
+      padding: 8px 12px;
+      min-width: 150px;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+      opacity: 0.45;
+    }
+
+    .control-hint.combo-active {
+      opacity: 0.92;
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--hint-color) 40%, transparent) inset,
+        0 0 16px color-mix(in srgb, var(--hint-color) 34%, transparent);
+    }
+
+    .control-hint-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--hint-color);
+      margin-bottom: 2px;
+    }
+
+    .control-hint-keys {
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.75);
+      white-space: nowrap;
+    }
+
+    .control-hint-combo {
+      position: relative;
+      margin: 7px 0 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 10px;
+      align-items: center;
+      padding: 6px 9px 7px;
+      border: 3px solid #17120a;
+      border-radius: 5px;
+      background:
+        radial-gradient(circle at 22% 26%, rgba(0, 0, 0, 0.32) 0 1.7px, transparent 1.7px),
+        radial-gradient(circle at 71% 62%, rgba(0, 0, 0, 0.24) 0 1.5px, transparent 1.5px),
+        linear-gradient(180deg, #ffe7a2 0%, #ffc84f 57%, #f09e1e 100%);
+      background-size: 10px 10px, 8px 8px, auto;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.17) inset,
+        0 4px 0 #5a2d08,
+        0 0 0 1px rgba(0, 0, 0, 0.25);
+      transform: rotate(-1.2deg);
+      overflow: visible;
+    }
+
+    .control-hint-combo-burst,
+    .control-hint-combo-value,
+    .control-hint-combo-pips {
+      position: relative;
+      z-index: 2;
+    }
+
+    .control-hint-combo-burst {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.53rem;
+      font-weight: 900;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #a30012;
+      text-shadow:
+        -1px 1px 0 rgba(255, 248, 225, 0.75),
+        0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    .control-hint-combo-value {
+      justify-self: end;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.96rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      color: #161004;
+      text-shadow:
+        -1px 1px 0 rgba(255, 242, 183, 0.8),
+        0 0 0 #000;
+    }
+
+    .control-hint-combo-pips {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .control-hint-combo-pip {
+      width: 12px;
+      height: 5px;
+      background: rgba(70, 28, 7, 0.44);
+      border: 1px solid rgba(35, 15, 4, 0.9);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+    }
+
+    .control-hint-combo-pip.active {
+      background: linear-gradient(180deg, #ff5b4e 0%, #c91325 100%);
+      border-color: #3c060f;
+      box-shadow:
+        0 0 0 1px rgba(255, 183, 147, 0.38) inset,
+        0 0 7px rgba(255, 74, 63, 0.36);
+    }
+
+    .control-hint-combo.combo-up {
+      animation: comboPop 330ms cubic-bezier(0.16, 0.98, 0.32, 1);
+    }
+
+    .control-hint-combo.combo-up .control-hint-combo-value {
+      animation: comboValuePunch 330ms cubic-bezier(0.14, 0.95, 0.35, 1);
+    }
+
+    .control-hint-combo.combo-up::after {
+      content: "POW!";
+      position: absolute;
+      top: -15px;
+      right: -13px;
+      padding: 2px 4px;
+      border: 2px solid #1b0f03;
+      background: #ff3f2f;
+      color: #fff8d7;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.5rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      transform: rotate(9deg);
+      text-shadow: -1px 1px 0 rgba(0, 0, 0, 0.75);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+      animation: comboBurstTag 330ms ease-out;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    @keyframes comboPop {
+      0% { transform: rotate(-2.2deg) scale(0.82); }
+      58% { transform: rotate(0.8deg) scale(1.09); }
+      100% { transform: rotate(-1.2deg) scale(1); }
+    }
+
+    @keyframes comboValuePunch {
+      0% { transform: scale(0.72) translateY(2px); }
+      58% { transform: scale(1.22) translateY(-1px); }
+      100% { transform: scale(1) translateY(0); }
+    }
+
+    @keyframes comboBurstTag {
+      0% { opacity: 0; transform: rotate(13deg) scale(0.62) translateY(7px); }
+      35% { opacity: 1; transform: rotate(8deg) scale(1.05) translateY(-1px); }
+      100% { opacity: 0; transform: rotate(2deg) scale(1.1) translateY(-8px); }
+    }
+
+    .system-message {
+      position: fixed;
+      top: calc(var(--box-top) + 16px + var(--safe-top));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 220;
+      background: rgba(10, 10, 18, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 10px 16px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.85);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      max-width: min(80vw, 720px);
+      text-align: center;
+    }
+
+    .system-message.active {
+      opacity: 1;
+    }
+
+    @media (pointer: coarse) {
+      .control-hints {
+        display: none !important;
+      }
+    }
+
+    .control-hints-off .zone-label,
+    .control-hints-off .zone-hint,
+    .control-hints-off .touch-zone-label,
+    .control-hints-off .touch-zone-sublabel {
+      display: none;
+    }
+
+    #settingsModal.main-leave-active .settings-actions {
+      margin-top: 0.6rem;
+    }
+
+    .settings-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.95rem;
+    }
+
+    .settings-actions .btn {
+      width: 100%;
+      margin: 0;
+    }
+
+    /* Add-player modal: icon+label buttons need left-aligned content so
+       the + icon lands at the same x on both buttons (other settings modals
+       use centered single-word labels so they keep justify-content:center) */
+    #addPlayerModal .settings-actions .btn {
+      gap: 0.5em;
+    }
+
+    .settings-actions .settings-close {
+      margin-top: 0 !important;
+    }
+
+    #settingsLeaveBtn {
+      margin: 0;
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.11em;
+      border-color: rgba(255, 120, 120, 0.55);
+      color: #ffd0d0;
+      background: rgba(255, 80, 80, 0.18);
+      box-shadow: 0 0 16px rgba(255, 90, 90, 0.18);
+    }
+
+    #settingsLeaveBtn:hover {
+      background: rgba(255, 100, 100, 0.24);
+      box-shadow: 0 0 20px rgba(255, 90, 90, 0.28);
+    }
+
+    #settingsModal.main-leave-active #settingsLeaveBtn {
+      display: none !important;
+    }
+
+    .settings-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--bg-panel);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      padding: 1.5rem 2rem;
+      z-index: var(--z-modal-panel);
+      min-width: 280px;
+      max-width: calc(var(--box-width) - 40px);
+      max-height: calc(var(--box-height) - 40px);
+      display: none;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .settings-modal.active {
+      display: block;
+    }
+
+    .settings-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: var(--z-modal-backdrop);
+      display: none;
+    }
+
+    .settings-backdrop.active {
+      display: block;
+    }
+
+    .settings-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.2rem;
+      color: #fff;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .settings-actions .btn {
+      font-size: clamp(0.85rem, 2vw, 1rem);
+    }
+
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      gap: 14px;
+    }
+
+    .settings-label {
+      color: #ccc;
+      font-size: 1rem;
+      min-width: 0;
+    }
+
+    .toggle {
+      width: 50px;
+      height: 28px;
+      background: #333;
+      border-radius: 14px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle.active {
+      background: var(--green);
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle.active::after {
+      transform: translateX(22px);
+    }
+
+    .settings-close {
+      width: 100%;
+      margin-top: 0;
+    }
+
+    /* ============= ADVANCED SETTINGS ============= */
+    .advanced-settings-modal {
+      width: min(560px, calc(var(--box-width) - 40px));
+      max-height: calc(var(--box-height) - 32px);
+      display: none;
+      flex-direction: column;
+      padding: 1.25rem 1.5rem;
+      overflow: hidden;
+    }
+
+    #leaveModal .leave-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    /* Leave confirmation must stay above tutorial/demo overlays. */
+    #leaveBackdrop {
+      z-index: var(--z-leave-backdrop);
+    }
+
+    #leaveModal {
+      z-index: var(--z-leave-panel);
+    }
+
+    #leaveModal .btn {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      padding: 0.875rem 1.25rem;
+    }
+
+    #leaveModal > p {
+      font-size: 0.875rem;
+    }
+
+    #leaveConfirmBtn {
+      background: #ef4444;
+    }
+
+    .advanced-settings-modal.active {
+      display: flex;
+    }
+
+    .advanced-settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 0.75rem;
+    }
+
+    .advanced-close-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .advanced-close-btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      fill: none;
+    }
+
+    .advanced-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 0.75rem;
+    }
+
+    .advanced-tab {
+      padding: 0.5rem 0.75rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+    }
+
+    .advanced-tab.active {
+      background: rgba(0, 240, 255, 0.18);
+      border-color: rgba(0, 240, 255, 0.5);
+      color: var(--cyan);
+    }
+
+    .advanced-settings-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 6px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .advanced-panel {
+      display: none;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .advanced-panel.active {
+      display: flex;
+    }
+
+    .advanced-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 0.5rem 0.6rem;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .advanced-row.hidden {
+      display: none;
+    }
+
+    .advanced-label {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.85rem;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .advanced-settings-modal .settings-close {
+      margin-top: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .cycle-btn,
+    .toggle-pill {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .toggle-pill.active {
+      background: rgba(0, 255, 136, 0.2);
+      border-color: rgba(0, 255, 136, 0.5);
+      color: var(--green);
+    }
+
+    /* ============= GAME END SCREEN ============= */
+    .end-shell {
+      width: min(860px, calc(var(--box-width) - 36px));
+      min-height: min(560px, calc(var(--box-height) - 36px));
+      margin: 0 auto;
+      padding: 20px 28px 22px;
+      display: grid;
+      grid-template-rows: auto auto auto;
+      align-content: center;
+      gap: 14px;
+    }
+
+    .end-shell .screen-header {
+      justify-content: center;
+      text-align: center;
+    }
+
+    .end-shell .screen-body {
+      align-items: center;
+      justify-content: center;
+    }
+
+    .winner-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(1.5rem, 6vw, 2.5rem);
+      font-weight: 900;
+      color: var(--yellow);
+      text-shadow: 0 0 30px var(--yellow);
+      margin-bottom: 0.35rem;
+      text-align: center;
+    }
+
+    .winner-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(2rem, 8vw, 4rem);
+      font-weight: 900;
+      color: var(--green);
+      text-shadow: 0 0 30px var(--green);
+      margin-bottom: 0.75rem;
+      text-align: center;
+    }
+
+    .final-scores {
+      --final-col-name: minmax(180px, 250px);
+      --final-col-pts: 88px;
+      --final-col-rounds: 92px;
+      --final-col-kills: 78px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      width: fit-content;
+      min-width: min(520px, calc(var(--box-width) - 56px));
+      max-width: min(620px, calc(var(--box-width) - 56px));
+      margin: 0 auto;
+      padding: 0.9rem 1rem 0.8rem;
+      background: rgba(6, 9, 28, 0.86);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(8px);
+      max-height: clamp(190px, 33vh, 340px);
+      overflow-y: auto;
+    }
+
+    .final-score-header {
+      display: grid;
+      grid-template-columns: var(--final-col-name) var(--final-col-pts) var(--final-col-rounds) var(--final-col-kills);
+      column-gap: 10px;
+      align-items: center;
+      padding: 0 0.55rem 0.48rem;
+      margin-bottom: 0.22rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+      position: sticky;
+      top: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(6, 9, 28, 0.98),
+        rgba(6, 9, 28, 0.9)
+      );
+      z-index: 2;
+    }
+
+    .final-score-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(215, 244, 255, 0.82);
+      text-shadow: 0 0 8px rgba(0, 240, 255, 0.24);
+      display: block;
+    }
+
+    .final-score-label.stat {
+      text-align: right;
+    }
+
+    .final-score-row {
+      display: grid;
+      grid-template-columns: var(--final-col-name) var(--final-col-pts) var(--final-col-rounds) var(--final-col-kills);
+      column-gap: 10px;
+      align-items: center;
+      font-size: 1.02rem;
+      padding: 0.44rem 0.55rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .final-score-row.departed {
+      opacity: 0.55;
+    }
+
+    .final-score-row:nth-child(even) {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+    }
+
+    .final-score-name {
+      color: inherit;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .final-score-row.departed .final-score-name {
+      text-decoration: line-through;
+    }
+
+    .final-score-status {
+      opacity: 0.75;
+      font-size: 0.74em;
+    }
+
+    .final-score-row.self {
+      position: relative;
+    }
+
+    .final-score-row.self::before {
+      content: '';
+      position: absolute;
+      left: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .final-score-value {
+      font-family: 'Orbitron', sans-serif;
+      color: var(--cyan);
+      font-variant-numeric: tabular-nums;
+      display: block;
+    }
+
+    .final-score-value.stat {
+      text-align: right;
+    }
+
+    /* ============= MOBILE CONTROLS ============= */
+    .mobile-controls {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 40%;
+      display: none;
+      z-index: 40;
+    }
+
+    @media (pointer: coarse) {
+      .mobile-controls.active {
+        display: flex;
+      }
+    }
+
+    .control-zone {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.3;
+      transition: opacity 0.1s;
+    }
+
+    .control-zone.active {
+      opacity: 0.6;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .control-zone-left {
+      border-right: 1px solid rgba(0, 240, 255, 0.2);
+    }
+
+    .control-zone-right {
+      border-left: 1px solid rgba(255, 0, 170, 0.2);
+    }
+
+    .zone-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .control-zone-left .zone-label {
+      color: var(--cyan);
+    }
+
+    .control-zone-right .zone-label {
+      color: var(--magenta);
+    }
+
+    .zone-hint {
+      font-size: 0.6rem;
+      opacity: 0.7;
+      margin-top: 0.3rem;
+    }
+
+    .start-actions .btn,
+    .join-section .btn-group .btn {
+      min-height: clamp(46px, 6.4vh, 56px);
+      font-size: clamp(0.82rem, 1.9vw, 1rem);
+      letter-spacing: 0.1em;
+      padding: 0.82rem 1rem;
+      white-space: nowrap;
+    }
+
+    .end-actions {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .end-actions .btn {
+      flex: 1;
+      margin: 0;
+      font-size: clamp(0.86rem, 2vw, 1.03rem);
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    html[data-layout="narrow"] .end-actions {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    /* ============= LANDSCAPE ENFORCEMENT ============= */
+    .rotate-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a12;
+      z-index: 10000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      color: rgba(255, 255, 255, 0.8);
+      font-family: 'Exo 2', sans-serif;
+    }
+
+    .rotate-overlay svg {
+      width: 80px;
+      height: 80px;
+      fill: var(--cyan);
+      animation: rotatePhone 2s ease-in-out infinite;
+    }
+
+    .rotate-overlay p {
+      font-size: 1.1rem;
+      letter-spacing: 0.05em;
+    }
+
+    @keyframes rotatePhone {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-90deg); }
+      50% { transform: rotate(-90deg); }
+      75% { transform: rotate(0deg); }
+    }
+
+    /* CSS rotation: render landscape layout when phone is held in portrait */
+    @media (orientation: portrait) and (pointer: coarse) {
+      .splash-screen {
+        position: fixed;
+        width: var(--vh);
+        height: var(--vw);
+        transform: rotate(-90deg);
+        transform-origin: top left;
+        top: calc(var(--vh) + var(--vv-offset-y));
+        left: var(--vv-offset-x);
+        overflow: hidden;
+      }
+
+      #game-wrapper {
+        position: fixed;
+        width: var(--vh);
+        height: var(--vw);
+        transform: rotate(-90deg);
+        transform-origin: top left;
+        top: calc(var(--vh) + var(--vv-offset-y));
+        left: var(--vv-offset-x);
+        overflow: hidden;
+      }
+    }
+
+    /* ============= ADAPTIVE TOUCH ZONES ============= */
+    /* Container for dynamically created touch zones.
+       Lives outside #game-wrapper so its z-index participates in the root
+       stacking context (game-wrapper creates a stacking context at z-1). */
+    .touch-zones {
+      position: fixed;
+      top: var(--box-top);
+      left: var(--box-left);
+      width: var(--box-width);
+      height: var(--box-height);
+      z-index: 40;
+      pointer-events: none;
+      display: none;
+    }
+
+    @media (pointer: coarse) {
+      .touch-zones.active {
+        display: block;
+      }
+    }
+
+    .touch-zone {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      opacity: 0.25;
+      transition: opacity 0.1s;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .touch-zone.pressed {
+      opacity: 0.5;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .touch-zone.demo-left-highlight {
+      opacity: 0.62;
+      border-color: rgba(0, 240, 255, 0.95) !important;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.5), inset 0 0 20px rgba(0, 240, 255, 0.24);
+      animation: demoLeftTouchPulse 0.9s ease-in-out infinite alternate;
+    }
+
+    @keyframes demoLeftTouchPulse {
+      from {
+        box-shadow: 0 0 12px rgba(0, 240, 255, 0.36), inset 0 0 12px rgba(0, 240, 255, 0.18);
+      }
+      to {
+        box-shadow: 0 0 24px rgba(0, 240, 255, 0.76), inset 0 0 24px rgba(0, 240, 255, 0.34);
+      }
+    }
+
+    /* Raised above the demo tutorial overlay so the player can see + tap the button */
+    .touch-zone.demo-tutorial-above {
+      opacity: 0.85 !important;
+      pointer-events: auto !important;
+    }
+
+    /* Elevate the ENTIRE container above the tutorial overlay (z-500).
+       Per-child z-index doesn't escape the parent stacking context, so we
+       must raise the container itself. Applied/removed alongside demo-tutorial-above. */
+    .touch-zones.demo-touch-elevated {
+      z-index: 560 !important;
+      display: block !important;
+    }
+
+    .touch-zone-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      pointer-events: none;
+      opacity: 0.8;
+    }
+
+    .touch-zone-sublabel {
+      font-size: 0.5rem;
+      opacity: 0.6;
+      margin-top: 0.2rem;
+      pointer-events: none;
+    }
+
+    /* Corner triangle single-player zones — flush to screen corners, label near thick base */
+    .touch-zone.corner-tri-left,
+    .touch-zone.corner-tri-right {
+      opacity: 0.42;
+      border-radius: 0;
+      border: none;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    }
+
+    .touch-zone.corner-tri-left.pressed,
+    .touch-zone.corner-tri-right.pressed {
+      opacity: 0.72;
+    }
+
+    .touch-zone.corner-tri-left {
+      align-items: flex-end;
+      justify-content: flex-start;
+      padding: 0 0 22px 22px;
+    }
+
+    .touch-zone.corner-tri-right {
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 0 22px 22px 0;
+    }
+
+    /* Touch zone SVG icons */
+    .touch-zone-icon-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .touch-zone-icon {
+      width: 36px;
+      height: 36px;
+      pointer-events: none;
+    }
+
+    /* ============= 3D STARFIELD BACKGROUND ============= */
+    .stars-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.5s ease;
+    }
+
+    .stars-container.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .stars-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-attachment: fixed;
+    }
+
+    .stars-wrapper {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 0;
+      height: 0;
+      perspective: 500px;
+      perspective-origin: 50% 100%;
+    }
+
+    .stars-layer {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform-style: preserve-3d;
+      animation: starsRotate 90s infinite linear;
+      animation-play-state: paused;
+      will-change: transform;
+    }
+
+    .stars-container.active .stars-layer {
+      animation-play-state: running;
+    }
+
+    @keyframes starsRotate {
+      0% {
+        transform: perspective(400px) rotateZ(20deg) rotateX(-40deg) rotateY(0);
+      }
+      100% {
+        transform: perspective(400px) rotateZ(20deg) rotateX(-40deg) rotateY(-360deg);
+      }
+    }
+
+    .star-node {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: #fff;
+      border-radius: 0;
+      transform-origin: center center;
+      backface-visibility: hidden;
+    }
+
+    /* ============= MOBILE OVERRIDES ============= */
+    @media (pointer: coarse) {
+      :root {
+        --hud-side-gap: 40px;
+        --hud-top-pad: 60px;
+      }
+
+      .start-shell {
+        gap: clamp(10px, 1.8vh, 16px);
+        padding-block: 4px 8px;
+      }
+
+      /* Prevent overflow on all overlay screens */
+      .overlay {
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .game-title-wrap {
+        width: min(88vw, 680px);
+        max-height: min(40vh, 240px);
+      }
+
+      .start-actions {
+        width: min(760px, 100%);
+        gap: 8px;
+      }
+
+      .start-secondary-actions {
+        gap: 4px;
+      }
+
+      .winner-name {
+        font-size: clamp(1.5rem, 6vw, 3rem);
+      }
+
+      .final-scores {
+        --final-col-name: minmax(116px, 1fr);
+        --final-col-pts: 62px;
+        --final-col-rounds: 66px;
+        --final-col-kills: 58px;
+        width: min(calc(var(--box-width) - 24px), 430px);
+        min-width: 0;
+        max-width: calc(var(--box-width) - 24px);
+        padding: 0.75rem 0.75rem 0.65rem;
+      }
+
+      .final-score-header,
+      .final-score-row {
+        column-gap: 8px;
+      }
+
+      .final-score-value {
+        font-size: 0.95rem;
+      }
+
+      #settingsLeaveBtn {
+        padding: 0.82rem 1rem;
+        font-size: 0.85rem;
+      }
+      .mode-inline-controls {
+        gap: 6px;
+      }
+
+      .mode-cycle-btn {
+        min-height: 34px;
+        padding: 0.24rem 0.55rem;
+      }
+
+      .mode-cycle-value {
+        font-size: 0.62rem;
+        letter-spacing: 0.07em;
+      }
+
+      .mode-inline-controls #advancedSettingsBtn {
+        min-height: 34px;
+        padding: 0.24rem 0.52rem;
+        font-size: 0.58rem;
+        letter-spacing: 0.06em;
+      }
+
+      .end-match-btn {
+        min-width: 92px;
+        padding: 0.24rem 0.52rem;
+        font-size: 0.54rem;
+      }
+      .map-picker-modal {
+        width: min(420px, calc(min(var(--box-width), var(--box-height)) - 18px));
+        max-width: calc(min(var(--box-width), var(--box-height)) - 18px);
+        top: calc(var(--box-top) + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        max-height: calc(var(--box-height) - 16px);
+        padding: 0.85rem;
+      }
+
+      .map-picker-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        max-height: calc(var(--box-height) - 108px);
+      }
+
+      .map-picker-modal .advanced-close-btn {
+        width: 42px;
+        height: 42px;
+      }
+
+      .map-picker-card {
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 8px;
+        padding: 7px;
+      }
+
+      .map-picker-canvas {
+        width: 96px;
+        height: 68px;
+      }
+
+      #startGameBtn {
+        margin: 0;
+        padding: 0.55rem 0.85rem;
+        font-size: 0.72rem;
+      }
+
+      .start-actions .btn,
+      .join-section .btn-group .btn,
+      .end-actions .btn,
+      .settings-actions .btn,
+      #leaveModal .leave-actions .btn {
+        min-height: 46px;
+      }
+
+      .settings-modal {
+        width: min(360px, calc(min(var(--box-width), var(--box-height)) - 24px));
+        min-width: min(280px, calc(min(var(--box-width), var(--box-height)) - 24px));
+        max-width: calc(min(var(--box-width), var(--box-height)) - 24px);
+        max-height: calc(max(var(--box-width), var(--box-height)) - 24px);
+        padding: 1rem 1rem 0.9rem;
+        border-radius: 14px;
+      }
+
+      .settings-title {
+        font-size: 1.15rem;
+        margin-bottom: 1rem;
+      }
+
+      .settings-actions .btn {
+        font-size: 0.9rem;
+      }
+
+      .settings-row {
+        margin-bottom: 0.75rem;
+      }
+
+      .settings-label {
+        font-size: 0.9rem;
+      }
+
+      .advanced-settings-modal .settings-close {
+        margin-top: 0.6rem;
+      }
+
+      .toggle {
+        width: 48px;
+        height: 26px;
+        border-radius: 13px;
+      }
+
+      .toggle::after {
+        width: 20px;
+        height: 20px;
+      }
+
+      .advanced-settings-modal {
+        width: min(560px, calc(min(var(--box-width), var(--box-height)) - 24px));
+        max-width: calc(min(var(--box-width), var(--box-height)) - 24px);
+        max-height: calc(var(--box-height) - 16px);
+        top: calc(var(--box-top) + 8px);
+        transform: translateX(-50%);
+        padding: 0.95rem 1rem;
+      }
+
+      #leaveModal .leave-actions {
+        gap: 0.75rem;
+      }
+
+      .advanced-settings-header {
+        margin-bottom: 0.5rem;
+      }
+
+      .advanced-tabs {
+        margin-bottom: 0.5rem;
+        gap: 6px;
+      }
+
+      .advanced-settings-body {
+        gap: 0.55rem;
+        padding-right: 2px;
+      }
+
+      .advanced-row {
+        gap: 8px;
+        padding: 0.44rem 0.5rem;
+      }
+
+      .advanced-label {
+        font-size: 0.78rem;
+      }
+
+      .cycle-btn,
+      .toggle-pill {
+        font-size: 0.62rem;
+        padding: 0.32rem 0.62rem;
+      }
+
+      :root {
+        --hud-side-gap: 40px;
+        --hud-top-pad: 60px;
+      }
+    }
+
+    @media (pointer: coarse) and (orientation: portrait) and (max-width: 460px) {
+      .mode-inline-controls {
+        gap: 4px;
+      }
+
+      .mode-cycle-btn {
+        padding: 0.2rem 0.46rem;
+      }
+
+      .mode-cycle-value {
+        font-size: 0.56rem;
+      }
+
+      .mode-inline-controls #advancedSettingsBtn {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.54rem;
+      }
+
+      .end-match-btn {
+        right: calc(100% - var(--box-right) + var(--hud-side-gap) + 48px);
+        min-width: 84px;
+        padding: 0.18rem 0.44rem;
+        font-size: 0.52rem;
+      }
+    }
+
+    @media (max-height: 760px) {
+      .game-title-wrap {
+        max-height: min(37vh, 375px);
+      }
+    }
+
+    /* ============= DEMO / ATTRACT MODE ============= */
+    .demo-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.4s ease, visibility 0.4s ease;
+    }
+    .demo-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Stars raised above canvas during demo — provides space gradient BG */
+    .stars-container.demo-stars {
+      z-index: 1;
+    }
+
+    /* Cover that hides the canvas while the attract game boots, then fades out
+       to reveal it gracefully. Sits above game-wrapper (z-1) and stars (z-1),
+       but below all overlay screens (z-100+). */
+    #attractCover {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: #060a12;
+      pointer-events: none;
+      transition: opacity 0.75s ease;
+    }
+    #attractCover.revealed {
+      opacity: 0;
+    }
+
+    /* Shared visual styles for all "Skip"-style buttons */
+    .demo-skip-btn {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.45);
+      background: none;
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 7px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .demo-skip-btn:hover {
+      color: rgba(255,255,255,0.75);
+      border-color: rgba(255,255,255,0.35);
+    }
+    /* Tutorial overlay */
+    #demoTutorialOverlay {
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0 1rem max(var(--safe-bottom, 0px), 2.5rem);
+    }
+    .demo-tutorial-panel {
+      background: rgba(8, 6, 18, 0.92);
+      border: 1px solid rgba(0,240,255,0.22);
+      border-radius: 14px;
+      padding: clamp(1rem, 3vw, 1.5rem) clamp(1rem, 3vw, 1.5rem);
+      max-width: 440px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      box-shadow: 0 0 32px rgba(0,240,255,0.07);
+    }
+    .demo-tutorial-diagram {
+      width: 100%;
+    }
+    .demo-diagram-svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .demo-tutorial-dialogue {
+      font-family: 'Exo 2', sans-serif;
+      font-size: clamp(0.88rem, 2.5vw, 1rem);
+      color: rgba(255,255,255,0.9);
+      line-height: 1.55;
+      min-height: 3.2em;
+    }
+    .demo-tutorial-actions {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+    .demo-tutorial-skip-btn {
+      margin: 0;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    /* Tutorial panel slide-out when in "try it" phase */
+    .demo-tutorial-panel {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .demo-tutorial-panel.panel-hidden {
+      opacity: 0;
+      transform: translateY(24px);
+      pointer-events: none;
+    }
+
+    /* "Start Playing" button — prominent CTA */
+    /* Exit Demo button — positioned at the same screen location as the in-game Leave button */
+    .demo-exit-btn {
+      position: fixed;
+      /* Matches .leave-btn position: box offset + hud padding/gap */
+      top: calc(var(--box-top) + var(--hud-top-pad));
+      left: var(--hud-side-gap);
+      width: var(--leave-btn-size);
+      height: var(--leave-btn-size);
+      z-index: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 80, 80, 0.12);
+      border: 1px solid rgba(255, 120, 120, 0.45);
+      color: #ffd0d0;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.06em;
+      text-align: center;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .demo-exit-btn:hover {
+      background: rgba(255, 80, 80, 0.28);
+      border-color: rgba(255, 120, 120, 0.75);
+      color: #fff;
+    }
+    .demo-exit-btn.hidden {
+      display: none;
+    }
+
+    .demo-settings-btn {
+      position: fixed;
+      top: calc(var(--box-top) + var(--hud-top-pad));
+      right: var(--hud-side-gap);
+      z-index: 600;
+      width: 42px;
+      height: 42px;
+      background: rgba(10, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .demo-settings-btn:hover {
+      background: var(--bg-panel);
+    }
+    .demo-settings-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: #fff;
+    }
+    .demo-settings-btn.hidden {
+      display: none;
+    }
+
+    .demo-skip-tutorial-btn {
+      position: fixed;
+      top: calc(var(--box-top) + var(--hud-top-pad));
+      right: calc(var(--hud-side-gap) + 42px + 8px);
+      z-index: 600;
+      height: 42px;
+      padding: 0 14px;
+      background: rgba(10, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 21px;
+      color: rgba(255, 255, 255, 0.75);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .demo-skip-tutorial-btn:hover {
+      background: var(--bg-panel);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    .demo-skip-tutorial-btn.hidden {
+      display: none;
+    }
+
+    .demo-start-playing-btn {
+      align-self: stretch;
+      background: rgba(0,240,255,0.12) !important;
+      border: 1px solid rgba(0,240,255,0.5) !important;
+      color: #00f0ff !important;
+      font-family: 'Orbitron', sans-serif !important;
+      font-size: 0.88rem !important;
+      letter-spacing: 0.1em;
+      padding: 10px 20px !important;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    @media (pointer: coarse) {
+      .demo-skip-btn {
+        min-height: 44px;
+        padding: 10px 22px;
+      }
+    }
+
+    /* Allow --spot-r and --spot-bg-alpha to be animatable via CSS transitions */
+    @property --spot-r {
+      syntax: '<length>';
+      inherits: true;
+      initial-value: 85px;
+    }
+    @property --spot-bg-alpha {
+      syntax: '<number>';
+      inherits: true;
+      initial-value: 0.84;
+    }
+
+    /* Player intro / tutorial spotlight overlay */
+    .demo-player-intro-overlay {
+      /* Dark vignette with a circular spotlight punched out at --spot-x / --spot-y */
+      --spot-x: 50%;
+      --spot-y: 50%;
+      --spot-r: 85px;
+      --spot-bg-alpha: 0.84;
+      background: rgba(0, 0, 0, var(--spot-bg-alpha));
+      -webkit-mask-image: radial-gradient(
+        circle var(--spot-r) at var(--spot-x) var(--spot-y),
+        transparent 62%,
+        black 100%
+      );
+      mask-image: radial-gradient(
+        circle var(--spot-r) at var(--spot-x) var(--spot-y),
+        transparent 62%,
+        black 100%
+      );
+      /* Below tutorial panel overlay (500) so panel is always readable */
+      z-index: 490;
+      transition: opacity 0.35s ease, visibility 0.35s ease, --spot-r 0.45s ease, --spot-bg-alpha 0.5s ease;
+    }
+    .demo-player-intro-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    /* Wider hole when the tip panel is showing */
+    .demo-player-intro-overlay.spot-panel {
+      --spot-r: 130px;
+    }
+    /* Tighter focus during "try it" action phase */
+    .demo-player-intro-overlay.spot-action {
+      --spot-r: 85px;
+    }
+    /* After player's first action: dim the veil and expand the spotlight */
+    .demo-player-intro-overlay.spot-dimmed {
+      --spot-bg-alpha: 0.42;
+    }
+    /* The ring is positioned via JS at the ship's screen coords.
+       Keep the outer node responsible for positioning only; pulse animation
+       runs on an inner pseudo-element to avoid mobile transform drift. */
+    .demo-player-intro-ring {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: none;
+      transform: translate3d(-50%, -50%, 0);
+      /* border-color / box-shadow are set dynamically from JS and inherited */
+      border-color: #00f0ff;
+      box-shadow: 0 0 24px #00f0ff, 0 0 48px #00f0ff55;
+      pointer-events: none;
+      transition: width 0.45s ease, height 0.45s ease;
+      will-change: left, top, width, height;
+    }
+    .demo-player-intro-ring::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2.5px solid;
+      border-color: inherit;
+      box-shadow: inherit;
+      animation: playerIntroPulseScale 0.65s ease-in-out infinite alternate;
+      transform-origin: center center;
+    }
+    @keyframes playerIntroPulseScale {
+      from { transform: scale(0.9); opacity: 0.55; }
+      to   { transform: scale(1.1); opacity: 1; }
+    }
+    /* "YOUR SHIP" label — hidden in tutorial flow (panel tip text is sufficient) */
+    .demo-player-intro-inner {
+      display: none;
+    }
+
+    /* Wrapper — gives the guide image a relative positioning parent (the panel) */
+    .demo-panel-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+    }
+    /* Guide image: positioned relative to the wrapper, translated up so it sits
+       just above the panel's top-right corner with a tiny 6px overlap — "attached" look */
+    .demo-guide-img-float {
+      position: absolute;
+      top: 0;
+      right: 0;
+      transform: translateY(calc(-100% + 6px));
+      width: clamp(120px, 32vw, 196px);
+      height: auto;
+      border-radius: 6px 6px 0 0;
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* Landscape: keep tutorial panel anchored at the bottom */
+    @media (orientation: landscape) {
+      #demoTutorialOverlay {
+        align-items: flex-end;
+        justify-content: center;
+        padding: 0 max(var(--safe-left, 0px), 1rem) max(var(--safe-bottom, 0px), 1rem) max(var(--safe-right, 0px), 1rem);
+      }
+      .demo-tutorial-panel {
+        max-width: min(520px, 60vw);
+        padding: 0.75rem 1rem;
+        gap: 0.6rem;
+      }
+      .demo-tutorial-diagram {
+        display: none; /* hide diagram in landscape to save vertical space */
+      }
+      .demo-tutorial-dialogue {
+        font-size: clamp(0.8rem, 2vh, 0.95rem);
+        min-height: 2.4em;
+      }
+    }
+
+    /* ============= NEW LOBBY REDESIGN — scoped under #lobbyScreen ============= */
+    #lobbyScreen {
+      --bg: #060b16;
+      --panel: #0a1020;
+      --panel2: #0e1628;
+      --border: rgba(255,255,255,0.06);
+      --border2: rgba(255,255,255,0.11);
+      --text: #ccd6f0;
+      --dim: rgba(160,180,220,0.58);
+      --gold: #d97706;
+      --gold-lt: #f5a623;
+      --gold-dk: #92520a;
+      --fs-label: 0.7rem;
+      --fs-ui: 0.9rem;
+      --fs-display: 1.125rem;
+      --topbar-h: 4.17rem;
+      --strip-h: 7rem;
+      --side-pad: clamp(40px, 8vw, 100px);
+    }
+
+    #lobbyScreen.overlay {
+      background: #060b16;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      transform: translateY(0);
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    #lobbyScreen.overlay.hidden {
+      transform: translateY(14px);
+    }
+
+    @keyframes lobbyRise {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes lobbySettle {
+      0%   { opacity: 0.995; }
+      100% { opacity: 1; }
+    }
+
+    /* Applied by JS when lobby enters from start screen */
+    #lobbyScreen.lobby-rising {
+      animation: lobbyRise 430ms cubic-bezier(0.12, 0.96, 0.2, 1) both;
+    }
+
+    /* Applied by JS at PAGE_INTRO_IN beat (~460ms) — replaces lobby-rising */
+    #lobbyScreen.lobby-settled {
+      animation: lobbySettle 140ms linear both;
+      transform: translateY(0);
+    }
+
+    #lobbyScreen::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.032) 1px, transparent 1px);
+      background-size: 26px 26px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #lobbyScreen .lb-root {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      color: var(--text);
+      font-family: 'Exo 2', sans-serif;
+    }
+
+    /* TOPBAR */
+    #lobbyScreen .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: max(1.75rem, env(safe-area-inset-left, 0px));
+      padding-right: max(1.75rem, env(safe-area-inset-right, 0px));
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(6,11,22,0.88);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+
+    #lobbyScreen .topbar-rail {
+      height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+      flex-shrink: 0;
+    }
+
+    #lobbyScreen .topbar-divider { width: 1px; height: 1.5rem; background: var(--border2); }
+    #lobbyScreen .topbar-spacer { flex: 1; }
+    #lobbyScreen .session-group {
+      position: absolute;
+      left: 50%;
+      top: calc(env(safe-area-inset-top, 0px) + (var(--topbar-h) / 2));
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--border2);
+      border-radius: 0.375rem;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.28);
+      pointer-events: none;
+      z-index: 11;
+    }
+    #lobbyScreen .sg-chip {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-display);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      background: transparent;
+      border-right: 1px solid var(--border2);
+      padding: 0.5rem 1.1rem;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    #lobbyScreen .sg-chip:last-child { border-right: none; }
+    #lobbyScreen .sg-chip.on {
+      background: var(--gold);
+      color: #000;
+    }
+
+    #lobbyScreen .room-tag {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Space Mono', monospace;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(217,119,6,0.28);
+      border-radius: 0.3125rem;
+      padding: 0.375rem 0.75rem;
+    }
+    #lobbyScreen .room-tag-dot {
+      width: 0.375rem; height: 0.375rem;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 0.5rem var(--gold);
+      animation: lb-blink 2.2s ease-in-out infinite;
+    }
+    #lobbyScreen .room-tag-label { font-size: var(--fs-label); letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+    #lobbyScreen .room-tag-copy {
+      background: transparent; border: none; cursor: pointer;
+      color: var(--dim); display: flex; align-items: center;
+      padding: 1px; border-radius: 0.1875rem; transition: color 0.12s;
+    }
+    #lobbyScreen .room-tag-copy:hover { color: var(--gold-lt); }
+    #lobbyScreen .room-tag-copy svg { width: 0.75rem; height: 0.75rem; }
+
+    #lobbyScreen .leave-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-ui);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(248,113,113,0.7);
+      background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(248,113,113,0.18);
+      border-radius: 0.3125rem;
+      padding: 0.4375rem 0.875rem;
+      cursor: pointer;
+      transition: all 0.13s;
+    }
+    #lobbyScreen .leave-btn:hover { color: #f87171; background: rgba(220,38,38,0.14); border-color: rgba(248,113,113,0.36); }
+
+    /* BODY */
+    #lobbyScreen .body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      padding-bottom: calc(var(--strip-h) + env(safe-area-inset-bottom, 0px));
+    }
+
+    #lobbyScreen .body::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: calc(var(--side-pad) + 20px);
+      background: linear-gradient(to right,
+        #060b16 0px,
+        #060b16 calc(var(--side-pad) * 0.5),
+        rgba(6,11,22,0.72) calc(var(--side-pad) * 0.72),
+        rgba(6,11,22,0.30) var(--side-pad),
+        transparent calc(var(--side-pad) + 20px)
+      );
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    #lobbyScreen .body::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: calc(var(--side-pad) + 20px);
+      background: linear-gradient(to left,
+        #060b16 0px,
+        #060b16 calc(var(--side-pad) * 0.5),
+        rgba(6,11,22,0.72) calc(var(--side-pad) * 0.72),
+        rgba(6,11,22,0.30) var(--side-pad),
+        transparent calc(var(--side-pad) + 20px)
+      );
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    #lobbyScreen .body-fade-bottom {
+      position: absolute;
+      bottom: calc(var(--strip-h) + env(safe-area-inset-bottom, 0px));
+      left: 0; right: 0;
+      height: 5.625rem;
+      background: linear-gradient(to bottom, transparent 0%, #060b16 100%);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* CARD TRAY */
+    #lobbyScreen .card-tray {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
+      padding: 0 var(--side-pad);
+    }
+
+    /* PLAYER CARDS */
+    #lobbyScreen .pcard {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+      z-index: 6;
+    }
+
+    #lobbyScreen .pcard:first-child {
+      overflow: visible;
+      clip-path: inset(0 0 0 -300px);
+    }
+
+    #lobbyScreen .pcard:last-child {
+      overflow: visible;
+      clip-path: inset(0 -300px 0 0);
+    }
+
+    #lobbyScreen .pcard + .pcard::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(255,255,255,0.07) 15%,
+        rgba(255,255,255,0.07) 80%,
+        transparent 100%
+      );
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    #lobbyScreen .pcard--filled {
+      background: linear-gradient(to bottom, transparent 0%, #060b16 60%);
+    }
+    #lobbyScreen .pcard--filled:hover .card-glow {
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.60) 0%, rgba(var(--pc-rgb), 0.18) 45%, transparent 70%);
+    }
+    #lobbyScreen .pcard--filled:hover .viewport-ring {
+      border-color: rgba(var(--pc-rgb), 0.75);
+      animation: lb-ring-pulse 3.8s ease-in-out infinite;
+    }
+    #lobbyScreen .pcard--filled:hover .card-viewport {
+      transform: scale(1.08);
+    }
+    #lobbyScreen .pcard--filled:hover .card-info {
+      transform: translateY(-0.25rem);
+    }
+
+    #lobbyScreen .pcard--empty {
+      background: #060b16;
+    }
+
+    #lobbyScreen .card-glow {
+      position: absolute;
+      top: -2.5rem; left: -35%; right: -35%;
+      height: 85%;
+      background: radial-gradient(ellipse at 50% 5%, rgba(var(--pc-rgb), 0.45) 0%, rgba(var(--pc-rgb), 0.12) 45%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      transition: background 0.25s ease;
+    }
+
+    #lobbyScreen .card-meta {
+      position: absolute;
+      top: 0.625rem;
+      left: 0.75rem;
+      right: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 7;
+      pointer-events: none;
+    }
+    #lobbyScreen .meta-ident {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: rgba(160,180,220,0.72);
+      opacity: 0.95;
+    }
+    #lobbyScreen .meta-ident svg { width: 0.875rem; height: 0.875rem; flex-shrink: 0; }
+    #lobbyScreen .meta-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    #lobbyScreen .meta-ident--you { color: rgba(var(--pc-rgb), 0.92); }
+    #lobbyScreen .meta-ident--ai { color: #a78bfa; }
+    #lobbyScreen .meta-ident--local { color: #fcd34d; }
+    #lobbyScreen .meta-ident--online { color: #6ee7b7; }
+    #lobbyScreen .card-meta-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    #lobbyScreen .card-meta-right {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.75rem;
+      pointer-events: auto;
+      justify-content: flex-end;
+      z-index: 8;
+    }
+    #lobbyScreen .meta-host {
+      width: 0.9375rem;
+      height: 0.9375rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--gold);
+      opacity: 0.9;
+    }
+    #lobbyScreen .meta-host svg { width: 0.75rem; height: 0.75rem; }
+    #lobbyScreen .card-slot {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: rgba(217,119,6,0.62);
+    }
+
+    #lobbyScreen .card-scene {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      container-type: size;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+      padding-top: 1.7rem;
+    }
+
+    #lobbyScreen .card-viewport {
+      position: relative;
+      width: min(13.75rem, 88cqw, 88cqh);
+      aspect-ratio: 1;
+      flex-shrink: 0;
+      z-index: 1;
+      transition: transform 0.35s ease;
+    }
+    #lobbyScreen .viewport-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid rgba(var(--pc-rgb), 0.45);
+      transition: border-color 0.25s ease;
+    }
+    @keyframes lb-ring-pulse {
+      0%,100% { box-shadow: 0 0 0.875rem rgba(var(--pc-rgb),0.18), inset 0 0 1.375rem rgba(var(--pc-rgb),0.04); }
+      50%      { box-shadow: 0 0 1.875rem rgba(var(--pc-rgb),0.34), inset 0 0 2.25rem rgba(var(--pc-rgb),0.09); }
+    }
+    #lobbyScreen .viewport-inner {
+      position: absolute;
+      inset: 0.375rem;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, rgba(255,255,255,0.04) 0%, #050b15 60%);
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #lobbyScreen .card-ship-wrap {
+      width: 64%;
+      height: 64%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translateY(4%) rotate(-16deg);
+      transform-origin: 50% 50%;
+      filter: drop-shadow(0 0 0.85rem rgba(var(--pc-rgb), 0.58));
+      animation: lb-float 4.5s ease-in-out infinite;
+    }
+    #lobbyScreen .card-ship-asset,
+    #lobbyScreen .card-ship-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #lobbyScreen .card-ship-asset svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    #lobbyScreen .card-ship-img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+    #lobbyScreen .card-ship-svg {
+      width: 100%;
+      height: 100%;
+    }
+    @keyframes lb-float {
+      0%,100% { transform: translateY(4%) rotate(-16deg); }
+      50%      { transform: translateY(calc(4% - 0.4375rem)) rotate(-16deg); }
+    }
+    #lobbyScreen .card-tray > .pcard:nth-child(1) .card-ship-wrap { animation-delay: 0s; }
+    #lobbyScreen .card-tray > .pcard:nth-child(2) .card-ship-wrap { animation-delay: 1.1s; }
+    #lobbyScreen .card-tray > .pcard:nth-child(3) .card-ship-wrap { animation-delay: 2.2s; }
+    #lobbyScreen .card-tray > .pcard:nth-child(4) .card-ship-wrap { animation-delay: 3.3s; }
+    @keyframes lb-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes lb-card-enter {
+      from { opacity: 0; transform: translateY(1.375rem); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .pcard--pre-enter {
+      opacity: 0;
+      transform: translateY(1.375rem);
+    }
+    .pcard--entering {
+      animation: lb-card-enter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation-delay: var(--card-enter-delay, 0ms);
+    }
+
+    #lobbyScreen .card-info {
+      position: relative;
+      z-index: 6;
+      padding: 0.95rem 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.25s ease;
+      gap: 0;
+      flex-shrink: 0;
+      width: 100%;
+    }
+    #lobbyScreen .card-name {
+      display: flex;
+      align-items: baseline;
+      justify-content: flex-start;
+      gap: 0.3rem;
+      line-height: 1.2;
+      min-width: 0;
+    }
+    #lobbyScreen .card-name-text {
+      font-size: var(--fs-display);
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    #lobbyScreen .card-name-you {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-micro);
+      font-weight: 400;
+      color: var(--dim);
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+    #lobbyScreen .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      margin-top: 1rem;
+      gap: 0.5rem;
+      position: relative;
+      z-index: 8;
+    }
+    #lobbyScreen .card-footer-actions {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.375rem;
+      min-width: 0;
+      position: relative;
+      z-index: 8;
+    }
+    #lobbyScreen .card-footer-spacer {
+      width: 1px;
+      height: 2rem;
+      display: block;
+      opacity: 0;
+    }
+    #lobbyScreen .card-act {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    #lobbyScreen .card-act--text {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-ui);
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgba(248,113,113,0.72);
+      background: rgba(220,38,38,0.07);
+      border: 1px solid rgba(248,113,113,0.18);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.8125rem;
+      position: relative;
+      z-index: 9;
+    }
+    #lobbyScreen .card-act--text:hover {
+      color: #f87171;
+      background: rgba(220,38,38,0.13);
+      border-color: rgba(248,113,113,0.35);
+    }
+    #lobbyScreen .card-act--icon {
+      font-family: 'Space Mono', monospace;
+      width: 1.75rem;
+      height: 1.75rem;
+      border: 1px solid rgba(248,113,113,0.25);
+      border-radius: 999px;
+      background: rgba(220,38,38,0.1);
+      color: rgba(248,113,113,0.86);
+      padding: 0;
+      pointer-events: auto;
+      z-index: 9;
+    }
+    #lobbyScreen .card-act-icon {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.08rem;
+      font-weight: 700;
+      line-height: 1;
+      transform: translateY(-0.05rem);
+    }
+    #lobbyScreen .card-act--icon:hover {
+      color: #fca5a5;
+      background: rgba(220,38,38,0.16);
+      border-color: rgba(248,113,113,0.42);
+    }
+    #lobbyScreen .card-act--icon:active { transform: translateY(1px); }
+
+    #lobbyScreen .card-vp-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    #lobbyScreen .card-tap-hint {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      color: rgba(160, 180, 220, 0.35);
+      letter-spacing: 0.08em;
+      text-align: center;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* EMPTY CARD */
+    #lobbyScreen .empty-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    #lobbyScreen .empty-icon { color: rgba(255,255,255,0.15); animation: lb-blink 2.8s ease-in-out infinite; }
+    #lobbyScreen .empty-icon svg { width: 2.75rem; height: 2.75rem; }
+    #lobbyScreen .empty-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(160,180,220,0.45);
+    }
+    #lobbyScreen .empty-btns { display: flex; flex-direction: column; gap: 0.375rem; margin-top: 0.25rem; }
+    #lobbyScreen .empty-tap-hint {
+      display: none;
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      color: rgba(160, 180, 220, 0.5);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 0.375rem;
+    }
+    #lobbyScreen .empty-btn {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-ui);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(160,180,220,0.45);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.75rem;
+      cursor: pointer;
+      transition: all 0.12s;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.4em;
+    }
+    .eb-plus {
+      width: 0.85em;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    #lobbyScreen .eb-plus { opacity: 0.65; }
+    #lobbyScreen .empty-btn:hover { color: var(--gold-lt); border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.05); }
+    #lobbyScreen .empty-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* CTRL STRIP */
+    #lobbyScreen .ctrl-strip {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: calc(var(--strip-h) + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      display: flex;
+      align-items: stretch;
+      background: linear-gradient(to bottom, rgba(6,11,22,0.82) 0%, rgba(6,11,22,0.96) 40%, rgba(6,11,22,0.99) 100%);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      z-index: 8;
+      pointer-events: none;
+    }
+    #lobbyScreen .cs-map,
+    #lobbyScreen .cs-mode,
+    #lobbyScreen .cs-launch { pointer-events: auto; }
+
+    #lobbyScreen .cs-map {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.875rem;
+      padding: 0.875rem 1.25rem 0.9375rem 1.75rem;
+      flex: 2 1 0;
+      max-width: 26.25rem;
+      min-width: 14rem;
+    }
+    #lobbyScreen .cs-map:not(.readonly) { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #lobbyScreen .cs-mode:not(.readonly) { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #lobbyScreen .map-thumb-wrap {
+      border-radius: 0.4375rem;
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      flex-shrink: 0;
+    }
+    #lobbyScreen .map-thumb { display: block; width: 6.875rem; height: 4.625rem; }
+    #lobbyScreen .map-meta { display: flex; flex-direction: column; gap: 0; min-width: 0; flex: 1; }
+    #lobbyScreen .map-meta-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.1875rem;
+    }
+    #lobbyScreen .map-section-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(217,119,6,0.7);
+    }
+    #lobbyScreen .map-title {
+      font-family: 'Exo 2', sans-serif;
+      font-size: var(--fs-ui);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #lobbyScreen .map-desc {
+      font-size: var(--fs-label);
+      color: var(--dim);
+      margin-top: 0.125rem;
+    }
+    #lobbyScreen .map-change {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-ui);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gold-lt);
+      background: rgba(217,119,6,0.08);
+      border: 1px solid rgba(217,119,6,0.24);
+      border-radius: 0.25rem;
+      padding: 0.3125rem 0.8125rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.13s;
+    }
+    #lobbyScreen .map-change:hover { background: rgba(217,119,6,0.15); border-color: rgba(217,119,6,0.42); }
+    #lobbyScreen .map-change.host-locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+    #lobbyScreen .cs-div { width: 1px; background: var(--border2); margin: 0.875rem 0; }
+
+    #lobbyScreen .cs-mode {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem 0.9375rem;
+      flex: 1 1 0;
+      max-width: 10.5rem;
+      min-width: 8rem;
+    }
+    #lobbyScreen .cs-mode-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.25rem;
+    }
+    #lobbyScreen .cs-mode-label {
+      font-family: 'Space Mono', monospace;
+      font-size: var(--fs-label);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(217,119,6,0.7);
+    }
+    #lobbyScreen .cs-adv-btn {
+      width: 1.5rem; height: 1.5rem;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: 0.25rem;
+      cursor: pointer;
+      color: var(--gold-lt);
+      padding: 0;
+      transition: all 0.13s;
+      flex-shrink: 0;
+    }
+    #lobbyScreen #rulesetCycleValue {
+      color: var(--gold-lt);
+    }
+    #lobbyScreen .cs-adv-btn:hover { color: var(--gold-lt); border-color: rgba(217,119,6,0.3); background: rgba(217,119,6,0.06); }
+    #lobbyScreen .cs-adv-btn svg { width: 0.875rem; height: 0.875rem; }
+    #lobbyScreen .cs-adv-btn.host-locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+    #lobbyScreen .cs-ruleset-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.375rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-ui);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border2);
+      border-radius: 0.25rem;
+      padding: 0.4375rem 0.625rem;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.13s;
+    }
+    #lobbyScreen .cs-ruleset-pill svg { width: 0.625rem; height: 0.625rem; flex-shrink: 0; stroke: var(--dim); }
+    #lobbyScreen .cs-ruleset-pill:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.07); }
+    #lobbyScreen .cs-ruleset-pill.host-locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+    #lobbyScreen .map-change-icon {
+      width: 1.5rem; height: 1.5rem;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+      border: 1px solid rgba(217,119,6,0.28);
+      border-radius: 0.25rem;
+      cursor: pointer;
+      color: var(--gold-lt);
+      padding: 0;
+      transition: all 0.13s;
+      flex-shrink: 0;
+    }
+    #lobbyScreen .map-change-icon:hover { background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.5); }
+    #lobbyScreen .map-change-icon svg { width: 0.75rem; height: 0.75rem; }
+    #lobbyScreen .map-change-icon.host-locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
+    #lobbyScreen .cs-launch {
+      flex: 1.5 1 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: flex-start;
+      gap: 0.5rem;
+      padding: 0.875rem 1.75rem 0.9375rem 1.5rem;
+    }
+    #lobbyScreen .launch-status {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    #lobbyScreen .lstatus-dot {
+      width: 0.375rem; height: 0.375rem;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0.5rem #10b981;
+      animation: lb-blink 2.4s ease-in-out infinite;
+    }
+    #lobbyScreen .lstatus-dot.warn { background: var(--gold); box-shadow: 0 0 0.5rem var(--gold); }
+    #lobbyScreen .lstatus-text { font-family: 'Space Mono', monospace; font-size: var(--fs-ui); letter-spacing: 0.07em; color: var(--dim); }
+    #lobbyScreen .launch-btn {
+      height: 3.25rem;
+      width: min(100%, 14.375rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.625rem;
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-ui);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #000;
+      background: linear-gradient(135deg, var(--gold-lt), var(--gold));
+      border: none;
+      border-radius: 0.4375rem;
+      cursor: pointer;
+      box-shadow: 0 0 1.75rem rgba(217,119,6,0.26), 0 0.25rem 0.625rem rgba(0,0,0,0.5);
+      transition: all 0.17s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    #lobbyScreen .launch-btn::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -110%;
+      width: 75%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transition: left 0.42s ease;
+    }
+    #lobbyScreen .launch-btn:hover { background: linear-gradient(135deg, #fbbf24, var(--gold-lt)); box-shadow: 0 0 2.75rem rgba(217,119,6,0.42), 0 0.375rem 1.125rem rgba(0,0,0,0.55); transform: translateY(-0.0625rem); }
+    #lobbyScreen .launch-btn:hover::after { left: 130%; }
+    #lobbyScreen .launch-btn:active { transform: translateY(0); }
+    #lobbyScreen .launch-btn:disabled { background: rgba(217,119,6,0.18); color: rgba(0,0,0,0.3); cursor: not-allowed; box-shadow: none; transform: none; }
+    #lobbyScreen .launch-btn.host-locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+    #lobbyScreen .launch-btn svg { width: 1rem; height: 1rem; }
+
+    /* MAP PICKER MODAL — inside #lobbyScreen */
+    #lobbyScreen .modal-bg {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(4,8,18,0.82);
+      backdrop-filter: blur(6px);
+      z-index: var(--z-modal-backdrop);
+    }
+    #lobbyScreen .modal-bg.active { display: block; }
+    #lobbyScreen .map-modal {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(47.5rem, calc(100vw - 3rem));
+      max-height: calc(var(--box-height) - 2rem);
+      background: #0b1020;
+      border: 1px solid var(--border2);
+      border-radius: 0.875rem;
+      padding: 1.5rem 1.5rem 0;
+      z-index: var(--z-modal-panel);
+      box-shadow: 0 1.75rem 4.375rem rgba(0,0,0,0.88);
+    }
+    #lobbyScreen .map-modal.active { display: flex; flex-direction: column; }
+    #lobbyScreen .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 1.25rem;
+      flex-shrink: 0;
+    }
+    #lobbyScreen .modal-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-ui); font-weight: 700; letter-spacing: 0.1em; color: var(--text);
+    }
+    #lobbyScreen .modal-close {
+      width: 1.875rem; height: 1.875rem; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 0.3125rem;
+      cursor: pointer; color: var(--dim); transition: all 0.12s;
+    }
+    #lobbyScreen .modal-close:hover { color: var(--text); background: rgba(255,255,255,0.09); }
+    #lobbyScreen .modal-close svg { width: 0.875rem; height: 0.875rem; }
+    #lobbyScreen .modal-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 1.5rem;
+    }
+
+    /* MAP PICKER CARDS — restyle existing .map-picker-card classes under #lobbyScreen */
+    #lobbyScreen .map-picker-card {
+      border-radius: 0.5rem;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      background: #060b16;
+      transition: all 0.14s;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+    #lobbyScreen .map-picker-card:hover { border-color: rgba(217,119,6,0.3); }
+    #lobbyScreen .map-picker-card.active { border-color: var(--gold); box-shadow: 0 0 1.125rem rgba(217,119,6,0.18); }
+    #lobbyScreen .map-picker-card:disabled { opacity: 0.65; cursor: default; }
+    #lobbyScreen .map-picker-card.host-locked { opacity: 0.5; cursor: not-allowed; }
+    #lobbyScreen .map-picker-canvas { display: block; width: 100%; aspect-ratio: 3 / 2; }
+    #lobbyScreen .map-picker-meta { padding: 0.375rem 0.5rem 0.5rem; }
+    #lobbyScreen .map-picker-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-label);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text);
+    }
+    #lobbyScreen .map-picker-desc { font-size: var(--fs-label); color: var(--dim); margin-top: 0.125rem; }
+    #lobbyScreen .map-picker-badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 2px 6px;
+      margin-top: 0.25rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      font-family: 'Orbitron', sans-serif;
+      font-size: var(--fs-label);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.78);
+    }
+    #lobbyScreen .map-picker-badge.rotation { border-color: rgba(217,119,6,0.45); color: var(--gold-lt); }
+
+    @media (pointer: coarse) and (max-height: 600px) {
+      #lobbyScreen .empty-btns { display: none; }
+      #lobbyScreen .empty-tap-hint { display: flex; }
+      #lobbyScreen .card-name { justify-content: center; }
+    }
+
+    /* iPad/desktop: card is taller, ship circle grows via cqh — increase
+       gap and bump hint font to match ctrl-strip label scale */
+    @media (min-height: 601px) {
+      #lobbyScreen .card-vp-wrap { gap: 1.5rem; }
+      #lobbyScreen .card-tap-hint { font-size: var(--fs-ui); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splashScreen" class="splash-screen preloading">
+    <div class="splash-black"></div>
+    <div class="splash-content">
+      <img id="splashLogoImage" src="./assets/Oasiz-logo-transparent.png" alt="Oasiz" class="splash-logo">
+      <div class="splash-tagline">An <span class="splash-tagline-oasiz">OASIZ<span class="splash-tagline-tm">TM</span></span> Original</div>
+      <div class="splash-version" id="splashVersionLabel"></div>
+      <div class="splash-loader" id="splashLoader" aria-live="polite" aria-atomic="true">
+        <div class="splash-loader-spinner" aria-hidden="true"></div>
+        <div class="splash-loader-text" id="splashLoaderText">Loading assets...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3D Starfield Background (only shown during gameplay) -->
+  <div class="stars-container" id="starsContainer">
+    <div class="stars-bg" id="starsBg"></div>
+    <div class="stars-wrapper">
+      <div class="stars-layer" id="starsLayer"></div>
+    </div>
+  </div>
+  <div id="game-wrapper">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Start Screen -->
+  <div id="startScreen" class="overlay">
+    <div class="ui-box">
+      <div class="screen-shell start-shell">
+        <div class="screen-header screen-center start-header">
+          <div>
+            <div class="game-title-wrap" id="gameTitleWrap" role="img" aria-label="Space Force title">
+              <div class="title-layer space">
+                <img id="titleSpaceImage" src="./assets/space_force_exact_split_v2_space.svg" alt="">
+              </div>
+              <div class="title-layer force">
+                <img id="titleForceImage" src="./assets/space_force_exact_split_v2_force.svg" alt="">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="screen-footer start-footer">
+          <div class="start-tap-hint" id="startTapHint">Tap to Start</div>
+          <div class="start-actions" id="mainButtons">
+            <button class="btn" id="createRoomBtn">Play Online</button>
+            <button class="btn tertiary" id="joinRoomBtn">Join Room</button>
+            <button class="btn secondary" id="localMatchBtn">Play Local</button>
+          </div>
+          <div class="start-secondary-actions" id="startSecondaryActions">
+            <button class="start-ghost-btn" id="startHowToPlayBtn">How to play?</button>
+            <button class="start-ghost-btn" id="startSettingsBtn">Settings</button>
+          </div>
+
+          <div class="join-section" id="joinSection">
+            <input type="text" class="room-input" id="roomCodeInput" placeholder="CODE" maxlength="4" autocomplete="off">
+            <p class="error-message" id="joinError">Could not join room</p>
+            <div class="btn-group">
+              <button class="btn" id="submitJoinBtn">Join</button>
+              <button class="btn secondary" id="backToStartBtn">Back</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lobby Screen -->
+  <div id="lobbyScreen" class="overlay hidden">
+    <div class="lb-root">
+
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="session-group" id="sessionModeIndicator" aria-label="Session mode indicator">
+          <span class="sg-chip" id="sessionModeLocal">Local</span>
+          <span class="sg-chip" id="sessionModeOnline">Online</span>
+        </div>
+        <div class="topbar-spacer"></div>
+        <div class="room-tag" id="lobbyRoomTag">
+          <div class="room-tag-dot"></div>
+          <span class="room-tag-label">Room</span>
+          <span id="roomCodeDisplay"></span>
+          <button id="copyCodeBtn" class="room-tag-copy" title="Copy room code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <button id="leaveLobbyBtn" class="leave-btn">Leave</button>
+      </div>
+      <div class="topbar-rail"></div>
+
+      <div class="body">
+        <div class="card-tray" id="playersList"></div>
+        <div class="body-fade-bottom"></div>
+      </div>
+    </div>
+
+    <!-- CTRL-STRIP -->
+    <div class="ctrl-strip">
+      <div class="cs-map" id="mapSelectorSection">
+        <div class="map-thumb-wrap">
+          <canvas class="map-thumb" id="mapPreviewCanvas" width="110" height="74"></canvas>
+        </div>
+        <div class="map-meta">
+          <div class="map-meta-head">
+            <div class="map-section-label">Arena</div>
+            <button class="map-change-icon" id="openMapPickerBtn" title="Change Arena">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          </div>
+          <div class="map-title" id="mapCurrentName">—</div>
+          <div class="map-desc" id="mapCurrentDesc"></div>
+          <span id="mapCurrentBehavior" style="display:none"></span>
+        </div>
+      </div>
+
+      <div class="cs-div"></div>
+
+      <div class="cs-mode" id="gameModeSection">
+        <div class="cs-mode-head">
+          <div class="cs-mode-label">Mode</div>
+          <button class="cs-adv-btn" id="advancedSettingsBtn" title="Advanced Settings">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          </button>
+        </div>
+        <button class="cs-ruleset-pill" id="rulesetCycleBtn">
+          <span id="rulesetCycleValue">—</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <!-- hidden compat: mode cycle still wired for advanced settings later -->
+        <div id="modeCycleValue" style="display:none">—</div>
+        <button id="modeCycleBtn" style="display:none"></button>
+      </div>
+
+      <div class="cs-div"></div>
+
+      <div class="cs-launch">
+        <div class="launch-status">
+          <div class="lstatus-dot" id="lobbyStatusDot"></div>
+          <div class="lstatus-text" id="lobbyStatus">—</div>
+        </div>
+        <button class="launch-btn" id="startGameBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          Launch Match
+        </button>
+      </div>
+    </div>
+
+    <!-- MAP PICKER MODAL -->
+    <div class="modal-bg" id="mapPickerBackdrop"></div>
+    <div class="map-modal" id="mapPickerModal">
+      <div class="modal-head">
+        <div class="modal-title">Select Arena</div>
+        <button class="modal-close" id="mapPickerClose">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-grid" id="mapPickerGrid"></div>
+    </div>
+
+    <!-- HIDDEN COMPATIBILITY ELEMENTS -->
+    <div id="addBotSection" style="display:none">
+      <button id="addAIBotBtn"></button>
+      <button id="addLocalPlayerBtn"></button>
+      <button id="addInvitePlayerBtn"></button>
+    </div>
+  </div>
+
+  <!-- Game End Screen -->
+  <div id="gameEndScreen" class="overlay hidden">
+    <div class="ui-box">
+      <div class="screen-shell end-shell">
+        <div class="screen-header screen-center">
+          <div>
+            <p class="winner-title">WINNER</p>
+            <h2 class="winner-name" id="winnerName">Player 1</h2>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="final-scores" id="finalScores"></div>
+        </div>
+        <div class="screen-footer end-actions">
+          <button class="btn primary" id="continueBtn">Continue</button>
+          <button class="btn" id="playAgainBtn">Play Again</button>
+          <button class="btn secondary" id="leaveEndBtn">Leave</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud" id="hud">
+    <div class="score-track" id="scoreTrack"></div>
+    <div class="hud-timer" id="endlessTimer"></div>
+    <div class="hud-combo" id="comboHud"></div>
+    <button class="leave-btn" id="leaveGameBtn" aria-label="Leave Match" title="Leave Match">
+      <svg viewBox="0 0 24 24"><path d="M15.5 5.5L9 12l6.5 6.5-1.5 1.5L6 12l8-8 1.5 1.5z"/></svg>
+    </button>
+    <button class="end-match-btn" id="endMatchBtn" aria-label="End Match" title="End Match">End Match</button>
+    <button
+      class="settings-center-hotspot"
+      id="settingsCenterHotspot"
+      type="button"
+      aria-label="Open Settings"
+      title="Open Settings"
+    ></button>
+  </div>
+
+  <!-- Round Result Overlay -->
+  <div class="round-result hidden" id="roundResult">
+    <div class="round-result-title" id="roundResultTitle">ROUND 1</div>
+    <div class="round-result-subtitle" id="roundResultSubtitle">WINNER</div>
+  </div>
+
+  <!-- Control Hints (desktop only) -->
+  <div class="control-hints" id="controlHints"></div>
+  <div class="system-message" id="systemMessage"></div>
+
+  <div class="net-stats" id="netStats"></div>
+
+  <!-- Settings Button -->
+  <button class="settings-btn" id="settingsBtn" style="display: none;">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
+
+  <!-- Add Player Dialog (phone) -->
+  <div class="settings-backdrop" id="addPlayerBackdrop"></div>
+  <div class="settings-modal" id="addPlayerModal">
+    <h3 class="settings-title">Add Player</h3>
+    <div class="settings-actions">
+      <button class="btn" id="addPlayerAIBtn"><span class="eb-plus">+</span><span>Add Bot</span></button>
+      <button class="btn secondary" id="addPlayerLocalBtn"><span class="eb-plus">+</span><span>Add Local</span></button>
+      <button class="btn secondary" id="addPlayerInviteBtn"><span class="eb-plus">+</span><span>Invite</span></button>
+      <button class="btn tertiary settings-close" id="addPlayerCloseBtn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Key Selection Modal (for local players) -->
+  <div class="settings-backdrop" id="keySelectBackdrop"></div>
+  <div class="settings-modal" id="keySelectModal">
+    <h3 class="settings-title">Select Controls</h3>
+    <p style="color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 1rem; font-size: 0.9rem;">Choose keyboard controls for the local player</p>
+    <div class="key-options" id="keyOptions">
+      <button class="key-option" data-slot="1">
+        <span class="key-name">Arrows</span>
+        <span class="key-hint">Left: rotate | Right: fire</span>
+      </button>
+      <button class="key-option" data-slot="2">
+        <span class="key-name">IJKL</span>
+        <span class="key-hint">J: rotate | L: fire</span>
+      </button>
+      <button class="key-option" data-slot="3">
+        <span class="key-name">Numpad</span>
+        <span class="key-hint">4: rotate | 6: fire</span>
+      </button>
+    </div>
+    <button class="btn secondary" id="keySelectCancel" style="margin-top: 1rem;">Cancel</button>
+  </div>
+
+  <!-- Local Player Hints (shown during game) -->
+    <!-- Mobile Controls (single-player online) -->
+    <div class="mobile-controls" id="mobileControls">
+    <div class="control-zone control-zone-left" id="control-zone-left">
+      <div class="zone-label">
+        ROTATE
+        <div class="zone-hint">hold to turn | double-tap: dodge</div>
+      </div>
+    </div>
+    <div class="control-zone control-zone-right" id="control-zone-right">
+      <div class="zone-label">
+        FIRE
+        <div class="zone-hint">recoil pushes you back</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fades out to reveal attract game once it's running -->
+  <div id="attractCover"></div>
+
+  </div><!-- /game-wrapper -->
+
+  <!-- Settings + Advanced Settings Modals — OUTSIDE game-wrapper so z-index
+       participates in root stacking context and beats tutorial overlay (z-500). -->
+  <div class="settings-backdrop" id="settingsBackdrop"></div>
+  <div class="settings-modal" id="settingsModal">
+    <h3 class="settings-title">Settings</h3>
+    <div class="settings-row">
+      <span class="settings-label">Music</span>
+      <div class="toggle active" id="toggleMusic"></div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Sound FX</span>
+      <div class="toggle active" id="toggleFx"></div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Haptics</span>
+      <div class="toggle active" id="toggleHaptics"></div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">Control Hints</span>
+      <div class="toggle active" id="toggleHints"></div>
+    </div>
+    <div class="settings-actions">
+      <button
+        class="btn"
+        id="settingsLeaveBtn"
+      >
+        Leave Game
+      </button>
+      <button class="btn settings-close" id="settingsClose">Done</button>
+    </div>
+  </div>
+  <div class="settings-backdrop" id="advancedSettingsBackdrop"></div>
+  <div class="settings-modal advanced-settings-modal" id="advancedSettingsModal">
+    <div class="advanced-settings-header">
+      <h3 class="settings-title">Advanced Settings</h3>
+      <button class="advanced-close-btn" id="advancedSettingsClose" aria-label="Close advanced settings">
+        <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>
+      </button>
+    </div>
+    <div class="advanced-tabs">
+      <button class="advanced-tab active" id="advancedTabElements">Elements</button>
+      <button class="advanced-tab" id="advancedTabPhysics">Physics</button>
+    </div>
+    <div class="advanced-settings-body">
+      <div class="advanced-panel active" id="advancedPanelElements">
+        <div class="advanced-row">
+          <span class="advanced-label">Asteroids</span>
+          <button class="cycle-btn" id="asteroidsCycle">Some</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Start Powerups</span>
+          <button class="toggle-pill" id="startPowerupsToggle">Off</button>
+        </div>
+        <div class="advanced-row" id="roundsRow">
+          <span class="advanced-label">Rounds To Win</span>
+          <button class="cycle-btn" id="roundsCycle">3</button>
+        </div>
+        <div class="advanced-row hidden" id="endlessTimeLimitRow">
+          <span class="advanced-label">Time Limit</span>
+          <button class="cycle-btn" id="endlessTimeLimitCycle">5 min</button>
+        </div>
+        <div class="advanced-row hidden" id="endlessKillLimitRow">
+          <span class="advanced-label">Kill Limit</span>
+          <button class="cycle-btn" id="endlessKillLimitCycle">Off</button>
+        </div>
+      </div>
+      <div class="advanced-panel" id="advancedPanelPhysics">
+        <div class="advanced-row">
+          <span class="advanced-label">Rotation</span>
+          <button class="cycle-btn" id="rotationPresetCycle">Standard</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Ship Speed</span>
+          <button class="cycle-btn" id="shipSpeedCycle">Normal</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Dodge Power</span>
+          <button class="cycle-btn" id="dashPowerCycle">Normal</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Recoil Force</span>
+          <button class="cycle-btn" id="recoilPresetCycle">Standard</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Ship Restitution</span>
+          <button class="cycle-btn" id="shipRestitutionCycle">Standard</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Wall Restitution</span>
+          <button class="cycle-btn" id="wallRestitutionCycle">Standard</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Ship Friction</span>
+          <button class="cycle-btn" id="shipFrictionCycle">Standard</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Wall Friction</span>
+          <button class="cycle-btn" id="wallFrictionCycle">Standard</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Angular Damping</span>
+          <button class="cycle-btn" id="angularDampingCycle">Standard</button>
+        </div>
+        <div class="advanced-row">
+          <span class="advanced-label">Ship Air Drag</span>
+          <button class="cycle-btn" id="shipFrictionAirCycle">Standard</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn settings-close" id="advancedSettingsDone">Done</button>
+  </div>
+
+  <!-- Leave Confirmation Modal — OUTSIDE game-wrapper so z-index participates in
+       the root stacking context and beats the tutorial overlay (z-500). -->
+  <div class="settings-backdrop" id="leaveBackdrop"></div>
+  <div class="settings-modal" id="leaveModal">
+    <h3 class="settings-title" id="leaveModalTitle">Leave Game?</h3>
+    <p id="leaveModalMessage" style="color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 1.5rem;">Are you sure you want to leave the match?</p>
+    <div class="leave-actions">
+      <button class="btn secondary" id="leaveCancelBtn">Cancel</button>
+      <button class="btn" id="leaveConfirmBtn">Leave</button>
+    </div>
+  </div>
+
+  <!-- Adaptive Touch Zones — lives OUTSIDE game-wrapper so its z-index is in
+       the root stacking context and can appear above demo overlays (z-500). -->
+  <div class="touch-zones" id="touchZones"></div>
+
+  <!-- Rotate Device Overlay (portrait mode on mobile) -->
+  <div class="rotate-overlay" id="rotateOverlay">
+    <svg viewBox="0 0 24 24"><path d="M7.34 6.41L.86 12.9l6.49 6.48 6.49-6.48-6.5-6.49zM3.69 12.9l3.66-3.66L11 12.9l-3.66 3.66-3.65-3.66zm15.67-6.26A8.95 8.95 0 0 0 13 4V.76L8.76 5 13 9.24V6c1.79 0 3.58.68 4.95 2.05a7.007 7.007 0 0 1 0 9.9 6.973 6.973 0 0 1-7.79 1.44l-1.49 1.49C10.02 21.62 11.51 22 13 22c2.3 0 4.61-.88 6.36-2.64a8.98 8.98 0 0 0 0-12.72z"/></svg>
+    <p>Rotate your device to landscape</p>
+  </div>
+
+  <!-- Demo Tutorial Overlay -->
+  <div id="demoTutorialOverlay" class="demo-overlay hidden">
+    <!-- Wrapper gives the guide image a relative parent so it can attach to the panel corner -->
+    <div class="demo-panel-wrap">
+      <!-- Guide image sits just above the panel's top-right corner, outside the panel box -->
+      <img class="demo-guide-img-float" src="./shared/assets/Demo_Guide/Demo_Guide.svg" alt="Controls Guide">
+      <div class="demo-tutorial-panel" id="demoTutorialPanel">
+        <div class="demo-tutorial-diagram" id="demoTutorialDiagram"></div>
+        <div class="demo-tutorial-dialogue" id="demoTutorialDialogue"></div>
+        <div class="demo-tutorial-actions">
+          <button class="demo-skip-btn demo-tutorial-skip-btn hidden" id="demoTutorialSkip">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Demo Exit Button — shown after "Start Playing" so player can leave free-play -->
+  <button id="demoExitBtn" class="demo-exit-btn hidden">Exit Demo</button>
+
+  <!-- Demo Skip + Settings Buttons — shown during tutorial -->
+  <button id="demoSkipTutorialBtn" class="demo-skip-tutorial-btn hidden">Skip &#187;</button>
+  <button id="demoSettingsBtn" class="demo-settings-btn hidden" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
+
+  <!-- Demo Player Intro Overlay — "your ship" spotlight + zoom -->
+  <div id="demoPlayerIntroOverlay" class="demo-overlay hidden demo-player-intro-overlay">
+    <!-- Ring is positioned at ship coords by JS (overlay-local absolute positioning) -->
+    <div class="demo-player-intro-ring" id="demoPlayerIntroRing"></div>
+    <!-- Label stays at bottom-center -->
+    <div class="demo-player-intro-inner">
+      <div class="demo-player-intro-label">YOUR SHIP</div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

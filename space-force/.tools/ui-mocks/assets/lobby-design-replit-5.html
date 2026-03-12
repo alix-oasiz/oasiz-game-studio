@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Astro Party - Vaporwave Sunset Variant</title>
+<link href="https://fonts.googleapis.com/css2?family=Varela+Round&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --v-bg-top: #0f172a;
+    --v-bg-mid: #4c1d95;
+    --v-bg-bot: #be185d;
+    --v-sun: #fcd34d;
+    --v-grid: #f472b6;
+    --v-panel: rgba(15, 23, 42, 0.4);
+    
+    --font-head: 'Pacifico', cursive;
+    --font-ui: 'Varela Round', sans-serif;
+  }
+
+  body {
+    margin: 0; padding: 0; background-color: #000; overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    font-family: var(--font-ui); color: #fff;
+  }
+
+  #canvas-container {
+    position: absolute; width: 1280px; height: 720px;
+    background: linear-gradient(to bottom, var(--v-bg-top) 0%, var(--v-bg-mid) 50%, var(--v-bg-bot) 100%);
+    transform-origin: top left; box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center;
+    overflow: hidden;
+  }
+
+  /* Retro Sun & Grid */
+  .retro-sun {
+    position: absolute; top: 150px; left: 50%; transform: translateX(-50%);
+    width: 300px; height: 300px; background: linear-gradient(to bottom, #fde047 0%, #f97316 100%);
+    border-radius: 50%; z-index: 0;
+    box-shadow: 0 0 100px rgba(253, 224, 71, 0.4);
+    /* Slices */
+    -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 50%, transparent 55%, black 55%, black 65%, transparent 65%, transparent 70%, black 70%, black 80%, transparent 80%, transparent 85%, black 85%);
+  }
+  
+  .retro-grid {
+    position: absolute; bottom: 0; left: -50%; width: 200%; height: 250px;
+    background-image: 
+      linear-gradient(rgba(244, 114, 182, 0.5) 2px, transparent 2px),
+      linear-gradient(90deg, rgba(244, 114, 182, 0.5) 2px, transparent 2px);
+    background-size: 100px 40px;
+    transform: perspective(500px) rotateX(60deg);
+    transform-origin: top center; z-index: 1;
+    animation: gridMove 2s linear infinite;
+  }
+  @keyframes gridMove { 0%{background-position: 0 0;} 100%{background-position: 0 40px;} }
+
+  /* UI Layer */
+  .ui-layer {
+    position: relative; z-index: 10; width: 100%; height: 100%;
+    display: flex; flex-direction: column; padding: 20px 40px; box-sizing: border-box;
+  }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+  .title { font-family: var(--font-head); font-size: 64px; margin: 0; color: #fff; text-shadow: 0 0 10px #f472b6, 4px 4px 0px #be185d; }
+  .room-pill { background: rgba(255,255,255,0.2); backdrop-filter: blur(5px); padding: 10px 20px; border-radius: 20px; border: 2px solid #fff; font-size: 18px; }
+
+  /* Circular Player Layout */
+  .center-stage { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; gap: 40px; }
+  
+  .vinyl-card {
+    width: 220px; height: 320px; background: var(--v-panel);
+    backdrop-filter: blur(10px); border-radius: 20px; border: 2px solid rgba(244,114,182,0.3);
+    display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); transition: all 0.3s;
+  }
+  .vinyl-card.empty { opacity: 0.5; border-style: dashed; background: transparent; }
+  
+  .vinyl-disc {
+    width: 120px; height: 120px; background: #111; border-radius: 50%;
+    border: 4px solid #333; position: relative; margin-bottom: 20px;
+    display: flex; justify-content: center; align-items: center;
+    box-shadow: inset 0 0 20px #000;
+  }
+  .vinyl-card.empty .vinyl-disc { border-color: #555; background: transparent; }
+  
+  /* Colored labels in center of vinyl */
+  .vinyl-disc::after { content: ''; width: 40px; height: 40px; border-radius: 50%; background: #fff; }
+  .vinyl-card[data-slot="1"] .vinyl-disc::after { background: #38bdf8; }
+  .vinyl-card[data-slot="2"] .vinyl-disc::after { background: #f472b6; }
+  .vinyl-card[data-slot="3"] .vinyl-disc::after { background: #facc15; }
+  .vinyl-card[data-slot="4"] .vinyl-disc::after { background: #4ade80; }
+  .vinyl-card.empty .vinyl-disc::after { display: none; }
+
+  .v-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-align: center; }
+  .v-type { font-size: 14px; opacity: 0.8; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 10px; }
+  .v-empty-txt { display: none; font-size: 18px; margin-top: auto; margin-bottom: auto; }
+  .vinyl-card.empty .v-name, .vinyl-card.empty .v-type { display: none; }
+  .vinyl-card.empty .v-empty-txt { display: block; }
+
+  /* Bottom Controls */
+  .bottom-dock {
+    background: var(--v-panel); backdrop-filter: blur(10px);
+    border-radius: 20px; padding: 20px 40px; border: 2px solid rgba(255,255,255,0.1);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .b-left { display: flex; gap: 30px; align-items: center; }
+  .cassette-map {
+    width: 160px; height: 100px; background: #222; border-radius: 10px; border: 2px solid #555;
+    position: relative; overflow: hidden; padding: 5px; box-sizing: border-box; cursor: pointer;
+  }
+  .cassette-map canvas { width: 100%; height: 100%; background: #000; border-radius: 5px; }
+  .map-txt h3 { margin: 0 0 5px 0; font-family: var(--font-head); font-size: 24px; font-weight:normal; color: #f97316; }
+
+  .b-mid { display: flex; flex-direction: column; gap: 10px; }
+  .pill-btn {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+    color: #fff; padding: 8px 20px; border-radius: 20px; font-family: var(--font-ui);
+    cursor: pointer; font-size: 14px; transition: all 0.2s;
+  }
+  .pill-btn:hover { background: rgba(244,114,182,0.3); border-color: #f472b6; }
+
+  .btn-huge {
+    background: linear-gradient(to right, #ec4899, #8b5cf6); border: none;
+    color: #fff; font-family: var(--font-ui); font-size: 28px; font-weight: bold;
+    padding: 15px 50px; border-radius: 30px; cursor: pointer;
+    box-shadow: 0 5px 20px rgba(236,72,153,0.5); transition: transform 0.2s;
+  }
+  .btn-huge:hover:not(:disabled) { transform: scale(1.05); }
+  .btn-huge:disabled { background: #555; color: #888; box-shadow: none; cursor: not-allowed; }
+
+  #dev-toolbar { position: fixed; top: 20px; right: 20px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px; z-index:999; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="canvas-container">
+  <div class="retro-sun"></div>
+  <div class="retro-grid"></div>
+  
+  <div class="ui-layer">
+    <div class="header">
+      <h1 class="title">Astro Party</h1>
+      <div class="room-pill" id="room-display">Local Session</div>
+    </div>
+
+    <div class="center-stage">
+      <div class="vinyl-card" data-slot="1" id="slot-1">
+        <div class="vinyl-disc"></div>
+        <div class="v-name">P1 (HOST)</div>
+        <div class="v-type">LOCAL</div>
+        <div class="v-empty-txt">INSERT COIN</div>
+      </div>
+      <div class="vinyl-card empty" data-slot="2" id="slot-2">
+        <div class="vinyl-disc"></div>
+        <div class="v-name">P2</div>
+        <div class="v-type">BOT</div>
+        <div class="v-empty-txt">INSERT COIN</div>
+      </div>
+      <div class="vinyl-card empty" data-slot="3" id="slot-3">
+        <div class="vinyl-disc"></div>
+        <div class="v-name">P3</div>
+        <div class="v-type">LOCAL</div>
+        <div class="v-empty-txt">INSERT COIN</div>
+      </div>
+      <div class="vinyl-card empty" data-slot="4" id="slot-4">
+        <div class="vinyl-disc"></div>
+        <div class="v-name">P4</div>
+        <div class="v-type">ONLINE</div>
+        <div class="v-empty-txt">INSERT COIN</div>
+      </div>
+    </div>
+
+    <div class="bottom-dock">
+      <div class="b-left">
+        <div class="cassette-map" id="btn-map"><canvas id="main-map"></canvas></div>
+        <div class="map-txt">
+          <h3 id="map-name">Classic Rotation</h3>
+          <div style="font-size:14px; opacity:0.7;">Click to change tape</div>
+        </div>
+      </div>
+      
+      <div class="b-mid">
+        <button class="pill-btn" id="btn-mode">MODE: <span id="mode-val">STANDARD</span></button>
+        <button class="pill-btn" id="btn-session">NET: <span id="sess-val">LOCAL</span></button>
+      </div>
+
+      <button class="btn-huge" id="btn-launch" disabled>PLAY</button>
+    </div>
+  </div>
+</div>
+
+<div id="dev-toolbar">
+  P: <input type="range" id="d-pl" min="1" max="4" value="1" style="width:50px;"> 
+  H: <input type="checkbox" id="d-host" checked> 
+  N: <select id="d-sess"><option>local</option><option>online</option></select>
+</div>
+
+<script>
+  function resize() {
+    const c = document.getElementById('canvas-container');
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    c.style.transform = `scale(${scale})`;
+    c.style.left = `${(window.innerWidth - 1280 * scale) / 2}px`;
+    c.style.top = `${(window.innerHeight - 720 * scale) / 2}px`;
+  }
+  window.addEventListener('resize', resize); resize();
+
+  const state = { players: 1, isHost: true, session: 'local', modeIdx: 0, mapIdx: 0 };
+  const modes = ["STANDARD", "SANE", "CHAOTIC"];
+  const mapNames = ["Classic Rotation", "The Cache", "Fortress", "Void Ring", "Nebula Cross", "Asteroid Field"];
+
+  function drawVaporMap() {
+    const c = document.getElementById('main-map'); if(!c) return;
+    c.width = c.parentElement.clientWidth-10; c.height = c.parentElement.clientHeight-10;
+    const ctx = c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height);
+    
+    ctx.strokeStyle = '#f472b6'; ctx.lineWidth = 2; ctx.shadowBlur = 5; ctx.shadowColor = '#f472b6';
+    const w = c.width, h = c.height, type = state.mapIdx;
+    
+    if(type===0) { ctx.strokeRect(w*0.2, h*0.2, w*0.6, h*0.6); ctx.beginPath(); ctx.arc(w/2,h/2,h*0.2,0,Math.PI*2); ctx.stroke(); }
+    else if(type===1) { ctx.fillStyle='rgba(244,114,182,0.5)'; ctx.fillRect(w*0.3,h*0.3,w*0.4,h*0.4); }
+    else if(type===2) { ctx.strokeRect(5,5,w*0.2,h-10); ctx.strokeRect(w-w*0.2-5,5,w*0.2,h-10); }
+    else if(type===3) { ctx.beginPath(); ctx.arc(w/2,h/2,h*0.4,0,Math.PI*2); ctx.stroke(); }
+    else if(type===4) { ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke(); }
+    else if(type===5) { for(let i=0;i<8;i++){ ctx.beginPath(); ctx.arc(Math.random()*w,Math.random()*h,5,0,Math.PI*2); ctx.stroke(); } }
+  }
+
+  function update() {
+    for(let i=1;i<=4;i++) {
+      const el = document.getElementById(`slot-${i}`);
+      if(i <= state.players) el.classList.remove('empty');
+      else el.classList.add('empty');
+    }
+
+    document.getElementById('room-display').textContent = state.session === 'online' ? 'LOBBY: WAVE-99' : 'LOCAL SESSION';
+    document.getElementById('sess-val').textContent = state.session.toUpperCase();
+    document.getElementById('mode-val').textContent = modes[state.modeIdx];
+    document.getElementById('map-name').textContent = mapNames[state.mapIdx];
+
+    const launch = document.getElementById('btn-launch');
+    launch.textContent = state.isHost ? 'PLAY' : 'WAIT';
+    launch.disabled = state.players < 2;
+
+    drawVaporMap();
+  }
+
+  document.getElementById('d-pl').addEventListener('input', e => { state.players = parseInt(e.target.value); update(); });
+  document.getElementById('d-host').addEventListener('change', e => { state.isHost = e.target.checked; update(); });
+  document.getElementById('d-sess').addEventListener('change', e => { state.session = e.target.value; update(); });
+  
+  document.getElementById('btn-session').addEventListener('click', () => { state.session = state.session==='local'?'online':'local'; document.getElementById('d-sess').value=state.session; update(); });
+  document.getElementById('btn-mode').addEventListener('click', () => { state.modeIdx = (state.modeIdx+1)%modes.length; update(); });
+  document.getElementById('btn-map').addEventListener('click', () => { state.mapIdx = (state.mapIdx+1)%mapNames.length; update(); });
+
+  setTimeout(update, 100);
+</script>
+</body>
+</html>

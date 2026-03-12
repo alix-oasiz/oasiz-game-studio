@@ -1,0 +1,95 @@
+cat >/root/setup-space-force-monitor.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Example monitor setup helper for Space Force server.
+# Usage:
+#   MONITOR_USERNAME='admin' MONITOR_PASSWORD='change-me' bash /root/setup-space-force-monitor.sh
+# Optional overrides:
+#   MONITOR_ENABLED=true|false
+#   MONITOR_PATH=/colyseus
+#   PM2_NAME=space-force-colyseus
+
+PM2_NAME="${PM2_NAME:-space-force-colyseus}"
+MONITOR_ENABLED="${MONITOR_ENABLED:-true}"
+MONITOR_PATH="${MONITOR_PATH:-/colyseus}"
+MONITOR_USERNAME="${MONITOR_USERNAME:-}"
+MONITOR_PASSWORD="${MONITOR_PASSWORD:-}"
+LOCAL_HEALTH_URL="${LOCAL_HEALTH_URL:-http://127.0.0.1:2567/healthz}"
+HEALTH_RETRIES="${HEALTH_RETRIES:-20}"
+HEALTH_SLEEP_SEC="${HEALTH_SLEEP_SEC:-1}"
+
+REPO_DIR="/root/space-force"
+if [ ! -d "${REPO_DIR}/.git" ]; then
+  REPO_DIR="/root/space-force-repo"
+fi
+
+SERVER_DIR="${REPO_DIR}/space-force/server"
+ENV_FILE="${SERVER_DIR}/.env"
+
+if [ ! -d "${SERVER_DIR}" ]; then
+  echo "Server directory not found: ${SERVER_DIR}" >&2
+  exit 1
+fi
+
+if [ "${MONITOR_ENABLED}" = "true" ]; then
+  if [ -z "${MONITOR_USERNAME}" ] || [ -z "${MONITOR_PASSWORD}" ]; then
+    echo "When MONITOR_ENABLED=true, set both MONITOR_USERNAME and MONITOR_PASSWORD." >&2
+    exit 1
+  fi
+fi
+
+mkdir -p "$(dirname "${ENV_FILE}")"
+touch "${ENV_FILE}"
+
+upsert_env() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" "${ENV_FILE}"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}"
+  else
+    printf "%s=%s\n" "${key}" "${value}" >> "${ENV_FILE}"
+  fi
+}
+
+upsert_env "COLYSEUS_MONITOR_ENABLED" "${MONITOR_ENABLED}"
+upsert_env "COLYSEUS_MONITOR_PATH" "${MONITOR_PATH}"
+upsert_env "COLYSEUS_MONITOR_USERNAME" "${MONITOR_USERNAME}"
+upsert_env "COLYSEUS_MONITOR_PASSWORD" "${MONITOR_PASSWORD}"
+
+echo "Updated monitor env in ${ENV_FILE}"
+
+if pm2 describe "${PM2_NAME}" >/dev/null 2>&1; then
+  pm2 restart "${PM2_NAME}" --update-env
+else
+  echo "PM2 process '${PM2_NAME}' not found. Start/redeploy server first." >&2
+  exit 1
+fi
+
+echo "Waiting for local health..."
+for i in $(seq 1 "${HEALTH_RETRIES}"); do
+  if curl -fsS "${LOCAL_HEALTH_URL}" >/dev/null 2>&1; then
+    break
+  fi
+  sleep "${HEALTH_SLEEP_SEC}"
+done
+
+if ! curl -fsS "${LOCAL_HEALTH_URL}" >/dev/null 2>&1; then
+  echo "Local health failed: ${LOCAL_HEALTH_URL}" >&2
+  pm2 logs "${PM2_NAME}" --lines 120 --nostream || true
+  exit 1
+fi
+
+echo "Local health OK"
+
+echo "Monitor check (expect HTTP 401 when auth is enabled):"
+curl -I "http://127.0.0.1:2567${MONITOR_PATH}" || true
+
+if [ -n "${MONITOR_USERNAME}" ] && [ -n "${MONITOR_PASSWORD}" ]; then
+  echo "Monitor check with auth (expect HTTP 200):"
+  curl -I -u "${MONITOR_USERNAME}:${MONITOR_PASSWORD}" "http://127.0.0.1:2567${MONITOR_PATH}" || true
+fi
+EOF
+
+chmod +x /root/setup-space-force-monitor.sh
+echo "Created /root/setup-space-force-monitor.sh"

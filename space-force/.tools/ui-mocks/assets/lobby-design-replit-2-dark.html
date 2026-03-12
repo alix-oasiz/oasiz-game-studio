@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Astro Party - Dark Space Variant</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Montserrat:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --c-p1: #00d2ff;
+    --c-p2: #ff3366;
+    --c-p3: #ffcc00;
+    --c-p4: #00e87a;
+
+    --c-bg:     #0d1020;
+    --c-panel:  #1a2038;
+    --c-panel2: #222c48;
+    --c-border: #b8c4de;
+    --c-sep:    rgba(184,196,222,0.2);
+    --c-text:   #c8cce0;
+    --c-dim:    #606880;
+
+    --font-head: 'Bangers', cursive;
+    --font-body: 'Montserrat', sans-serif;
+  }
+
+  body {
+    margin: 0; padding: 0;
+    background-color: #07090f;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    font-family: var(--font-body);
+  }
+
+  #canvas-container {
+    position: absolute;
+    width: 1280px;
+    height: 720px;
+    background-color: var(--c-bg);
+    background-image:
+      radial-gradient(#1c2e58 15%, transparent 16%),
+      radial-gradient(#1c2e58 15%, transparent 16%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    transform-origin: top left;
+    box-sizing: border-box;
+    display: flex;
+    border: 6px solid var(--c-border);
+    box-shadow: 8px 8px 0 var(--c-border);
+  }
+
+  /* Dev Toolbar */
+  #dev-toolbar {
+    position: fixed; bottom: 20px; right: 20px;
+    background: #000; color: #fff;
+    padding: 16px; border-radius: 8px;
+    z-index: 9999; font-family: monospace; font-size: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+    border: 2px solid #333;
+  }
+  #dev-toolbar label { display: flex; justify-content: space-between; gap: 12px; }
+
+  /* Panel */
+  .comic-panel {
+    background: var(--c-panel);
+    border: 4px solid var(--c-border);
+    box-shadow: 6px 6px 0 var(--c-border);
+    border-radius: 2px;
+    position: relative;
+  }
+
+  .btn {
+    font-family: var(--font-head);
+    font-size: 22px;
+    letter-spacing: 2px;
+    background: var(--c-panel2);
+    color: var(--c-text);
+    border: 3px solid var(--c-border);
+    box-shadow: 3px 3px 0 var(--c-border);
+    cursor: pointer;
+    text-transform: uppercase;
+    padding: 8px 24px;
+    transition: all 0.1s;
+  }
+  .btn:hover:not(:disabled) {
+    background: #2e3a60;
+    color: #fff;
+    border-color: #6a78a8;
+  }
+  .btn:active:not(:disabled) {
+    transform: translate(3px, 3px);
+    box-shadow: none;
+  }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn.primary {
+    background: var(--c-p2);
+    color: #fff;
+    font-size: 34px;
+    padding: 12px 40px;
+    border: 4px solid #cc1a44;
+    box-shadow: 5px 5px 0 var(--c-border);
+  }
+  .btn.primary:hover:not(:disabled) {
+    background: #e82050;
+    border-color: #aa1038;
+  }
+  .btn.primary:active:not(:disabled) {
+    transform: translate(5px, 5px);
+    box-shadow: none;
+  }
+
+  /* Layout */
+  .left-col {
+    width: 300px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    border-right: 3px solid var(--c-sep);
+  }
+  .center-col {
+    flex: 1;
+    padding: 28px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .right-col {
+    width: 350px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    border-left: 3px solid var(--c-sep);
+  }
+
+  .title-panel {
+    padding: 18px 20px;
+    text-align: center;
+    transform: rotate(-1.5deg);
+    background: #141828;
+  }
+  .title-panel h1 {
+    font-family: var(--font-head);
+    font-size: 52px;
+    margin: 0;
+    color: var(--c-p1);
+    text-shadow:
+      2px  2px 0 var(--c-border),
+      -1px -1px 0 var(--c-border),
+       1px -1px 0 var(--c-border),
+      -1px  1px 0 var(--c-border);
+    line-height: 1;
+  }
+
+  .room-info {
+    padding: 18px;
+    transform: rotate(0.8deg);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .room-info .label {
+    font-family: var(--font-head);
+    font-size: 22px;
+    color: var(--c-dim);
+    letter-spacing: 1px;
+  }
+  .room-info .label span { color: var(--c-p2); }
+  .room-code {
+    font-size: 26px;
+    font-weight: 900;
+    background: var(--c-panel2);
+    color: var(--c-p1);
+    padding: 10px;
+    text-align: center;
+    border: 3px solid var(--c-p1);
+    letter-spacing: 4px;
+  }
+
+  /* 2x2 Player Grid */
+  .player-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+    height: 100%;
+  }
+
+  .player-card {
+    background: var(--c-panel);
+    border: 4px solid var(--c-border);
+    box-shadow: 8px 8px 0 var(--c-border);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .player-card.empty {
+    background: #111520;
+    border-style: dashed;
+    border-color: rgba(184,196,222,0.2);
+    box-shadow: none;
+  }
+  .player-card.empty * { display: none; }
+  .player-card.empty::after {
+    content: 'JOIN NOW!';
+    display: block;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-8deg);
+    font-family: var(--font-head);
+    font-size: 28px;
+    color: rgba(184,196,222,0.2);
+  }
+
+  /* Solid colored borders + hard offset shadows per slot */
+  .player-card[data-slot="1"] { border-color: var(--c-p1); box-shadow: 8px 8px 0 #004c5e; }
+  .player-card[data-slot="2"] { border-color: var(--c-p2); box-shadow: 8px 8px 0 #5e0018; }
+  .player-card[data-slot="3"] { border-color: var(--c-p3); box-shadow: 8px 8px 0 #5e4c00; }
+  .player-card[data-slot="4"] { border-color: var(--c-p4); box-shadow: 8px 8px 0 #005e30; }
+
+  .p-header {
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid var(--c-sep);
+  }
+  .player-card[data-slot="1"] .p-header { background: #0a2030; border-bottom-color: var(--c-p1); }
+  .player-card[data-slot="2"] .p-header { background: #2a0a12; border-bottom-color: var(--c-p2); }
+  .player-card[data-slot="3"] .p-header { background: #2a2200; border-bottom-color: var(--c-p3); }
+  .player-card[data-slot="4"] .p-header { background: #0a2818; border-bottom-color: var(--c-p4); }
+
+  .p-name {
+    font-family: var(--font-head);
+    font-size: 22px;
+    letter-spacing: 1px;
+  }
+  .player-card[data-slot="1"] .p-name { color: var(--c-p1); }
+  .player-card[data-slot="2"] .p-name { color: var(--c-p2); }
+  .player-card[data-slot="3"] .p-name { color: var(--c-p3); }
+  .player-card[data-slot="4"] .p-name { color: var(--c-p4); }
+
+  .p-badge {
+    background: var(--c-sep);
+    color: var(--c-text);
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+  }
+
+  .p-art {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .ship-sprite {
+    width: 90px;
+    height: 90px;
+    -webkit-mask: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M50 0 L100 80 L50 60 L0 80 Z"/></svg>') no-repeat center;
+    -webkit-mask-size: contain;
+    transform: scale(1.1);
+  }
+  .player-card[data-slot="1"] .ship-sprite { background: var(--c-p1); }
+  .player-card[data-slot="2"] .ship-sprite { background: var(--c-p2); }
+  .player-card[data-slot="3"] .ship-sprite { background: var(--c-p3); }
+  .player-card[data-slot="4"] .ship-sprite { background: var(--c-p4); }
+
+  .p-footer {
+    padding: 8px 12px;
+    display: flex;
+    justify-content: flex-end;
+    border-top: 2px solid var(--c-sep);
+  }
+  .btn-kick {
+    font-family: var(--font-head);
+    background: transparent;
+    border: 2px solid var(--c-border);
+    color: var(--c-dim);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 3px 10px;
+    letter-spacing: 1px;
+  }
+  .btn-kick:hover {
+    border-color: var(--c-p2);
+    color: var(--c-p2);
+    background: #1a0810;
+  }
+
+  /* Right Side */
+  .map-panel {
+    padding: 18px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .map-panel h2 {
+    font-family: var(--font-head);
+    font-size: 28px;
+    margin: 0 0 10px 0;
+    color: var(--c-text);
+    border-bottom: 3px solid var(--c-sep);
+    padding-bottom: 6px;
+    letter-spacing: 2px;
+  }
+  .map-view {
+    flex: 1;
+    border: 3px solid var(--c-border);
+    background: #090b14;
+    margin-bottom: 10px;
+  }
+  .map-view canvas { width: 100%; height: 100%; display: block; }
+  #map-name {
+    font-weight: 900;
+    font-size: 15px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    color: var(--c-dim);
+    letter-spacing: 2px;
+  }
+
+  .action-panel {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+    background: #141828;
+    border-color: #4a5480;
+  }
+  #status-text {
+    font-family: var(--font-head);
+    font-size: 20px;
+    text-align: center;
+    color: var(--c-dim);
+    letter-spacing: 2px;
+  }
+  #status-text.go { color: var(--c-p4); }
+
+  .dark-hr {
+    width: 100%;
+    border: none;
+    border-top: 2px solid var(--c-sep);
+    margin: 4px 0;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: absolute; top:0; left:0; right:0; bottom:0;
+    background: rgba(5,7,15,0.9);
+    display: none; justify-content: center; align-items: center;
+    z-index: 100;
+  }
+  .modal-overlay.open { display: flex; }
+  .dark-modal {
+    background: var(--c-panel);
+    border: 5px solid var(--c-border);
+    box-shadow: 16px 16px 0 var(--c-border);
+    width: 820px;
+    padding: 28px;
+    transform: rotate(-0.5deg);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 3px solid var(--c-sep);
+    padding-bottom: 12px;
+  }
+  .modal-header h2 {
+    font-family: var(--font-head);
+    font-size: 36px;
+    margin: 0;
+    color: var(--c-text);
+    letter-spacing: 3px;
+  }
+  .map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .map-opt {
+    border: 3px solid var(--c-border);
+    cursor: pointer;
+    background: #090b14;
+    box-shadow: 4px 4px 0 var(--c-border);
+  }
+  .map-opt:hover { opacity: 0.8; }
+  .map-opt.selected {
+    border-color: var(--c-p1);
+    box-shadow: 4px 4px 0 var(--c-p1);
+  }
+  .map-opt canvas {
+    width: 100%;
+    height: 90px;
+    background: #090b14;
+    border-bottom: 2px solid var(--c-sep);
+    display: block;
+  }
+  .map-opt p {
+    font-family: var(--font-head);
+    font-size: 18px;
+    text-align: center;
+    margin: 8px 0;
+    color: var(--c-text);
+    letter-spacing: 1px;
+  }
+  .map-opt.selected p { color: var(--c-p1); }
+
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+
+  <div class="left-col">
+    <div class="comic-panel title-panel">
+      <h1>ASTRO<br>PARTY!</h1>
+    </div>
+
+    <div class="comic-panel room-info">
+      <div class="label">MODE: <span id="mode-val">STANDARD</span></div>
+      <button class="btn" id="btn-mode">CHANGE MODE</button>
+      <hr class="dark-hr">
+      <div class="label">SESSION: <span id="session-val" style="color: var(--c-text)">LOCAL</span></div>
+      <button class="btn" id="btn-session">TOGGLE</button>
+
+      <div id="online-code-area" style="display:none; margin-top:8px;">
+        <div class="room-code">BAM-POW</div>
+      </div>
+    </div>
+
+    <button class="btn" style="margin-top:auto; color: var(--c-dim);">LEAVE LOBBY</button>
+  </div>
+
+  <div class="center-col">
+    <div class="player-grid">
+      <!-- P1 -->
+      <div class="player-card" data-slot="1" id="slot-1">
+        <div class="p-header">
+          <span class="p-name">PLAYER 1</span>
+          <span class="p-badge" id="badge-1">YOU (HOST)</span>
+        </div>
+        <div class="p-art"><div class="ship-sprite"></div></div>
+        <div class="p-footer"><button class="btn-kick" style="visibility:hidden">KICK</button></div>
+      </div>
+      <!-- P2 -->
+      <div class="player-card empty" data-slot="2" id="slot-2">
+        <div class="p-header">
+          <span class="p-name">AI BOT</span>
+          <span class="p-badge" id="badge-2">BOT</span>
+        </div>
+        <div class="p-art"><div class="ship-sprite"></div></div>
+        <div class="p-footer"><button class="btn-kick">KICK</button></div>
+      </div>
+      <!-- P3 -->
+      <div class="player-card empty" data-slot="3" id="slot-3">
+        <div class="p-header">
+          <span class="p-name">PLAYER 3</span>
+          <span class="p-badge" id="badge-3">LOCAL</span>
+        </div>
+        <div class="p-art"><div class="ship-sprite"></div></div>
+        <div class="p-footer"><button class="btn-kick">KICK</button></div>
+      </div>
+      <!-- P4 -->
+      <div class="player-card empty" data-slot="4" id="slot-4">
+        <div class="p-header">
+          <span class="p-name">PLAYER 4</span>
+          <span class="p-badge" id="badge-4">ONLINE</span>
+        </div>
+        <div class="p-art"><div class="ship-sprite"></div></div>
+        <div class="p-footer"><button class="btn-kick">KICK</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-col">
+    <div class="comic-panel map-panel">
+      <h2>ARENA SELECT</h2>
+      <div class="map-view"><canvas id="main-map"></canvas></div>
+      <div id="map-name">Classic Rotation</div>
+      <button class="btn" id="btn-map">CHANGE ARENA</button>
+    </div>
+
+    <div class="comic-panel action-panel">
+      <div id="status-text">WAITING FOR PLAYERS...</div>
+      <button class="btn primary" id="btn-launch" disabled>LAUNCH!</button>
+    </div>
+  </div>
+
+  <!-- Map Modal -->
+  <div class="modal-overlay" id="map-modal">
+    <div class="dark-modal">
+      <div class="modal-header">
+        <h2>CHOOSE ARENA</h2>
+        <button class="btn" id="btn-close-map">CLOSE</button>
+      </div>
+      <div class="map-grid">
+        <div class="map-opt selected" data-map="0"><canvas id="m0"></canvas><p>Classic</p></div>
+        <div class="map-opt" data-map="1"><canvas id="m1"></canvas><p>The Cache</p></div>
+        <div class="map-opt" data-map="2"><canvas id="m2"></canvas><p>Fortress</p></div>
+        <div class="map-opt" data-map="3"><canvas id="m3"></canvas><p>Void Ring</p></div>
+        <div class="map-opt" data-map="4"><canvas id="m4"></canvas><p>Nebula Cross</p></div>
+        <div class="map-opt" data-map="5"><canvas id="m5"></canvas><p>Asteroid Field</p></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Dev Toolbar -->
+<div id="dev-toolbar">
+  <strong>DEV CONTROLS</strong>
+  <label>Players <input type="range" id="d-pl" min="1" max="4" value="1"><span id="d-pl-v">1</span></label>
+  <label>Is Host <input type="checkbox" id="d-host" checked></label>
+  <label>Session
+    <select id="d-sess"><option value="local">Local</option><option value="online">Online</option></select>
+  </label>
+</div>
+
+<script>
+  function resize() {
+    const c = document.getElementById('canvas-container');
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    c.style.transform = `scale(${scale})`;
+    c.style.left = `${(window.innerWidth - 1280 * scale) / 2}px`;
+    c.style.top = `${(window.innerHeight - 720 * scale) / 2}px`;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const state = { players: 1, isHost: true, session: 'local', modeIdx: 0, mapIdx: 0 };
+  const modes = ["STANDARD", "SANE", "CHAOTIC"];
+  const mapNames = ["Classic Rotation", "The Cache", "Fortress", "Void Ring", "Nebula Cross", "Asteroid Field"];
+
+  const playerColors = ['#00d2ff', '#ff3366', '#ffcc00', '#00e87a'];
+
+  function drawMap(cid, type) {
+    const c = document.getElementById(cid);
+    if (!c) return;
+    c.width  = c.parentElement.clientWidth;
+    c.height = c.parentElement.clientHeight || 90;
+    const ctx = c.getContext('2d');
+
+    const w = c.width, h = c.height;
+    ctx.fillStyle = '#090b14';
+    ctx.fillRect(0, 0, w, h);
+
+    const accent = playerColors[type % playerColors.length];
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 3;
+    ctx.fillStyle = accent;
+
+    if (type === 0) {
+      ctx.strokeRect(w*0.2, h*0.2, w*0.6, h*0.6);
+      ctx.beginPath(); ctx.arc(w/2, h/2, h*0.18, 0, Math.PI*2); ctx.stroke();
+    } else if (type === 1) {
+      ctx.globalAlpha = 0.15;
+      ctx.fillRect(w*0.3, h*0.3, w*0.4, h*0.4);
+      ctx.globalAlpha = 1;
+      ctx.strokeRect(w*0.3, h*0.3, w*0.4, h*0.4);
+    } else if (type === 2) {
+      ctx.strokeRect(8, 8, w*0.2, h-16);
+      ctx.strokeRect(w - w*0.2 - 8, 8, w*0.2, h-16);
+    } else if (type === 3) {
+      ctx.beginPath(); ctx.arc(w/2, h/2, h*0.38, 0, Math.PI*2);
+      ctx.globalAlpha = 0.15; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(w/2, h/2, h*0.18, 0, Math.PI*2);
+      ctx.fillStyle = '#090b14'; ctx.fill(); ctx.stroke();
+    } else if (type === 4) {
+      ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+    } else if (type === 5) {
+      for (let i = 0; i < 7; i++) {
+        const ax = (w * 0.1) + (w * 0.8 * ((i * 137) % 97) / 97);
+        const ay = (h * 0.1) + (h * 0.8 * ((i * 73)  % 89) / 89);
+        ctx.beginPath(); ctx.arc(ax, ay, 6 + (i % 3) * 3, 0, Math.PI*2); ctx.stroke();
+      }
+    }
+  }
+
+  function renderMaps() {
+    drawMap('main-map', state.mapIdx);
+    for (let i = 0; i < 6; i++) drawMap(`m${i}`, i);
+  }
+
+  function update() {
+    for (let i = 1; i <= 4; i++) {
+      const el = document.getElementById(`slot-${i}`);
+      if (i <= state.players) el.classList.remove('empty');
+      else el.classList.add('empty');
+
+      const kick = el.querySelector('.btn-kick');
+      if (kick) kick.style.display = (state.isHost && i !== 1) ? 'block' : 'none';
+    }
+
+    document.getElementById('badge-1').textContent = state.isHost ? 'YOU (HOST)' : 'YOU';
+    document.getElementById('online-code-area').style.display = state.session === 'online' ? 'block' : 'none';
+    document.getElementById('session-val').textContent = state.session.toUpperCase();
+    document.getElementById('mode-val').textContent = modes[state.modeIdx];
+    document.getElementById('map-name').textContent = mapNames[state.mapIdx];
+
+    const launch = document.getElementById('btn-launch');
+    const status = document.getElementById('status-text');
+    launch.textContent = state.isHost ? 'LAUNCH!' : 'READY!';
+
+    if (state.players < 2) {
+      launch.disabled = true;
+      status.textContent = "NEED MORE PLAYERS...";
+      status.classList.remove('go');
+    } else {
+      launch.disabled = false;
+      if (!state.isHost) {
+        status.textContent = "WAITING FOR HOST...";
+        status.classList.remove('go');
+      } else {
+        status.textContent = "ALL SYSTEMS GO!";
+        status.classList.add('go');
+      }
+    }
+
+    document.querySelectorAll('.map-opt').forEach(el => {
+      el.classList.toggle('selected', parseInt(el.dataset.map) === state.mapIdx);
+    });
+    renderMaps();
+  }
+
+  document.getElementById('d-pl').addEventListener('input', e => { state.players = parseInt(e.target.value); document.getElementById('d-pl-v').textContent = state.players; update(); });
+  document.getElementById('d-host').addEventListener('change', e => { state.isHost = e.target.checked; update(); });
+  document.getElementById('d-sess').addEventListener('change', e => { state.session = e.target.value; update(); });
+  document.getElementById('btn-session').addEventListener('click', () => { state.session = state.session === 'local' ? 'online' : 'local'; document.getElementById('d-sess').value = state.session; update(); });
+  document.getElementById('btn-mode').addEventListener('click', () => { state.modeIdx = (state.modeIdx + 1) % modes.length; update(); });
+
+  const mod = document.getElementById('map-modal');
+  document.getElementById('btn-map').addEventListener('click', () => { mod.classList.add('open'); setTimeout(renderMaps, 10); });
+  document.getElementById('btn-close-map').addEventListener('click', () => mod.classList.remove('open'));
+  document.querySelectorAll('.map-opt').forEach(el => {
+    el.addEventListener('click', () => { state.mapIdx = parseInt(el.dataset.map); mod.classList.remove('open'); update(); });
+  });
+
+  setTimeout(update, 100);
+</script>
+</body>
+</html>
