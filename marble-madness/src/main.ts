@@ -691,7 +691,7 @@ class MarbleMadnessStarter {
   private loadMarbleTexture(): void {
     const loader = new THREE.TextureLoader();
     loader.load(
-      "/assets/marble-texture.jpg",
+      "./assets/marble-texture.jpg",
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.wrapS = THREE.RepeatWrapping;
@@ -703,7 +703,7 @@ class MarbleMadnessStarter {
         this.marbleMaterial.needsUpdate = true;
         console.log(
           "[LoadMarbleTexture]",
-          "Loaded marble texture from /assets/marble-texture.jpg",
+          "Loaded marble texture from ./assets/marble-texture.jpg",
         );
       },
       undefined,
@@ -719,7 +719,7 @@ class MarbleMadnessStarter {
   private loadTileTexture(): void {
     const loader = new THREE.TextureLoader();
     loader.load(
-      "/assets/tile-texture.jpg",
+      "./assets/tile-texture.jpg",
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.wrapS = THREE.RepeatWrapping;
