@@ -1,0 +1,16 @@
+{
+  "target": {
+    "row": 0,
+    "col": 0,
+    "solution": 3,
+    "cellX": 428.2093023255814,
+    "cellY": 86.41860465116278,
+    "buttonX": 533.3720930232558,
+    "buttonY": 681.0232558139535
+  },
+  "animationState": {
+    "centerAlpha": 0.8961026855226709,
+    "rowNeighborAlpha": 0.3618773273744739,
+    "colNeighborAlpha": 0.3618773273744739
+  }
+}

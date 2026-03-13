@@ -1,0 +1,19 @@
+{
+  "timerWhileModal": "00 : 00",
+  "stateAfterToggle": {
+    "music": false,
+    "fx": true,
+    "haptics": true
+  },
+  "storageAfterToggle": "{\"music\":false,\"fx\":true,\"haptics\":true}",
+  "reloadedSettings": {
+    "music": false,
+    "fx": true,
+    "haptics": true
+  },
+  "haptics": [
+    "light",
+    "light",
+    "light"
+  ]
+}
