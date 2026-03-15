@@ -218,6 +218,31 @@ Original prompt: sudoku yap phaserden bu sudokuyu yap tasarım kodu bu
 - Playwright client smoke test after sync changes: `output/web-game/settings-sync-client/shot-0.png`, `output/web-game/settings-sync-client/state-0.json`
 - Two-way settings sync flow (`menu -> game -> menu`): `output/web-game/settings-sync-flow/states.json`, `output/web-game/settings-sync-flow/menu-after-return.png`
 - Settings scrim behavior pass: clicking the empty/dimmed area behind the settings modal no longer closes it; both the menu modal and in-game settings scrim now only block input behind the card.
+- Latest menu motion polish: `Play` now opens the level-selection state through a tweened transition instead of an instant `refreshAll()` jump. The menu height scales smoothly, CTA buttons slide into their new positions, and level cards/summary fade up with a short row-based stagger.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- WEB_GAME_CLIENT state capture after clicking `Play`: `output/web-game/menu-level-open-smooth/state-0.json`
+- Page-level transition screenshots: `output/web-game/menu-level-open-smooth/page-early.png`, `output/web-game/menu-level-open-smooth/page-mid.png`, `output/web-game/menu-level-open-smooth/page-after.png`
+- Follow-up fix: the new staggered reveal accidentally left the last level rows below the `revealProgress > 0.99` interaction threshold, so Levels 17-20 could render but never become clickable. The row-delay math is now normalized against the total row count so the last row also reaches full progress.
+- Validation completed:
+- `npx tsc --noEmit`
+- Browser click-through confirmed `Level 20` now selects correctly: `output/web-game/menu-level-open-smooth/level-20-selected-fixed.png`
+- Menu preview cleanup: removed the `GRID READY` chip/text from the autoplay Sudoku preview. When the mini grid finishes, it now pauses briefly and resets directly without showing a completion badge.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- New request in progress: convert the game to a 10-level structure with escalating Sudoku difficulty and per-level best-score persistence in `localStorage`.
+- Added `src/sudokuLevels.ts` with shared 10-level definitions (clue counts + completion bonuses) and extended `src/sudokuStorage.ts` with `sudoku.level-best-scores.v1` helpers for loading/saving each level's best score.
+- Main menu now shows a 10-level selector, highlights the chosen level, updates the `Play Level X` CTA, and surfaces each level's best stored score from `localStorage`.
+- Gameplay now reads the chosen level from scene data, generates tougher boards on higher levels, displays level/best-score context in the HUD, and records per-level best scores on a win.
+- Win flow now shows level-specific completion copy plus `Next Level` / `Replay Level` behavior and returns to the menu with the same level still selected so the stored best score is visible immediately.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Playwright client state capture for the new menu: `output/web-game/level-menu-initial/state-0.json` and `output/web-game/level-menu-headed/state-0.json` (canvas capture stayed black in this environment, so page-level screenshots were used for visual confirmation).
+- Page-level browser validation of level selection, Level 10 gameplay, win flow, and persisted best score: `output/web-game/level-progression-validation/02-menu-level-10.png`, `output/web-game/level-progression-validation/03-level-10-start.png`, `output/web-game/level-progression-validation/04-level-10-win.png`, `output/web-game/level-progression-validation/05-menu-after-win.png`, plus `output/web-game/level-progression-validation/storage-after-win.json`.
+- Runtime difficulty comparison between the easy and hard ends: `output/web-game/level-difficulty-check/difficulty-check.json`, `output/web-game/level-difficulty-check/level-1-start.png`, and `output/web-game/level-difficulty-check/level-10-start.png`.
 - Validation completed:
 - `npx tsc --noEmit`
 - `npm run build`
@@ -230,3 +255,50 @@ Original prompt: sudoku yap phaserden bu sudokuyu yap tasarım kodu bu
 - `npm run build`
 - WEB_GAME_CLIENT smoke test after gameplay score/overlay changes: `output/web-game/score-overlay-theme-client/shot-0.png`, `output/web-game/score-overlay-theme-client/state-0.json`
 - Targeted Playwright validation for score + dark effect + lose overlay: `output/web-game/score-overlay-theme-check/correct-dark-effect.png`, `output/web-game/score-overlay-theme-check/lost-overlay.png`, `output/web-game/score-overlay-theme-check/validation.json`
+- Latest menu spacing pass: rebalanced the mobile main menu into a roomier vertical stack with slightly narrower level cards, wider gaps between the two columns, a two-line level summary, and enough bottom clearance so both `Play Level X` and `Settings` stay fully visible on coarse-pointer phones.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- WEB_GAME_CLIENT menu state capture after the spacing pass: `output/web-game/menu-vertical-spread-check-2/state-0.json` (canvas capture still renders black in this environment).
+- Page-level mobile screenshot with the final layout: `output/web-game/menu-vertical-spread-check-2/pixel5-page.png`
+- Follow-up menu rework: desktop menu was still reading too horizontal, so the level selector was rebuilt into a larger 3-column vertical stack with centered final row placement, while the coarse-pointer/mobile layout kept the roomier 2-column stack.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Page-level desktop screenshot after the stronger menu reflow: `output/web-game/menu-feedback-final/desktop-page.png`
+- Page-level mobile screenshot after the stronger menu reflow: `output/web-game/menu-feedback-final/mobile-page.png`
+- WEB_GAME_CLIENT state capture after the stronger menu reflow: `output/web-game/menu-feedback-final-state/state-0.json` (canvas capture still renders black in this environment).
+- Latest menu flow update: restored an old-style home screen as the first step, moved the `SUDOKU` title + autoplay preview upward, and changed `Play` so it now opens the level-selection layout instead of starting the puzzle immediately. In level-select mode, the secondary button becomes `Back`.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level home-menu screenshots: `output/web-game/menu-old-flow/home-desktop.png`, `output/web-game/menu-old-flow/home-mobile.png`
+- WEB_GAME_CLIENT state before opening level select: `output/web-game/menu-old-flow/state-home/state-0.json`
+- WEB_GAME_CLIENT state after clicking `Play` to open level select: `output/web-game/menu-old-flow/state-after-play-2/state-0.json`
+- Home menu spacing pass: pushed the title + autoplay board upward and moved `Play` / `Settings` significantly lower so the first screen reads as a vertical stack with clear separation instead of a cramped cluster.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level spaced home-menu screenshots: `output/web-game/menu-home-spread/desktop-home.png`, `output/web-game/menu-home-spread/mobile-home.png`
+- Latest menu simplification: removed the intermediate open-level-select flow and put the level cards back on the main screen directly. `Play` now starts the currently selected level immediately, while `Settings` is back to being a plain settings button.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level mobile screenshot for the direct-level menu: `output/web-game/menu-direct-levels/mobile.png`
+- WEB_GAME_CLIENT state for the direct-level menu: `output/web-game/menu-direct-levels/state/state-0.json`
+- Mobile level-spacing pass: widened the vertical rhythm on the direct-level menu by shrinking cards slightly, increasing row/column gaps, and pushing the bottom CTAs farther away from the level grid.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level mobile screenshot after spacing pass: `output/web-game/menu-direct-levels-spaced/mobile.png`
+- WEB_GAME_CLIENT state after spacing pass: `output/web-game/menu-direct-levels-spaced/state/state-0.json`
+- Desktop separation pass: changed the direct level selector from 3 columns to 2 columns, enlarged card spacing, and moved the CTA stack farther below the final row so the menu no longer reads as one tight block.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level screenshots after the stronger separation pass: `output/web-game/menu-desktop-separated/desktop.png`, `output/web-game/menu-desktop-separated/mobile.png`
+- Level-card copy cleanup: removed the `LEVEL X` and `Best` lines from the selector cards so each button now shows only the level title centered.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level screenshots after the names-only pass: `output/web-game/menu-level-names-only/desktop.png`, `output/web-game/menu-level-names-only/mobile.png`
+- Latest menu flow reset: restored the `Play -> level menu` flow and expanded the game to 20 levels. The home screen is compact again, while the opened level menu now uses a taller 20-card layout with `Back` under it.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Page-level home screenshots after the 20-level flow change: `output/web-game/menu-20-levels/home-desktop.png`, `output/web-game/menu-20-levels/home-mobile.png`
+- WEB_GAME_CLIENT home-state capture after the 20-level change: `output/web-game/menu-20-levels/state-home/state-0.json`
