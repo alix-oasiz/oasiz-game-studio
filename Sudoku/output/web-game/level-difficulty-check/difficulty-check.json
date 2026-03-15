@@ -1,0 +1,14 @@
+{
+  "level1": {
+    "number": 1,
+    "title": "Starter",
+    "clueCount": 44,
+    "bestScore": null
+  },
+  "level10": {
+    "number": 10,
+    "title": "Master",
+    "clueCount": 30,
+    "bestScore": null
+  }
+}

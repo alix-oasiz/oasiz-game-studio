@@ -1,0 +1,20 @@
+{
+  "before": {
+    "shouldPlay": true,
+    "paused": true,
+    "currentTime": 0,
+    "readyState": 0
+  },
+  "afterBackgroundTap": {
+    "shouldPlay": true,
+    "paused": false,
+    "currentTime": 0.1,
+    "readyState": 4
+  },
+  "afterPlay": {
+    "shouldPlay": true,
+    "paused": false,
+    "currentTime": 0.81,
+    "readyState": 4
+  }
+}

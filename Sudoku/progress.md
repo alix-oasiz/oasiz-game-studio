@@ -1,0 +1,304 @@
+Original prompt: sudoku yap phaserden bu sudokuyu yap tasarım kodu bu
+
+- Project started from a Phaser Vite TypeScript template.
+- Goal: rebuild the provided mobile Sudoku design inside Phaser and make it playable.
+- Planned features: board selection, number pad input, pencil mode, undo, clear, hint, mistakes, timer, and text/test hooks.
+- Replaced the template scene with a custom mobile-sized Sudoku scene.
+- Implemented board rendering, selection, keypad input, pencil notes, undo, clear, hint, timer, mistake tracking, fullscreen toggle, and win/lose overlays.
+- Simplified startup to launch the Sudoku scene directly and updated CSS to support the centered mobile presentation.
+- Installed missing npm packages so `terser` is available for production builds again.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Playwright skill runs captured working screenshots/state in `output/web-game/initial`, `output/web-game/interactions`, `output/web-game/lost`, and `output/web-game/lose-restart`.
+- Follow-up request: fix the restart button and make the game friendlier on desktop.
+- Current fix in progress: swap the restart button to a dedicated interactive hit-area and add a desktop-only controls help strip with slightly lowered tools spacing.
+- Follow-up validation completed:
+- `npx tsc --noEmit`
+- Playwright desktop screenshot: `output/web-game/desktop-initial/shot-0.png`
+- Playwright lose -> restart flow reset back to the initial state with no console errors: `output/web-game/restart-fix`
+- New follow-up request: limit hints to 2 total and make the game fully compatible across mobile and desktop with a full-viewport desktop presentation.
+- Implemented a 2-hint cap with state/undo support and visible `Hint x/2` status.
+- Switched the game to resize with the browser viewport and wrapped the UI in a responsive root container so the canvas fills the whole screen on desktop while still fitting mobile sizes.
+- Validation completed:
+- `npx tsc --noEmit`
+- Desktop full-viewport screenshot and state: `output/web-game/fullscreen-initial`
+- Hint cap verified after 3 clicks with `used: 2` and no extra gem spend: `output/web-game/hint-limit`
+- Mobile viewport screenshot at 390x844: `output/web-game/mobile-viewport`
+- Latest follow-up: removed the hardcoded sample-state board and replaced it with randomized puzzle generation.
+- The game now starts clean with `Mistakes: 0/3`, `00:00`, no pre-filled wrong player entry, and restart generates a fresh puzzle.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Randomized clean start screenshot/state: `output/web-game/random-initial`
+- Restart comparison confirmed a different puzzle signature after reset with no console errors.
+- Latest UI update: removed the desktop helper strip, removed the top progress/level capsule, and changed the presentation to a direct full-screen Sudoku layout closer to the provided reference image.
+- Board now renders as separated 3x3 white blocks on the blue background, with a white tools card and large bottom number row.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Desktop direct-layout screenshot: `output/web-game/direct-layout/shot-0.png`
+- Mobile direct-layout screenshot: `output/web-game/direct-layout-mobile/shot-0.png`
+- Latest platform/readme follow-up: added a top-right settings gear with a modal for Music / FX / Haptics, persistent localStorage settings, platform haptic hooks, lightweight procedural audio, timer pause while settings are open, and score submission on end states.
+- Fixed a modal close regression where clicking `Close` could leak through to the board underneath; close now defers until after the current pointer event completes.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Desktop gear + modal screenshots: `output/web-game/settings-desktop/shot-0.png`, `output/web-game/settings-modal/shot-0.png`, `output/web-game/settings-toggle/shot-0.png`
+- Mobile modal screenshot: `output/web-game/settings-mobile/shot-0.png`
+- Persistence / haptic verification JSON: `output/web-game/settings-persist-result.json`
+- Modal close no longer changes the selected cell (`before` and `after` remained identical in a browser regression check).
+- Latest gameplay polish: when the player places a correct number manually, the solved cell now pulses and a cyan wave travels across the same row and column.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Correct-placement animation screenshot: `output/web-game/correct-placement-animation.png`
+- Correct-placement animation state probe: `output/web-game/correct-placement-animation.json`
+- Latest gameplay polish: wrong manual entries now get a red feedback animation too, with a stronger center flash plus a softer ripple across the same row and column.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Wrong-placement animation screenshot: `output/web-game/wrong-placement-animation.png`
+- Wrong-placement animation state probe: `output/web-game/wrong-placement-animation.json`
+- Latest mobile layout polish: on coarse-pointer/mobile devices the full game root now respects a larger top safe area and sits slightly lower so the fixed settings button no longer overlaps the HUD.
+- Validation completed:
+- `npx tsc --noEmit`
+- Mobile safe-area screenshot: `output/web-game/mobile-safe-top-fix.png`
+- Follow-up tweak: increased the extra mobile vertical offset again so the whole game stack sits a bit lower under the browser/status area.
+- Validation completed:
+- `npx tsc --noEmit`
+- Updated mobile safe-area screenshot: `output/web-game/mobile-safe-top-fix-2.png`
+- Latest end-state update: replaced the old generic win panel with a full-screen celebratory victory screen inspired by the provided mockup, including a gradient backdrop, floating trophy illustration, stats summary, and `Main` / `New Game` buttons.
+- The old compact restart panel is still used for the lose state, while the settings gear now hides during end screens so it does not clash with the victory presentation.
+- Validation completed:
+- `npx tsc --noEmit`
+- Playwright skill initial capture after the overlay work: `output/web-game/win-screen-initial`
+- Browser solve-through verified the real win transition and `New Game` restart flow with no captured console/page errors: `output/web-game/win-screen-final/win-screen.png`, `output/web-game/win-screen-final/win-state.json`, `output/web-game/win-screen-final/after-new-game.png`, `output/web-game/win-screen-final/after-new-game-state.json`
+- `npm run build`
+- Latest dev/testing utility: added a floating right-side `TEST WIN` button that auto-solves the current board row-by-row, visually filling cells one at a time before triggering the normal win screen.
+- During the sequence, board/tools/settings input is locked, the button changes to `AUTO WIN`, and restart/shutdown safely cancel any pending auto-solve timer.
+- Validation completed:
+- `npx tsc --noEmit`
+- Playwright initial capture with the new side button: `output/web-game/test-win-button-initial/shot-0.png`
+- Browser click-through confirmed mid-sequence auto-fill plus final victory transition with no captured console/page errors: `output/web-game/test-win-sequence/during-auto-win.png`, `output/web-game/test-win-sequence/during-auto-win-state.json`, `output/web-game/test-win-sequence/after-auto-win.png`, `output/web-game/test-win-sequence/after-auto-win-state.json`
+- `npm run build`
+- Latest UX update: added a full animated `MainMenu` scene with a floating live Sudoku preview, moving bot cursor, `New Game` / `Continue` CTA buttons, plus `Stats` and `Settings` menu modals.
+- Added shared local persistence for settings, active session save/restore, and lightweight profile stats so the menu can enable `Continue`, show progress, and update level/best-time style header info after wins.
+- Gameplay now boots from the main menu, `Continue` restores the saved puzzle state, and the win screen `Main` button returns to the menu instead of restarting.
+- Validation completed:
+- `npx tsc --noEmit`
+- Initial menu Playwright capture: `output/web-game/main-menu-initial/shot-0.png`
+- Menu flow verification (menu -> new game -> reload -> continue): `output/web-game/main-menu-flow/menu-initial.png`, `output/web-game/main-menu-flow/level-after-new.png`, `output/web-game/main-menu-flow/menu-after-reload.png`, `output/web-game/main-menu-flow/level-after-continue.png`, with matching JSON state files in the same folder
+- Win -> Main return verification after fixing scene restart state cleanup: `output/web-game/win-main-return-fixed/win-overlay.png`, `output/web-game/win-main-return-fixed/menu-after-main.png`, `output/web-game/win-main-return-fixed/menu-after-main-state.json`
+- Menu modal verification: `output/web-game/main-menu-modals/stats-modal.png`, `output/web-game/main-menu-modals/settings-modal.png`, `output/web-game/main-menu-modals/settings-state.json`
+- `npm run build`
+- Latest menu simplification: removed `Continue`, `Stats`, header/profile/session UI, and the local save/restore flow so the menu now only exposes `Play` and `Settings`.
+- Rebuilt `MainMenu` as a cleaner single-focus screen with a silent animated bot-preview board in the center; preview animation no longer triggers FX while settings/music toggles remain available through the settings modal.
+- Gameplay scene no longer restores or persists local sessions between visits, so every `Play` launch starts a fresh puzzle.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Play-only menu initial screenshot/state: `output/web-game/menu-play-only-initial/shot-0.png`, `output/web-game/menu-play-only-initial/state-0.json`
+- Settings modal screenshot/state: `output/web-game/menu-play-only-settings/shot-0.png`, `output/web-game/menu-play-only-settings/state-0.json`
+- Play transition into gameplay screenshot/state: `output/web-game/menu-play-only-game-2/shot-0.png`, `output/web-game/menu-play-only-game/state-0.json`
+- Latest menu cleanup: removed the preview tilt, removed the `BOT PREVIEW` pill, removed the title subtitle, and rebuilt the settings modal to render in true viewport space instead of inside the scaled menu root.
+- Fixed the settings layout bug where toggle controls could spill outside the card; the scrim now covers the whole screen and the rows are centered inside a wider modal card.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Updated clean menu screenshot: `output/web-game/menu-settings-fix-initial/shot-0.png`
+- Fixed settings modal screenshot: `output/web-game/menu-settings-fix-modal/shot-0.png`
+- Latest UI consistency fix: menu settings modal now matches the in-game settings modal with the same scrim tone, card size, title styling, hint copy, row spacing, and toggle dimensions/colors.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Matching menu settings screenshot: `output/web-game/menu-settings-match-fix/shot-0.png`
+- Matching in-game settings screenshot: `output/web-game/in-game-settings-current/shot-0.png`
+- Latest audio polish: slowed the background music down in both the menu and gameplay by softening the music envelope and replacing short single-note loops with sparse long ambient chords.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Menu smoke test after music change: `output/web-game/slow-music-menu/shot-0.png`, `output/web-game/slow-music-menu/state-0.json`
+- Gameplay smoke test after music change: `output/web-game/slow-music-game/shot-0.png`, `output/web-game/slow-music-game/state-0.json`
+- Follow-up audio fix: switched menu and gameplay to a shared audio context so music stays unlocked across the menu -> play transition, raised the music voicing/volume, and made each scene fire an immediate ambient phrase instead of waiting for the first timer tick.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Menu smoke test after audible-music pass: `output/web-game/music-audible-menu/shot-0.png`, `output/web-game/music-audible-menu/state-0.json`
+- Gameplay smoke test after audible-music pass: `output/web-game/music-audible-game/shot-0.png`, `output/web-game/music-audible-game/state-0.json`
+- Latest audio source update: replaced the procedural background music with the user-provided `public/assets/bgMusic.mp3`, driven by a shared singleton HTML audio player so playback can continue from menu into gameplay.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Verified bundled music asset exists at `dist/assets/bgMusic.mp3`
+- Menu smoke test after mp3 hookup: `output/web-game/mp3-music-menu/shot-0.png`, `output/web-game/mp3-music-menu/state-0.json`
+- Gameplay smoke test after mp3 hookup: `output/web-game/mp3-music-game/shot-0.png`, `output/web-game/mp3-music-game/state-0.json`
+- Latest autoplay fix: background music now installs global unlock listeners (`pointerdown`, `touchstart`, `keydown`, `focus`) so it starts on the first general interaction with the game, not only after opening settings.
+- Added a temporary debug hook (`window.__SUDOKU_BG_MUSIC_DEBUG__`) to verify playback state in browser automation.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Browser debug probe confirmed music goes from `paused: true` before interaction to `paused: false` after a background tap and remains playing after `Play`: `output/web-game/music-unlock-any-tap/debug.json`
+- Flow screenshot after unlock + play: `output/web-game/music-unlock-any-tap/shot-0.png`
+- Latest win overlay polish: replaced the weak translucent action strips with richer CTA cards, upgraded the title/stats typography, and rewrote the victory copy so the end screen reads more like a polished mobile game.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Win overlay screenshot after redesign: `output/web-game/win-overlay-redesign-final/win.png`
+- Win overlay state capture after redesign: `output/web-game/win-overlay-redesign-final/state.json`
+- Latest gameplay theme pass: rebuilt the actual in-game scene around the darker charcoal reference instead of the older blue look. The backdrop, header, separated 3x3 board blocks, peer highlights, selected cell, tool tray, and bottom number row were all restyled in `src/scenes/Level.ts`, and the page/canvas base color was aligned in `src/main.ts` + `public/style.css` so the gameplay scene no longer inherits the bright blue shell.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Gameplay smoke test after dark-theme pass: `output/web-game/level-dark-theme-game-v2/shot-1.png`, `output/web-game/level-dark-theme-game-v2/state-1.json`
+- Follow-up board highlight fix: removed the full 3x3 peer-box fill from the gameplay theme so the selection now reads as a cleaner row + column cross, closer to the reference. Tightened the selected-cell glow/shadow so it sits more naturally inside the board.
+- Validation completed:
+- Gameplay smoke test after peer-highlight cleanup: `output/web-game/level-dark-theme-peer-fix/shot-1.png`, `output/web-game/level-dark-theme-peer-fix/state-1.json`
+- Follow-up selected-cell polish: replaced the flat dark cell fill with a separate rounded selection tile so the active cell no longer looks like a harsh square stamped on top of the grid. The light row/column highlight now stays underneath while the active tile reads like an inset card.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Gameplay smoke test after rounded selected-tile fix: `output/web-game/level-selected-tile-fix/shot-1.png`, `output/web-game/level-selected-tile-fix/state-1.json`
+- Final selected-cell cleanup: removed the extra selected-cell underlay/stroke entirely when a tile is active, so the board no longer shows two stacked squares. The active cell now renders as a single rounded dark tile on top of the light row/column highlight.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Gameplay smoke test after single-layer selected-cell fix: `output/web-game/level-selected-tile-clean/shot-1.png`, `output/web-game/level-selected-tile-clean/state-1.json`
+- Final peer-band cleanup: replaced per-cell row/column highlight fills with continuous band graphics behind the grid. This removes the stacked-square look in the selected row/column and makes the active tile sit on one clean cross highlight.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Gameplay smoke test after continuous peer-band fix: `output/web-game/level-peer-band-fix/shot-1.png`, `output/web-game/level-peer-band-fix/state-1.json`
+- Peer highlight softness pass: changed the continuous row/column bands from sharp rectangles to rounded segments inside each 3x3 block, so the darkened column/row no longer reads as a hard square strip.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Gameplay smoke test after rounded peer-band pass: `output/web-game/level-peer-rounded-fix/shot-1.png`, `output/web-game/level-peer-rounded-fix/state-1.json`
+- Peer highlight consistency pass: dropped the continuous band approach and went back to per-cell peer darkening so selected rows/columns keep the same tile structure as the rest of the board instead of morphing into a separate shape.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Gameplay smoke test after per-cell peer-highlight restore: `output/web-game/level-peer-cell-fix/shot-1.png`, `output/web-game/level-peer-cell-fix/state-1.json`
+- Dark settings pass: restyled both the menu settings modal and the in-game settings modal to the charcoal theme with a dark card, cool-gray body copy, muted off toggles, and brighter cyan-on states.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- In-game dark settings smoke test: `output/web-game/dark-settings-game/shot-1.png`, `output/web-game/dark-settings-game/state-1.json`
+- No-blue menu/settings pass: removed the remaining blue accents from the main menu preview, the Play CTA, and both settings modals. Menu visuals now stay in charcoal/white/slate, and settings toggles use gray on/off states instead of cyan.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Main menu no-blue smoke test: `output/web-game/menu-no-blue/shot-0.png`, `output/web-game/menu-no-blue/state-0.json`
+- In-game settings no-blue smoke test: `output/web-game/settings-no-blue/shot-1.png`, `output/web-game/settings-no-blue/state-1.json`
+- Menu/settings cleanup pass: removed the Play subtitle, removed the explanatory settings copy, and replaced the plain `Close` text with a neutral rounded button in both the menu modal and in-game settings modal.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Menu screenshot after subtitle removal: `output/web-game/settings-close-button-pass-2/menu.png`
+- Menu settings screenshot after close-button pass: `output/web-game/settings-close-button-pass-2/menu-settings.png`
+- In-game settings screenshot after close-button pass: `output/web-game/settings-close-button-pass-2/game-settings.png`
+- Replay-from-menu fix: returning to `MainMenu` after a finished puzzle left stale `Level` scene refs alive, so the next `Play` could throw inside `refreshTestWinButton()` and leave the faded menu on screen instead of a fresh board. `Level.create()` now resets session state up front and builds the test-win UI before settings so modal setup never touches destroyed text objects on a second scene start.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Playwright client smoke test for normal Play flow: `output/web-game/replay-start-client/shot-0.png`, `output/web-game/replay-start-client/state-0.json`
+- Playwright repro/fix check for win -> main menu -> play again: `output/web-game/menu-return-fix-check/menu-returned.png`, `output/web-game/menu-return-fix-check/after-second-play.png`, `output/web-game/menu-return-fix-check/after-second-play-state.json`
+- Background music reliability pass: switched the MP3 player to a DOM-backed hidden `<audio>` element with a base-URI-relative asset path, stronger volume, iOS-friendly inline flags, and debug/error tracking so playback survives nested hosting paths and first-touch unlock is more reliable.
+- Main menu settings CTA polish: widened the button a bit, rebalanced the icon/text alignment, and brightened the label so `Settings` reads cleaner against the dark menu.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Music/state debug after entering the game: `output/web-game/music-settings-fix-pass2/debug.json`
+- Menu screenshot after settings CTA polish: `output/web-game/music-settings-fix-pass2/menu.png`
+- Gameplay screenshot after music unlock: `output/web-game/music-settings-fix-pass2/game.png`
+- Settings sync pass: menu and in-game settings now broadcast through a shared storage event so toggles stay in sync across scene changes and both scenes immediately adopt the latest music/fx/haptics state.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Playwright client smoke test after sync changes: `output/web-game/settings-sync-client/shot-0.png`, `output/web-game/settings-sync-client/state-0.json`
+- Two-way settings sync flow (`menu -> game -> menu`): `output/web-game/settings-sync-flow/states.json`, `output/web-game/settings-sync-flow/menu-after-return.png`
+- Settings scrim behavior pass: clicking the empty/dimmed area behind the settings modal no longer closes it; both the menu modal and in-game settings scrim now only block input behind the card.
+- Latest menu motion polish: `Play` now opens the level-selection state through a tweened transition instead of an instant `refreshAll()` jump. The menu height scales smoothly, CTA buttons slide into their new positions, and level cards/summary fade up with a short row-based stagger.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- WEB_GAME_CLIENT state capture after clicking `Play`: `output/web-game/menu-level-open-smooth/state-0.json`
+- Page-level transition screenshots: `output/web-game/menu-level-open-smooth/page-early.png`, `output/web-game/menu-level-open-smooth/page-mid.png`, `output/web-game/menu-level-open-smooth/page-after.png`
+- Follow-up fix: the new staggered reveal accidentally left the last level rows below the `revealProgress > 0.99` interaction threshold, so Levels 17-20 could render but never become clickable. The row-delay math is now normalized against the total row count so the last row also reaches full progress.
+- Validation completed:
+- `npx tsc --noEmit`
+- Browser click-through confirmed `Level 20` now selects correctly: `output/web-game/menu-level-open-smooth/level-20-selected-fixed.png`
+- Menu preview cleanup: removed the `GRID READY` chip/text from the autoplay Sudoku preview. When the mini grid finishes, it now pauses briefly and resets directly without showing a completion badge.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- New request in progress: convert the game to a 10-level structure with escalating Sudoku difficulty and per-level best-score persistence in `localStorage`.
+- Added `src/sudokuLevels.ts` with shared 10-level definitions (clue counts + completion bonuses) and extended `src/sudokuStorage.ts` with `sudoku.level-best-scores.v1` helpers for loading/saving each level's best score.
+- Main menu now shows a 10-level selector, highlights the chosen level, updates the `Play Level X` CTA, and surfaces each level's best stored score from `localStorage`.
+- Gameplay now reads the chosen level from scene data, generates tougher boards on higher levels, displays level/best-score context in the HUD, and records per-level best scores on a win.
+- Win flow now shows level-specific completion copy plus `Next Level` / `Replay Level` behavior and returns to the menu with the same level still selected so the stored best score is visible immediately.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Playwright client state capture for the new menu: `output/web-game/level-menu-initial/state-0.json` and `output/web-game/level-menu-headed/state-0.json` (canvas capture stayed black in this environment, so page-level screenshots were used for visual confirmation).
+- Page-level browser validation of level selection, Level 10 gameplay, win flow, and persisted best score: `output/web-game/level-progression-validation/02-menu-level-10.png`, `output/web-game/level-progression-validation/03-level-10-start.png`, `output/web-game/level-progression-validation/04-level-10-win.png`, `output/web-game/level-progression-validation/05-menu-after-win.png`, plus `output/web-game/level-progression-validation/storage-after-win.json`.
+- Runtime difficulty comparison between the easy and hard ends: `output/web-game/level-difficulty-check/difficulty-check.json`, `output/web-game/level-difficulty-check/level-1-start.png`, and `output/web-game/level-difficulty-check/level-10-start.png`.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Playwright client smoke test after scrim change: `output/web-game/settings-empty-click-client/shot-0.png`, `output/web-game/settings-empty-click-client/state-0.json`
+- Empty-area click checks: `output/web-game/settings-empty-click-check/states.json`, `output/web-game/settings-empty-click-check/menu-settings-after-empty-click.png`, `output/web-game/settings-empty-click-check/game-settings-after-empty-click.png`
+- Gameplay cleanup pass: hid the public `TEST WIN` button, switched the correct-placement ripple from bright cyan to a darker charcoal sweep, enlarged the 3-mistake restart modal, and changed the restart CTA to a black button that fits the slate gameplay theme.
+- Score pass: gameplay now tracks score per correct manual placement (`35` points each). Replacing or clearing a previously scored value removes that credit, hints do not award score, undo restores score state, and final `submitScore()` now uses the tracked gameplay score plus the existing end-of-game modifiers.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- WEB_GAME_CLIENT smoke test after gameplay score/overlay changes: `output/web-game/score-overlay-theme-client/shot-0.png`, `output/web-game/score-overlay-theme-client/state-0.json`
+- Targeted Playwright validation for score + dark effect + lose overlay: `output/web-game/score-overlay-theme-check/correct-dark-effect.png`, `output/web-game/score-overlay-theme-check/lost-overlay.png`, `output/web-game/score-overlay-theme-check/validation.json`
+- Latest menu spacing pass: rebalanced the mobile main menu into a roomier vertical stack with slightly narrower level cards, wider gaps between the two columns, a two-line level summary, and enough bottom clearance so both `Play Level X` and `Settings` stay fully visible on coarse-pointer phones.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- WEB_GAME_CLIENT menu state capture after the spacing pass: `output/web-game/menu-vertical-spread-check-2/state-0.json` (canvas capture still renders black in this environment).
+- Page-level mobile screenshot with the final layout: `output/web-game/menu-vertical-spread-check-2/pixel5-page.png`
+- Follow-up menu rework: desktop menu was still reading too horizontal, so the level selector was rebuilt into a larger 3-column vertical stack with centered final row placement, while the coarse-pointer/mobile layout kept the roomier 2-column stack.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Page-level desktop screenshot after the stronger menu reflow: `output/web-game/menu-feedback-final/desktop-page.png`
+- Page-level mobile screenshot after the stronger menu reflow: `output/web-game/menu-feedback-final/mobile-page.png`
+- WEB_GAME_CLIENT state capture after the stronger menu reflow: `output/web-game/menu-feedback-final-state/state-0.json` (canvas capture still renders black in this environment).
+- Latest menu flow update: restored an old-style home screen as the first step, moved the `SUDOKU` title + autoplay preview upward, and changed `Play` so it now opens the level-selection layout instead of starting the puzzle immediately. In level-select mode, the secondary button becomes `Back`.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level home-menu screenshots: `output/web-game/menu-old-flow/home-desktop.png`, `output/web-game/menu-old-flow/home-mobile.png`
+- WEB_GAME_CLIENT state before opening level select: `output/web-game/menu-old-flow/state-home/state-0.json`
+- WEB_GAME_CLIENT state after clicking `Play` to open level select: `output/web-game/menu-old-flow/state-after-play-2/state-0.json`
+- Home menu spacing pass: pushed the title + autoplay board upward and moved `Play` / `Settings` significantly lower so the first screen reads as a vertical stack with clear separation instead of a cramped cluster.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level spaced home-menu screenshots: `output/web-game/menu-home-spread/desktop-home.png`, `output/web-game/menu-home-spread/mobile-home.png`
+- Latest menu simplification: removed the intermediate open-level-select flow and put the level cards back on the main screen directly. `Play` now starts the currently selected level immediately, while `Settings` is back to being a plain settings button.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level mobile screenshot for the direct-level menu: `output/web-game/menu-direct-levels/mobile.png`
+- WEB_GAME_CLIENT state for the direct-level menu: `output/web-game/menu-direct-levels/state/state-0.json`
+- Mobile level-spacing pass: widened the vertical rhythm on the direct-level menu by shrinking cards slightly, increasing row/column gaps, and pushing the bottom CTAs farther away from the level grid.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level mobile screenshot after spacing pass: `output/web-game/menu-direct-levels-spaced/mobile.png`
+- WEB_GAME_CLIENT state after spacing pass: `output/web-game/menu-direct-levels-spaced/state/state-0.json`
+- Desktop separation pass: changed the direct level selector from 3 columns to 2 columns, enlarged card spacing, and moved the CTA stack farther below the final row so the menu no longer reads as one tight block.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level screenshots after the stronger separation pass: `output/web-game/menu-desktop-separated/desktop.png`, `output/web-game/menu-desktop-separated/mobile.png`
+- Level-card copy cleanup: removed the `LEVEL X` and `Best` lines from the selector cards so each button now shows only the level title centered.
+- Validation completed:
+- `npx tsc --noEmit`
+- Page-level screenshots after the names-only pass: `output/web-game/menu-level-names-only/desktop.png`, `output/web-game/menu-level-names-only/mobile.png`
+- Latest menu flow reset: restored the `Play -> level menu` flow and expanded the game to 20 levels. The home screen is compact again, while the opened level menu now uses a taller 20-card layout with `Back` under it.
+- Validation completed:
+- `npx tsc --noEmit`
+- `npm run build`
+- Page-level home screenshots after the 20-level flow change: `output/web-game/menu-20-levels/home-desktop.png`, `output/web-game/menu-20-levels/home-mobile.png`
+- WEB_GAME_CLIENT home-state capture after the 20-level change: `output/web-game/menu-20-levels/state-home/state-0.json`

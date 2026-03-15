@@ -1,0 +1,1867 @@
+{
+  "initialState": {
+    "scene": "level",
+    "mode": "playing",
+    "timer": "00 : 00",
+    "score": 0,
+    "mistakes": {
+      "used": 0,
+      "max": 3
+    },
+    "gems": 2500,
+    "hints": {
+      "used": 0,
+      "max": 2,
+      "remaining": 2
+    },
+    "pencilMode": false,
+    "settings": {
+      "music": true,
+      "fx": true,
+      "haptics": true
+    },
+    "modalOpen": false,
+    "autoSolve": {
+      "active": false,
+      "remaining": 0
+    },
+    "selectedCell": {
+      "row": 5,
+      "col": 5
+    },
+    "selectedNumber": null,
+    "coordinateSystem": "Rows and columns are 1-based from the top-left; x grows right and y grows down.",
+    "rows": [
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 5,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 9,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 5,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ]
+    ]
+  },
+  "placed": {
+    "row": 0,
+    "col": 0,
+    "solution": 1
+  },
+  "afterPlaceState": {
+    "scene": "level",
+    "mode": "playing",
+    "timer": "00 : 00",
+    "score": 35,
+    "mistakes": {
+      "used": 0,
+      "max": 3
+    },
+    "gems": 2500,
+    "hints": {
+      "used": 0,
+      "max": 2,
+      "remaining": 2
+    },
+    "pencilMode": false,
+    "settings": {
+      "music": true,
+      "fx": true,
+      "haptics": true
+    },
+    "modalOpen": false,
+    "autoSolve": {
+      "active": false,
+      "remaining": 0
+    },
+    "selectedCell": {
+      "row": 1,
+      "col": 1
+    },
+    "selectedNumber": 1,
+    "coordinateSystem": "Rows and columns are 1-based from the top-left; x grows right and y grows down.",
+    "rows": [
+      [
+        {
+          "value": 1,
+          "given": false,
+          "wrong": false,
+          "scored": true,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 5,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 9,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 5,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ]
+    ]
+  },
+  "loseState": {
+    "scene": "level",
+    "mode": "lost",
+    "timer": "00 : 00",
+    "score": 35,
+    "mistakes": {
+      "used": 3,
+      "max": 3
+    },
+    "gems": 2500,
+    "hints": {
+      "used": 0,
+      "max": 2,
+      "remaining": 2
+    },
+    "pencilMode": false,
+    "settings": {
+      "music": true,
+      "fx": true,
+      "haptics": true
+    },
+    "modalOpen": false,
+    "autoSolve": {
+      "active": false,
+      "remaining": 0
+    },
+    "selectedCell": {
+      "row": 1,
+      "col": 1
+    },
+    "selectedNumber": 1,
+    "coordinateSystem": "Rows and columns are 1-based from the top-left; x grows right and y grows down.",
+    "rows": [
+      [
+        {
+          "value": 1,
+          "given": false,
+          "wrong": false,
+          "scored": true,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 1,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 5,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 9,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 5,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": 2,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 7,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 6,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ],
+      [
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 8,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 3,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": 4,
+          "given": true,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        },
+        {
+          "value": null,
+          "given": false,
+          "wrong": false,
+          "scored": false,
+          "notes": []
+        }
+      ]
+    ]
+  }
+}

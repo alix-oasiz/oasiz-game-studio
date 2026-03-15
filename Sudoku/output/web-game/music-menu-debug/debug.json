@@ -1,0 +1,44 @@
+{
+  "before": {
+    "state": "{\"scene\":\"menu\",\"modal\":null,\"settings\":{\"music\":true,\"fx\":true,\"haptics\":true},\"preview\":{\"selected\":{\"row\":8,\"col\":7},\"remaining\":45,\"filled\":36}}",
+    "music": {
+      "shouldPlay": true,
+      "paused": true,
+      "currentTime": 0,
+      "readyState": 4
+    },
+    "audios": []
+  },
+  "after": {
+    "state": "{\"scene\":\"level\",\"mode\":\"playing\",\"timer\":\"00 : 00\",\"mistakes\":{\"used\":0,\"max\":3},\"gems\":2500,\"hints\":{\"used\":0,\"max\":2,\"remaining\":2},\"pencilMode\":false,\"settings\":{\"music\":true,\"fx\":true,\"haptics\":true},\"modalOpen\":false,\"autoSolve\":{\"active\":false,\"remaining\":0},\"selectedCell\":{\"row\":5,\"col\":6},\"selectedNumber\":null,\"coordinateSystem\":\"Rows and columns are 1-based from the top-left; x grows right and y grows down.\",\"rows\":[[{\"value\":1,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":8,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":2,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":7,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":5,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":9,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]}],[{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":5,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":7,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]}],[{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":7,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":3,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":6,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":1,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]}],[{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":1,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":3,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":9,\"given\":true,\"wrong\":false,\"notes\":[]}],[{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":1,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":4,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":6,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":2,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]}],[{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":5,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":4,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]}],[{\"value\":3,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":6,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":9,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":4,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":2,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":1,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]}],[{\"value\":2,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":8,\"given\":true,\"wrong\":false,\"notes\":[]}],[{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":8,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":1,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":2,\"given\":true,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]},{\"value\":null,\"given\":false,\"wrong\":false,\"notes\":[]}]]}",
+    "music": {
+      "shouldPlay": true,
+      "paused": false,
+      "currentTime": 1.12,
+      "readyState": 4
+    },
+    "audios": []
+  },
+  "events": [
+    {
+      "type": "console",
+      "level": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "type": "console",
+      "level": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "type": "console",
+      "level": "warning",
+      "text": "[.WebGL-0x12400196c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "console",
+      "level": "log",
+      "text": "%c %c %c %c %c Phaser v3.80.1 (Canvas | Web Audio) %c https://phaser.io background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent"
+    }
+  ]
+}
