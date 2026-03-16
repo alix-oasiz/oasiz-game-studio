@@ -403,13 +403,6 @@ public class GameManager : MonoBehaviour
     {
         _ = OasizSDK.Instance;
 
-        OasizSDK.EmitScoreConfig(new ScoreConfig(
-            new ScoreAnchor(30, 100),
-            new ScoreAnchor(60, 300),
-            new ScoreAnchor(120, 600),
-            new ScoreAnchor(300, 950)
-        ));
-
         var state = OasizSDK.LoadGameState();
         OasizSDK.OnPause += HandlePause;
         OasizSDK.OnResume += HandleResume;
@@ -442,7 +435,7 @@ public class GameManager : MonoBehaviour
 
 The current Unity SDK supports the same main runtime feature areas as the current JavaScript SDK:
 
-- score submission and score normalization
+- score submission
 - haptic feedback
 - game state load/save/flush
 - pause and resume lifecycle events
@@ -452,28 +445,17 @@ The current Unity SDK supports the same main runtime feature areas as the curren
 
 #### Score
 
-Use these methods to report scores and configure score normalization:
+Use this method to report the final score:
 
 - `OasizSDK.SubmitScore(int score)`
-- `OasizSDK.EmitScoreConfig(ScoreConfig config)`
 
 ```csharp
-OasizSDK.EmitScoreConfig(new ScoreConfig(
-    new ScoreAnchor(10, 100),
-    new ScoreAnchor(30, 300),
-    new ScoreAnchor(75, 600),
-    new ScoreAnchor(200, 950)
-));
-
 OasizSDK.SubmitScore(Mathf.FloorToInt(score));
 ```
 
 Rules:
 
 - call `SubmitScore()` once at game over or at the appropriate end-of-session moment
-- pass exactly 4 anchors to `EmitScoreConfig()`
-- `raw` anchor values should increase strictly
-- the last normalized anchor should be `950`
 
 #### Haptics
 
