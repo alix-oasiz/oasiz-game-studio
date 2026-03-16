@@ -434,6 +434,10 @@ export class Game {
     this.introCountdownEl?.classList.remove("visible");
   }
 
+  private isIntroCountdownRenderingPaused(): boolean {
+    return this.running && this.introCountdownActive;
+  }
+
   private updateGame(dt: number): void {
     if (this.paused) return;
 
@@ -1352,12 +1356,17 @@ export class Game {
         updateMs = performance.now() - updateStartMs;
       }
 
+      if (this.isIntroCountdownRenderingPaused()) {
+        return;
+      }
+
       const particleStartMs = performance.now();
       this.particleSystem.update(dt);
       const particleMs = performance.now() - particleStartMs;
       const renderStartMs = performance.now();
       this.renderer.render();
       const renderMs = performance.now() - renderStartMs;
+      this.renderer.reportFrameTime(updateMs + particleMs + renderMs);
       const frameMs = performance.now() - frameStartMs;
       void frameMs;
       void updateMs;

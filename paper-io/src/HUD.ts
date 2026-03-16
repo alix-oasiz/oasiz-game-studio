@@ -16,6 +16,7 @@ interface CachedEntry {
 
 export class HUD {
   private static readonly maxRespawns = 2;
+  private static readonly mappTerritoryRefreshMs = 250;
   private hudEl: HTMLElement;
   private playerNameEl: HTMLElement;
   private playerPct: HTMLElement;
@@ -27,12 +28,16 @@ export class HUD {
   private mappPanel: HTMLElement;
   private mappCanvas: HTMLCanvasElement;
   private mappCtx: CanvasRenderingContext2D;
+  private mappLayerCanvas: HTMLCanvasElement;
+  private mappLayerCtx: CanvasRenderingContext2D;
   private scoreFxLayer: HTMLElement;
   private startTime = 0;
   private cachedEntries = new Map<number, CachedEntry>();
   private displayedEntryIds: number[] = [];
   private lastPlayerPct = "";
   private lastDisplayedScore = -1;
+  private lastMappLayerSignature = "";
+  private lastMappLayerDrawAt = 0;
 
   constructor() {
     this.hudEl = document.getElementById("hud")!;
@@ -48,6 +53,8 @@ export class HUD {
       "mapp-canvas",
     ) as HTMLCanvasElement;
     this.mappCtx = this.mappCanvas.getContext("2d")!;
+    this.mappLayerCanvas = document.createElement("canvas");
+    this.mappLayerCtx = this.mappLayerCanvas.getContext("2d")!;
     this.scoreFxLayer = document.getElementById("score-fx-layer")!;
   }
 
@@ -60,6 +67,8 @@ export class HUD {
     this.lbEntries.replaceChildren();
     this.lastPlayerPct = "";
     this.lastDisplayedScore = -1;
+    this.lastMappLayerSignature = "";
+    this.lastMappLayerDrawAt = 0;
     this.scoreFxLayer.replaceChildren();
   }
 
@@ -94,7 +103,10 @@ export class HUD {
     const elapsed = (performance.now() - this.startTime) / 1000;
     const mins = Math.floor(elapsed / 60);
     const secs = Math.floor(elapsed % 60);
-    this.timerEl.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    const timerText = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    if (this.timerEl.textContent !== timerText) {
+      this.timerEl.textContent = timerText;
+    }
     this.drawMapp(players);
 
     const entries = players
@@ -353,51 +365,64 @@ export class HUD {
     const rect = this.mappCanvas.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 2);
     const width = Math.max(1, Math.round(rect.width * dpr));
     const height = Math.max(1, Math.round(rect.height * dpr));
     if (this.mappCanvas.width !== width || this.mappCanvas.height !== height) {
       this.mappCanvas.width = width;
       this.mappCanvas.height = height;
+      this.mappLayerCanvas.width = width;
+      this.mappLayerCanvas.height = height;
+      this.lastMappLayerSignature = "";
     }
 
     const ctx = this.mappCtx;
-    ctx.clearRect(0, 0, width, height);
-
     const cx = width * 0.5;
     const cy = height * 0.5;
     const radius = Math.min(width, height) * 0.44;
     const scale = radius / MAP_RADIUS;
+    const now = performance.now();
+    const layerSignature = this.buildMappTerritorySignature(players);
+    const needsLayerRefresh =
+      layerSignature !== this.lastMappLayerSignature &&
+      (this.lastMappLayerDrawAt === 0 ||
+        now - this.lastMappLayerDrawAt >= HUD.mappTerritoryRefreshMs);
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.clip();
+    if (needsLayerRefresh) {
+      const layerCtx = this.mappLayerCtx;
+      layerCtx.clearRect(0, 0, width, height);
 
-    ctx.fillStyle = "#dff4ff";
-    ctx.fillRect(0, 0, width, height);
+      layerCtx.save();
+      layerCtx.beginPath();
+      layerCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+      layerCtx.clip();
 
-    for (const player of players) {
-      if (!player.alive) continue;
-      const polygons = player.territory.getPolygons();
-      if (polygons.length === 0) continue;
-      this.fillTerritoryOnMapp(
-        polygons,
-        player.colorStr,
-        player.isHuman ? 0.42 : 0.26,
-        cx,
-        cy,
-        scale,
-      );
+      layerCtx.fillStyle = "#dff4ff";
+      layerCtx.fillRect(0, 0, width, height);
+
+      for (const player of players) {
+        if (!player.alive) continue;
+        const polygons = player.territory.getPolygons();
+        if (polygons.length === 0) continue;
+        this.fillTerritoryOnMapp(
+          polygons,
+          player.colorStr,
+          player.isHuman ? 0.42 : 0.26,
+          cx,
+          cy,
+          scale,
+          layerCtx,
+        );
+      }
+
+      layerCtx.restore();
+      this.lastMappLayerSignature = layerSignature;
+      this.lastMappLayerDrawAt = now;
     }
 
-    ctx.restore();
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(2, 2.5 * dpr);
-    ctx.strokeStyle = "rgba(0, 161, 228, 0.95)";
-    ctx.stroke();
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(this.mappLayerCanvas, 0, 0);
 
     for (const player of players) {
       if (!player.alive) continue;
@@ -421,16 +446,16 @@ export class HUD {
     cx: number,
     cy: number,
     scale: number,
+    ctx: CanvasRenderingContext2D,
   ): void {
-    const ctx = this.mappCtx;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     for (const polygon of polygons) {
       ctx.beginPath();
-      this.traceLoopOnMapp(polygon.outer, cx, cy, scale);
+      this.traceLoopOnMapp(polygon.outer, cx, cy, scale, ctx);
       for (const hole of polygon.holes) {
-        this.traceLoopOnMapp(hole, cx, cy, scale);
+        this.traceLoopOnMapp(hole, cx, cy, scale, ctx);
       }
       ctx.fill("evenodd");
     }
@@ -442,13 +467,23 @@ export class HUD {
     cx: number,
     cy: number,
     scale: number,
+    ctx: CanvasRenderingContext2D,
   ): void {
     if (loop.length === 0) return;
-    const ctx = this.mappCtx;
     ctx.moveTo(cx + loop[0].x * scale, cy + loop[0].z * scale);
     for (let i = 1; i < loop.length; i++) {
       ctx.lineTo(cx + loop[i].x * scale, cy + loop[i].z * scale);
     }
     ctx.closePath();
+  }
+
+  private buildMappTerritorySignature(players: PlayerState[]): string {
+    return players
+      .map((player) =>
+        player.alive
+          ? `${player.id}:${player.territory.computeArea().toFixed(1)}`
+          : `${player.id}:dead`,
+      )
+      .join("|");
   }
 }

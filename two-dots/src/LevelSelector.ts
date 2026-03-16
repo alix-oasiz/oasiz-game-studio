@@ -60,6 +60,7 @@ export class LevelSelector {
   private pressStartY: number = 0;
   private scrollVelocity: number = 0;
   private lastScrollFrameTime: number | null = null;
+  private lastAutoFollowFrameTime: number | null = null;
   private autoFollowSuppressedUntil: number = 0;
 
   // Animation state
@@ -235,15 +236,30 @@ export class LevelSelector {
     scrollableTop: number,
     scrollableHeight: number,
   ): void {
-    if (this.isDragging || this.scrollVelocity !== 0) return;
-    if (now < this.autoFollowSuppressedUntil) return;
-    if (this.lineAnimationProgress >= 1) return;
+    if (
+      this.isDragging ||
+      this.scrollVelocity !== 0 ||
+      now < this.autoFollowSuppressedUntil ||
+      this.lineAnimationProgress >= 1
+    ) {
+      this.lastAutoFollowFrameTime = null;
+      return;
+    }
 
     const followThresholdY = scrollableTop + scrollableHeight * 0.52;
     const desiredY = scrollableTop + scrollableHeight * 0.62;
+    if (this.lastAutoFollowFrameTime === null) {
+      this.lastAutoFollowFrameTime = now;
+    }
+
+    const dt = Math.min(32, now - this.lastAutoFollowFrameTime);
+    this.lastAutoFollowFrameTime = now;
 
     if (currentY < followThresholdY) {
-      this.scrollOffset += (desiredY - currentY) * 0.16;
+      const followDelta = desiredY - currentY;
+      const followSpeed = 0.5; // px per ms
+      const maxFollowStep = followSpeed * Math.max(dt, 1);
+      this.scrollOffset += Math.min(followDelta, maxFollowStep);
       this.clampScrollOffset();
     }
   }
@@ -755,6 +771,7 @@ export class LevelSelector {
     this.isDragging = false;
     this.scrollVelocity = 0;
     this.lastScrollFrameTime = null;
+    this.lastAutoFollowFrameTime = null;
     this.totalDragDistance = 0;
     this.autoFollowSuppressedUntil = 0;
     this.lineAnimationProgress = 0;

@@ -334,8 +334,8 @@ Unity games follow a different workflow. The full Unity project source lives und
 Unity/
 └── YourGame/                    ← Unity project root
     ├── Assets/                  ← All game source (scenes, scripts, art)
-    ├── ProjectSettings/
-    ├── Packages/
+    ├── ProjectSettings/         ← Unity project settings
+    ├── Packages/                ← Unity package manifest + lockfile
     ├── publish.json             ← Required for upload (create this manually)
     └── Build/                   ← WebGL export goes here (gitignored)
         ├── index.html
@@ -350,13 +350,305 @@ Unity/
 
 > The `Build/` folder is gitignored — it contains large binary files (`.wasm` can be 50 MB+). You export it locally before uploading.
 
+### Unity SDK
+
+If your Unity game needs the Oasiz SDK, install it into the Unity project before building WebGL.
+
+Download the Unity package here:
+
+- `https://assets.oasiz.ai/sdk/OasizSDK.unitypackage`
+
+In Unity:
+
+1. Open your Unity project under `Unity/YourGame/`
+2. Go to **Assets -> Import Package -> Custom Package...**
+3. Select `OasizSDK.unitypackage`
+4. Import the package into your project
+
+The SDK should end up inside your Unity project's `Assets/` folder, for example:
+
+```
+Unity/
+└── YourGame/
+    ├── Assets/
+    │   └── OasizSDK/
+    │       ├── Runtime/
+    │       │   ├── OasizSDK.cs
+    │       │   ├── OasizTypes.cs
+    │       │   ├── com.oasiz.sdk.Runtime.asmdef
+    │       │   └── Plugins/
+    │       │       └── WebGL/
+    │       │           └── OasizBridge.jslib
+    │       └── ...
+    ├── ProjectSettings/
+    ├── Packages/
+    ├── publish.json
+    └── Build/
+```
+
+Keep all Unity game files inside `Unity/YourGame/`. Do not put Unity scenes, scripts, textures, or project settings at the repo root.
+
+### Unity SDK Quick Start
+
+Initialize the SDK early in your game's lifecycle so it can register WebGL bridge listeners and survive scene changes:
+
+```csharp
+using System.Collections.Generic;
+using Oasiz;
+using UnityEngine;
+
+public class GameManager : MonoBehaviour
+{
+    private void Awake()
+    {
+        _ = OasizSDK.Instance;
+
+        OasizSDK.EmitScoreConfig(new ScoreConfig(
+            new ScoreAnchor(30, 100),
+            new ScoreAnchor(60, 300),
+            new ScoreAnchor(120, 600),
+            new ScoreAnchor(300, 950)
+        ));
+
+        var state = OasizSDK.LoadGameState();
+        OasizSDK.OnPause += HandlePause;
+        OasizSDK.OnResume += HandleResume;
+    }
+
+    private void OnGameOver(int score, int currentLevel)
+    {
+        OasizSDK.SaveGameState(new Dictionary<string, object>
+        {
+            ["level"] = currentLevel,
+        });
+        OasizSDK.FlushGameState();
+        OasizSDK.SubmitScore(score);
+        OasizSDK.TriggerHaptic(HapticType.Error);
+    }
+
+    private void HandlePause()
+    {
+        // Pause gameplay/audio here
+    }
+
+    private void HandleResume()
+    {
+        // Resume gameplay/audio here
+    }
+}
+```
+
+### Unity SDK API Reference
+
+The current Unity SDK supports the same main runtime feature areas as the current JavaScript SDK:
+
+- score submission and score normalization
+- haptic feedback
+- game state load/save/flush
+- pause and resume lifecycle events
+- back button and leave game navigation hooks
+- multiplayer room code sharing
+- injected identity values like `GameId` and `PlayerName`
+
+#### Score
+
+Use these methods to report scores and configure score normalization:
+
+- `OasizSDK.SubmitScore(int score)`
+- `OasizSDK.EmitScoreConfig(ScoreConfig config)`
+
+```csharp
+OasizSDK.EmitScoreConfig(new ScoreConfig(
+    new ScoreAnchor(10, 100),
+    new ScoreAnchor(30, 300),
+    new ScoreAnchor(75, 600),
+    new ScoreAnchor(200, 950)
+));
+
+OasizSDK.SubmitScore(Mathf.FloorToInt(score));
+```
+
+Rules:
+
+- call `SubmitScore()` once at game over or at the appropriate end-of-session moment
+- pass exactly 4 anchors to `EmitScoreConfig()`
+- `raw` anchor values should increase strictly
+- the last normalized anchor should be `950`
+
+#### Haptics
+
+Use `OasizSDK.TriggerHaptic(HapticType type)` for key interactions:
+
+```csharp
+OasizSDK.TriggerHaptic(HapticType.Light);
+OasizSDK.TriggerHaptic(HapticType.Medium);
+OasizSDK.TriggerHaptic(HapticType.Success);
+OasizSDK.TriggerHaptic(HapticType.Error);
+```
+
+Available haptic types:
+
+- `HapticType.Light`
+- `HapticType.Medium`
+- `HapticType.Heavy`
+- `HapticType.Success`
+- `HapticType.Error`
+
+Suggested usage:
+
+- `Light` for UI taps and menu buttons
+- `Medium` for pickups, collisions, and normal scoring moments
+- `Heavy` for major impacts
+- `Success` for level complete or special achievements
+- `Error` for damage, failure, or game over
+
+#### Game State
+
+Use these methods for persistent player state:
+
+- `OasizSDK.LoadGameState()`
+- `OasizSDK.SaveGameState(Dictionary<string, object> state)`
+- `OasizSDK.FlushGameState()`
+
+```csharp
+var state = OasizSDK.LoadGameState();
+
+if (state.TryGetValue("__json", out var raw))
+{
+    Debug.Log("Loaded raw state JSON: " + raw);
+}
+
+OasizSDK.SaveGameState(new Dictionary<string, object>
+{
+    ["level"] = level,
+    ["coins"] = coins,
+});
+
+OasizSDK.FlushGameState();
+```
+
+Notes:
+
+- `SaveGameState()` is debounced by the platform, so it is safe to call at checkpoints
+- `FlushGameState()` forces an immediate write
+- the current Unity SDK returns raw JSON under `state["__json"]` for full parsing when needed
+
+#### Lifecycle
+
+Use the lifecycle events to react to backgrounding and resume:
+
+- `OasizSDK.OnPause`
+- `OasizSDK.OnResume`
+
+```csharp
+private void OnEnable()
+{
+    OasizSDK.OnPause += HandlePause;
+    OasizSDK.OnResume += HandleResume;
+}
+
+private void OnDisable()
+{
+    OasizSDK.OnPause -= HandlePause;
+    OasizSDK.OnResume -= HandleResume;
+}
+```
+
+Recommended usage:
+
+- pause gameplay and mute audio on `OnPause`
+- resume gameplay and restore audio on `OnResume`
+
+#### Navigation
+
+Use these APIs when your game needs to handle platform back actions or close itself:
+
+- `OasizSDK.SubscribeBackButton(Action handler)`
+- `OasizSDK.OnLeaveGame`
+- `OasizSDK.LeaveGame()`
+
+```csharp
+using System;
+
+private Action _unsubscribeBack;
+
+private void OnEnable()
+{
+    _unsubscribeBack = OasizSDK.SubscribeBackButton(HandleBack);
+    OasizSDK.OnLeaveGame += HandleLeaveGame;
+}
+
+private void OnDisable()
+{
+    _unsubscribeBack?.Invoke();
+    OasizSDK.OnLeaveGame -= HandleLeaveGame;
+}
+
+private void HandleBack()
+{
+    // Open or close pause menu
+}
+
+private void HandleLeaveGame()
+{
+    OasizSDK.FlushGameState();
+}
+```
+
+#### Multiplayer and Injected Values
+
+Use these APIs for multiplayer room sharing and platform-injected identity values:
+
+- `OasizSDK.ShareRoomCode(string roomCode)`
+- `OasizSDK.GameId`
+- `OasizSDK.RoomCode`
+- `OasizSDK.PlayerName`
+- `OasizSDK.PlayerAvatar`
+
+```csharp
+OasizSDK.ShareRoomCode("ABCD");
+OasizSDK.ShareRoomCode(null);
+
+string gameId = OasizSDK.GameId;
+string roomCode = OasizSDK.RoomCode;
+string playerName = OasizSDK.PlayerName;
+string playerAvatar = OasizSDK.PlayerAvatar;
+```
+
+Use cases:
+
+- send the active room code to the platform for invites
+- read `RoomCode` to auto-join multiplayer sessions
+- read `PlayerName` and `PlayerAvatar` for player-facing UI
+
+#### Editor Behavior
+
+In the Unity Editor, the platform bridge is not injected. The SDK is designed to safely no-op and print `Debug.Log` messages instead of crashing. This means:
+
+- you can test compile-time integration in the Editor
+- real score submission, haptics, and platform bridge behavior only happen in WebGL with the Oasiz host bridge available
+
+#### How the Unity SDK Works
+
+The Unity SDK uses:
+
+- `OasizSDK.cs` as the persistent singleton MonoBehaviour
+- `OasizBridge.jslib` as the WebGL bridge layer for `[DllImport("__Internal")]`
+- DOM custom events `oasiz:pause`, `oasiz:resume`, `oasiz:back`, and `oasiz:leave` for incoming host events
+
 ### Step 1: Export WebGL from Unity
 
 1. Open the project in Unity (e.g. `Unity/ThreadTangle/`)
-2. Go to **File → Build Settings**
-3. Select **WebGL** platform (switch platform if needed)
-4. Set the output folder to `Build/` inside your game directory
-5. Click **Build**
+2. Make sure your game files live under `Unity/YourGame/`:
+   - `Assets/` for scenes, scripts, prefabs, textures, audio
+   - `ProjectSettings/` for Unity project settings
+   - `Packages/` for Unity package configuration
+   - `publish.json` at the game root
+3. Go to **File -> Build Settings**
+4. Select **WebGL** platform (switch platform if needed)
+5. Set the output folder to `Build/` inside your game directory:
+   - `Unity/YourGame/Build/`
+6. Click **Build**
 
 Unity will produce the nested structure above automatically — this is Unity's default WebGL output.
 

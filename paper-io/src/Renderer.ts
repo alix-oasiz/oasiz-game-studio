@@ -43,13 +43,22 @@ const LOOP_POINT_SCALE = 1000;
 const LOOP_MIN_AREA = CELL_SIZE * CELL_SIZE * 6;
 const LOOP_MIN_DIST = CELL_SIZE * 0.16;
 const EFFECT_UPDATE_CULL_DIST_SQ = 50 * 50;
+const TERRITORY_FULL_DETAIL_RADIUS = 22;
 const TERRITORY_RENDER_RADIUS = 34;
 const TERRITORY_UNLOAD_RADIUS = 40;
+const TERRITORY_FULL_DETAIL_RADIUS_SQ =
+  TERRITORY_FULL_DETAIL_RADIUS * TERRITORY_FULL_DETAIL_RADIUS;
 const TERRITORY_RENDER_RADIUS_SQ =
   TERRITORY_RENDER_RADIUS * TERRITORY_RENDER_RADIUS;
 const TERRITORY_UNLOAD_RADIUS_SQ =
   TERRITORY_UNLOAD_RADIUS * TERRITORY_UNLOAD_RADIUS;
 const TERRITORY_CULL_REFRESH_DIST_SQ = 4.5 * 4.5;
+const MOBILE_MIN_PIXEL_RATIO = 0.85;
+const MOBILE_MAX_PIXEL_RATIO = 1.15;
+const MOBILE_DPR_DECREASE_FRAME_MS = 19.5;
+const MOBILE_DPR_INCREASE_FRAME_MS = 14.5;
+const MOBILE_DPR_DECREASE_STREAK = 8;
+const MOBILE_DPR_INCREASE_STREAK = 28;
 const CAPTURED_FOLLOWER_SCALE = 0.46;
 const CAPTURED_FOLLOWER_HISTORY_BASE = 9;
 const CAPTURED_FOLLOWER_HISTORY_STEP = 7;
@@ -144,7 +153,8 @@ interface TerritoryRenderCacheEntry {
   grid: TerritoryGrid;
   color: number;
   skinId: string;
-  topOnly: boolean;
+  requestedTopOnly: boolean;
+  renderedTopOnly: boolean | null;
   bounds: {
     minX: number;
     maxX: number;
@@ -174,6 +184,7 @@ export class Renderer {
   private territorySkinIds: Map<number, string> = new Map();
   private territoryRenderCache: Map<number, TerritoryRenderCacheEntry> =
     new Map();
+  private territoryDirtyIds = new Set<number>();
   private patternTextures: Map<string, THREE.Texture | null> = new Map();
   private shadowMaterial: THREE.MeshBasicMaterial | null = null;
   private contactShadowMaterial: THREE.MeshBasicMaterial | null = null;
@@ -218,6 +229,12 @@ export class Renderer {
     x: Number.POSITIVE_INFINITY,
     z: Number.POSITIVE_INFINITY,
   };
+  private readonly isMobile: boolean;
+  private currentPixelRatio = 1;
+  private frameTimeEma = 16.7;
+  private lastPixelRatioAdjustAt = 0;
+  private slowFrameStreak = 0;
+  private fastFrameStreak = 0;
   private territoryRenderOrder = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -232,9 +249,11 @@ export class Renderer {
     this.camera.position.set(0, 20, CAMERA_Z_OFFSET);
     this.camera.lookAt(0, 0, 0);
 
+    this.isMobile = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setSize(w, h);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(w, h, false);
+    this.currentPixelRatio = this.getTargetPixelRatio();
+    this.renderer.setPixelRatio(this.currentPixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.shadowMap.enabled = true;
@@ -247,77 +266,6 @@ export class Renderer {
   }
 
   private createBoard(): void {
-    const boardGroup = new THREE.Group();
-
-    const borderTextureCanvas = document.createElement("canvas");
-    borderTextureCanvas.width = 1024;
-    borderTextureCanvas.height = 96;
-    const borderTextureCtx = borderTextureCanvas.getContext("2d");
-    if (borderTextureCtx) {
-      const gradient = borderTextureCtx.createLinearGradient(
-        0,
-        0,
-        borderTextureCanvas.width,
-        0,
-      );
-      gradient.addColorStop(0, "#00A1E4");
-      gradient.addColorStop(0.18, "#36E4DA");
-      gradient.addColorStop(0.36, "#7DFF7A");
-      gradient.addColorStop(0.54, "#FFE45E");
-      gradient.addColorStop(0.72, "#FF8A5B");
-      gradient.addColorStop(0.88, "#FF5FCB");
-      gradient.addColorStop(1, "#7A7DFF");
-      borderTextureCtx.fillStyle = gradient;
-      borderTextureCtx.fillRect(
-        0,
-        0,
-        borderTextureCanvas.width,
-        borderTextureCanvas.height,
-      );
-
-      borderTextureCtx.globalAlpha = 0.22;
-      for (let x = 0; x < borderTextureCanvas.width; x += 64) {
-        borderTextureCtx.fillStyle = x % 128 === 0 ? "#ffffff" : "#0d3a5b";
-        borderTextureCtx.fillRect(x, 0, 18, borderTextureCanvas.height);
-      }
-
-      borderTextureCtx.globalAlpha = 0.32;
-      const glossGradient = borderTextureCtx.createLinearGradient(
-        0,
-        0,
-        0,
-        borderTextureCanvas.height,
-      );
-      glossGradient.addColorStop(0, "rgba(255,255,255,0.92)");
-      glossGradient.addColorStop(0.24, "rgba(255,255,255,0.24)");
-      glossGradient.addColorStop(0.58, "rgba(255,255,255,0)");
-      glossGradient.addColorStop(1, "rgba(0,0,0,0.22)");
-      borderTextureCtx.fillStyle = glossGradient;
-      borderTextureCtx.fillRect(
-        0,
-        0,
-        borderTextureCanvas.width,
-        borderTextureCanvas.height,
-      );
-      borderTextureCtx.globalAlpha = 1;
-    }
-    const borderTexture = new THREE.CanvasTexture(borderTextureCanvas);
-    borderTexture.colorSpace = THREE.SRGBColorSpace;
-    borderTexture.wrapS = THREE.RepeatWrapping;
-    borderTexture.wrapT = THREE.ClampToEdgeWrapping;
-    borderTexture.anisotropy = 4;
-
-    const baseGeo = new THREE.CircleGeometry(MAP_RADIUS + 2.2, 64);
-    const baseMat = new THREE.MeshPhongMaterial({
-      color: 0x54b9df,
-      shininess: 22,
-      specular: new THREE.Color(0xe6f7ff),
-    });
-    const base = new THREE.Mesh(baseGeo, baseMat);
-    base.rotation.x = -Math.PI / 2;
-    base.position.y = -0.26;
-    boardGroup.add(base);
-
     const boardGeo = new THREE.CircleGeometry(MAP_RADIUS, 64);
     const boardMat = new THREE.MeshPhongMaterial({
       color: BOARD_COLOR,
@@ -327,74 +275,7 @@ export class Renderer {
     const board = new THREE.Mesh(boardGeo, boardMat);
     board.rotation.x = -Math.PI / 2;
     board.position.y = 0.005;
-    boardGroup.add(board);
-
-    const rimGeo = new THREE.RingGeometry(MAP_RADIUS, MAP_RADIUS + 2.05, 64);
-    const rimMat = new THREE.MeshPhongMaterial({
-      color: 0xffffff,
-      map: borderTexture,
-      shininess: 38,
-      specular: new THREE.Color(0xf4fdff),
-      side: THREE.DoubleSide,
-    });
-    const rim = new THREE.Mesh(rimGeo, rimMat);
-    rim.rotation.x = -Math.PI / 2;
-    rim.position.y = 0.04;
-    boardGroup.add(rim);
-
-    const innerLipGeo = new THREE.RingGeometry(
-      MAP_RADIUS + 0.28,
-      MAP_RADIUS + 1.2,
-      64,
-    );
-    const innerLipMat = new THREE.MeshPhongMaterial({
-      color: 0xfff4c9,
-      shininess: 54,
-      specular: new THREE.Color(0xffffff),
-      side: THREE.DoubleSide,
-    });
-    const innerLip = new THREE.Mesh(innerLipGeo, innerLipMat);
-    innerLip.rotation.x = -Math.PI / 2;
-    innerLip.position.y = 0.085;
-    boardGroup.add(innerLip);
-
-    const outerWallGeo = new THREE.CylinderGeometry(
-      MAP_RADIUS + 2.1,
-      MAP_RADIUS + 2.45,
-      0.72,
-      64,
-      1,
-      true,
-    );
-    const outerWallMat = new THREE.MeshPhongMaterial({
-      color: 0xffffff,
-      map: borderTexture,
-      shininess: 24,
-      specular: new THREE.Color(0xbfe8ff),
-      side: THREE.DoubleSide,
-    });
-    const outerWall = new THREE.Mesh(outerWallGeo, outerWallMat);
-    outerWall.position.y = -0.22;
-    boardGroup.add(outerWall);
-
-    const outerCapGeo = new THREE.TorusGeometry(
-      MAP_RADIUS + 2.02,
-      0.18,
-      14,
-      64,
-    );
-    const outerCapMat = new THREE.MeshPhongMaterial({
-      color: 0xffffff,
-      map: borderTexture,
-      shininess: 56,
-      specular: new THREE.Color(0xffffff),
-    });
-    const outerCap = new THREE.Mesh(outerCapGeo, outerCapMat);
-    outerCap.rotation.x = Math.PI / 2;
-    outerCap.position.y = 0.1;
-    boardGroup.add(outerCap);
-
-    this.scene.add(boardGroup);
+    this.scene.add(board);
   }
 
   private createLighting(): void {
@@ -1382,6 +1263,57 @@ export class Renderer {
       }
       this.territorySkinIds.delete(id);
       this.territoryRenderCache.delete(id);
+      this.territoryDirtyIds.delete(id);
+    }
+  }
+
+  private getTargetPixelRatio(): number {
+    if (!this.isMobile) {
+      return Math.min(window.devicePixelRatio || 1, 2);
+    }
+    return Math.min(window.devicePixelRatio || 1, MOBILE_MAX_PIXEL_RATIO);
+  }
+
+  private applyPixelRatio(pixelRatio: number): void {
+    this.currentPixelRatio = pixelRatio;
+    this.renderer.setPixelRatio(pixelRatio);
+    this.onResize();
+  }
+
+  reportFrameTime(frameMs: number): void {
+    if (!this.isMobile) return;
+    this.frameTimeEma = this.frameTimeEma * 0.92 + frameMs * 0.08;
+    if (this.frameTimeEma > MOBILE_DPR_DECREASE_FRAME_MS) {
+      this.slowFrameStreak += 1;
+      this.fastFrameStreak = 0;
+    } else if (this.frameTimeEma < MOBILE_DPR_INCREASE_FRAME_MS) {
+      this.fastFrameStreak += 1;
+      this.slowFrameStreak = 0;
+    } else {
+      this.slowFrameStreak = 0;
+      this.fastFrameStreak = 0;
+    }
+    const now = performance.now();
+    if (
+      this.slowFrameStreak >= MOBILE_DPR_DECREASE_STREAK &&
+      this.currentPixelRatio > MOBILE_MIN_PIXEL_RATIO &&
+      now - this.lastPixelRatioAdjustAt > 1400
+    ) {
+      this.lastPixelRatioAdjustAt = now;
+      this.slowFrameStreak = 0;
+      this.applyPixelRatio(
+        Math.max(MOBILE_MIN_PIXEL_RATIO, this.currentPixelRatio - 0.1),
+      );
+    } else if (
+      this.fastFrameStreak >= MOBILE_DPR_INCREASE_STREAK &&
+      this.currentPixelRatio < this.getTargetPixelRatio() &&
+      now - this.lastPixelRatioAdjustAt > 2400
+    ) {
+      this.lastPixelRatioAdjustAt = now;
+      this.fastFrameStreak = 0;
+      this.applyPixelRatio(
+        Math.min(this.getTargetPixelRatio(), this.currentPixelRatio + 0.05),
+      );
     }
   }
 
@@ -1416,6 +1348,48 @@ export class Renderer {
     return this.getBoundsDistanceSq(bounds) <= radiusSq;
   }
 
+  private shouldRenderTerritoryTopOnly(
+    bounds: TerritoryRenderCacheEntry["bounds"],
+  ): boolean {
+    return this.getBoundsDistanceSq(bounds) > TERRITORY_FULL_DETAIL_RADIUS_SQ;
+  }
+
+  private shouldRebuildTerritoryImmediately(
+    bounds: TerritoryRenderCacheEntry["bounds"],
+  ): boolean {
+    return this.getBoundsDistanceSq(bounds) <= TERRITORY_FULL_DETAIL_RADIUS_SQ;
+  }
+
+  private enqueueTerritoryUpdate(id: number): void {
+    this.territoryDirtyIds.add(id);
+  }
+
+  private processQueuedTerritoryUpdates(
+    maxUpdates = this.isMobile ? 2 : 4,
+  ): void {
+    if (this.territoryDirtyIds.size === 0) return;
+    const ids = Array.from(this.territoryDirtyIds).slice(0, maxUpdates);
+    for (const id of ids) {
+      this.territoryDirtyIds.delete(id);
+      const cached = this.territoryRenderCache.get(id);
+      if (!cached) continue;
+      if (
+        !this.shouldRenderTerritory(
+          cached.bounds,
+          this.territoryObjects.has(id),
+        )
+      ) {
+        this.clearTerritoryVisuals(id);
+        continue;
+      }
+      const effectiveTopOnly =
+        cached.requestedTopOnly ||
+        this.shouldRenderTerritoryTopOnly(cached.bounds);
+      this.rebuildTerritoryVisuals(id, cached, effectiveTopOnly);
+      cached.renderedTopOnly = effectiveTopOnly;
+    }
+  }
+
   private refreshTerritoryVisibility(force = false): void {
     const dx = this.cameraTarget.x - this.lastTerritoryCullCenter.x;
     const dz = this.cameraTarget.z - this.lastTerritoryCullCenter.z;
@@ -1429,10 +1403,16 @@ export class Renderer {
     for (const [id, cached] of this.territoryRenderCache) {
       const isLoaded = this.territoryObjects.has(id);
       if (this.shouldRenderTerritory(cached.bounds, isLoaded)) {
-        if (!isLoaded) {
-          this.updateTerritory(id, cached.grid, cached.color, cached.skinId, {
-            topOnly: cached.topOnly,
-          });
+        const effectiveTopOnly =
+          cached.requestedTopOnly ||
+          this.shouldRenderTerritoryTopOnly(cached.bounds);
+        if (!isLoaded || cached.renderedTopOnly !== effectiveTopOnly) {
+          if (this.shouldRebuildTerritoryImmediately(cached.bounds)) {
+            this.rebuildTerritoryVisuals(id, cached, effectiveTopOnly);
+            cached.renderedTopOnly = effectiveTopOnly;
+          } else {
+            this.enqueueTerritoryUpdate(id);
+          }
         }
       } else if (isLoaded) {
         this.clearTerritoryVisuals(id);
@@ -1471,7 +1451,9 @@ export class Renderer {
       grid,
       color,
       skinId,
-      topOnly,
+      requestedTopOnly: topOnly,
+      renderedTopOnly:
+        this.territoryRenderCache.get(id)?.renderedTopOnly ?? null,
       bounds: {
         minX: bounds.minX,
         maxX: bounds.maxX,
@@ -1483,7 +1465,25 @@ export class Renderer {
       this.clearTerritoryVisuals(id);
       return;
     }
+    const cached = this.territoryRenderCache.get(id);
+    if (!cached) return;
+    const effectiveTopOnly =
+      cached.requestedTopOnly ||
+      this.shouldRenderTerritoryTopOnly(cached.bounds);
+    if (this.shouldRebuildTerritoryImmediately(cached.bounds)) {
+      this.rebuildTerritoryVisuals(id, cached, effectiveTopOnly);
+      cached.renderedTopOnly = effectiveTopOnly;
+    } else {
+      this.enqueueTerritoryUpdate(id);
+    }
+  }
 
+  private rebuildTerritoryVisuals(
+    id: number,
+    cached: TerritoryRenderCacheEntry,
+    topOnly: boolean,
+  ): void {
+    const { grid, color, skinId, bounds } = cached;
     // Recreate material if skin changed
     const prevSkinId = this.territorySkinIds.get(id);
     if (prevSkinId !== skinId) {
@@ -2866,6 +2866,7 @@ export class Renderer {
   }
 
   render(): void {
+    this.processQueuedTerritoryUpdates();
     this.updateDeathSplats();
     this.updateTerritoryTakeovers();
     this.updateCaptureAssimilations();
@@ -2874,6 +2875,7 @@ export class Renderer {
   }
 
   prewarmRender(): void {
+    this.processQueuedTerritoryUpdates(Number.POSITIVE_INFINITY);
     this.updateDeathSplats();
     this.updateTerritoryTakeovers();
     this.updateCaptureAssimilations();
@@ -3596,7 +3598,7 @@ export class Renderer {
     const h = wrapper.clientHeight;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setSize(w, h, false);
   }
 
   cleanupPlayer(id: number): void {

@@ -725,7 +725,8 @@
 
         .boss-gallery {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            gap: 10px;
             width: 100%;
         }
 
@@ -1380,6 +1381,245 @@
                 font-size: 2.2rem;
             }
         }
+
+        /* ── Boss Test Screen ── */
+        .boss-test-content {
+            max-width: 520px;
+            width: 100%;
+        }
+        .boss-test-subtitle {
+            font-size: 0.88rem;
+            color: #666;
+            margin-bottom: 14px;
+            text-align: center;
+        }
+        .boss-test-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            max-height: 55vh;
+            overflow-y: auto;
+            margin-bottom: 14px;
+        }
+        .boss-test-card {
+            background: rgba(255,255,255,0.75);
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 10px 6px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.15s, transform 0.1s;
+        }
+        .boss-test-card:hover {
+            border-color: #00A1E4;
+            transform: translateY(-2px);
+        }
+        .boss-test-card:active { transform: scale(0.97); }
+        .boss-test-card--new {
+            border-color: #e63946;
+            background: rgba(233,69,70,0.07);
+        }
+        .boss-test-num {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #00A1E4;
+            margin-bottom: 3px;
+        }
+        .boss-test-name {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #2d2d2d;
+            line-height: 1.2;
+            margin-bottom: 2px;
+        }
+        .boss-test-sub {
+            font-size: 0.68rem;
+            color: #888;
+        }
+        @media (pointer: coarse) {
+            .boss-test-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* ── Back Confirm Modal ── */
+        .back-confirm-content {
+            text-align: center;
+            max-width: 340px;
+        }
+        .back-confirm-title {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            color: #2d2d2d;
+        }
+        .back-confirm-subtitle {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .back-confirm-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        /* ── Rechallenge Setup Modal ── */
+        .rc-modal-content {
+            max-width: 480px;
+            width: 95%;
+            padding: 0 0 16px;
+        }
+        .rc-editor {
+            max-height: 65vh;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        .rc-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d2d2d;
+            margin-bottom: 14px;
+            text-align: center;
+        }
+        .rc-modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            padding: 0 16px;
+        }
+
+        /* ── Gallery Defeated Boss Cards ── */
+        .boss-card--defeated {
+            background: #fff;
+            border: 2px solid #2d2d2d;
+            padding: 12px 14px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: space-between;
+        }
+        .boss-card-header {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .boss-card-round {
+            font-size: 0.75rem;
+            color: #888;
+            font-weight: 600;
+        }
+        .boss-card-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #2d2d2d;
+        }
+        .boss-card-score {
+            font-size: 0.9rem;
+            color: #555;
+            margin-left: auto;
+            padding-right: 10px;
+            white-space: nowrap;
+        }
+        .boss-rechallenge-btn {
+            font-size: 0.85rem;
+            padding: 6px 14px;
+            white-space: nowrap;
+        }
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 0.85rem;
+        }
+
+        /* ── Gallery Build Editor ── */
+        .gallery-build-editor {
+            background: rgba(255,255,255,0.7);
+            border-radius: 12px;
+            padding: 14px 16px;
+            width: 100%;
+            max-height: 55vh;
+            overflow-y: auto;
+        }
+        .gallery-section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #2d2d2d;
+            margin: 10px 0 6px;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 4px;
+        }
+        .gallery-section-title--ult {
+            margin-top: 18px;
+        }
+        .gallery-points-row {
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .gallery-upgrade-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .gallery-upg-name {
+            width: 130px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #333;
+            flex-shrink: 0;
+        }
+        .gallery-upg-slider, .gallery-ult-slider {
+            flex: 1;
+            min-width: 80px;
+            accent-color: #00A1E4;
+        }
+        .gallery-upg-level, .gallery-ult-level {
+            width: 24px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: #00A1E4;
+        }
+        .gallery-upg-desc, .gallery-ult-desc {
+            width: 100%;
+            font-size: 0.78rem;
+            color: #777;
+            padding-left: 138px;
+        }
+        .gallery-save-btn {
+            margin-top: 16px;
+            width: 100%;
+            padding: 12px;
+            background: #00A1E4;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .gallery-save-note {
+            font-size: 0.78rem;
+            color: #888;
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* ── Ability Screen Points Row ── */
+        .ability-points-row {
+            font-size: 0.88rem;
+            color: #555;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .ability-card.maxed {
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        .ability-card.locked {
+            opacity: 0.45;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -1450,6 +1690,7 @@
                 <div class="start-buttons">
                     <button class="btn" id="startButton">Start Flight</button>
                     <button class="btn btn-secondary" id="galleryButton">Gallery</button>
+                    <button class="btn btn-secondary" id="testBossesButton">Test Bosses</button>
                 </div>
             </div>
         </div>
@@ -1481,65 +1722,108 @@
                 </div>
 
                 <div class="gallery-section">
-                    <h3 class="gallery-title">Bosses</h3>
-                    <div class="boss-gallery">
-                        <div class="boss-list">
-                        <div class="boss-card">
-                                <div class="boss-name">1. The Eraser</div>
-                                <div class="boss-desc">Pink menace! Sways side-to-side, throws tumbling eraser chunks in waves of 3.</div>
-                        </div>
-                            <div class="boss-card">
-                                <div class="boss-name">2. Paperweight</div>
-                                <div class="boss-desc">Heavy hitter! Drops heavy rocks that fall straight down in salvos of 5.</div>
-                            </div>
-                            <div class="boss-card">
-                                <div class="boss-name">3. Ink Blot</div>
-                                <div class="boss-desc">Chaotic stain! Chases you and sprays ink blobs in 3-way spreads.</div>
-                            </div>
-                            <div class="boss-card">
-                                <div class="boss-name">4. Rubber Band Ball</div>
-                                <div class="boss-desc">Bouncy nightmare! Bounces off walls firing stretchy rubber bands in spirals.</div>
-                            </div>
-                            <div class="boss-card">
-                                <div class="boss-name">5. The Stapler</div>
-                                <div class="boss-desc">Rapid fire! Zigzags while shooting 8 fast staples per wave.</div>
-                            </div>
-                            <div class="boss-card">
-                                <div class="boss-name">6. Scissors</div>
-                                <div class="boss-desc">Final cut! Circles overhead firing deadly scissor blades in V-patterns.</div>
-                            </div>
-                        </div>
+                    <h3 class="gallery-title">Bosses Defeated</h3>
+                    <div id="galleryBossSection" class="boss-gallery">
+                        <!-- Populated by JS: shows only defeated bosses with Rechallenge buttons -->
                     </div>
                 </div>
 
-                <div class="gallery-section">
-                    <h3 class="gallery-title">Upgrade Paths</h3>
-                    <div class="modifier-gallery">
-                        <div class="modifier-chip">Rapid Fire (5 Levels)</div>
-                        <div class="modifier-chip">Multi-Shot (5 Levels)</div>
-                        <div class="modifier-chip">Turret Buddy (5 Levels)</div>
-                    </div>
-                </div>
-
-                <div class="gallery-section">
-                    <h3 class="gallery-title">Ultimate Abilities</h3>
-                    <div class="modifier-gallery">
-                        <div class="modifier-chip">
-                            <svg viewBox="0 0 24 24" class="chip-svg"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                            Paper Shield
-                        </div>
-                        <div class="modifier-chip">
-                            <svg viewBox="0 0 24 24" class="chip-svg"><path d="M12 2 L15 9 L22 9 L16 14 L18 21 L12 17 L6 21 L8 14 L2 9 L9 9 Z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                            Eraser Blast
-                        </div>
-                        <div class="modifier-chip">
-                            <svg viewBox="0 0 24 24" class="chip-svg"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                            Ink Overdrive
-                        </div>
+                <div class="gallery-section" id="galleryBuildSection">
+                    <h3 class="gallery-title">Build Editor</h3>
+                    <div id="galleryBuildEditor" class="gallery-build-editor">
+                        <!-- Populated by JS -->
                     </div>
                 </div>
 
                 <button class="btn btn-secondary" id="backFromGalleryBtn">Back</button>
+            </div>
+        </div>
+
+        <!-- Boss Test Screen -->
+        <div id="bossTestScreen" class="overlay hidden">
+            <div class="content boss-test-content">
+                <h2 class="plane-select-title">Boss Testing</h2>
+                <p class="boss-test-subtitle">Select a boss — you'll start with level-appropriate upgrades</p>
+
+                <div class="boss-test-grid">
+                    <div class="boss-test-card" data-boss="eraser">
+                        <div class="boss-test-num">1</div>
+                        <div class="boss-test-name">The Eraser</div>
+                        <div class="boss-test-sub">Pink Menace</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="paperweight">
+                        <div class="boss-test-num">2</div>
+                        <div class="boss-test-name">Paperweight</div>
+                        <div class="boss-test-sub">Heavy Hitter</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="inkblot">
+                        <div class="boss-test-num">3</div>
+                        <div class="boss-test-name">Ink Blot</div>
+                        <div class="boss-test-sub">Chaotic Stain</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="rubberband">
+                        <div class="boss-test-num">4</div>
+                        <div class="boss-test-name">Rubber Band Ball</div>
+                        <div class="boss-test-sub">Bouncy Nightmare</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="stapler">
+                        <div class="boss-test-num">5</div>
+                        <div class="boss-test-name">The Stapler</div>
+                        <div class="boss-test-sub">Rapid Fire</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="scissors">
+                        <div class="boss-test-num">6</div>
+                        <div class="boss-test-name">Scissors</div>
+                        <div class="boss-test-sub">Final Cut</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="pushpin">
+                        <div class="boss-test-num">7</div>
+                        <div class="boss-test-name">Push Pin</div>
+                        <div class="boss-test-sub">Point Storm</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="highlighter">
+                        <div class="boss-test-num">8</div>
+                        <div class="boss-test-name">Highlighter</div>
+                        <div class="boss-test-sub">Neon Flood</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="ruler">
+                        <div class="boss-test-num">9</div>
+                        <div class="boss-test-name">Ruler</div>
+                        <div class="boss-test-sub">Straight Edge</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="holepunch">
+                        <div class="boss-test-num">10</div>
+                        <div class="boss-test-name">Hole Punch</div>
+                        <div class="boss-test-sub">Perforator</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="binderclip">
+                        <div class="boss-test-num">11</div>
+                        <div class="boss-test-name">Binder Clip</div>
+                        <div class="boss-test-sub">Clampdown</div>
+                    </div>
+                    <div class="boss-test-card" data-boss="sharpener">
+                        <div class="boss-test-num">12</div>
+                        <div class="boss-test-name">Pencil Sharpener</div>
+                        <div class="boss-test-sub">Lead Grinder</div>
+                    </div>
+                    <div class="boss-test-card boss-test-card--new" data-boss="tape">
+                        <div class="boss-test-num">13</div>
+                        <div class="boss-test-name">Tape Dispenser</div>
+                        <div class="boss-test-sub">Sticky Web</div>
+                    </div>
+                    <div class="boss-test-card boss-test-card--new" data-boss="gluestick">
+                        <div class="boss-test-num">14</div>
+                        <div class="boss-test-name">Glue Stick</div>
+                        <div class="boss-test-sub">Adhesive Tempest</div>
+                    </div>
+                    <div class="boss-test-card boss-test-card--new" data-boss="stapleremover">
+                        <div class="boss-test-num">15</div>
+                        <div class="boss-test-name">Staple Remover</div>
+                        <div class="boss-test-sub">The Final Clamp</div>
+                    </div>
+                </div>
+
+                <button class="btn btn-secondary" id="backFromBossTestBtn">Back</button>
             </div>
         </div>
 
@@ -1631,35 +1915,34 @@
         <div id="abilityScreen" class="overlay hidden">
             <div class="content">
                 <h2 class="ability-title">BOSS DEFEATED!</h2>
-                <p class="ability-subtitle">Choose your Ultimate Ability</p>
+                <p id="abilityScreenPoints" class="ability-points-row"></p>
+                <p class="ability-subtitle">Choose an Ultimate Ability to upgrade</p>
+                <!-- Cards rendered dynamically by JS -->
+                <div id="abilityCardsContainer" class="ability-cards-container"></div>
+            </div>
+        </div>
 
-                <div class="ability-cards-container">
-                    <div class="ability-card" data-ability-id="invincibility">
-                        <div class="ability-card-icon">
-                            <svg viewBox="0 0 24 24" class="ability-svg"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </div>
-                        <div class="ability-card-title">Paper Shield</div>
-                        <div class="ability-card-desc">Become invincible for 5 seconds</div>
-                        <div class="ability-card-charges">1 USE</div>
-                    </div>
+        <!-- Back Confirm Modal -->
+        <!-- Rechallenge Setup Modal -->
+        <div id="rechallengeSetupModal" class="overlay hidden">
+            <div class="content rc-modal-content">
+                <div class="rc-editor">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="rc-modal-buttons">
+                    <button class="btn btn-secondary" id="rcCancelBtn">Cancel</button>
+                    <button class="btn" id="rcStartBtn">Start Rechallenge</button>
+                </div>
+            </div>
+        </div>
 
-                    <div class="ability-card" data-ability-id="destruction">
-                        <div class="ability-card-icon">
-                            <svg viewBox="0 0 24 24" class="ability-svg"><path d="M12 2 L15 9 L22 9 L16 14 L18 21 L12 17 L6 21 L8 14 L2 9 L9 9 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </div>
-                        <div class="ability-card-title">Eraser Blast</div>
-                        <div class="ability-card-desc">Destroy all asteroids on screen</div>
-                        <div class="ability-card-charges">1 USE</div>
-                    </div>
-
-                    <div class="ability-card" data-ability-id="turbo">
-                        <div class="ability-card-icon">
-                            <svg viewBox="0 0 24 24" class="ability-svg"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </div>
-                        <div class="ability-card-title">Ink Overdrive</div>
-                        <div class="ability-card-desc">Double fire rate & speed for 8s</div>
-                        <div class="ability-card-charges">1 USE</div>
-                    </div>
+        <div id="backConfirmModal" class="overlay hidden">
+            <div class="content back-confirm-content">
+                <h2 class="back-confirm-title">Going Home?</h2>
+                <p class="back-confirm-subtitle">Your current progress won't be saved unless you've cleared a boss.</p>
+                <div class="back-confirm-buttons">
+                    <button class="btn btn-secondary" id="backConfirmLeave">Leave</button>
+                    <button class="btn" id="backConfirmStay">Stay</button>
                 </div>
             </div>
         </div>
