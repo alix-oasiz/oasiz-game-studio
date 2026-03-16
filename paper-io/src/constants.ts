@@ -1,8 +1,9 @@
 // ─── Map ───
-export const MAP_SIZE = 120;
+export const MAP_SIZE = 128;
 export const MAP_HALF = MAP_SIZE / 2;
 export const MAP_RADIUS = MAP_HALF; // circular arena radius
-export const PLAYER_SPEED = 8; // units per second
+export const ARENA_AREA = Math.PI * MAP_RADIUS * MAP_RADIUS;
+export const PLAYER_SPEED = 7.4; // units per second
 export const TRAIL_SAMPLE_DIST = 0.12;
 export const TRAIL_HIT_RADIUS = 0.3;
 export const START_RADIUS = 3;
@@ -70,9 +71,9 @@ export const PLAYER_COLOR_STRINGS = [
   "#FF7744",
 ];
 
-export const BOARD_COLOR = 0xf2fcf0; // near-white with a hint of green
-export const GRID_LINE_COLOR = 0xe0eedc; // very faint green-grey grid
-export const BG_COLOR = 0xfcfff9; // almost pure white
+export const BOARD_COLOR = 0xd8f1ff; // pale sky blue neutral ground
+export const GRID_LINE_COLOR = 0xbfe2f5; // sky blue grid
+export const BG_COLOR = 0xeaf8ff; // airy pale sky blue backdrop
 
 export const TERRITORY_OPACITY = 1.0;
 export const TRAIL_OPACITY = 0.85;

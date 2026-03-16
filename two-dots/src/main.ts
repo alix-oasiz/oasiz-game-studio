@@ -40,6 +40,7 @@ interface Settings {
 // Constants
 const ALL_COLORS: DotColor[] = ["red", "blue", "green", "yellow", "purple"];
 const MIN_CHAIN_LENGTH = 2;
+const TOTAL_LEVELS = 40;
 
 // Level difficulty configuration
 interface LevelConfig {
@@ -51,64 +52,111 @@ interface LevelConfig {
   objectiveMultiplier: number;
 }
 
-function getLevelConfig(level: number): LevelConfig {
-  if (level <= 3) {
-    return {
-      colors: ["red", "blue", "green"],
-      rows: 5,
-      cols: 5,
-      moves: 25,
-      objectiveCount: 1,
-      objectiveMultiplier: 3.0,
-    };
-  }
-  if (level <= 7) {
-    return {
-      colors: ["red", "blue", "green", "yellow"],
-      rows: 5,
-      cols: 5,
-      moves: 22,
-      objectiveCount: 2,
-      objectiveMultiplier: 3.5,
-    };
-  }
-  if (level <= 11) {
-    return {
-      colors: ["red", "blue", "green", "yellow"],
-      rows: 6,
-      cols: 6,
-      moves: 22,
-      objectiveCount: 2,
-      objectiveMultiplier: 3.5,
-    };
-  }
-  if (level <= 15) {
-    return {
-      colors: ["red", "blue", "green", "yellow", "purple"],
-      rows: 6,
-      cols: 6,
-      moves: 20,
-      objectiveCount: 2,
-      objectiveMultiplier: 4.0,
-    };
-  }
-  if (level <= 18) {
-    return {
-      colors: ["red", "blue", "green", "yellow", "purple"],
-      rows: 6,
-      cols: 6,
-      moves: 18,
-      objectiveCount: 3,
-      objectiveMultiplier: 4.0,
-    };
-  }
-  return {
+interface LevelBandConfig {
+  colors: DotColor[];
+  rows: number;
+  cols: number;
+  objectiveCount: number;
+  movesByLevel: [number, number, number, number];
+  objectiveMultipliers: [number, number, number, number];
+}
+
+const LEVEL_BANDS: LevelBandConfig[] = [
+  {
+    colors: ["red", "blue", "green"],
+    rows: 5,
+    cols: 5,
+    objectiveCount: 1,
+    movesByLevel: [25, 25, 24, 24],
+    objectiveMultipliers: [2.8, 2.85, 2.9, 3.0],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow"],
+    rows: 5,
+    cols: 5,
+    objectiveCount: 2,
+    movesByLevel: [24, 23, 23, 22],
+    objectiveMultipliers: [3.0, 3.05, 3.1, 3.2],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow"],
+    rows: 6,
+    cols: 6,
+    objectiveCount: 2,
+    movesByLevel: [23, 23, 22, 22],
+    objectiveMultipliers: [3.2, 3.25, 3.3, 3.4],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow", "purple"],
+    rows: 6,
+    cols: 6,
+    objectiveCount: 2,
+    movesByLevel: [22, 22, 21, 21],
+    objectiveMultipliers: [3.4, 3.45, 3.5, 3.6],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow", "purple"],
+    rows: 6,
+    cols: 6,
+    objectiveCount: 3,
+    movesByLevel: [21, 21, 20, 20],
+    objectiveMultipliers: [3.6, 3.65, 3.7, 3.8],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow", "purple"],
+    rows: 6,
+    cols: 6,
+    objectiveCount: 3,
+    movesByLevel: [20, 20, 20, 20],
+    objectiveMultipliers: [3.8, 3.83, 3.86, 3.9],
+  },
+  {
     colors: ["red", "blue", "green", "yellow", "purple"],
     rows: 7,
     cols: 7,
-    moves: 18,
     objectiveCount: 3,
-    objectiveMultiplier: 4.5,
+    movesByLevel: [20, 20, 19, 19],
+    objectiveMultipliers: [3.6, 3.65, 3.7, 3.75],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow", "purple"],
+    rows: 7,
+    cols: 7,
+    objectiveCount: 3,
+    movesByLevel: [19, 19, 19, 19],
+    objectiveMultipliers: [3.8, 3.85, 3.9, 3.95],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow", "purple"],
+    rows: 7,
+    cols: 7,
+    objectiveCount: 3,
+    movesByLevel: [19, 19, 18, 18],
+    objectiveMultipliers: [4.0, 4.05, 4.1, 4.15],
+  },
+  {
+    colors: ["red", "blue", "green", "yellow", "purple"],
+    rows: 7,
+    cols: 7,
+    objectiveCount: 3,
+    movesByLevel: [19, 19, 18, 18],
+    objectiveMultipliers: [4.15, 4.18, 4.21, 4.25],
+  },
+];
+
+function getLevelConfig(level: number): LevelConfig {
+  const clampedLevel = Math.max(1, Math.min(TOTAL_LEVELS, level));
+  const bandIndex = Math.floor((clampedLevel - 1) / 4);
+  const levelIndexInBand = (clampedLevel - 1) % 4;
+  const band = LEVEL_BANDS[bandIndex] ?? LEVEL_BANDS[LEVEL_BANDS.length - 1];
+
+  return {
+    colors: band.colors,
+    rows: band.rows,
+    cols: band.cols,
+    moves: band.movesByLevel[levelIndexInBand],
+    objectiveCount: band.objectiveCount,
+    objectiveMultiplier: band.objectiveMultipliers[levelIndexInBand],
   };
 }
 
@@ -313,18 +361,18 @@ function playPopFx(): void {
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
+
     osc.type = "sine";
     osc.frequency.setValueAtTime(300, t);
     osc.frequency.exponentialRampToValueAtTime(1200, t + 0.05);
-    
+
     gain.gain.setValueAtTime(0, t);
     gain.gain.linearRampToValueAtTime(1.0, t + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.01, t + 0.06);
-    
+
     osc.connect(gain);
     gain.connect(ctx.destination);
-    
+
     osc.start(t);
     osc.stop(t + 0.06);
   } catch (_) {}
@@ -337,21 +385,21 @@ function playWinFx(): void {
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
+
     osc.type = "sine";
     osc.frequency.setValueAtTime(400, t);
     osc.frequency.setValueAtTime(500, t + 0.1);
     osc.frequency.setValueAtTime(600, t + 0.2);
     osc.frequency.setValueAtTime(800, t + 0.3);
-    
+
     gain.gain.setValueAtTime(0, t);
     gain.gain.linearRampToValueAtTime(0.5, t + 0.05);
     gain.gain.setValueAtTime(0.5, t + 0.4);
     gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-    
+
     osc.connect(gain);
     gain.connect(ctx.destination);
-    
+
     osc.start(t);
     osc.stop(t + 0.5);
   } catch (_) {}
@@ -364,18 +412,18 @@ function playTapFx(): void {
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
+
     osc.type = "sine";
     osc.frequency.setValueAtTime(600, t);
     osc.frequency.exponentialRampToValueAtTime(200, t + 0.05);
-    
+
     gain.gain.setValueAtTime(0, t);
     gain.gain.linearRampToValueAtTime(0.5, t + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.01, t + 0.06);
-    
+
     osc.connect(gain);
     gain.connect(ctx.destination);
-    
+
     osc.start(t);
     osc.stop(t + 0.06);
   } catch (_) {}
@@ -419,7 +467,7 @@ let currentLevel = 1;
 let maxUnlockedLevel = 1;
 loadPersistentState();
 const levelSelector = new LevelSelector(
-  20,
+  TOTAL_LEVELS,
   (level: number) => {
     currentLevel = level;
     updateLevelIndicator(level);
@@ -1145,7 +1193,7 @@ function checkGameState(): void {
     submitTotalScore();
     updateUI();
 
-    if (currentLevel >= maxUnlockedLevel && currentLevel < 20) {
+    if (currentLevel >= maxUnlockedLevel && currentLevel < TOTAL_LEVELS) {
       maxUnlockedLevel = currentLevel + 1;
       savePersistentState();
       levelSelector.updateMaxUnlockedLevel(maxUnlockedLevel);
@@ -1171,12 +1219,6 @@ function handlePointerDown(e: PointerEvent): void {
   }
 
   if (gameState === "levelSelect") {
-    if (levelSelector.handleButtonClick(x, y)) {
-      playTapFx();
-      triggerHaptic("light");
-      startGame();
-      return;
-    }
     levelSelector.handleInput(x, y);
     return;
   }
@@ -1248,7 +1290,13 @@ function handlePointerUp(e: PointerEvent): void {
   markDirty();
 
   if (gameState === "levelSelect") {
-    levelSelector.handleInputEnd();
+    const x = e.clientX - canvasRect.left;
+    const y = e.clientY - canvasRect.top;
+    if (levelSelector.handleInputEnd(x, y)) {
+      playTapFx();
+      triggerHaptic("light");
+      startGame();
+    }
     return;
   }
 
@@ -2071,6 +2119,7 @@ function openWinModal(
   levelScore: number,
   isNewBest: boolean,
 ): void {
+  const isFinalLevel = level >= TOTAL_LEVELS;
   const prevBest = isNewBest ? 0 : (bestScores[level] ?? 0);
   const modal = document.createElement("div");
   modal.className = "win-modal";
@@ -2091,7 +2140,7 @@ function openWinModal(
       <p class="total-score-line">Total: ${totalScore.toLocaleString()}</p>
       <div class="win-buttons">
         <button class="win-btn secondary" id="retry-btn">Retry</button>
-        <button class="win-btn" id="next-level-btn">Next Level</button>
+        <button class="win-btn" id="next-level-btn">${isFinalLevel ? "Level Select" : "Next Level"}</button>
       </div>
     </div>
   `;
@@ -2137,7 +2186,15 @@ function openWinModal(
     e.stopPropagation();
     triggerHaptic("light");
     closeModal(() => {
-      currentLevel++;
+      if (isFinalLevel) {
+        gameState = "levelSelect";
+        levelSelector.reset();
+        updateUI();
+        markDirty();
+        return;
+      }
+
+      currentLevel = Math.min(currentLevel + 1, TOTAL_LEVELS);
       levelSelector.setLevel(currentLevel);
       startGame();
     });
@@ -2304,17 +2361,3 @@ if (backBtn) {
 updateUI();
 
 updateUI();
-
-
-
-
-
-
-
-
-
-
-
-
-
-

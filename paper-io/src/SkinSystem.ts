@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+import { oasiz } from "@oasiz/sdk";
 
 export interface SkinDef {
   id: string;
@@ -352,6 +353,7 @@ export class SkinSystem {
   private modelLoadPromises: Map<string, Promise<THREE.Group>> = new Map();
   private unlockedSkins: Set<string> = new Set();
   private textureLoader = new THREE.TextureLoader();
+  private highestPct = 0;
 
   constructor() {
     this.loadUnlockState();
@@ -359,50 +361,26 @@ export class SkinSystem {
   }
 
   private loadUnlockState(): void {
-    for (const skin of SKINS) {
-      if (skin.unlockedByDefault) {
-        this.unlockedSkins.add(skin.id);
-      }
-    }
-
-    let savedUnlocks: string[] = [];
-    if (typeof (window as any).loadGameState === "function") {
-      const state = (window as any).loadGameState() ?? {};
-      if (Array.isArray(state.unlockedSkins)) {
-        savedUnlocks = state.unlockedSkins;
-      }
-    }
-
-    if (savedUnlocks.length === 0) {
-      try {
-        const local = localStorage.getItem("paperio-unlocked-skins");
-        if (local) savedUnlocks = JSON.parse(local);
-      } catch {
-        /* ignore */
-      }
-    }
-
-    for (const id of savedUnlocks) {
-      this.unlockedSkins.add(id);
-    }
+    const state = oasiz.loadGameState();
+    const savedHighestPct =
+      typeof state.highestPct === "number" && Number.isFinite(state.highestPct)
+        ? Math.max(0, state.highestPct)
+        : 0;
+    this.highestPct = savedHighestPct;
+    this.rebuildUnlockedSkins();
   }
 
-  private saveUnlockState(): void {
-    const unlocked = Array.from(this.unlockedSkins);
-    if (typeof (window as any).saveGameState === "function") {
-      let currentState: Record<string, unknown> = {};
-      if (typeof (window as any).loadGameState === "function") {
-        currentState = (window as any).loadGameState() ?? {};
+  private saveHighestPct(): void {
+    oasiz.saveGameState({ highestPct: this.highestPct });
+    oasiz.flushGameState();
+  }
+
+  private rebuildUnlockedSkins(): void {
+    this.unlockedSkins.clear();
+    for (const skin of SKINS) {
+      if (skin.unlockedByDefault || this.highestPct >= skin.unlockScore) {
+        this.unlockedSkins.add(skin.id);
       }
-      (window as any).saveGameState({
-        ...currentState,
-        unlockedSkins: unlocked,
-      });
-    }
-    try {
-      localStorage.setItem("paperio-unlocked-skins", JSON.stringify(unlocked));
-    } catch {
-      /* ignore */
     }
   }
 
@@ -558,18 +536,19 @@ export class SkinSystem {
   }
 
   tryUnlock(scorePercent: number): SkinDef[] {
+    const previousUnlocked = new Set(this.unlockedSkins);
+    const nextHighestPct = Math.max(this.highestPct, scorePercent);
+    if (nextHighestPct !== this.highestPct) {
+      this.highestPct = nextHighestPct;
+      this.rebuildUnlockedSkins();
+      this.saveHighestPct();
+    }
+
     const newlyUnlocked: SkinDef[] = [];
     for (const skin of SKINS) {
-      if (
-        !this.unlockedSkins.has(skin.id) &&
-        scorePercent >= skin.unlockScore
-      ) {
-        this.unlockedSkins.add(skin.id);
+      if (!previousUnlocked.has(skin.id) && this.unlockedSkins.has(skin.id)) {
         newlyUnlocked.push(skin);
       }
-    }
-    if (newlyUnlocked.length > 0) {
-      this.saveUnlockState();
     }
     return newlyUnlocked;
   }

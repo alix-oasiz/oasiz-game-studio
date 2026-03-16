@@ -18,6 +18,7 @@
     "vite-plugin-singlefile": "^2.0.3"
   },
   "dependencies": {
+    "@oasiz/sdk": "^1.2.0",
     "polygon-clipping": "^0.15.7",
     "three": "^0.183.1"
   }

@@ -52,12 +52,21 @@ export class LevelSelector {
   private minScrollOffset: number = 0;
   private maxScrollOffset: number = 0;
   private isDragging: boolean = false;
+  private lastDragX: number = 0;
   private lastDragY: number = 0;
+  private lastDragTime: number = 0;
+  private totalDragDistance: number = 0;
+  private pressStartX: number = 0;
+  private pressStartY: number = 0;
+  private scrollVelocity: number = 0;
+  private lastScrollFrameTime: number | null = null;
+  private autoFollowSuppressedUntil: number = 0;
 
   // Animation state
   private lineAnimationProgress: number = 0; // 0 to 1
   private animationStartTime: number | null = null;
-  private baseAnimationDurationPerLevel: number = 350; // ms per level for uniform speed
+  private baseAnimationDurationPerLevel: number = 220; // ms per level for uniform speed
+  private maxLineAnimationDuration: number = 5500;
   private buttonRipples: ButtonRipple[] = [];
 
   // Layout caching to avoid recalculating every frame
@@ -152,6 +161,91 @@ export class LevelSelector {
       renderCtx.fill();
     }
     renderCtx.globalAlpha = 1;
+  }
+
+  private clampScrollOffset(): void {
+    const clamped = Math.max(
+      this.minScrollOffset,
+      Math.min(this.maxScrollOffset, this.scrollOffset),
+    );
+    if (clamped !== this.scrollOffset) {
+      this.scrollOffset = clamped;
+      this.scrollVelocity = 0;
+    }
+  }
+
+  private getButtonAt(x: number, y: number): LevelButton | null {
+    const hitPadding = 12;
+
+    for (const button of this.buttons) {
+      if (button.locked) continue;
+
+      const centerX = button.x + button.width / 2;
+      const centerY = button.y + button.height / 2;
+      const radius = button.width / 2 + hitPadding;
+      const distance = Math.hypot(x - centerX, y - centerY);
+
+      if (distance <= radius) {
+        return button;
+      }
+    }
+
+    return null;
+  }
+
+  private selectButton(button: LevelButton): void {
+    if (this.selectedButtonLevel !== null) {
+      for (const btn of this.buttons) {
+        if (btn.level === this.selectedButtonLevel) {
+          btn.clickScale = 1;
+          btn.clickStartTime = null;
+        }
+      }
+    }
+
+    this.selectedButtonLevel = button.level;
+    button.clickScale = 1.2;
+    button.clickStartTime = null;
+    this.onLevelSelected(button.level);
+  }
+
+  private updateScrollPhysics(now: number): void {
+    if (this.lastScrollFrameTime === null) {
+      this.lastScrollFrameTime = now;
+      return;
+    }
+
+    const dt = Math.min(32, now - this.lastScrollFrameTime);
+    this.lastScrollFrameTime = now;
+    if (dt <= 0 || this.isDragging) return;
+
+    if (Math.abs(this.scrollVelocity) < 0.01) {
+      this.scrollVelocity = 0;
+      return;
+    }
+
+    this.scrollOffset += this.scrollVelocity * dt;
+    this.scrollVelocity *= Math.pow(0.92, dt / 16.67);
+    this.clampScrollOffset();
+  }
+
+  private autoFollowAnimatedPath(
+    now: number,
+    currentY: number,
+    scrollableTop: number,
+    scrollableHeight: number,
+  ): void {
+    if (this.isDragging || this.scrollVelocity !== 0) return;
+    if (now < this.autoFollowSuppressedUntil) return;
+    if (this.lineAnimationProgress >= 1) return;
+
+    const followThresholdY = scrollableTop + scrollableHeight * 0.52;
+    const desiredY = scrollableTop + scrollableHeight * 0.62;
+
+    if (currentY < followThresholdY) {
+      this.scrollOffset += (desiredY - currentY) * 0.16;
+      this.clampScrollOffset();
+    }
   }
 
   private calculateLayout(
@@ -250,10 +344,7 @@ export class LevelSelector {
     }
 
     // Always clamp and update Y positions (cheap operation)
-    this.scrollOffset = Math.max(
-      this.minScrollOffset,
-      Math.min(this.maxScrollOffset, this.scrollOffset),
-    );
+    this.clampScrollOffset();
 
     // Update button Y positions based on scroll
     for (let i = 0; i < this.buttons.length; i++) {
@@ -265,62 +356,69 @@ export class LevelSelector {
   }
 
   handleInput(x: number, y: number): boolean {
-    // Start drag for scrolling
+    const now = performance.now();
     this.isDragging = true;
+    this.lastDragX = x;
     this.lastDragY = y;
+    this.lastDragTime = now;
+    this.pressStartX = x;
+    this.pressStartY = y;
+    this.totalDragDistance = 0;
+    this.scrollVelocity = 0;
+    this.autoFollowSuppressedUntil = now + 1200;
     return false;
   }
 
   handleInputMove(x: number, y: number): void {
     if (this.isDragging) {
+      const now = performance.now();
+      const deltaX = x - this.lastDragX;
       const deltaY = y - this.lastDragY;
+      const dt = Math.max(1, now - this.lastDragTime);
       this.scrollOffset += deltaY; // Swipe down = see higher levels above
+      this.scrollVelocity = deltaY / dt;
+      this.totalDragDistance += Math.hypot(deltaX, deltaY);
+      this.lastDragX = x;
       this.lastDragY = y;
+      this.lastDragTime = now;
+      this.clampScrollOffset();
     }
   }
 
-  handleInputEnd(): void {
+  handleInputEnd(x: number, y: number): boolean {
+    if (!this.isDragging) return false;
+
+    const wasTap =
+      this.totalDragDistance < 12 &&
+      Math.hypot(x - this.pressStartX, y - this.pressStartY) < 12;
+
     this.isDragging = false;
+    if (!wasTap) {
+      return false;
+    }
+
+    this.scrollVelocity = 0;
+    const button = this.getButtonAt(x, y);
+    if (!button) return false;
+
+    this.selectButton(button);
+    return true;
   }
 
   handleWheel(deltaY: number): void {
     // Scroll on wheel (wheel down = see higher levels above)
     this.scrollOffset += deltaY * 0.5; // Adjust scroll speed
+    this.scrollVelocity = deltaY * 0.01;
+    this.autoFollowSuppressedUntil = performance.now() + 1200;
+    this.clampScrollOffset();
   }
 
   handleButtonClick(x: number, y: number): boolean {
-    // Check if any button was clicked (circular hit detection with extra padding for easier tapping)
-    const hitPadding = 12; // Extra pixels around button for easier tapping
+    const button = this.getButtonAt(x, y);
+    if (!button) return false;
 
-    for (const button of this.buttons) {
-      const centerX = button.x + button.width / 2;
-      const centerY = button.y + button.height / 2;
-      const radius = button.width / 2 + hitPadding;
-      const distance = Math.sqrt(
-        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2),
-      );
-
-      if (distance <= radius && !button.locked) {
-        // Reset previous selected button
-        if (this.selectedButtonLevel !== null) {
-          for (const btn of this.buttons) {
-            if (btn.level === this.selectedButtonLevel) {
-              btn.clickScale = 1;
-              btn.clickStartTime = null;
-            }
-          }
-        }
-
-        // Set new selected button
-        this.selectedButtonLevel = button.level;
-        button.clickScale = 1.2;
-        button.clickStartTime = null; // No animation needed
-
-        this.onLevelSelected(button.level);
-        return true;
-      }
-    }
-    return false;
+    this.selectButton(button);
+    return true;
   }
 
   updateHover(x: number, y: number): void {
@@ -353,9 +451,12 @@ export class LevelSelector {
     height: number,
     isMobileOverride?: boolean,
   ): void {
+    const now = performance.now();
     const isMobile =
       isMobileOverride ?? window.matchMedia("(pointer: coarse)").matches;
     this.cachedIsMobileForHover = isMobile;
+
+    this.updateScrollPhysics(now);
 
     // Safe area offset for top (matches settings button requirements)
     const safeAreaTop = isMobile ? 120 : 45;
@@ -374,8 +475,10 @@ export class LevelSelector {
     }
 
     // Calculate animation duration based on maxUnlockedLevel for uniform speed
-    const animationDuration =
-      this.maxUnlockedLevel * this.baseAnimationDurationPerLevel;
+    const animationDuration = Math.min(
+      this.maxUnlockedLevel * this.baseAnimationDurationPerLevel,
+      this.maxLineAnimationDuration,
+    );
 
     // Update animation progress
     const elapsed = Date.now() - this.animationStartTime;
@@ -547,6 +650,9 @@ export class LevelSelector {
     const animatedLength = totalLineLength * this.lineAnimationProgress;
     const currentY = extendedBottomY - animatedLength;
 
+    this.autoFollowAnimatedPath(now, currentY, scrollableTop, scrollableHeight);
+    this.calculateLayout(width, height, isMobile);
+
     // Check each button and spawn ripple when reached (only up to maxUnlockedLevel)
     for (
       let i = 0;
@@ -647,6 +753,10 @@ export class LevelSelector {
     this.selectedButtonLevel = null;
     this.scrollOffset = 0;
     this.isDragging = false;
+    this.scrollVelocity = 0;
+    this.lastScrollFrameTime = null;
+    this.totalDragDistance = 0;
+    this.autoFollowSuppressedUntil = 0;
     this.lineAnimationProgress = 0;
     this.animationStartTime = null;
     this.buttonRipples = [];

@@ -40,6 +40,8 @@ class CarvePlayground {
   private readonly splashPlayerBtn: HTMLButtonElement;
   private readonly splashEnemyBtn: HTMLButtonElement;
   private readonly spawnEnemyTrailBtn: HTMLButtonElement;
+  private readonly enemyFollowBtn: HTMLButtonElement;
+  private readonly spawnKillEnemyBtn: HTMLButtonElement;
   private readonly resetTrailBtn: HTMLButtonElement;
   private readonly resetSceneBtn: HTMLButtonElement;
   private readonly toggleMovementBtn: HTMLButtonElement;
@@ -72,6 +74,12 @@ class CarvePlayground {
     ) as HTMLButtonElement;
     this.spawnEnemyTrailBtn = document.getElementById(
       "spawn-enemy-trail-btn",
+    ) as HTMLButtonElement;
+    this.enemyFollowBtn = document.getElementById(
+      "enemy-follow-btn",
+    ) as HTMLButtonElement;
+    this.spawnKillEnemyBtn = document.getElementById(
+      "spawn-kill-enemy-btn",
     ) as HTMLButtonElement;
     this.resetTrailBtn = document.getElementById(
       "reset-trail-btn",
@@ -156,6 +164,16 @@ class CarvePlayground {
       this.updateStatus();
     });
 
+    this.enemyFollowBtn.addEventListener("click", () => {
+      this.addEnemyFollower();
+    });
+
+    this.spawnKillEnemyBtn.addEventListener("click", () => {
+      this.spawnEnemyWithTrail();
+      this.updateUiState();
+      this.updateStatus();
+    });
+
     this.resetTrailBtn.addEventListener("click", () => {
       this.clearTrail();
       this.updateStatus();
@@ -194,6 +212,16 @@ class CarvePlayground {
       if (event.key === "e" || event.key === "E") {
         event.preventDefault();
         this.spawnHumanInsideEnemyTerritory();
+        this.updateUiState();
+        this.updateStatus();
+      }
+      if (event.key === "f" || event.key === "F") {
+        event.preventDefault();
+        this.addEnemyFollower();
+      }
+      if (event.key === "t" || event.key === "T") {
+        event.preventDefault();
+        this.spawnEnemyWithTrail();
         this.updateUiState();
         this.updateStatus();
       }
@@ -354,6 +382,85 @@ class CarvePlayground {
     this.renderer.setCameraTarget(this.human.position);
   }
 
+  private addEnemyFollower(): void {
+    const enemy = this.enemyTargets[this.splashTargetIndex];
+    this.renderer.addCapturedFollower(this.human.id, enemy.id);
+    this.splashTargetIndex =
+      (this.splashTargetIndex + 1) % this.enemyTargets.length;
+    this.updateStatus();
+  }
+
+  private spawnEnemyWithTrail(): PlaygroundActor {
+    const enemy = this.enemyTargets[this.splashTargetIndex];
+    enemy.alive = true;
+    this.renderer.showAvatar(enemy.id);
+
+    const toHuman = {
+      x: this.human.position.x - enemy.spawn.x,
+      z: this.human.position.z - enemy.spawn.z,
+    };
+    const toHumanLen =
+      Math.sqrt(toHuman.x * toHuman.x + toHuman.z * toHuman.z) || 1;
+    const outwardDir = {
+      x: toHuman.x / toHumanLen,
+      z: toHuman.z / toHumanLen,
+    };
+    const outsidePoint = {
+      x: enemy.spawn.x + outwardDir.x * 10,
+      z: enemy.spawn.z + outwardDir.z * 10,
+    };
+    const boundaryPoint = enemy.territory.projectExitPoint(
+      enemy.spawn,
+      outsidePoint,
+    );
+    const startPoint = insetBoundaryIntoTerritory(
+      boundaryPoint,
+      enemy.spawn,
+      enemy.territory,
+      0.12,
+    );
+    const trailMidPoint = {
+      x: boundaryPoint.x + outwardDir.x * 1.7,
+      z: boundaryPoint.z + outwardDir.z * 1.7,
+    };
+    const settledPoint = {
+      x: boundaryPoint.x + outwardDir.x * 3.1,
+      z: boundaryPoint.z + outwardDir.z * 3.1,
+    };
+
+    enemy.position = settledPoint;
+    enemy.moveDir = outwardDir;
+    enemy.trail = [
+      { x: startPoint.x, z: startPoint.z },
+      { x: trailMidPoint.x, z: trailMidPoint.z },
+      { x: settledPoint.x, z: settledPoint.z },
+    ];
+    enemy.trailVisualLeadInPoints = [];
+    enemy.trailStartTangent = enemy.territory.getBoundaryTangent(
+      boundaryPoint,
+      outwardDir,
+    );
+    enemy.isTrailing = true;
+
+    this.renderer.updateAvatar(
+      enemy.id,
+      enemy.position,
+      this.elapsedTime,
+      enemy.moveDir,
+    );
+    this.renderer.updateTrail(
+      enemy.id,
+      enemy.trail,
+      enemy.color,
+      enemy.trailStartTangent,
+      null,
+    );
+
+    this.splashTargetIndex =
+      (this.splashTargetIndex + 1) % this.enemyTargets.length;
+    return enemy;
+  }
+
   private setBlobTerritory(player: PlaygroundActor, centers: Vec2[]): void {
     let polygons = createCircleTerritory(centers[0].x, centers[0].z, 4.8);
     for (let i = 1; i < centers.length; i++) {
@@ -445,10 +552,10 @@ class CarvePlayground {
         const captureTrail = [...this.human.trail, reentryPoint];
         this.captureInFlight = true;
         try {
-          const affected =
+          const captureResult =
             await this.human.territory.captureFromTrail(captureTrail);
           this.refreshTerritory(this.human);
-          for (const id of affected) {
+          for (const id of captureResult.affected) {
             const player = this.players.find((entry) => entry.id === id);
             if (player) this.refreshTerritory(player);
           }

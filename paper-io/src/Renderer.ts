@@ -34,8 +34,8 @@ const TRAIL_CARVE_FLOOR_Y =
 // Groove ribbon sits just above the territory surface so it's never depth-culled
 const BOARD_CARVE_FLOOR_Y = TERRITORY_Y + 0.004; // 0.034 — above territory (0.03), below trail (0.048)
 // Half-width: thinner on canvas, thicker inside enemy territory
-const BOARD_CARVE_HALF_WIDTH_CANVAS = 0.2;
-const BOARD_CARVE_HALF_WIDTH_ENEMY = 0.44;
+const BOARD_CARVE_HALF_WIDTH_CANVAS = 0.17;
+const BOARD_CARVE_HALF_WIDTH_ENEMY = 0.39;
 // Negated: groove sits on the far/top edge of the ribbon (away from camera)
 const BOARD_CARVE_OFFSET_X = -(TERRITORY_DEPTH_OFFSET_X * 0.4); // ≈+0.028
 const BOARD_CARVE_OFFSET_Z = -(TERRITORY_DEPTH_OFFSET_Z * 0.4); // ≈-0.056
@@ -43,11 +43,19 @@ const LOOP_POINT_SCALE = 1000;
 const LOOP_MIN_AREA = CELL_SIZE * CELL_SIZE * 6;
 const LOOP_MIN_DIST = CELL_SIZE * 0.16;
 const EFFECT_UPDATE_CULL_DIST_SQ = 50 * 50;
+const TERRITORY_RENDER_RADIUS = 34;
+const TERRITORY_UNLOAD_RADIUS = 40;
+const TERRITORY_RENDER_RADIUS_SQ =
+  TERRITORY_RENDER_RADIUS * TERRITORY_RENDER_RADIUS;
+const TERRITORY_UNLOAD_RADIUS_SQ =
+  TERRITORY_UNLOAD_RADIUS * TERRITORY_UNLOAD_RADIUS;
+const TERRITORY_CULL_REFRESH_DIST_SQ = 4.5 * 4.5;
 const CAPTURED_FOLLOWER_SCALE = 0.46;
-const CAPTURED_FOLLOWER_HISTORY_BASE = 20;
-const CAPTURED_FOLLOWER_HISTORY_STEP = 14;
+const CAPTURED_FOLLOWER_HISTORY_BASE = 9;
+const CAPTURED_FOLLOWER_HISTORY_STEP = 7;
 const CAPTURED_FOLLOWER_MAX_HISTORY = 320;
 const AVATAR_LABEL_Y = 1.76;
+const CAMERA_Z_OFFSET = 11.2;
 
 interface TerritoryTakeoverEffect {
   victimId: number;
@@ -132,6 +140,19 @@ interface TerritoryUpdateOptions {
   topOnly?: boolean;
 }
 
+interface TerritoryRenderCacheEntry {
+  grid: TerritoryGrid;
+  color: number;
+  skinId: string;
+  topOnly: boolean;
+  bounds: {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+  };
+}
+
 interface EnemyBoardCarveSegment {
   path: Vec2[];
   color: number;
@@ -151,6 +172,8 @@ export class Renderer {
   private territoryContactShadows: Map<number, THREE.Mesh> = new Map();
   private territoryMaterials: Map<number, TerritoryMaterialSet> = new Map();
   private territorySkinIds: Map<number, string> = new Map();
+  private territoryRenderCache: Map<number, TerritoryRenderCacheEntry> =
+    new Map();
   private patternTextures: Map<string, THREE.Texture | null> = new Map();
   private shadowMaterial: THREE.MeshBasicMaterial | null = null;
   private contactShadowMaterial: THREE.MeshBasicMaterial | null = null;
@@ -191,6 +214,10 @@ export class Renderer {
   private avatarAbsorbPulses: AvatarAbsorbPulseEffect[] = [];
 
   private cameraTarget: Vec2 = { x: 0, z: 0 };
+  private lastTerritoryCullCenter: Vec2 = {
+    x: Number.POSITIVE_INFINITY,
+    z: Number.POSITIVE_INFINITY,
+  };
   private territoryRenderOrder = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -202,7 +229,7 @@ export class Renderer {
     const h = wrapper.clientHeight;
 
     this.camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 200);
-    this.camera.position.set(0, 20, 12.5);
+    this.camera.position.set(0, 20, CAMERA_Z_OFFSET);
     this.camera.lookAt(0, 0, 0);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -220,11 +247,154 @@ export class Renderer {
   }
 
   private createBoard(): void {
-    const boardGeo = new THREE.CircleGeometry(MAP_RADIUS, 48);
-    const boardMat = new THREE.MeshBasicMaterial({ color: BOARD_COLOR });
+    const boardGroup = new THREE.Group();
+
+    const borderTextureCanvas = document.createElement("canvas");
+    borderTextureCanvas.width = 1024;
+    borderTextureCanvas.height = 96;
+    const borderTextureCtx = borderTextureCanvas.getContext("2d");
+    if (borderTextureCtx) {
+      const gradient = borderTextureCtx.createLinearGradient(
+        0,
+        0,
+        borderTextureCanvas.width,
+        0,
+      );
+      gradient.addColorStop(0, "#00A1E4");
+      gradient.addColorStop(0.18, "#36E4DA");
+      gradient.addColorStop(0.36, "#7DFF7A");
+      gradient.addColorStop(0.54, "#FFE45E");
+      gradient.addColorStop(0.72, "#FF8A5B");
+      gradient.addColorStop(0.88, "#FF5FCB");
+      gradient.addColorStop(1, "#7A7DFF");
+      borderTextureCtx.fillStyle = gradient;
+      borderTextureCtx.fillRect(
+        0,
+        0,
+        borderTextureCanvas.width,
+        borderTextureCanvas.height,
+      );
+
+      borderTextureCtx.globalAlpha = 0.22;
+      for (let x = 0; x < borderTextureCanvas.width; x += 64) {
+        borderTextureCtx.fillStyle = x % 128 === 0 ? "#ffffff" : "#0d3a5b";
+        borderTextureCtx.fillRect(x, 0, 18, borderTextureCanvas.height);
+      }
+
+      borderTextureCtx.globalAlpha = 0.32;
+      const glossGradient = borderTextureCtx.createLinearGradient(
+        0,
+        0,
+        0,
+        borderTextureCanvas.height,
+      );
+      glossGradient.addColorStop(0, "rgba(255,255,255,0.92)");
+      glossGradient.addColorStop(0.24, "rgba(255,255,255,0.24)");
+      glossGradient.addColorStop(0.58, "rgba(255,255,255,0)");
+      glossGradient.addColorStop(1, "rgba(0,0,0,0.22)");
+      borderTextureCtx.fillStyle = glossGradient;
+      borderTextureCtx.fillRect(
+        0,
+        0,
+        borderTextureCanvas.width,
+        borderTextureCanvas.height,
+      );
+      borderTextureCtx.globalAlpha = 1;
+    }
+    const borderTexture = new THREE.CanvasTexture(borderTextureCanvas);
+    borderTexture.colorSpace = THREE.SRGBColorSpace;
+    borderTexture.wrapS = THREE.RepeatWrapping;
+    borderTexture.wrapT = THREE.ClampToEdgeWrapping;
+    borderTexture.anisotropy = 4;
+
+    const baseGeo = new THREE.CircleGeometry(MAP_RADIUS + 2.2, 64);
+    const baseMat = new THREE.MeshPhongMaterial({
+      color: 0x54b9df,
+      shininess: 22,
+      specular: new THREE.Color(0xe6f7ff),
+    });
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.rotation.x = -Math.PI / 2;
+    base.position.y = -0.26;
+    boardGroup.add(base);
+
+    const boardGeo = new THREE.CircleGeometry(MAP_RADIUS, 64);
+    const boardMat = new THREE.MeshPhongMaterial({
+      color: BOARD_COLOR,
+      shininess: 12,
+      specular: new THREE.Color(0xd6f3ff),
+    });
     const board = new THREE.Mesh(boardGeo, boardMat);
     board.rotation.x = -Math.PI / 2;
-    this.scene.add(board);
+    board.position.y = 0.005;
+    boardGroup.add(board);
+
+    const rimGeo = new THREE.RingGeometry(MAP_RADIUS, MAP_RADIUS + 2.05, 64);
+    const rimMat = new THREE.MeshPhongMaterial({
+      color: 0xffffff,
+      map: borderTexture,
+      shininess: 38,
+      specular: new THREE.Color(0xf4fdff),
+      side: THREE.DoubleSide,
+    });
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.y = 0.04;
+    boardGroup.add(rim);
+
+    const innerLipGeo = new THREE.RingGeometry(
+      MAP_RADIUS + 0.28,
+      MAP_RADIUS + 1.2,
+      64,
+    );
+    const innerLipMat = new THREE.MeshPhongMaterial({
+      color: 0xfff4c9,
+      shininess: 54,
+      specular: new THREE.Color(0xffffff),
+      side: THREE.DoubleSide,
+    });
+    const innerLip = new THREE.Mesh(innerLipGeo, innerLipMat);
+    innerLip.rotation.x = -Math.PI / 2;
+    innerLip.position.y = 0.085;
+    boardGroup.add(innerLip);
+
+    const outerWallGeo = new THREE.CylinderGeometry(
+      MAP_RADIUS + 2.1,
+      MAP_RADIUS + 2.45,
+      0.72,
+      64,
+      1,
+      true,
+    );
+    const outerWallMat = new THREE.MeshPhongMaterial({
+      color: 0xffffff,
+      map: borderTexture,
+      shininess: 24,
+      specular: new THREE.Color(0xbfe8ff),
+      side: THREE.DoubleSide,
+    });
+    const outerWall = new THREE.Mesh(outerWallGeo, outerWallMat);
+    outerWall.position.y = -0.22;
+    boardGroup.add(outerWall);
+
+    const outerCapGeo = new THREE.TorusGeometry(
+      MAP_RADIUS + 2.02,
+      0.18,
+      14,
+      64,
+    );
+    const outerCapMat = new THREE.MeshPhongMaterial({
+      color: 0xffffff,
+      map: borderTexture,
+      shininess: 56,
+      specular: new THREE.Color(0xffffff),
+    });
+    const outerCap = new THREE.Mesh(outerCapGeo, outerCapMat);
+    outerCap.rotation.x = Math.PI / 2;
+    outerCap.position.y = 0.1;
+    boardGroup.add(outerCap);
+
+    this.scene.add(boardGroup);
   }
 
   private createLighting(): void {
@@ -263,31 +433,7 @@ export class Renderer {
   ): THREE.Group {
     this.cleanupDeathSplatsForVictim(id);
     const group = new THREE.Group();
-
-    if (model && model.children.length > 0) {
-      const clone = model.clone(true);
-      clone.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material) {
-          child.material = (child.material as THREE.Material).clone();
-        }
-      });
-      clone.name = "model-body";
-      this.setupAnimatedBody(clone, "model");
-      group.add(clone);
-    } else {
-      const bodyGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
-      let bodyMat: THREE.Material;
-      if (texture) {
-        bodyMat = new THREE.MeshLambertMaterial({ map: texture });
-      } else {
-        bodyMat = new THREE.MeshLambertMaterial({ color });
-      }
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.position.y = 0.35;
-      body.name = "box-body";
-      this.setupAnimatedBody(body, "cube");
-      group.add(body);
-    }
+    group.add(this.buildAvatarBody(color, texture, model));
 
     if (name) {
       const label = this.createTextSprite(name);
@@ -310,22 +456,30 @@ export class Renderer {
     );
     if (oldBody) {
       avatar.remove(oldBody);
-      if (oldBody instanceof THREE.Mesh) {
-        oldBody.geometry.dispose();
-        if (oldBody.material instanceof THREE.Material)
-          oldBody.material.dispose();
-      }
+      this.disposeAvatarBody(oldBody);
     }
 
-    const clone = model.clone(true);
-    clone.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material) {
-        child.material = (child.material as THREE.Material).clone();
-      }
-    });
-    clone.name = "model-body";
-    this.setupAnimatedBody(clone, "model");
-    avatar.add(clone);
+    avatar.add(this.buildAvatarBody(0xffffff, null, model));
+  }
+
+  updateAvatarAppearance(
+    id: number,
+    color: number,
+    texture?: THREE.Texture | null,
+    model?: THREE.Group | null,
+  ): void {
+    const avatar = this.avatars.get(id);
+    if (!avatar) return;
+
+    const oldBody = avatar.children.find(
+      (child) => child.name === "box-body" || child.name === "model-body",
+    );
+    if (oldBody) {
+      avatar.remove(oldBody);
+      this.disposeAvatarBody(oldBody);
+    }
+
+    avatar.add(this.buildAvatarBody(color, texture, model));
   }
 
   private setupAnimatedBody(
@@ -336,6 +490,48 @@ export class Renderer {
     body.userData.baseRotation = body.rotation.clone();
     body.userData.baseScale = body.scale.clone();
     body.userData.animationKind = kind;
+  }
+
+  private buildAvatarBody(
+    color: number,
+    texture?: THREE.Texture | null,
+    model?: THREE.Group | null,
+  ): THREE.Object3D {
+    if (model && model.children.length > 0) {
+      const clone = model.clone(true);
+      clone.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          child.material = (child.material as THREE.Material).clone();
+        }
+      });
+      clone.name = "model-body";
+      this.setupAnimatedBody(clone, "model");
+      return clone;
+    }
+
+    const bodyGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+    const bodyMat = texture
+      ? new THREE.MeshLambertMaterial({ map: texture })
+      : new THREE.MeshLambertMaterial({ color });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.35;
+    body.name = "box-body";
+    this.setupAnimatedBody(body, "cube");
+    return body;
+  }
+
+  private disposeAvatarBody(body: THREE.Object3D): void {
+    body.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+        for (const material of materials) {
+          material.dispose();
+        }
+      }
+    });
   }
 
   private createTextSprite(text: string): THREE.Sprite {
@@ -578,7 +774,12 @@ export class Renderer {
     });
   }
 
-  startDeathSplat(victimId: number, position: Vec2, color: number): void {
+  startDeathSplat(
+    victimId: number,
+    position: Vec2,
+    color: number,
+    skinId = "",
+  ): void {
     this.cleanupDeathSplatsForVictim(victimId);
 
     const group = new THREE.Group();
@@ -590,8 +791,10 @@ export class Renderer {
     }
 
     const splatGeometry = this.createDeathSplatGeometry(victimId, color);
+    const patTex = this.getPatternTexture(skinId);
     const splatMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(color).multiplyScalar(0.42),
+      color: patTex ? 0xffffff : new THREE.Color(color).multiplyScalar(0.42),
+      map: patTex ?? null,
       transparent: true,
       opacity: 0,
       side: THREE.DoubleSide,
@@ -1178,6 +1381,62 @@ export class Renderer {
         this.territoryMaterials.delete(id);
       }
       this.territorySkinIds.delete(id);
+      this.territoryRenderCache.delete(id);
+    }
+  }
+
+  private getBoundsDistanceSq(bounds: {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+  }): number {
+    const dx =
+      this.cameraTarget.x < bounds.minX
+        ? bounds.minX - this.cameraTarget.x
+        : this.cameraTarget.x > bounds.maxX
+          ? this.cameraTarget.x - bounds.maxX
+          : 0;
+    const dz =
+      this.cameraTarget.z < bounds.minZ
+        ? bounds.minZ - this.cameraTarget.z
+        : this.cameraTarget.z > bounds.maxZ
+          ? this.cameraTarget.z - bounds.maxZ
+          : 0;
+    return dx * dx + dz * dz;
+  }
+
+  private shouldRenderTerritory(
+    bounds: TerritoryRenderCacheEntry["bounds"],
+    keepLoaded: boolean,
+  ): boolean {
+    const radiusSq = keepLoaded
+      ? TERRITORY_UNLOAD_RADIUS_SQ
+      : TERRITORY_RENDER_RADIUS_SQ;
+    return this.getBoundsDistanceSq(bounds) <= radiusSq;
+  }
+
+  private refreshTerritoryVisibility(force = false): void {
+    const dx = this.cameraTarget.x - this.lastTerritoryCullCenter.x;
+    const dz = this.cameraTarget.z - this.lastTerritoryCullCenter.z;
+    if (!force && dx * dx + dz * dz < TERRITORY_CULL_REFRESH_DIST_SQ) {
+      return;
+    }
+
+    this.lastTerritoryCullCenter.x = this.cameraTarget.x;
+    this.lastTerritoryCullCenter.z = this.cameraTarget.z;
+
+    for (const [id, cached] of this.territoryRenderCache) {
+      const isLoaded = this.territoryObjects.has(id);
+      if (this.shouldRenderTerritory(cached.bounds, isLoaded)) {
+        if (!isLoaded) {
+          this.updateTerritory(id, cached.grid, cached.color, cached.skinId, {
+            topOnly: cached.topOnly,
+          });
+        }
+      } else if (isLoaded) {
+        this.clearTerritoryVisuals(id);
+      }
     }
   }
 
@@ -1206,6 +1465,22 @@ export class Renderer {
     const bounds = grid.getBounds(id);
     if (!bounds) {
       this.clearTerritoryVisuals(id, true);
+      return;
+    }
+    this.territoryRenderCache.set(id, {
+      grid,
+      color,
+      skinId,
+      topOnly,
+      bounds: {
+        minX: bounds.minX,
+        maxX: bounds.maxX,
+        minZ: bounds.minZ,
+        maxZ: bounds.maxZ,
+      },
+    });
+    if (!this.shouldRenderTerritory(bounds, this.territoryObjects.has(id))) {
+      this.clearTerritoryVisuals(id);
       return;
     }
 
@@ -2345,8 +2620,9 @@ export class Renderer {
     this.cameraTarget.z = pos.z;
     this.camera.position.x = pos.x;
     this.camera.position.y = 20;
-    this.camera.position.z = pos.z + 12.5;
+    this.camera.position.z = pos.z + CAMERA_Z_OFFSET;
     this.camera.lookAt(pos.x, 0, pos.z);
+    this.refreshTerritoryVisibility(true);
   }
 
   updateCamera(targetPos: Vec2, dt: number): void {
@@ -2356,8 +2632,9 @@ export class Renderer {
 
     this.camera.position.x = this.cameraTarget.x;
     this.camera.position.y = 20;
-    this.camera.position.z = this.cameraTarget.z + 12.5;
+    this.camera.position.z = this.cameraTarget.z + CAMERA_Z_OFFSET;
     this.camera.lookAt(this.cameraTarget.x, 0, this.cameraTarget.z);
+    this.refreshTerritoryVisibility();
   }
 
   private isNearCameraXZ(

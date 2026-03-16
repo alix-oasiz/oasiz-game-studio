@@ -1,4 +1,4 @@
-import { MAP_SIZE, START_RADIUS, type Vec2 } from "./constants.ts";
+import { ARENA_AREA, START_RADIUS, type Vec2 } from "./constants.ts";
 import { nearestPointOnPolygon } from "./Collision.ts";
 import {
   booleanGeomToTerritory,
@@ -23,6 +23,18 @@ import { TerritoryWorkerClient } from "./territory-worker-client.ts";
 
 const TRAIL_CLAIM_WIDTH = 0.5;
 const AREA_EPSILON = 0.0001;
+
+export interface CaptureResult {
+  affected: Set<number>;
+  capturedRegion: TerritoryMultiPolygon;
+  netAreaGained: number;
+}
+
+export interface TransferResult {
+  changed: boolean;
+  affected: Set<number>;
+  transferredArea: number;
+}
 
 function isLikelyIOSWebKit(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -267,23 +279,34 @@ export class Territory {
     return pointInTerritory(point, this.polygons);
   }
 
-  async captureFromTrail(trailPoints: Vec2[]): Promise<Set<number>> {
+  async captureFromTrail(trailPoints: Vec2[]): Promise<CaptureResult> {
     const capturedRegion = this.buildCaptureRegion(trailPoints);
-    if (capturedRegion.length === 0) return new Set();
+    if (capturedRegion.length === 0) {
+      return {
+        affected: new Set(),
+        capturedRegion: [],
+        netAreaGained: 0,
+      };
+    }
 
     const previousArea = this.computeArea();
     const nextPolygons = unionTerritories(this.polygons, capturedRegion);
     const nextArea = territoryArea(nextPolygons);
-    if (nextArea <= previousArea + AREA_EPSILON) return new Set();
+    if (nextArea <= previousArea + AREA_EPSILON) {
+      return {
+        affected: new Set(),
+        capturedRegion: [],
+        netAreaGained: 0,
+      };
+    }
 
-    const captureCentroid = territoryCentroid(capturedRegion);
-    const unionContainsCentroid = pointInTerritory(
-      captureCentroid,
-      nextPolygons,
-    );
     this.setPolygons(nextPolygons, "capture");
     const affected = await this.cropRegionFromOthers(capturedRegion);
-    return affected;
+    return {
+      affected,
+      capturedRegion,
+      netAreaGained: Math.max(0, nextArea - previousArea),
+    };
   }
 
   async claimTrailLine(trailPoints: Vec2[]): Promise<Set<number>> {
@@ -306,7 +329,7 @@ export class Territory {
   }
 
   getPercentage(): number {
-    return (this.computeArea() / (MAP_SIZE * MAP_SIZE)) * 100;
+    return (this.computeArea() / ARENA_AREA) * 100;
   }
 
   getNearestBoundaryPoint(point: Vec2): Vec2 {
@@ -403,15 +426,40 @@ export class Territory {
     this.setPolygons([]);
   }
 
-  async transferTo(playerId: number): Promise<{ changed: boolean } | null> {
+  async transferTo(
+    playerId: number,
+    extraClaimPaths: Vec2[][] = [],
+    extraClaimRegions: TerritoryMultiPolygon[] = [],
+  ): Promise<TransferResult | null> {
     if (this.polygons.length === 0) return null;
     const target = this.grid.getTerritory(playerId);
     if (!target) return null;
-    const victimBeforeArea = this.computeArea();
+    let claimedRegion = cloneTerritory(this.polygons);
+    for (const path of extraClaimPaths) {
+      if (path.length < 2) continue;
+      claimedRegion = unionTerritories(
+        claimedRegion,
+        createPolylineStroke(path, TRAIL_CLAIM_WIDTH),
+      );
+    }
+    for (const region of extraClaimRegions) {
+      if (region.length === 0) continue;
+      claimedRegion = unionTerritories(claimedRegion, region);
+    }
+
     const killerBeforeArea = target.computeArea();
-    target.unionRegion(this.polygons);
+    const affected = await target.cropRegionFromOthers(
+      claimedRegion,
+      new Set([this.playerId, playerId]),
+    );
+    target.unionRegion(claimedRegion);
+    const killerAfterArea = target.computeArea();
     this.clear();
-    return { changed: true };
+    return {
+      changed: killerAfterArea > killerBeforeArea + AREA_EPSILON,
+      affected,
+      transferredArea: Math.max(0, killerAfterArea - killerBeforeArea),
+    };
   }
 
   invalidateCache(): void {
@@ -433,11 +481,17 @@ export class Territory {
 
   private async cropRegionFromOthers(
     region: TerritoryMultiPolygon,
+    excludedPlayerIds: Set<number> = new Set(),
   ): Promise<Set<number>> {
     const affected = new Set<number>();
     for (const territory of this.grid.getTerritories()) {
-      if (territory.playerId === this.playerId || !territory.hasTerritory())
+      if (
+        territory.playerId === this.playerId ||
+        excludedPlayerIds.has(territory.playerId) ||
+        !territory.hasTerritory()
+      ) {
         continue;
+      }
       const changed = await territory.subtractRegion(region);
       if (changed) affected.add(territory.playerId);
     }

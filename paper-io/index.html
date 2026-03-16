@@ -7,8 +7,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Russo+One&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #f0fae8; font-family: 'Quicksand', sans-serif; color: #5A5A5A; touch-action: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f0fae8; font-family: 'Russo One', sans-serif; color: #5A5A5A; touch-action: none; }
+    button { font: inherit; }
     .hidden { display: none !important; }
+    :root {
+      --countdown-blue: #00A1E4;
+      --countdown-depth-1: #0a7db0;
+      --countdown-depth-2: #086890;
+      --countdown-depth-3: #055370;
+      --countdown-depth-4: #04445c;
+    }
 
     #game-wrapper {
       width: 100vw;
@@ -23,15 +31,21 @@
       align-items: center; justify-content: center; background: #f0fae8; z-index: 100;
     }
     #menu-screen h1 {
-      font-family: 'Quicksand', sans-serif; font-size: 2.8rem; font-weight: 700;
-      color: #E8736C; margin-bottom: 0.5rem; letter-spacing: 2px;
+      font-family: 'Russo One', sans-serif; font-size: 2.8rem; font-weight: 400;
+      color: var(--countdown-blue); margin-bottom: 0.5rem; letter-spacing: 0.08em;
+      text-shadow:
+        0 2px 0 var(--countdown-depth-1),
+        0 4px 0 var(--countdown-depth-2),
+        0 6px 0 var(--countdown-depth-3),
+        0 8px 0 var(--countdown-depth-4),
+        0 12px 20px rgba(0, 0, 0, 0.22);
     }
     .game-desc { font-size: 0.95rem; opacity: 0.5; font-weight: 500; margin-bottom: 2rem; text-align: center; }
 
     /* ─── Shop Open Button (on menu) ─── */
     #shop-open-btn {
       display: flex; align-items: center; gap: 10px;
-      padding: 12px 28px; font-family: 'Quicksand', sans-serif;
+      padding: 12px 28px; font-family: 'Russo One', sans-serif;
       font-size: 1rem; font-weight: 700; color: #5A5A5A;
       background: rgba(255,255,255,0.7); border: 2px solid rgba(222,214,200,0.9);
       border-radius: 14px; cursor: pointer; letter-spacing: 0.5px;
@@ -57,26 +71,60 @@
     #shop-modal.visible { display: flex; }
 
     .shop-card {
-      width: min(100%, 320px); max-height: 80vh; display: flex; flex-direction: column;
-      align-items: center; gap: 24px; overflow-y: auto; padding-bottom: 12px;
+      width: min(100%, 320px);
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 18px;
     }
     .shop-header {
-      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .shop-modal-title {
-      font-family: 'Quicksand', sans-serif; color: #E8736C;
+      font-family: 'Russo One', sans-serif; color: #E8736C;
       font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700;
       letter-spacing: 0.1em; text-transform: uppercase;
     }
-    #shop-close-btn {
-      width: 40px; height: 40px; border-radius: 12px;
-      border: 2px solid rgba(222,214,200,0.7); background: rgba(255,255,255,0.6);
-      color: #5A5A5A; display: grid; place-items: center;
-      cursor: pointer; transition: all 0.15s ease;
+    .shop-content {
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      scrollbar-width: none;
     }
-    #shop-close-btn:hover { background: rgba(255,255,255,0.9); }
-    #shop-close-btn:active { transform: scale(0.93); }
-    #shop-close-btn svg { width: 18px; height: 18px; fill: currentColor; }
+    .shop-content::-webkit-scrollbar { display: none; }
+    #shop-back-btn {
+      width: 100%;
+      min-height: 52px;
+      border: 2px solid #00A1E4;
+      border-radius: 24px;
+      background: rgba(255,255,255,0.72);
+      color: #00A1E4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: 'Russo One', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      flex: 0 0 auto;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    #shop-back-btn:hover { background: rgba(255,255,255,0.9); }
+    #shop-back-btn:active { transform: scale(0.97); }
+    #shop-back-btn svg { width: 16px; height: 16px; fill: currentColor; }
 
     .shop-section-label {
       font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
@@ -182,7 +230,7 @@
     }
 
     #play-btn {
-      margin-top: 2rem; padding: 14px 60px; font-family: 'Quicksand', sans-serif;
+      margin-top: 2rem; padding: 14px 60px; font-family: 'Russo One', sans-serif;
       font-size: 1.3rem; font-weight: 700; background: #E8736C; color: #fff;
       border: none; border-radius: 14px; cursor: pointer; letter-spacing: 1px;
       transition: all 0.3s; box-shadow: 0 4px 16px rgba(232,115,108,0.3);
@@ -204,12 +252,119 @@
 
     #hud-left { display: flex; flex-direction: column; gap: 8px; }
     #hud-player {
-      font-family: 'Quicksand', sans-serif; font-size: 1.1rem; font-weight: 700;
-      display: flex; align-items: center; gap: 8px; color: #fff;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      font-family: 'Russo One', sans-serif; font-size: 1.1rem; font-weight: 400;
+      display: flex; align-items: center; gap: 5px; color: var(--hud-accent, var(--countdown-blue));
+      text-shadow:
+        0 1px 0 var(--hud-depth-1, var(--countdown-depth-1)),
+        0 2px 0 var(--hud-depth-2, var(--countdown-depth-2)),
+        0 3px 0 var(--hud-depth-3, var(--countdown-depth-3)),
+        0 4px 8px rgba(4,68,92,0.26);
+    }
+    #player-pct { margin-left: -2px; }
+    #player-pct {
+      color: var(--hud-accent-strong, var(--hud-accent, var(--countdown-blue)));
     }
     .color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid rgba(255,255,255,0.4); }
-    #hud-timer { font-size: 0.9rem; opacity: 0.7; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.3); font-weight: 600; }
+    #hud-score {
+      font-family: 'Russo One', sans-serif;
+      font-size: 1.25rem;
+      line-height: 1;
+      color: var(--hud-accent-strong, var(--hud-accent, var(--countdown-blue)));
+      letter-spacing: 0.02em;
+      text-shadow:
+        0 1px 0 var(--hud-depth-1, var(--countdown-depth-1)),
+        0 2px 0 var(--hud-depth-2, var(--countdown-depth-2)),
+        0 3px 0 var(--hud-depth-3, var(--countdown-depth-3)),
+        0 4px 0 var(--hud-depth-4, var(--countdown-depth-4)),
+        0 8px 14px rgba(4,68,92,0.24);
+    }
+    #hud-timer {
+      font-size: 0.9rem;
+      opacity: 0.9;
+      color: var(--hud-accent, var(--countdown-blue));
+      font-weight: 400;
+      text-shadow:
+        0 1px 0 var(--hud-depth-1, var(--countdown-depth-1)),
+        0 2px 0 var(--hud-depth-2, var(--countdown-depth-2)),
+        0 3px 0 var(--hud-depth-3, var(--countdown-depth-3)),
+        0 4px 8px rgba(4,68,92,0.24);
+    }
+    #hud-respawns {
+      font-size: 0.78rem;
+      opacity: 0.92;
+      color: var(--hud-accent, var(--countdown-blue));
+      text-shadow:
+        0 1px 0 var(--hud-depth-1, var(--countdown-depth-1)),
+        0 2px 0 var(--hud-depth-2, var(--countdown-depth-2)),
+        0 3px 6px rgba(4,68,92,0.22);
+    }
+    #score-fx-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 58;
+      overflow: hidden;
+    }
+    .floating-score {
+      position: absolute;
+      left: 50%;
+      top: 52%;
+      transform: translate(-50%, 0);
+      font-family: 'Russo One', sans-serif;
+      font-size: clamp(1.2rem, 4vw, 2.1rem);
+      line-height: 1;
+      white-space: nowrap;
+      opacity: 0;
+      animation: floatingScoreRise 1.05s ease-out forwards;
+    }
+    .score-compliment {
+      position: absolute;
+      left: 50%;
+      top: 26%;
+      transform: translate(-50%, 0);
+      font-family: 'Russo One', sans-serif;
+      font-size: clamp(1.95rem, 6.2vw, 4.3rem);
+      line-height: 1;
+      letter-spacing: 0.055em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      text-align: center;
+      text-shadow:
+        0 2px 0 rgba(7, 73, 113, 0.9),
+        0 4px 0 rgba(5, 61, 94, 0.85),
+        0 8px 18px rgba(4,68,92,0.28);
+      opacity: 0;
+      animation: scoreComplimentPop 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .kill-banner {
+      position: absolute;
+      left: 50%;
+      top: 28%;
+      transform: translate(-50%, 0);
+      font-family: 'Russo One', sans-serif;
+      font-size: clamp(1.05rem, 3.6vw, 2rem);
+      line-height: 1;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      color: #ffffff;
+      text-shadow:
+        0 1px 0 rgba(0,0,0,0.55),
+        0 3px 12px rgba(0,0,0,0.3);
+      opacity: 0;
+      animation: scoreComplimentPop 1.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes floatingScoreRise {
+      0% { opacity: 0; transform: translate(-50%, 12px) scale(0.82); }
+      12% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      80% { opacity: 1; transform: translate(-50%, -52px) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -72px) scale(1.04); }
+    }
+    @keyframes scoreComplimentPop {
+      0% { opacity: 0; transform: translate(-50%, 18px) scale(0.78); }
+      14% { opacity: 1; transform: translate(-50%, 0) scale(1.06); }
+      72% { opacity: 1; transform: translate(-50%, -8px) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -20px) scale(0.98); }
+    }
     #mute-btn {
       pointer-events: all; background: none; border: none; color: #fff;
       font-size: 1.3rem; cursor: pointer; opacity: 0.7; margin-top: 4px;
@@ -217,102 +372,112 @@
     #mute-btn:hover { opacity: 1; }
 
     #leaderboard {
-      min-width: 186px;
+      min-width: 164px;
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      gap: 5px;
+      gap: 4px;
       color: #15316e;
-    }
-    #leaderboard h3 {
-      align-self: flex-end;
-      font-size: 0.62rem;
-      text-transform: uppercase;
-      color: rgba(21,49,110,0.56);
-      margin-bottom: 0;
-      letter-spacing: 0.16em;
-      font-weight: 800;
-      padding-right: 4px;
-      text-shadow: 0 2px 0 rgba(255,255,255,0.55);
     }
     #lb-entries {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
       align-items: flex-end;
     }
     .lb-entry {
-      display: flex;
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto;
       align-items: center;
-      gap: 5px;
+      gap: 8px;
+      min-width: 156px;
       font-weight: 800;
       will-change: transform;
+      --lb-accent: #00A1E4;
+      --lb-accent-dark: #0a7db0;
     }
     .lb-entry.dead { opacity: 0.42; }
-    .lb-card {
-      width: 146px;
-      height: 38px;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      padding: 0 11px 0 8px;
-      background: url('/leaderboard-nameplate.svg') center / contain no-repeat;
-      position: relative;
-      flex-shrink: 0;
-    }
-    .lb-avatar {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      color: #fff;
-      font-size: 0.58rem;
-      font-weight: 800;
-      border: 1.5px solid rgba(246,249,251,0.92);
-      flex-shrink: 0;
-      margin-left: 7px;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.24);
-    }
     .lb-name {
-      flex: 1;
       min-width: 0;
-      padding-right: 2px;
       color: #f6f9fb;
-      font-size: 0.72rem;
+      font-size: 0.76rem;
       letter-spacing: 0.01em;
-      text-shadow: 0 2px 0 rgba(30,118,157,0.32);
+      text-shadow:
+        0 1px 0 var(--countdown-depth-1),
+        0 2px 0 var(--countdown-depth-2),
+        0 3px 0 rgba(4,68,92,0.38);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .lb-pct {
-      min-width: 62px;
+      min-width: 66px;
       text-align: right;
       font-weight: 900;
-      font-size: 1rem;
+      font-size: 1.02rem;
       line-height: 1;
       letter-spacing: -0.045em;
-      -webkit-text-stroke: 0.8px rgba(246,249,251,0.96);
+      color: var(--lb-accent);
+      -webkit-text-stroke: 0.9px var(--lb-accent-dark);
       text-shadow:
-        0 1px 0 rgba(246,249,251,0.95),
-        0 2px 0 rgba(46,153,201,0.9),
-        0 3px 0 rgba(24,111,153,0.88),
-        0 4px 5px rgba(19,86,121,0.18);
+        0 1px 0 rgba(255,255,255,0.55),
+        0 2px 0 rgba(4,68,92,0.24);
     }
     .lb-rank {
-      width: 20px;
-      height: 20px;
-      display: grid;
-      place-items: center;
-      font-size: 0.62rem;
+      width: 22px;
+      height: auto;
+      display: block;
+      font-size: 0.74rem;
       font-weight: 900;
-      margin-left: auto;
-      margin-right: 4px;
-      color: #2D8AB4;
+      color: var(--lb-accent);
+      line-height: 1;
+      text-align: right;
       text-shadow:
-        0 1px 0 rgba(255,255,255,0.9),
-        0 2px 0 rgba(124,214,247,0.45);
+        0 1px 0 var(--lb-accent-dark),
+        0 2px 0 rgba(4,68,92,0.2);
+    }
+    .lb-entry.rank-1 {
+      --lb-accent: #F6C445;
+      --lb-accent-dark: #A87010;
+    }
+    .lb-entry.rank-2 {
+      --lb-accent: #D9DEE5;
+      --lb-accent-dark: #8893A2;
+    }
+    .lb-entry.rank-3 {
+      --lb-accent: #C8894F;
+      --lb-accent-dark: #8F5730;
+    }
+
+    #mapp-panel {
+      position: absolute;
+      left: 20px;
+      bottom: 20px;
+      width: 158px;
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      z-index: 52;
+      pointer-events: none;
+    }
+    #mapp-panel.visible { display: flex; }
+    #mapp-canvas {
+      width: 158px;
+      height: 158px;
+      display: block;
+      border-radius: 50%;
+      background: rgba(223,244,255,0.28);
+    }
+    @media (pointer: coarse) {
+      #mapp-panel {
+        left: max(6px, env(safe-area-inset-left));
+        bottom: max(6px, env(safe-area-inset-bottom));
+        width: 136px;
+      }
+      #mapp-canvas {
+        width: 136px;
+        height: 136px;
+      }
     }
 
     /* ─── Game Over ─── */
@@ -322,12 +487,32 @@
       z-index: 80; backdrop-filter: blur(8px);
     }
     #game-over.visible { display: flex; }
-    #game-over h2 { font-family: 'Quicksand', sans-serif; font-size: 2.2rem; font-weight: 700; color: #E8736C; margin-bottom: 1.5rem; }
+    #game-over h2 {
+      font-family: 'Russo One', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 400;
+      color: var(--countdown-blue);
+      margin-bottom: 1.5rem;
+      text-shadow:
+        0 2px 0 var(--countdown-depth-1),
+        0 4px 0 var(--countdown-depth-2),
+        0 6px 0 var(--countdown-depth-3),
+        0 8px 16px rgba(4,68,92,0.24);
+    }
     .go-stat { font-size: 1rem; opacity: 0.6; margin: 4px 0; font-weight: 500; }
     .go-stat span { font-weight: 700; color: #5A5A5A; }
+    #go-message {
+      display: none;
+      margin-top: 10px;
+      max-width: 280px;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #00A1E4;
+      letter-spacing: 0.03em;
+    }
     .go-buttons { display: flex; gap: 12px; margin-top: 1.5rem; }
     .go-btn {
-      padding: 12px 32px; font-family: 'Quicksand', sans-serif; font-size: 0.95rem;
+      padding: 12px 32px; font-family: 'Russo One', sans-serif; font-size: 0.95rem;
       font-weight: 700; border: none; border-radius: 12px; cursor: pointer;
       transition: all 0.2s;
     }
@@ -341,7 +526,18 @@
       background: rgba(245,240,232,0.8); z-index: 70; backdrop-filter: blur(6px);
     }
     #pause-overlay.visible { display: flex; }
-    #pause-overlay h2 { font-family: 'Quicksand', sans-serif; font-size: 2rem; font-weight: 700; color: #E8736C; opacity: 0.7; }
+    #pause-overlay h2 {
+      font-family: 'Russo One', sans-serif;
+      font-size: 2rem;
+      font-weight: 400;
+      color: var(--countdown-blue);
+      opacity: 1;
+      text-shadow:
+        0 2px 0 var(--countdown-depth-1),
+        0 4px 0 var(--countdown-depth-2),
+        0 6px 0 var(--countdown-depth-3),
+        0 8px 14px rgba(4,68,92,0.22);
+    }
 
     #start-countdown {
       position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
@@ -380,6 +576,7 @@
           rgba(0,161,228,0.01) 100%);
       filter: blur(2px);
       transform: translateY(-14px);
+      display: none;
     }
     .countdown-pop #start-countdown-value {
       animation: countdownScoreSlam 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -404,21 +601,21 @@
 
     /* ─── Settings Button ─── */
     #settings-btn {
-      position: absolute; bottom: 30px; right: 20px; width: 48px; height: 48px;
+      position: absolute; top: 164px; right: 20px; width: 48px; height: 48px;
       border: 2px solid rgba(232,115,108,0.25); border-radius: 14px;
       background: rgba(245,240,232,0.85); color: #E8736C;
-      display: grid; place-items: center; z-index: 55; cursor: pointer;
+      display: grid; place-items: center; z-index: 115; cursor: pointer;
       transition: transform 0.16s ease, background 0.16s ease;
       backdrop-filter: blur(6px);
     }
     #settings-btn:hover { background: rgba(245,240,232,0.95); }
     #settings-btn:active { transform: scale(0.94); }
     #settings-btn svg { width: 22px; height: 22px; fill: currentColor; }
-    @media (pointer: coarse) { #settings-btn { bottom: 120px; right: 16px; } }
+    @media (pointer: coarse) { #settings-btn { top: 228px; right: 16px; } }
 
     /* ─── Settings Modal ─── */
     #settings-modal {
-      position: absolute; inset: 0; z-index: 90; display: none;
+      position: absolute; inset: 0; z-index: 125; display: none;
       flex-direction: column; align-items: center; justify-content: center;
       padding: 22px; background: rgba(245,240,232,0.92); backdrop-filter: blur(12px);
     }
@@ -429,7 +626,7 @@
       align-items: center; gap: 28px;
     }
     .modal-title {
-      font-family: 'Quicksand', sans-serif; color: #E8736C;
+      font-family: 'Russo One', sans-serif; color: #E8736C;
       font-size: clamp(1.4rem, 7vw, 2rem); font-weight: 700;
       letter-spacing: 0.1em; text-transform: uppercase;
     }
@@ -440,7 +637,7 @@
       width: 100%; border: none; background: transparent; color: #5A5A5A;
       padding: 14px 0; display: flex; align-items: center; justify-content: space-between;
       text-align: left; border-bottom: 1px solid rgba(222,214,200,0.5);
-      cursor: pointer; font-family: 'Quicksand', sans-serif;
+      cursor: pointer; font-family: 'Russo One', sans-serif;
     }
     .setting-row:last-child { border-bottom: none; }
     .setting-name { display: flex; flex-direction: column; gap: 2px; }
@@ -488,6 +685,10 @@
       transform: translate(-50%, -50%);
       pointer-events: none; display: none;
     }
+    #joystick-base,
+    #joystick-knob {
+      display: none !important;
+    }
 
   </style>
 </head>
@@ -518,24 +719,31 @@
   <!-- HUD -->
   <div id="hud">
     <div id="hud-left">
-      <div id="hud-player"><span class="color-dot" id="player-dot"></span> YOU <span id="player-pct">0%</span></div>
+      <div id="hud-player"><span class="color-dot" id="player-dot"></span> <span id="player-name">YOU</span> <span id="player-pct">0%</span></div>
+      <div id="hud-score">0</div>
       <div id="hud-timer">00:00</div>
+      <div id="hud-respawns">Respawns: 2/2</div>
     </div>
     <div id="leaderboard">
-      <h3>Top 3</h3>
       <div id="lb-entries"></div>
     </div>
   </div>
+  <div id="mapp-panel">
+    <canvas id="mapp-canvas"></canvas>
+  </div>
+  <div id="score-fx-layer"></div>
 
   <!-- Game Over -->
   <div id="game-over">
-    <h2>Game Over</h2>
-    <div class="go-stat">Final Score: <span id="go-score">0%</span></div>
+    <h2 id="go-title">Game Over</h2>
+    <div class="go-stat">Total Score: <span id="go-score">0</span></div>
     <div class="go-stat">Rank: <span id="go-rank">#1</span></div>
     <div class="go-stat">Time: <span id="go-time">00:00</span></div>
+    <div class="go-stat">Respawns Left: <span id="go-respawns">2/2</span></div>
+    <div id="go-message"></div>
     <div id="go-unlocks"></div>
     <div class="go-buttons">
-      <button class="go-btn primary" id="go-play-again">Play Again</button>
+      <button class="go-btn primary" id="go-play-again">Retry</button>
       <button class="go-btn secondary" id="go-main-menu">Main Menu</button>
     </div>
   </div>
@@ -598,14 +806,17 @@
     <div class="shop-card">
       <div class="shop-header">
         <div class="shop-modal-title">Shop</div>
-        <button id="shop-close-btn" aria-label="Close shop">
-          <svg viewBox="0 0 24 24"><path d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>
-        </button>
       </div>
-      <div class="shop-section-label">Colors</div>
-      <div id="shop-colors"></div>
-      <div class="shop-section-label">Animals & Skins</div>
-      <div id="shop-skins"></div>
+      <div class="shop-content">
+        <div class="shop-section-label">Colors</div>
+        <div id="shop-colors"></div>
+        <div class="shop-section-label">Animals & Skins</div>
+        <div id="shop-skins"></div>
+      </div>
+      <button id="shop-back-btn" aria-label="Back from shop">
+        <svg viewBox="0 0 24 24"><path d="M14.7 5.3a1 1 0 0 1 0 1.4L10.41 11H20a1 1 0 1 1 0 2h-9.59l4.3 4.3a1 1 0 1 1-1.42 1.4l-6-6a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.41 0z"/></svg>
+        Back
+      </button>
     </div>
   </div>
 

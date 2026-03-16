@@ -8,6 +8,13 @@ export interface MenuConfig {
   playerSkinId: string;
 }
 
+interface GameOverOptions {
+  title?: string;
+  message?: string;
+  primaryLabel?: string;
+  respawnsLeftText?: string;
+}
+
 export class Menu {
   private menuScreen: HTMLElement;
   private gameOverScreen: HTMLElement;
@@ -83,16 +90,22 @@ export class Menu {
 
   private buildShop(): void {
     const openBtn = document.getElementById("shop-open-btn");
-    const closeBtn = document.getElementById("shop-close-btn");
+    const backBtn = document.getElementById("shop-back-btn");
 
-    openBtn?.addEventListener("click", () => {
-      this.refreshShop();
-      this.shopModal.classList.add("visible");
-    });
+    openBtn?.addEventListener(
+      "click",
+      this.guardMenuTap("shop-open", () => {
+        this.refreshShop();
+        this.shopModal.classList.add("visible");
+      }),
+    );
 
-    closeBtn?.addEventListener("click", () => {
-      this.shopModal.classList.remove("visible");
-    });
+    backBtn?.addEventListener(
+      "click",
+      this.guardMenuTap("shop-back", () => {
+        this.shopModal.classList.remove("visible");
+      }),
+    );
 
     this.shopModal.addEventListener("click", (e) => {
       if (e.target === this.shopModal) {
@@ -377,10 +390,28 @@ export class Menu {
     rank: string,
     time: string,
     unlockedSkins?: SkinDef[],
+    options: GameOverOptions = {},
   ): void {
+    document.getElementById("go-title")!.textContent =
+      options.title ?? "Game Over";
     document.getElementById("go-score")!.textContent = score;
     document.getElementById("go-rank")!.textContent = rank;
     document.getElementById("go-time")!.textContent = time;
+    document.getElementById("go-respawns")!.textContent =
+      options.respawnsLeftText ?? "3/3";
+    document.getElementById("go-play-again")!.textContent =
+      options.primaryLabel ?? "Retry";
+
+    const messageEl = document.getElementById("go-message");
+    if (messageEl) {
+      if (options.message) {
+        messageEl.textContent = options.message;
+        messageEl.style.display = "block";
+      } else {
+        messageEl.textContent = "";
+        messageEl.style.display = "none";
+      }
+    }
 
     const unlockEl = document.getElementById("go-unlocks");
     if (unlockEl) {

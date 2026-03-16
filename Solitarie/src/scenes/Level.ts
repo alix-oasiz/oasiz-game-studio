@@ -51,6 +51,12 @@ interface EndOverlayConfig {
     showVictoryDetails?: boolean;
 }
 
+interface EndOverlayState {
+    title: string;
+    subtitle: string;
+    config?: EndOverlayConfig;
+}
+
 interface TopButtonControl {
     setLabel: (label: string) => void;
     setEnabled: (enabled: boolean) => void;
@@ -152,6 +158,7 @@ export default class Level extends Phaser.Scene {
     private timeText?: Phaser.GameObjects.Text;
     private settingsOverlay?: Phaser.GameObjects.Container;
     private endOverlay!: Phaser.GameObjects.Container;
+    private endOverlayState?: EndOverlayState;
     private leaveOverlay?: Phaser.GameObjects.Container;
     private howToOverlay?: Phaser.GameObjects.Container;
     private activeHintText?: Phaser.GameObjects.Text;
@@ -852,6 +859,7 @@ export default class Level extends Phaser.Scene {
             card.source = { type: "stock" };
             this.stock.push(card);
         }
+        this.endOverlayState = undefined;
         this.layoutAll();
         this.endOverlay?.setVisible(false);
         this.updateHintButton();
@@ -2658,6 +2666,7 @@ export default class Level extends Phaser.Scene {
 
     private openEnd(title: string, subtitle: string, config?: EndOverlayConfig) {
         if (!this.endOverlay) this.createEndOverlay();
+        this.endOverlayState = { title, subtitle, config };
         gameplayStop();
         this.hideGameplayHtml();
         this.hideEndOverlayHtml();
@@ -3089,6 +3098,8 @@ export default class Level extends Phaser.Scene {
     }
 
     private rebuildOverlays() {
+        const endVisible = !!this.endOverlay?.visible;
+        const endState = this.endOverlayState;
         const howToVisible = !!this.howToOverlay?.visible;
         this.settingsOverlay?.destroy();
         this.endOverlay?.destroy();
@@ -3104,5 +3115,8 @@ export default class Level extends Phaser.Scene {
             this.updateHowToOverlay();
         }
         hideHtmlText("modal-title");
+        if (endVisible && endState) {
+            this.openEnd(endState.title, endState.subtitle, endState.config);
+        }
     }
 }

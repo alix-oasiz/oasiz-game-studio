@@ -5,6 +5,7 @@
     "": {
       "name": "paper-io",
       "dependencies": {
+        "@oasiz/sdk": "^1.2.0",
         "polygon-clipping": "^0.15.7",
         "three": "^0.183.1",
       },
@@ -71,6 +72,8 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.27.3", "", { "os": "win32", "cpu": "ia32" }, "sha512-QLKSFeXNS8+tHW7tZpMtjlNb7HKau0QDpwm49u0vUp9y1WOF+PEzkU84y9GqYaAVW8aH8f3GcBck26jh54cX4Q=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.3", "", { "os": "win32", "cpu": "x64" }, "sha512-4uJGhsxuptu3OcpVAzli+/gWusVGwZZHTlS63hh++ehExkVT8SgiEf7/uC/PclrPPkLhZqGgCTjd0VWLo6xMqA=="],
+
+    "@oasiz/sdk": ["@oasiz/sdk@1.2.0", "", {}, "sha512-xJceJWtpGfiHhgRQ0HxrjAMKzBLnugD3VJyRy7hFfAHsGoSBILLjL5ec868dKxn8YgL9qX3uRm1nL+WbPBkLxg=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.59.0", "", { "os": "android", "cpu": "arm" }, "sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg=="],
 

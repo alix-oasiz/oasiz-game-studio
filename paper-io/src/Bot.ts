@@ -19,6 +19,7 @@ interface BotAI {
   config: BotDifficultyConfig;
   targetPlayerId: number | null;
   targetPoint: Vec2 | null;
+  prioritizeHuman: boolean;
 }
 
 interface BotDifficultyConfig {
@@ -26,6 +27,7 @@ interface BotDifficultyConfig {
   aggression: number;
   loopSize: number;
   turnRate: number;
+  maxExpandTicks: number;
 }
 
 interface AttackTarget {
@@ -33,6 +35,8 @@ interface AttackTarget {
   point: Vec2;
   score: number;
   enemyReturnDist: number;
+  interceptDist: number;
+  enemyDistToPoint: number;
 }
 
 interface DefenseTarget {
@@ -41,6 +45,11 @@ interface DefenseTarget {
   score: number;
 }
 
+const HUMAN_FOCUS_RADIUS = 24;
+const HUMAN_FOCUS_RADIUS_SQ = HUMAN_FOCUS_RADIUS * HUMAN_FOCUS_RADIUS;
+const HUMAN_GANG_UP_RADIUS = 28;
+const HUMAN_GANG_UP_RADIUS_SQ = HUMAN_GANG_UP_RADIUS * HUMAN_GANG_UP_RADIUS;
+
 export interface BotFrameContext {
   leaderId: number;
 }
@@ -48,12 +57,23 @@ export interface BotFrameContext {
 export class BotController {
   private ais: Map<number, BotAI> = new Map();
   private baseConfig: BotDifficultyConfig;
+  private hunterBotIds = new Set<number>();
 
   constructor(difficulty: Difficulty) {
-    this.baseConfig = BOT_DIFFICULTY[difficulty];
+    const base = BOT_DIFFICULTY[difficulty];
+    this.baseConfig = {
+      ...base,
+      maxExpandTicks:
+        difficulty === "easy" ? 500 : difficulty === "hard" ? 550 : 520,
+    };
   }
 
   initBot(player: PlayerState): void {
+    const prioritizeHuman =
+      this.hunterBotIds.has(player.id) || this.hunterBotIds.size < 2;
+    if (prioritizeHuman) {
+      this.hunterBotIds.add(player.id);
+    }
     this.ais.set(player.id, {
       behavior: BotBehavior.EXPAND,
       waypoints: [],
@@ -64,6 +84,7 @@ export class BotController {
       config: this.createBotConfig(),
       targetPlayerId: null,
       targetPoint: null,
+      prioritizeHuman,
     });
   }
 
@@ -83,8 +104,19 @@ export class BotController {
     const defenseTarget = this.evaluateBorderThreat(bot, allPlayers, ai);
     const attackTarget = this.evaluateTrailAttack(bot, allPlayers, ai, frame);
     const weakTarget = this.evaluateWeakPlayerHunt(bot, allPlayers, ai);
+    const hunterTarget = ai.prioritizeHuman
+      ? this.evaluatePriorityHumanTarget(bot, allPlayers, ai)
+      : null;
 
     if (bot.trail.length > ai.config.maxTrailLen) {
+      this.setBehavior(ai, BotBehavior.RETURN_HOME);
+    } else if (
+      defenseTarget &&
+      bot.isTrailing &&
+      defenseTarget.score > 5.4 &&
+      bot.trail.length >
+        ai.config.maxTrailLen * (0.22 + (1 - ai.config.aggression) * 0.1)
+    ) {
       this.setBehavior(ai, BotBehavior.RETURN_HOME);
     } else if (
       bot.trail.length >
@@ -92,6 +124,16 @@ export class BotController {
       pressure < ai.config.loopSize * (0.95 + (1 - ai.config.aggression) * 0.4)
     ) {
       this.setBehavior(ai, BotBehavior.FLEE);
+    } else if (
+      hunterTarget &&
+      this.canCommitAttack(bot, ai, hunterTarget.target)
+    ) {
+      this.setBehavior(
+        ai,
+        hunterTarget.behavior,
+        hunterTarget.target.playerId,
+        hunterTarget.target.point,
+      );
     } else if (defenseTarget && !bot.isTrailing) {
       this.setBehavior(
         ai,
@@ -121,7 +163,10 @@ export class BotController {
       this.setBehavior(ai, BotBehavior.EXPAND);
     }
 
-    if (ai.behavior === BotBehavior.EXPAND && ai.ticksSinceChange > 520) {
+    if (
+      ai.behavior === BotBehavior.EXPAND &&
+      ai.ticksSinceChange > ai.config.maxExpandTicks
+    ) {
       this.setBehavior(ai, BotBehavior.RETURN_HOME);
     }
 
@@ -189,8 +234,12 @@ export class BotController {
       return;
     }
 
-    const attackTarget =
-      ai.behavior === BotBehavior.HUNT_WEAK_PLAYER
+    const priorityHunterTarget = ai.prioritizeHuman
+      ? this.evaluatePriorityHumanTarget(bot, allPlayers, ai)
+      : null;
+    const attackTarget = priorityHunterTarget?.target
+      ? priorityHunterTarget.target
+      : ai.behavior === BotBehavior.HUNT_WEAK_PLAYER
         ? this.evaluateWeakPlayerHunt(bot, allPlayers, ai)
         : this.evaluateTrailAttack(bot, allPlayers, ai, frame);
 
@@ -274,6 +323,7 @@ export class BotController {
     allPlayers: PlayerState[],
     frame: BotFrameContext,
   ): number {
+    const ai = this.ais.get(bot.id);
     const botDist2 =
       bot.position.x * bot.position.x + bot.position.z * bot.position.z;
     const edgeThreshold = MAP_RADIUS * 0.7;
@@ -282,6 +332,18 @@ export class BotController {
     if (botDist2 > edgeThreshold * edgeThreshold) {
       const toCenter = Math.atan2(-bot.position.z, -bot.position.x);
       return toCenter + (Math.random() - 0.5) * Math.PI * 0.6;
+    }
+
+    if (ai?.prioritizeHuman) {
+      const human = this.getHumanPlayer(allPlayers);
+      if (human) {
+        return (
+          Math.atan2(
+            human.position.z - bot.position.z,
+            human.position.x - bot.position.x,
+          ) + this.randomRange(-0.28, 0.28)
+        );
+      }
     }
 
     const contestTarget = this.pickContestTarget(bot, allPlayers, frame);
@@ -420,15 +482,24 @@ export class BotController {
     frame: BotFrameContext,
   ): AttackTarget | null {
     let best: AttackTarget | null = null;
+    const human = this.getHumanPlayer(allPlayers);
 
     for (const enemy of allPlayers) {
       if (enemy.id === bot.id || !enemy.alive || enemy.trail.length === 0)
         continue;
       if (enemy.territory.containsPoint(enemy.position)) continue;
+      if (
+        human &&
+        !enemy.isHuman &&
+        this.shouldGangUpOnHuman(bot, enemy, human)
+      ) {
+        continue;
+      }
 
-      const targetPoint = this.pickNearestTrailPoint(bot.position, enemy.trail);
-      const interceptDist = dist(bot.position, targetPoint);
-      const enemyReturnDist = this.nearestHomeDistance(enemy);
+      const intercept = this.pickBestTrailIntercept(bot, enemy, allPlayers, ai);
+      const targetPoint = intercept.point;
+      const interceptDist = intercept.interceptDist;
+      const enemyReturnDist = intercept.enemyReturnDist;
       const pressure = this.getEnemyPressureAt(
         targetPoint,
         bot.id,
@@ -436,12 +507,15 @@ export class BotController {
         enemy.id,
       );
       const score =
-        enemyReturnDist * (1.3 + ai.config.aggression * 0.7) -
-        interceptDist * (0.5 - ai.config.aggression * 0.1) -
-        pressure * 0.8 +
+        enemyReturnDist * (1.55 + ai.config.aggression * 0.78) -
+        interceptDist * (0.42 - ai.config.aggression * 0.08) -
+        intercept.enemyDistToPoint * 0.2 -
+        pressure * 0.85 +
+        intercept.vulnerabilityBonus +
+        this.getHumanFocusBonus(bot, targetPoint, enemy, human) +
         (enemy.isHuman ? 4.5 : 0) +
         (enemy.id === frame.leaderId ? 2.5 : 0) +
-        enemy.trail.length * 0.12;
+        enemy.trail.length * 0.16;
 
       if (!best || score > best.score) {
         best = {
@@ -449,6 +523,8 @@ export class BotController {
           point: targetPoint,
           score,
           enemyReturnDist,
+          interceptDist,
+          enemyDistToPoint: intercept.enemyDistToPoint,
         };
       }
     }
@@ -462,11 +538,19 @@ export class BotController {
     ai: BotAI,
   ): AttackTarget | null {
     let best: AttackTarget | null = null;
+    const human = this.getHumanPlayer(allPlayers);
 
     for (const enemy of allPlayers) {
       if (enemy.id === bot.id || !enemy.alive || enemy.trail.length === 0)
         continue;
       if (enemy.territory.containsPoint(enemy.position)) continue;
+      if (
+        human &&
+        !enemy.isHuman &&
+        this.shouldGangUpOnHuman(bot, enemy, human)
+      ) {
+        continue;
+      }
 
       const enemyReturnDist = this.nearestHomeDistance(enemy);
       if (enemyReturnDist < ai.config.loopSize * 0.45) continue;
@@ -475,6 +559,7 @@ export class BotController {
       const score =
         enemyReturnDist * (0.9 + ai.config.aggression * 0.8) -
         interceptDist * 0.42 +
+        this.getHumanFocusBonus(bot, enemy.position, enemy, human) +
         (enemy.isHuman ? 3 : 0);
 
       if (!best || score > best.score) {
@@ -483,6 +568,8 @@ export class BotController {
           point: enemy.position,
           score,
           enemyReturnDist,
+          interceptDist,
+          enemyDistToPoint: 0,
         };
       }
     }
@@ -496,26 +583,45 @@ export class BotController {
     ai: BotAI,
   ): DefenseTarget | null {
     let best: DefenseTarget | null = null;
+    const human = this.getHumanPlayer(allPlayers);
 
     for (const enemy of allPlayers) {
       if (enemy.id === bot.id || !enemy.alive) continue;
       if (!enemy.isTrailing && enemy.territory.containsPoint(enemy.position))
         continue;
+      if (
+        human &&
+        !enemy.isHuman &&
+        this.shouldGangUpOnHuman(bot, enemy, human)
+      ) {
+        continue;
+      }
 
       const borderPoint = bot.territory.getNearestBoundaryPoint(enemy.position);
       const enemyBorderDist = dist(enemy.position, borderPoint);
       const botBorderDist = dist(bot.position, borderPoint);
+      const enemyReturnDist = this.nearestHomeDistance(enemy, borderPoint);
+      const pressure = this.getEnemyPressureAt(
+        borderPoint,
+        bot.id,
+        allPlayers,
+        enemy.id,
+      );
       const score =
-        (ai.config.loopSize * 1.5 - enemyBorderDist) * 1.4 -
-        botBorderDist * 0.35 +
-        (enemy.isHuman ? 2.5 : 0);
+        (ai.config.loopSize * 1.75 - enemyBorderDist) * 1.7 -
+        botBorderDist * 0.52 +
+        enemy.trail.length * 0.22 +
+        enemyReturnDist * 0.26 -
+        pressure * 0.08 +
+        this.getHumanFocusBonus(bot, borderPoint, enemy, human) * 0.9 +
+        (enemy.isHuman ? 3.2 : 0);
 
       if (!best || score > best.score) {
         best = { playerId: enemy.id, point: borderPoint, score };
       }
     }
 
-    return best && best.score > 2.5 ? best : null;
+    return best && best.score > 2.1 ? best : null;
   }
 
   private canCommitAttack(
@@ -524,11 +630,18 @@ export class BotController {
     target: AttackTarget,
   ): boolean {
     const homeDist = this.nearestHomeDistance(bot);
-    const interceptDist = dist(bot.position, target.point);
     const trailPenalty = bot.trail.length * 0.65;
     const budget =
       ai.config.loopSize * (2.15 + ai.config.aggression * 1.75) - trailPenalty;
-    return homeDist + interceptDist * 0.8 <= budget;
+    const interceptWindow =
+      target.enemyReturnDist * (1.08 + ai.config.aggression * 0.2) + 2.2;
+    const enemyRaceAdvantage = target.enemyReturnDist - target.interceptDist;
+
+    return (
+      homeDist + target.interceptDist * 0.8 <= budget &&
+      target.interceptDist <= interceptWindow &&
+      enemyRaceAdvantage > -1.2
+    );
   }
 
   private canHuntPlayer(
@@ -569,6 +682,109 @@ export class BotController {
     return nearest;
   }
 
+  private getHumanPlayer(allPlayers: PlayerState[]): PlayerState | null {
+    return allPlayers.find((player) => player.isHuman && player.alive) ?? null;
+  }
+
+  private isWithinHumanZone(
+    point: Vec2,
+    human: PlayerState,
+    radiusSq: number,
+  ): boolean {
+    return dist2(point, human.position) <= radiusSq;
+  }
+
+  private shouldGangUpOnHuman(
+    bot: PlayerState,
+    enemy: PlayerState,
+    human: PlayerState,
+  ): boolean {
+    return (
+      this.isWithinHumanZone(bot.position, human, HUMAN_GANG_UP_RADIUS_SQ) &&
+      this.isWithinHumanZone(enemy.position, human, HUMAN_GANG_UP_RADIUS_SQ)
+    );
+  }
+
+  private getHumanFocusBonus(
+    bot: PlayerState,
+    targetPoint: Vec2,
+    enemy: PlayerState,
+    human: PlayerState | null,
+  ): number {
+    if (!human || !enemy.isHuman) return 0;
+
+    let bonus = 0;
+    if (this.isWithinHumanZone(bot.position, human, HUMAN_FOCUS_RADIUS_SQ)) {
+      bonus += 5.5;
+    }
+    if (this.isWithinHumanZone(targetPoint, human, HUMAN_FOCUS_RADIUS_SQ)) {
+      bonus += 4.5;
+    }
+    return bonus;
+  }
+
+  private evaluatePriorityHumanTarget(
+    bot: PlayerState,
+    allPlayers: PlayerState[],
+    ai: BotAI,
+  ): { behavior: BotBehavior; target: AttackTarget } | null {
+    const human = this.getHumanPlayer(allPlayers);
+    if (!human || human.id === bot.id) return null;
+
+    if (
+      human.trail.length > 0 &&
+      !human.territory.containsPoint(human.position)
+    ) {
+      const intercept = this.pickBestTrailIntercept(bot, human, allPlayers, ai);
+      const pressure = this.getEnemyPressureAt(
+        intercept.point,
+        bot.id,
+        allPlayers,
+        human.id,
+      );
+      const score =
+        intercept.enemyReturnDist * (1.85 + ai.config.aggression * 0.92) -
+        intercept.interceptDist * (0.34 - ai.config.aggression * 0.06) -
+        intercept.enemyDistToPoint * 0.18 -
+        pressure * 0.52 +
+        intercept.vulnerabilityBonus +
+        9.5;
+
+      return {
+        behavior: BotBehavior.ATTACK_TRAIL,
+        target: {
+          playerId: human.id,
+          point: intercept.point,
+          score,
+          enemyReturnDist: intercept.enemyReturnDist,
+          interceptDist: intercept.interceptDist,
+          enemyDistToPoint: intercept.enemyDistToPoint,
+        },
+      };
+    }
+
+    const humanReturnDist = this.nearestHomeDistance(human);
+    if (humanReturnDist < ai.config.loopSize * 0.3) return null;
+
+    const interceptDist = dist(bot.position, human.position);
+    const score =
+      humanReturnDist * (1.08 + ai.config.aggression * 0.75) -
+      interceptDist * 0.34 +
+      7.5;
+
+    return {
+      behavior: BotBehavior.HUNT_WEAK_PLAYER,
+      target: {
+        playerId: human.id,
+        point: human.position,
+        score,
+        enemyReturnDist: humanReturnDist,
+        interceptDist,
+        enemyDistToPoint: 0,
+      },
+    };
+  }
+
   private pickNearestTrailPoint(from: Vec2, trail: Vec2[]): Vec2 {
     let best = trail[0];
     let bestDist = dist2(from, best);
@@ -581,6 +797,66 @@ export class BotController {
         bestDist = d2;
       }
     }
+    return best;
+  }
+
+  private pickBestTrailIntercept(
+    bot: PlayerState,
+    enemy: PlayerState,
+    allPlayers: PlayerState[],
+    ai: BotAI,
+  ): {
+    point: Vec2;
+    interceptDist: number;
+    enemyReturnDist: number;
+    enemyDistToPoint: number;
+    vulnerabilityBonus: number;
+  } {
+    const fallbackPoint = this.pickNearestTrailPoint(bot.position, enemy.trail);
+    let best = {
+      point: fallbackPoint,
+      interceptDist: dist(bot.position, fallbackPoint),
+      enemyReturnDist: this.nearestHomeDistance(enemy, fallbackPoint),
+      enemyDistToPoint: dist(enemy.position, fallbackPoint),
+      vulnerabilityBonus: 0,
+      score: -Infinity,
+    };
+
+    const trail = enemy.trail;
+    const step = trail.length > 18 ? 2 : 1;
+    for (let i = 0; i < trail.length; i += step) {
+      const point = trail[i];
+      const interceptDist = dist(bot.position, point);
+      const enemyReturnDist = this.nearestHomeDistance(enemy, point);
+      const enemyDistToPoint = dist(enemy.position, point);
+      const pressure = this.getEnemyPressureAt(
+        point,
+        bot.id,
+        allPlayers,
+        enemy.id,
+      );
+      const vulnerabilityBonus =
+        enemyReturnDist * (0.38 + ai.config.aggression * 0.16) -
+        enemyDistToPoint * 0.2 -
+        pressure * 0.18;
+      const score =
+        vulnerabilityBonus +
+        enemyReturnDist * 0.72 -
+        interceptDist * 0.34 -
+        enemyDistToPoint * 0.16;
+
+      if (score > best.score) {
+        best = {
+          point,
+          interceptDist,
+          enemyReturnDist,
+          enemyDistToPoint,
+          vulnerabilityBonus,
+          score,
+        };
+      }
+    }
+
     return best;
   }
 
@@ -672,20 +948,36 @@ export class BotController {
   }
 
   private createBotConfig(): BotDifficultyConfig {
+    const isAdventurous = Math.random() < 0.34;
+    const maxTrailLenBase = Math.max(
+      10,
+      Math.round(this.baseConfig.maxTrailLen * this.randomRange(0.8, 1.2)),
+    );
+    const aggressionBase = Math.max(
+      0.05,
+      Math.min(
+        0.95,
+        this.baseConfig.aggression + this.randomRange(-0.15, 0.15),
+      ),
+    );
+    const loopSizeBase = this.baseConfig.loopSize * this.randomRange(0.85, 1.2);
+    const turnRateBase =
+      this.baseConfig.turnRate * this.randomRange(0.85, 1.15);
+
     return {
       maxTrailLen: Math.max(
         10,
-        Math.round(this.baseConfig.maxTrailLen * this.randomRange(0.8, 1.2)),
+        Math.round(maxTrailLenBase * (isAdventurous ? 1.16 : 1)),
       ),
       aggression: Math.max(
         0.05,
-        Math.min(
-          0.95,
-          this.baseConfig.aggression + this.randomRange(-0.15, 0.15),
-        ),
+        Math.min(0.95, aggressionBase + (isAdventurous ? 0.05 : 0)),
       ),
-      loopSize: this.baseConfig.loopSize * this.randomRange(0.85, 1.2),
-      turnRate: this.baseConfig.turnRate * this.randomRange(0.85, 1.15),
+      loopSize: loopSizeBase * (isAdventurous ? 1.14 : 1),
+      turnRate: turnRateBase,
+      maxExpandTicks: Math.round(
+        this.randomRange(470, 560) * (isAdventurous ? 1.2 : 1),
+      ),
     };
   }
 
