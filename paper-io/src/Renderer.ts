@@ -21,6 +21,8 @@ const BORDER_WIDTH = 1.0;
 const PATTERN_TILE = 5.0;
 const TAKEOVER_DURATION = 0.7;
 const TAKEOVER_WAVE_WIDTH = 1.8;
+const CAPTURE_ASSIMILATION_DURATION = 0.62;
+const AVATAR_ABSORB_PULSE_DURATION = 0.28;
 const EXTRUDE_CURVE_SEGMENTS = 8;
 const TERRITORY_DEPTH_LAYERS = 3;
 const TERRITORY_DEPTH_OFFSET_X = -0.07;
@@ -33,13 +35,19 @@ const TRAIL_CARVE_FLOOR_Y =
 const BOARD_CARVE_FLOOR_Y = TERRITORY_Y + 0.004; // 0.034 — above territory (0.03), below trail (0.048)
 // Half-width: thinner on canvas, thicker inside enemy territory
 const BOARD_CARVE_HALF_WIDTH_CANVAS = 0.2;
-const BOARD_CARVE_HALF_WIDTH_ENEMY = 0.3;
+const BOARD_CARVE_HALF_WIDTH_ENEMY = 0.44;
 // Negated: groove sits on the far/top edge of the ribbon (away from camera)
 const BOARD_CARVE_OFFSET_X = -(TERRITORY_DEPTH_OFFSET_X * 0.4); // ≈+0.028
 const BOARD_CARVE_OFFSET_Z = -(TERRITORY_DEPTH_OFFSET_Z * 0.4); // ≈-0.056
 const LOOP_POINT_SCALE = 1000;
 const LOOP_MIN_AREA = CELL_SIZE * CELL_SIZE * 6;
 const LOOP_MIN_DIST = CELL_SIZE * 0.16;
+const EFFECT_UPDATE_CULL_DIST_SQ = 50 * 50;
+const CAPTURED_FOLLOWER_SCALE = 0.46;
+const CAPTURED_FOLLOWER_HISTORY_BASE = 20;
+const CAPTURED_FOLLOWER_HISTORY_STEP = 14;
+const CAPTURED_FOLLOWER_MAX_HISTORY = 320;
+const AVATAR_LABEL_Y = 1.76;
 
 interface TerritoryTakeoverEffect {
   victimId: number;
@@ -54,6 +62,54 @@ interface TerritoryTakeoverEffect {
     rippleWidth: { value: number };
     rippleColor: { value: THREE.Color };
   };
+  origin: THREE.Vector2;
+}
+
+interface DeathSplatEffect {
+  victimId: number;
+  group: THREE.Group;
+  body: THREE.Object3D | null;
+  bodyMaterials: THREE.Material[];
+  splatMesh: THREE.Mesh;
+  splatMaterial: THREE.MeshBasicMaterial;
+  startMs: number;
+  squashDurationMs: number;
+  durationMs: number;
+  baseBodyPosition: THREE.Vector3 | null;
+  baseBodyScale: THREE.Vector3 | null;
+  baseBodyRotation: THREE.Euler | null;
+  origin: THREE.Vector2;
+}
+
+interface CaptureAssimilationEffect {
+  mesh: THREE.Mesh;
+  material: THREE.MeshBasicMaterial;
+  startColor: THREE.Color;
+  endColor: THREE.Color;
+  startMs: number;
+  durationMs: number;
+  origin: THREE.Vector2;
+}
+
+interface AvatarAbsorbPulseEffect {
+  playerId: number;
+  color: THREE.Color;
+  startMs: number;
+  delayMs: number;
+  durationMs: number;
+}
+
+interface AvatarFollowPose {
+  x: number;
+  z: number;
+  rotationY: number;
+}
+
+interface CapturedFollowerVisual {
+  group: THREE.Group;
+  body: THREE.Object3D | null;
+  bodyMaterials: THREE.Material[];
+  swayPhase: number;
 }
 
 interface ContourSegment {
@@ -70,6 +126,10 @@ interface TerritoryMaterialSet {
   top: THREE.MeshPhongMaterial;
   depth: THREE.MeshPhongMaterial;
   band: THREE.MeshPhongMaterial;
+}
+
+interface TerritoryUpdateOptions {
+  topOnly?: boolean;
 }
 
 interface EnemyBoardCarveSegment {
@@ -123,8 +183,12 @@ export class Renderer {
   private trailCarveLengths: Map<number, number> = new Map();
   private trailCarveSourceLengths: Map<number, number> = new Map();
   private avatars: Map<number, THREE.Group> = new Map();
-  private avatarLastPositions: Map<number, Vec2> = new Map();
+  private avatarFollowHistory: Map<number, AvatarFollowPose[]> = new Map();
+  private capturedFollowers: Map<number, CapturedFollowerVisual[]> = new Map();
   private territoryTakeovers: TerritoryTakeoverEffect[] = [];
+  private deathSplats: DeathSplatEffect[] = [];
+  private captureAssimilations: CaptureAssimilationEffect[] = [];
+  private avatarAbsorbPulses: AvatarAbsorbPulseEffect[] = [];
 
   private cameraTarget: Vec2 = { x: 0, z: 0 };
   private territoryRenderOrder = 0;
@@ -147,7 +211,7 @@ export class Renderer {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.createBoard();
     this.createLighting();
@@ -172,8 +236,8 @@ export class Renderer {
     dir.target.position.set(0, 0, 0);
     this.scene.add(dir.target);
     dir.castShadow = true;
-    dir.shadow.mapSize.width = 2048;
-    dir.shadow.mapSize.height = 2048;
+    dir.shadow.mapSize.width = 1024;
+    dir.shadow.mapSize.height = 1024;
     dir.shadow.intensity = 0.15;
     const d = MAP_RADIUS + 5;
     dir.shadow.camera.left = -d;
@@ -197,6 +261,7 @@ export class Renderer {
     texture?: THREE.Texture | null,
     model?: THREE.Group | null,
   ): THREE.Group {
+    this.cleanupDeathSplatsForVictim(id);
     const group = new THREE.Group();
 
     if (model && model.children.length > 0) {
@@ -224,21 +289,9 @@ export class Renderer {
       group.add(body);
     }
 
-    const ringGeo = new THREE.TorusGeometry(0.45, 0.04, 6, 16);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.8,
-    });
-    ringGeo.rotateX(Math.PI / 2);
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.position.y = 0.4;
-    ring.name = "ring";
-    group.add(ring);
-
     if (name) {
       const label = this.createTextSprite(name);
-      label.position.y = 1.1;
+      label.position.y = AVATAR_LABEL_Y;
       label.name = "label";
       group.add(label);
     }
@@ -296,10 +349,10 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Shadow for readability
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillText(text, canvas.width / 2 + 1, canvas.height / 2 + 1);
-
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#000000";
+    ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
     ctx.fillStyle = "#ffffff";
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
@@ -320,26 +373,15 @@ export class Renderer {
     const avatar = this.avatars.get(id);
     if (!avatar || !avatar.visible) return;
 
-    const prevPos = this.avatarLastPositions.get(id);
-    const moveDx = prevPos ? pos.x - prevPos.x : 0;
-    const moveDz = prevPos ? pos.z - prevPos.z : 0;
-    const moveBlend = Math.min(
-      Math.sqrt(moveDx * moveDx + moveDz * moveDz) * 10,
-      1,
-    );
-    this.avatarLastPositions.set(id, { x: pos.x, z: pos.z });
-
     avatar.position.x = pos.x;
     avatar.position.z = pos.z;
 
-    let turnDelta = 0;
     if (moveDir && (moveDir.x !== 0 || moveDir.z !== 0)) {
       const targetAngle = Math.atan2(moveDir.x, moveDir.z);
       let current = avatar.rotation.y;
       let delta = targetAngle - current;
       while (delta > Math.PI) delta -= Math.PI * 2;
       while (delta < -Math.PI) delta += Math.PI * 2;
-      turnDelta = delta;
       avatar.rotation.y = current + delta * 0.25;
     }
 
@@ -355,58 +397,20 @@ export class Renderer {
         | undefined;
       const baseScale = body.userData.baseScale as THREE.Vector3 | undefined;
       if (basePosition && baseRotation && baseScale) {
-        const isModel = body.userData.animationKind === "model";
-        const bobSpeed = isModel ? 9 : 11;
-        const bobAmount = isModel ? 0.05 : 0.09;
-        const turnAmount = Math.max(-1, Math.min(1, turnDelta / 0.65));
-        const leanAmount = isModel ? 0.16 : 0.28;
-        const pitchAmount = isModel ? 0.075 : 0.13;
-        const swayAmount = isModel ? 0.04 : 0.08;
-        const settle = 0.24;
-
-        const targetX = basePosition.x - turnAmount * swayAmount;
-        const targetY =
-          basePosition.y +
-          Math.sin(time * bobSpeed * Math.PI * 2) * bobAmount * moveBlend;
-        const targetRotX =
-          baseRotation.x +
-          moveBlend * pitchAmount +
-          Math.sin(time * bobSpeed * Math.PI * 2 + Math.PI / 2) *
-            bobAmount *
-            0.35 *
-            moveBlend;
-        const targetRotZ = baseRotation.z - turnAmount * leanAmount;
-        const targetScaleX =
-          baseScale.x *
-          (1 +
-            moveBlend * (isModel ? 0.04 : 0.08) +
-            Math.abs(turnAmount) * 0.04);
-        const targetScaleY =
-          baseScale.y *
-          Math.max(
-            0.82,
-            1 -
-              moveBlend * (isModel ? 0.06 : 0.12) -
-              Math.abs(turnAmount) * 0.07,
-          );
-        const targetScaleZ = targetScaleX;
-
-        body.position.x += (targetX - body.position.x) * settle;
-        body.position.z = basePosition.z;
-        body.position.y += (targetY - body.position.y) * settle;
-        body.rotation.x += (targetRotX - body.rotation.x) * settle;
-        body.rotation.y += (baseRotation.y - body.rotation.y) * settle;
-        body.rotation.z += (targetRotZ - body.rotation.z) * settle;
-        body.scale.x += (targetScaleX - body.scale.x) * settle;
-        body.scale.y += (targetScaleY - body.scale.y) * settle;
-        body.scale.z += (targetScaleZ - body.scale.z) * settle;
+        body.position.copy(basePosition);
+        body.rotation.copy(baseRotation);
+        body.scale.copy(baseScale);
+        const pulse = this.getAvatarAbsorbPulse(id);
+        if (pulse > 0) {
+          const scaleBoost = 1 + pulse * 0.16;
+          body.scale.multiplyScalar(scaleBoost);
+          body.position.y += pulse * 0.08;
+        }
       }
     }
 
-    const ring = avatar.getObjectByName("ring") as THREE.Mesh | undefined;
-    if (ring?.material instanceof THREE.MeshBasicMaterial) {
-      ring.material.opacity = 0.6 + 0.4 * Math.sin(time * 1.2 * Math.PI * 2);
-    }
+    this.recordAvatarFollowPose(id, avatar);
+    this.updateCapturedFollowers(id, time);
   }
 
   hideAvatar(id: number): void {
@@ -434,9 +438,227 @@ export class Renderer {
       }
     }
     const label = this.createTextSprite(name);
-    label.position.y = 1.1;
+    label.position.y = AVATAR_LABEL_Y;
     label.name = "label";
     avatar.add(label);
+  }
+
+  addCapturedFollower(ownerId: number, sourceAvatarId: number): void {
+    const clone = this.cloneAvatarBody(sourceAvatarId);
+    if (!clone) return;
+
+    const group = new THREE.Group();
+    clone.body.scale.multiplyScalar(CAPTURED_FOLLOWER_SCALE);
+    clone.body.position.y += 0.02;
+    group.add(clone.body);
+    this.scene.add(group);
+
+    const followers = this.capturedFollowers.get(ownerId) ?? [];
+    followers.push({
+      group,
+      body: clone.body,
+      bodyMaterials: clone.materials,
+      swayPhase: Math.random() * Math.PI * 2,
+    });
+    this.capturedFollowers.set(ownerId, followers);
+    this.updateCapturedFollowers(ownerId, performance.now() * 0.001);
+  }
+
+  clearCapturedFollowers(ownerId: number): void {
+    const followers = this.capturedFollowers.get(ownerId);
+    if (!followers) return;
+    for (const follower of followers) {
+      this.scene.remove(follower.group);
+      this.disposeObject3D(follower.group);
+      for (const material of follower.bodyMaterials) material.dispose();
+    }
+    this.capturedFollowers.delete(ownerId);
+  }
+
+  private cloneAvatarBody(
+    sourceAvatarId: number,
+  ): { body: THREE.Object3D; materials: THREE.Material[] } | null {
+    const avatar = this.avatars.get(sourceAvatarId);
+    if (!avatar) return null;
+    const sourceBody =
+      avatar.getObjectByName("box-body") ??
+      avatar.getObjectByName("model-body");
+    if (!sourceBody) return null;
+
+    const body = sourceBody.clone(true);
+    const materials: THREE.Material[] = [];
+    body.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const clonedMaterial = Array.isArray(child.material)
+          ? child.material.map((material) => material.clone())
+          : child.material.clone();
+        child.material = clonedMaterial;
+        if (Array.isArray(clonedMaterial)) {
+          materials.push(...clonedMaterial);
+        } else {
+          materials.push(clonedMaterial);
+        }
+      }
+    });
+    body.position.copy(
+      (sourceBody.userData.basePosition as THREE.Vector3 | undefined) ??
+        sourceBody.position,
+    );
+    body.rotation.copy(
+      (sourceBody.userData.baseRotation as THREE.Euler | undefined) ??
+        sourceBody.rotation,
+    );
+    body.scale.copy(
+      (sourceBody.userData.baseScale as THREE.Vector3 | undefined) ??
+        sourceBody.scale,
+    );
+    return { body, materials };
+  }
+
+  private recordAvatarFollowPose(id: number, avatar: THREE.Group): void {
+    const history = this.avatarFollowHistory.get(id) ?? [];
+    history.unshift({
+      x: avatar.position.x,
+      z: avatar.position.z,
+      rotationY: avatar.rotation.y,
+    });
+    if (history.length > CAPTURED_FOLLOWER_MAX_HISTORY) {
+      history.length = CAPTURED_FOLLOWER_MAX_HISTORY;
+    }
+    this.avatarFollowHistory.set(id, history);
+  }
+
+  private updateCapturedFollowers(ownerId: number, time: number): void {
+    const followers = this.capturedFollowers.get(ownerId);
+    const avatar = this.avatars.get(ownerId);
+    if (!followers || followers.length === 0 || !avatar) return;
+
+    const history = this.avatarFollowHistory.get(ownerId) ?? [];
+    const fallbackPose =
+      history[0] ??
+      ({
+        x: avatar.position.x,
+        z: avatar.position.z,
+        rotationY: avatar.rotation.y,
+      } satisfies AvatarFollowPose);
+
+    for (let i = 0; i < followers.length; i++) {
+      const follower = followers[i];
+      const historyIndex = Math.min(
+        history.length - 1,
+        CAPTURED_FOLLOWER_HISTORY_BASE + i * CAPTURED_FOLLOWER_HISTORY_STEP,
+      );
+      const pose = historyIndex >= 0 ? history[historyIndex] : fallbackPose;
+      const targetX = pose.x;
+      const targetZ = pose.z;
+
+      follower.group.position.x += (targetX - follower.group.position.x) * 0.24;
+      follower.group.position.z += (targetZ - follower.group.position.z) * 0.24;
+      follower.group.rotation.y +=
+        (pose.rotationY - follower.group.rotation.y) * 0.22;
+
+      if (follower.body) {
+        const basePosition = follower.body.userData.basePosition as
+          | THREE.Vector3
+          | undefined;
+        if (basePosition) {
+          follower.body.position.copy(basePosition);
+          follower.body.position.y +=
+            0.02 + Math.sin(time * 3.6 + follower.swayPhase) * 0.035;
+        }
+      }
+    }
+  }
+
+  private disposeObject3D(object: THREE.Object3D): void {
+    object.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+      }
+    });
+  }
+
+  startDeathSplat(victimId: number, position: Vec2, color: number): void {
+    this.cleanupDeathSplatsForVictim(victimId);
+
+    const group = new THREE.Group();
+    group.position.set(position.x, 0, position.z);
+
+    const avatar = this.avatars.get(victimId);
+    if (avatar) {
+      group.rotation.y = avatar.rotation.y;
+    }
+
+    const splatGeometry = this.createDeathSplatGeometry(victimId, color);
+    const splatMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color).multiplyScalar(0.42),
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const splatMesh = new THREE.Mesh(splatGeometry, splatMaterial);
+    splatMesh.rotation.x = -Math.PI / 2;
+    splatMesh.position.y = TRAIL_Y + 0.004;
+    splatMesh.scale.set(0.2, 0.2, 0.2);
+    splatMesh.renderOrder =
+      this.territoryRenderOrder + TRAIL_RENDER_ORDER_OFFSET + 3;
+    group.add(splatMesh);
+
+    let body: THREE.Object3D | null = null;
+    const bodyMaterials: THREE.Material[] = [];
+    if (avatar) {
+      const sourceBody =
+        avatar.getObjectByName("box-body") ??
+        avatar.getObjectByName("model-body");
+      if (sourceBody) {
+        body = sourceBody.clone(true);
+        body.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            const clonedMaterial = Array.isArray(child.material)
+              ? child.material.map((material) => material.clone())
+              : child.material.clone();
+            child.material = clonedMaterial;
+            if (Array.isArray(clonedMaterial)) {
+              bodyMaterials.push(...clonedMaterial);
+            } else {
+              bodyMaterials.push(clonedMaterial);
+            }
+          }
+        });
+        body.position.copy(
+          (sourceBody.userData.basePosition as THREE.Vector3 | undefined) ??
+            sourceBody.position,
+        );
+        body.rotation.copy(
+          (sourceBody.userData.baseRotation as THREE.Euler | undefined) ??
+            sourceBody.rotation,
+        );
+        body.scale.copy(
+          (sourceBody.userData.baseScale as THREE.Vector3 | undefined) ??
+            sourceBody.scale,
+        );
+        group.add(body);
+      }
+    }
+
+    this.scene.add(group);
+    this.deathSplats.push({
+      victimId,
+      group,
+      body,
+      bodyMaterials,
+      splatMesh,
+      splatMaterial,
+      startMs: performance.now(),
+      squashDurationMs: 190,
+      durationMs: 780,
+      baseBodyPosition: body ? body.position.clone() : null,
+      baseBodyScale: body ? body.scale.clone() : null,
+      baseBodyRotation: body ? body.rotation.clone() : null,
+      origin: new THREE.Vector2(position.x, position.z),
+    });
   }
 
   setRingColor(id: number, color: number): void {
@@ -978,7 +1200,9 @@ export class Renderer {
     grid: TerritoryGrid,
     color: number,
     skinId = "",
+    options: TerritoryUpdateOptions = {},
   ): void {
+    const topOnly = options.topOnly ?? false;
     const bounds = grid.getBounds(id);
     if (!bounds) {
       this.clearTerritoryVisuals(id, true);
@@ -1006,7 +1230,7 @@ export class Renderer {
       const topMat = new THREE.MeshPhongMaterial({
         color: patTex ? 0xffffff : color,
         map: patTex ?? null,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
         flatShading: false,
         shininess: 12,
         specular: new THREE.Color(0x95dff7),
@@ -1028,13 +1252,13 @@ export class Renderer {
       this.territoryMaterials.set(id, materials);
     }
     const patTex = this.getPatternTexture(skinId);
+    const mapChanged = materials.top.map !== (patTex ?? null);
     materials.top.color.setHex(patTex ? 0xffffff : color);
     materials.top.map = patTex ?? null;
-    materials.top.needsUpdate = true;
+    // needsUpdate only when the texture map is added/removed — color changes don't require it
+    if (mapChanged) materials.top.needsUpdate = true;
     materials.depth.color.copy(new THREE.Color(color).multiplyScalar(0.7));
-    materials.depth.needsUpdate = true;
     materials.band.color.copy(new THREE.Color(color).multiplyScalar(0.56));
-    materials.band.needsUpdate = true;
     if (!this.shadowMaterial) {
       this.shadowMaterial = new THREE.MeshBasicMaterial({
         color: 0x8fb3d2,
@@ -1091,9 +1315,10 @@ export class Renderer {
     }
 
     const order = ++this.territoryRenderOrder;
+    // Triangulate once — depth layers and footprint share clones of this geometry
+    // ShapeGeometry already produces correct up-facing normals; no need to recompute
     const topGeo = new THREE.ShapeGeometry(rawShapes, EXTRUDE_CURVE_SEGMENTS);
     topGeo.rotateX(-Math.PI / 2);
-    topGeo.computeVertexNormals();
 
     const mesh = new THREE.Mesh(topGeo, materials.top);
     mesh.userData.territoryVisual = true;
@@ -1102,19 +1327,19 @@ export class Renderer {
     mesh.position.y = TERRITORY_Y;
     mesh.renderOrder = order;
     mesh.castShadow = false;
-    mesh.receiveShadow = true;
+    mesh.receiveShadow = !topOnly;
     this.scene.add(mesh);
     this.territoryObjects.set(id, mesh);
+
+    if (topOnly) {
+      return;
+    }
 
     const depthLayers: THREE.Mesh[] = [];
     for (let layer = 1; layer <= TERRITORY_DEPTH_LAYERS; layer++) {
       const t = layer / TERRITORY_DEPTH_LAYERS;
-      const layerGeo = new THREE.ShapeGeometry(
-        rawShapes,
-        EXTRUDE_CURVE_SEGMENTS,
-      );
-      layerGeo.rotateX(-Math.PI / 2);
-      layerGeo.computeVertexNormals();
+      // Clone already-triangulated geometry — no re-triangulation cost
+      const layerGeo = topGeo.clone();
       const layerMesh = new THREE.Mesh(layerGeo, materials.depth);
       layerMesh.userData.territoryVisual = true;
       layerMesh.userData.territoryPlayerId = id;
@@ -1153,11 +1378,8 @@ export class Renderer {
 
     const shadowCenterX = (bMinX + bMaxX) * 0.5;
     const shadowCenterZ = (bMinZ + bMaxZ) * 0.5;
-    const footprintGeo = new THREE.ShapeGeometry(
-      rawShapes,
-      EXTRUDE_CURVE_SEGMENTS,
-    );
-    footprintGeo.rotateX(-Math.PI / 2);
+    // Clone the already-triangulated top geometry — no re-triangulation cost
+    const footprintGeo = topGeo.clone();
 
     // Drop shadow: wide soft shadow on the ground
     const shadowOffset = 0.16;
@@ -1675,9 +1897,9 @@ export class Renderer {
       return;
     }
 
-    const trailHalfWidth = 0.25;
-    const carveFloorHalfWidth = 0.31;
-    const carveWallHalfWidth = 0.33;
+    const trailHalfWidth = 0.27;
+    const carveFloorHalfWidth = 0.42;
+    const carveWallHalfWidth = 0.45;
     const carveFloorOffsetX =
       TERRITORY_DEPTH_OFFSET_X * TRAIL_CARVE_FLOOR_DEPTH_T;
     const carveFloorOffsetZ =
@@ -2138,6 +2360,16 @@ export class Renderer {
     this.camera.lookAt(this.cameraTarget.x, 0, this.cameraTarget.z);
   }
 
+  private isNearCameraXZ(
+    x: number,
+    z: number,
+    radiusSq = EFFECT_UPDATE_CULL_DIST_SQ,
+  ): boolean {
+    const dx = x - this.cameraTarget.x;
+    const dz = z - this.cameraTarget.z;
+    return dx * dx + dz * dz <= radiusSq;
+  }
+
   removeTerritory(id: number): void {
     this.clearTerritoryVisuals(id, true);
   }
@@ -2196,6 +2428,12 @@ export class Renderer {
     origin: Vec2,
     killerColor: number,
     _killerSkinId = "",
+    bounds: {
+      minX: number;
+      maxX: number;
+      minZ: number;
+      maxZ: number;
+    } | null = null,
   ): void {
     const victimMesh = this.territoryObjects.get(victimId);
     if (!victimMesh) return;
@@ -2256,12 +2494,22 @@ export class Renderer {
     mesh.scale.copy(victimMesh.scale);
     this.scene.add(mesh);
 
-    const box = new THREE.Box3().setFromObject(mesh);
+    const sourceBounds = bounds
+      ? bounds
+      : (() => {
+          const box = new THREE.Box3().setFromObject(mesh);
+          return {
+            minX: box.min.x,
+            maxX: box.max.x,
+            minZ: box.min.z,
+            maxZ: box.max.z,
+          };
+        })();
     const corners = [
-      new THREE.Vector2(box.min.x, box.min.z),
-      new THREE.Vector2(box.min.x, box.max.z),
-      new THREE.Vector2(box.max.x, box.min.z),
-      new THREE.Vector2(box.max.x, box.max.z),
+      new THREE.Vector2(sourceBounds.minX, sourceBounds.minZ),
+      new THREE.Vector2(sourceBounds.minX, sourceBounds.maxZ),
+      new THREE.Vector2(sourceBounds.maxX, sourceBounds.minZ),
+      new THREE.Vector2(sourceBounds.maxX, sourceBounds.maxZ),
     ];
     let maxRadius = 0;
     for (const corner of corners) {
@@ -2279,25 +2527,91 @@ export class Renderer {
       durationMs: TAKEOVER_DURATION * 1000,
       maxRadius: maxRadius + TAKEOVER_WAVE_WIDTH,
       uniforms,
+      origin: uniforms.rippleOrigin.value.clone(),
     });
 
     this.removeTerritory(victimId);
     this.hideAvatar(victimId);
   }
 
+  startCaptureAssimilation(
+    capturedRegion: TerritoryMultiPolygon,
+    ownerColor: number,
+    origin: Vec2,
+  ): void {
+    if (!this.isNearCameraXZ(origin.x, origin.z)) return;
+    const { shapes } = this.buildShapesFromPolygons(capturedRegion);
+    if (shapes.length === 0) return;
+
+    const geometry = new THREE.ShapeGeometry(shapes, EXTRUDE_CURVE_SEGMENTS);
+    geometry.rotateX(-Math.PI / 2);
+    const startColor = new THREE.Color(ownerColor).lerp(
+      new THREE.Color(0xffffff),
+      0.45,
+    );
+    const endColor = new THREE.Color(ownerColor).lerp(
+      new THREE.Color(0xffffff),
+      0.12,
+    );
+    const material = new THREE.MeshBasicMaterial({
+      color: startColor.clone(),
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = TRAIL_Y + 0.003;
+    mesh.renderOrder =
+      this.territoryRenderOrder + TRAIL_RENDER_ORDER_OFFSET + 2;
+    this.scene.add(mesh);
+
+    this.captureAssimilations.push({
+      mesh,
+      material,
+      startColor,
+      endColor,
+      startMs: performance.now(),
+      durationMs: CAPTURE_ASSIMILATION_DURATION * 1000,
+      origin: new THREE.Vector2(origin.x, origin.z),
+    });
+  }
+
+  startAvatarAbsorbPulse(id: number, color: number, delayMs = 0): void {
+    this.avatarAbsorbPulses.push({
+      playerId: id,
+      color: new THREE.Color(color),
+      startMs: performance.now(),
+      delayMs,
+      durationMs: AVATAR_ABSORB_PULSE_DURATION * 1000,
+    });
+  }
+
   render(): void {
+    this.updateDeathSplats();
     this.updateTerritoryTakeovers();
+    this.updateCaptureAssimilations();
+    this.updateAvatarAbsorbPulses();
     this.renderer.render(this.scene, this.camera);
   }
 
   prewarmRender(): void {
+    this.updateDeathSplats();
     this.updateTerritoryTakeovers();
+    this.updateCaptureAssimilations();
+    this.updateAvatarAbsorbPulses();
     this.renderer.compile(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
   }
 
   hasActiveEffects(): boolean {
-    return this.territoryTakeovers.length > 0;
+    return (
+      this.territoryTakeovers.length > 0 ||
+      this.deathSplats.length > 0 ||
+      this.captureAssimilations.length > 0 ||
+      this.avatarAbsorbPulses.length > 0
+    );
   }
 
   private updateTerritoryTakeovers(): void {
@@ -2305,7 +2619,9 @@ export class Renderer {
     const now = performance.now();
     this.territoryTakeovers = this.territoryTakeovers.filter((effect) => {
       const t = Math.min(1, (now - effect.startMs) / effect.durationMs);
-      effect.uniforms.rippleRadius.value = effect.maxRadius * t;
+      if (this.isNearCameraXZ(effect.origin.x, effect.origin.y)) {
+        effect.uniforms.rippleRadius.value = effect.maxRadius * t;
+      }
       if (t < 1) return true;
       this.scene.remove(effect.mesh);
       effect.mesh.geometry.dispose();
@@ -2314,12 +2630,165 @@ export class Renderer {
     });
   }
 
+  private updateCaptureAssimilations(): void {
+    if (this.captureAssimilations.length === 0) return;
+    const now = performance.now();
+    this.captureAssimilations = this.captureAssimilations.filter((effect) => {
+      const t = Math.min(1, (now - effect.startMs) / effect.durationMs);
+      if (this.isNearCameraXZ(effect.origin.x, effect.origin.y)) {
+        const easeOut = 1 - Math.pow(1 - t, 3);
+        const brightness = Math.sin(Math.min(1, t * 1.25) * Math.PI);
+        effect.material.color
+          .copy(effect.endColor)
+          .lerp(effect.startColor, brightness);
+        effect.material.opacity = (1 - easeOut) * (0.78 + brightness * 0.18);
+        effect.mesh.position.y = TRAIL_Y + 0.003 + brightness * 0.025;
+      }
+      if (t < 1) return true;
+      this.scene.remove(effect.mesh);
+      effect.mesh.geometry.dispose();
+      effect.material.dispose();
+      return false;
+    });
+  }
+
+  private updateAvatarAbsorbPulses(): void {
+    if (this.avatarAbsorbPulses.length === 0) return;
+    const now = performance.now();
+    this.avatarAbsorbPulses = this.avatarAbsorbPulses.filter((effect) => {
+      const elapsed = now - effect.startMs;
+      return elapsed < effect.delayMs + effect.durationMs;
+    });
+  }
+
+  private getAvatarAbsorbPulse(playerId: number): number {
+    const now = performance.now();
+    let strongest = 0;
+    for (const effect of this.avatarAbsorbPulses) {
+      if (effect.playerId !== playerId) continue;
+      const elapsed = now - effect.startMs - effect.delayMs;
+      if (elapsed < 0 || elapsed > effect.durationMs) continue;
+      const t = elapsed / effect.durationMs;
+      const pulse = Math.sin(t * Math.PI);
+      if (pulse > strongest) strongest = pulse;
+    }
+    return strongest;
+  }
+
   private cleanupTakeoversForVictim(victimId: number): void {
     this.territoryTakeovers = this.territoryTakeovers.filter((effect) => {
       if (victimId >= 0 && effect.victimId !== victimId) return true;
       this.scene.remove(effect.mesh);
       effect.mesh.geometry.dispose();
       effect.material.dispose();
+      return false;
+    });
+  }
+
+  private createDeathSplatGeometry(
+    victimId: number,
+    color: number,
+  ): THREE.ShapeGeometry {
+    const pointCount = 18;
+    const seed = victimId * 0.83 + color * 0.0000031;
+    const points: THREE.Vector2[] = [];
+    for (let i = 0; i < pointCount; i++) {
+      const t = i / pointCount;
+      const angle = t * Math.PI * 2;
+      const lobe =
+        0.58 +
+        Math.sin(angle * 3 + seed) * 0.09 +
+        Math.sin(angle * 5 + seed * 1.7) * 0.05;
+      const spur = i % 2 === 0 ? 0.22 : 0.08;
+      const radius = Math.max(0.42, lobe + spur);
+      points.push(
+        new THREE.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius),
+      );
+    }
+
+    const shape = new THREE.Shape();
+    const first = points[0];
+    shape.moveTo(first.x, first.y);
+    for (let i = 0; i < points.length; i++) {
+      const current = points[i];
+      const next = points[(i + 1) % points.length];
+      const mid = new THREE.Vector2(
+        (current.x + next.x) * 0.5,
+        (current.y + next.y) * 0.5,
+      );
+      shape.quadraticCurveTo(current.x, current.y, mid.x, mid.y);
+    }
+    shape.closePath();
+
+    return new THREE.ShapeGeometry(shape, 18);
+  }
+
+  private updateDeathSplats(): void {
+    if (this.deathSplats.length === 0) return;
+    const now = performance.now();
+    this.deathSplats = this.deathSplats.filter((effect) => {
+      const elapsed = now - effect.startMs;
+      const squashT = Math.min(1, elapsed / effect.squashDurationMs);
+      const lifeT = Math.min(1, elapsed / effect.durationMs);
+      if (this.isNearCameraXZ(effect.origin.x, effect.origin.y)) {
+        const easeOut = 1 - Math.pow(1 - squashT, 3);
+
+        effect.splatMesh.scale.setScalar(0.2 + easeOut * 1.05);
+        if (lifeT < 0.72) {
+          effect.splatMaterial.opacity = 0.84 * Math.min(1, squashT * 1.4);
+        } else {
+          const fadeT = (lifeT - 0.72) / 0.28;
+          effect.splatMaterial.opacity = 0.84 * Math.max(0, 1 - fadeT);
+        }
+
+        if (
+          effect.body &&
+          effect.baseBodyPosition &&
+          effect.baseBodyScale &&
+          effect.baseBodyRotation
+        ) {
+          effect.body.position.x = effect.baseBodyPosition.x;
+          effect.body.position.z = effect.baseBodyPosition.z;
+          effect.body.position.y =
+            effect.baseBodyPosition.y * (1 - 0.92 * easeOut);
+          effect.body.rotation.x = effect.baseBodyRotation.x + easeOut * 0.15;
+          effect.body.rotation.y = effect.baseBodyRotation.y;
+          effect.body.rotation.z = effect.baseBodyRotation.z;
+          effect.body.scale.x = effect.baseBodyScale.x * (1 + 0.36 * easeOut);
+          effect.body.scale.y =
+            effect.baseBodyScale.y * Math.max(0.04, 1 - 0.96 * easeOut);
+          effect.body.scale.z = effect.baseBodyScale.z * (1 + 0.3 * easeOut);
+
+          const bodyOpacity =
+            lifeT < 0.42 ? 1 : Math.max(0, 1 - (lifeT - 0.42) / 0.2);
+          for (const material of effect.bodyMaterials) {
+            material.transparent = true;
+            material.opacity = bodyOpacity;
+            material.depthWrite = false;
+          }
+        }
+      }
+
+      if (lifeT < 1) return true;
+      this.scene.remove(effect.group);
+      effect.splatMesh.geometry.dispose();
+      effect.splatMaterial.dispose();
+      for (const material of effect.bodyMaterials) {
+        material.dispose();
+      }
+      return false;
+    });
+  }
+
+  private cleanupDeathSplatsForVictim(victimId: number): void {
+    this.deathSplats = this.deathSplats.filter((effect) => {
+      if (victimId >= 0 && effect.victimId !== victimId) return true;
+      this.scene.remove(effect.group);
+      effect.splatMesh.geometry.dispose();
+      effect.splatMaterial.dispose();
+      for (const material of effect.bodyMaterials) {
+        material.dispose();
+      }
       return false;
     });
   }
@@ -2854,8 +3323,14 @@ export class Renderer {
   }
 
   cleanupPlayer(id: number): void {
+    this.clearCapturedFollowers(id);
+    this.avatarFollowHistory.delete(id);
     this.removeTerritory(id);
     this.cleanupTakeoversForVictim(id);
+    this.cleanupCaptureAssimilations();
+    this.avatarAbsorbPulses = this.avatarAbsorbPulses.filter(
+      (effect) => effect.playerId !== id,
+    );
     const trail = this.trailMeshes.get(id);
     if (trail) {
       this.scene.remove(trail);
@@ -2930,15 +3405,27 @@ export class Renderer {
     this.trailCarveLengths.delete(id);
     this.trailCarveSourceLengths.delete(id);
     this.trailCarvePathPersisted.delete(id);
-    this.avatarLastPositions.delete(id);
     this.hideAvatar(id);
   }
 
   dispose(): void {
     for (const [id] of this.avatars) this.cleanupPlayer(id);
     this.cleanupTakeoversForVictim(-1);
+    this.cleanupDeathSplatsForVictim(-1);
+    this.cleanupCaptureAssimilations(true);
+    this.avatarAbsorbPulses = [];
     for (const tex of this.patternTextures.values()) tex?.dispose();
     this.patternTextures.clear();
     this.renderer.dispose();
+  }
+
+  private cleanupCaptureAssimilations(disposeAll = false): void {
+    this.captureAssimilations = this.captureAssimilations.filter((effect) => {
+      if (!disposeAll) return true;
+      this.scene.remove(effect.mesh);
+      effect.mesh.geometry.dispose();
+      effect.material.dispose();
+      return false;
+    });
   }
 }
