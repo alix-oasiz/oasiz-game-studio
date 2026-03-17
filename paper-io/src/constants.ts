@@ -1,5 +1,5 @@
 // ─── Map ───
-export const MAP_SIZE = 128;
+export const MAP_SIZE = 114;
 export const MAP_HALF = MAP_SIZE / 2;
 export const MAP_RADIUS = MAP_HALF; // circular arena radius
 export const ARENA_AREA = Math.PI * MAP_RADIUS * MAP_RADIUS;
@@ -33,12 +33,8 @@ export const OPPOSITE_DIR: Record<Direction, Direction> = {
 
 // ─── Bot AI ───
 export enum BotBehavior {
-  EXPAND = "EXPAND",
-  RETURN_HOME = "RETURN_HOME",
-  FLEE = "FLEE",
-  ATTACK_TRAIL = "ATTACK_TRAIL",
-  DEFEND_BORDER = "DEFEND_BORDER",
-  HUNT_WEAK_PLAYER = "HUNT_WEAK_PLAYER",
+  ATTACK = "ATTACK",
+  DEFEND = "DEFEND",
 }
 
 export type Difficulty = "easy" | "medium" | "hard";

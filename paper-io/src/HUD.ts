@@ -5,7 +5,6 @@ import { type TerritoryMultiPolygon } from "./polygon-ops.ts";
 interface CachedEntry {
   id: number;
   name: string;
-  color: string;
   pct: number;
   alive: boolean;
   el: HTMLElement;
@@ -15,8 +14,8 @@ interface CachedEntry {
 }
 
 export class HUD {
-  private static readonly maxRespawns = 2;
-  private static readonly mappTerritoryRefreshMs = 250;
+  private static readonly maxRespawns = 1;
+  private static readonly mappTerritoryRefreshMs = 400;
   private hudEl: HTMLElement;
   private playerNameEl: HTMLElement;
   private playerPct: HTMLElement;
@@ -33,11 +32,20 @@ export class HUD {
   private scoreFxLayer: HTMLElement;
   private startTime = 0;
   private cachedEntries = new Map<number, CachedEntry>();
-  private displayedEntryIds: number[] = [];
+  private complimentQueue: Array<{ message: string; color: string }> = [];
+  private complimentTimer: number | null = null;
   private lastPlayerPct = "";
   private lastDisplayedScore = -1;
-  private lastMappLayerSignature = "";
+  private lastLeaderboardRefreshAt = 0;
+  private lastLeaderboardSignature = "";
   private lastMappLayerDrawAt = 0;
+  private readonly isMobile: boolean;
+  private mappWidth = 0;
+  private mappHeight = 0;
+  private mappCx = 0;
+  private mappCy = 0;
+  private mappRadius = 0;
+  private mappScale = 0;
 
   constructor() {
     this.hudEl = document.getElementById("hud")!;
@@ -56,6 +64,8 @@ export class HUD {
     this.mappLayerCanvas = document.createElement("canvas");
     this.mappLayerCtx = this.mappLayerCanvas.getContext("2d")!;
     this.scoreFxLayer = document.getElementById("score-fx-layer")!;
+    this.isMobile = window.matchMedia("(pointer: coarse)").matches;
+    window.addEventListener("resize", () => this.refreshMappMetrics());
   }
 
   show(): void {
@@ -63,23 +73,30 @@ export class HUD {
     this.mappPanel.classList.add("visible");
     this.startTime = performance.now();
     this.cachedEntries.clear();
-    this.displayedEntryIds = [];
     this.lbEntries.replaceChildren();
     this.lastPlayerPct = "";
     this.lastDisplayedScore = -1;
-    this.lastMappLayerSignature = "";
+    this.lastLeaderboardRefreshAt = 0;
+    this.lastLeaderboardSignature = "";
     this.lastMappLayerDrawAt = 0;
+    this.clearComplimentQueue();
     this.scoreFxLayer.replaceChildren();
+    this.refreshMappMetrics();
   }
 
   hide(): void {
     this.hudEl.classList.remove("visible");
     this.mappPanel.classList.remove("visible");
+    this.clearComplimentQueue();
     this.scoreFxLayer.replaceChildren();
   }
 
   setPlayerName(name: string): void {
     this.playerNameEl.textContent = name;
+  }
+
+  setMappVisible(visible: boolean): void {
+    this.mappPanel.classList.toggle("visible", visible);
   }
 
   update(players: PlayerState[]): void {
@@ -107,94 +124,8 @@ export class HUD {
     if (this.timerEl.textContent !== timerText) {
       this.timerEl.textContent = timerText;
     }
+    this.updateLeaderboard(players, totalArea);
     this.drawMapp(players);
-
-    const entries = players
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        color: p.colorStr,
-        pct: Number(
-          this.formatPct((p.territory.computeArea() / totalArea) * 100),
-        ),
-        alive: p.alive,
-      }))
-      .sort((a, b) => b.pct - a.pct)
-      .slice(0, 3);
-
-    const prevRects = new Map<number, DOMRect>();
-    for (const id of this.displayedEntryIds) {
-      const cached = this.cachedEntries.get(id);
-      if (!cached?.el.isConnected) continue;
-      prevRects.set(id, cached.el.getBoundingClientRect());
-    }
-
-    const fragment = document.createDocumentFragment();
-    const nextIds: number[] = [];
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i];
-      const c = this.getOrCreateLeaderboardEntry(e);
-      if (c.pct !== e.pct) {
-        c.pct = e.pct;
-        c.pctEl.textContent = `${e.pct}%`;
-      }
-      if (c.alive !== e.alive) {
-        c.alive = e.alive;
-        c.el.className = `lb-entry rank-${i + 1}${e.alive ? "" : " dead"}${i === 0 ? " top" : ""}`;
-      } else {
-        c.el.className = `lb-entry rank-${i + 1}${e.alive ? "" : " dead"}${i === 0 ? " top" : ""}`;
-      }
-      if (c.name !== e.name) {
-        c.name = e.name;
-        c.nameEl.textContent = e.name;
-      }
-      c.color = e.color;
-      c.rankEl.textContent = `${i + 1}`;
-      nextIds.push(e.id);
-      fragment.appendChild(c.el);
-    }
-    this.lbEntries.replaceChildren(fragment);
-    this.displayedEntryIds = nextIds;
-
-    for (const id of Array.from(this.cachedEntries.keys())) {
-      if (!nextIds.includes(id)) this.cachedEntries.delete(id);
-    }
-
-    requestAnimationFrame(() => {
-      for (const id of nextIds) {
-        const cached = this.cachedEntries.get(id);
-        if (!cached) continue;
-        const prev = prevRects.get(id);
-        const next = cached.el.getBoundingClientRect();
-        if (!prev) {
-          cached.el.animate(
-            [
-              { opacity: 0, transform: "translateY(8px) scale(0.96)" },
-              { opacity: 1, transform: "translateY(0) scale(1)" },
-            ],
-            {
-              duration: 220,
-              easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-            },
-          );
-          continue;
-        }
-
-        const dy = prev.top - next.top;
-        if (Math.abs(dy) > 1) {
-          cached.el.animate(
-            [
-              { transform: `translateY(${dy}px)` },
-              { transform: "translateY(0)" },
-            ],
-            {
-              duration: 260,
-              easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-            },
-          );
-        }
-      }
-    });
   }
 
   updateScore(score: number): void {
@@ -220,13 +151,30 @@ export class HUD {
   }
 
   showScoreCompliment(message: string, color: string): void {
+    this.complimentQueue.push({ message, color });
+    if (this.complimentTimer !== null) return;
+    this.showNextCompliment();
+  }
+
+  private showNextCompliment(): void {
+    const next = this.complimentQueue.shift();
+    if (!next) {
+      this.complimentTimer = null;
+      return;
+    }
+
     const el = document.createElement("div");
     el.className = "score-compliment";
-    el.textContent = message;
-    el.style.color = color;
+    el.textContent = next.message;
+    el.style.color = next.color;
     this.scoreFxLayer.appendChild(el);
-    window.setTimeout(() => {
+
+    this.complimentTimer = window.setTimeout(() => {
       el.remove();
+      this.complimentTimer = window.setTimeout(() => {
+        this.complimentTimer = null;
+        this.showNextCompliment();
+      }, 140);
     }, 1600);
   }
 
@@ -240,6 +188,14 @@ export class HUD {
     }, 1400);
   }
 
+  private clearComplimentQueue(): void {
+    this.complimentQueue = [];
+    if (this.complimentTimer !== null) {
+      window.clearTimeout(this.complimentTimer);
+      this.complimentTimer = null;
+    }
+  }
+
   private getFloatingScoreColor(points: number): string {
     if (points >= 3000) return "#FF4D6D";
     if (points >= 2000) return "#A855F7";
@@ -248,14 +204,76 @@ export class HUD {
     return "#FFFFFF";
   }
 
-  private getOrCreateLeaderboardEntry(entry: {
-    id: number;
-    name: string;
-    color: string;
-    pct: number;
-    alive: boolean;
-  }): CachedEntry {
-    const existing = this.cachedEntries.get(entry.id);
+  private updateLeaderboard(players: PlayerState[], totalArea: number): void {
+    const now = performance.now();
+    const refreshMs = this.isMobile ? 320 : 140;
+    if (
+      this.lastLeaderboardRefreshAt !== 0 &&
+      now - this.lastLeaderboardRefreshAt < refreshMs
+    ) {
+      return;
+    }
+
+    const entries = players
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        pct: Number(
+          this.formatPct((p.territory.computeArea() / totalArea) * 100),
+        ),
+        alive: p.alive,
+      }))
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 3);
+
+    const signature = entries
+      .map(
+        (entry, index) =>
+          `${index + 1}:${entry.id}:${entry.name}:${entry.pct}:${entry.alive ? 1 : 0}`,
+      )
+      .join("|");
+    this.lastLeaderboardRefreshAt = now;
+    if (signature === this.lastLeaderboardSignature) {
+      return;
+    }
+    this.lastLeaderboardSignature = signature;
+
+    const fragment = document.createDocumentFragment();
+    const visibleIds = new Set<number>();
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const cached = this.getOrCreateLeaderboardEntry(entry.id);
+      visibleIds.add(entry.id);
+
+      const nextClass = `lb-entry rank-${i + 1}${entry.alive ? "" : " dead"}`;
+      if (cached.el.className !== nextClass) {
+        cached.el.className = nextClass;
+      }
+      if (cached.rankEl.textContent !== `${i + 1}`) {
+        cached.rankEl.textContent = `${i + 1}`;
+      }
+      if (cached.name !== entry.name) {
+        cached.name = entry.name;
+        cached.nameEl.textContent = entry.name;
+      }
+      if (cached.pct !== entry.pct) {
+        cached.pct = entry.pct;
+        cached.pctEl.textContent = `${entry.pct}%`;
+      }
+      cached.alive = entry.alive;
+      fragment.appendChild(cached.el);
+    }
+
+    this.lbEntries.replaceChildren(fragment);
+    for (const id of Array.from(this.cachedEntries.keys())) {
+      if (!visibleIds.has(id)) {
+        this.cachedEntries.delete(id);
+      }
+    }
+  }
+
+  private getOrCreateLeaderboardEntry(id: number): CachedEntry {
+    const existing = this.cachedEntries.get(id);
     if (existing) return existing;
 
     const el = document.createElement("div");
@@ -275,9 +293,8 @@ export class HUD {
     el.appendChild(pctEl);
 
     const created: CachedEntry = {
-      id: entry.id,
+      id,
       name: "",
-      color: "",
       pct: -1,
       alive: true,
       el,
@@ -285,7 +302,7 @@ export class HUD {
       nameEl,
       rankEl,
     };
-    this.cachedEntries.set(entry.id, created);
+    this.cachedEntries.set(id, created);
     return created;
   }
 
@@ -362,32 +379,25 @@ export class HUD {
   }
 
   private drawMapp(players: PlayerState[]): void {
-    const rect = this.mappCanvas.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-
-    const isMobile = window.matchMedia("(pointer: coarse)").matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 2);
-    const width = Math.max(1, Math.round(rect.width * dpr));
-    const height = Math.max(1, Math.round(rect.height * dpr));
-    if (this.mappCanvas.width !== width || this.mappCanvas.height !== height) {
-      this.mappCanvas.width = width;
-      this.mappCanvas.height = height;
-      this.mappLayerCanvas.width = width;
-      this.mappLayerCanvas.height = height;
-      this.lastMappLayerSignature = "";
+    if (this.mappWidth === 0 || this.mappHeight === 0) {
+      this.refreshMappMetrics();
+      if (this.mappWidth === 0 || this.mappHeight === 0) return;
     }
 
+    const width = this.mappWidth;
+    const height = this.mappHeight;
     const ctx = this.mappCtx;
-    const cx = width * 0.5;
-    const cy = height * 0.5;
-    const radius = Math.min(width, height) * 0.44;
-    const scale = radius / MAP_RADIUS;
     const now = performance.now();
-    const layerSignature = this.buildMappTerritorySignature(players);
+    const territoryDirty =
+      this.lastMappLayerDrawAt === 0 ||
+      players.some((player) => player.alive && player.territory.dirty);
+    const territoryRefreshMs = this.isMobile
+      ? HUD.mappTerritoryRefreshMs + 260
+      : HUD.mappTerritoryRefreshMs;
     const needsLayerRefresh =
-      layerSignature !== this.lastMappLayerSignature &&
+      territoryDirty &&
       (this.lastMappLayerDrawAt === 0 ||
-        now - this.lastMappLayerDrawAt >= HUD.mappTerritoryRefreshMs);
+        now - this.lastMappLayerDrawAt >= territoryRefreshMs);
 
     if (needsLayerRefresh) {
       const layerCtx = this.mappLayerCtx;
@@ -395,7 +405,7 @@ export class HUD {
 
       layerCtx.save();
       layerCtx.beginPath();
-      layerCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+      layerCtx.arc(this.mappCx, this.mappCy, this.mappRadius, 0, Math.PI * 2);
       layerCtx.clip();
 
       layerCtx.fillStyle = "#dff4ff";
@@ -403,21 +413,21 @@ export class HUD {
 
       for (const player of players) {
         if (!player.alive) continue;
-        const polygons = player.territory.getPolygons();
+        const polygons = player.territory.getPolygonsView();
         if (polygons.length === 0) continue;
         this.fillTerritoryOnMapp(
           polygons,
           player.colorStr,
           player.isHuman ? 0.42 : 0.26,
-          cx,
-          cy,
-          scale,
+          this.mappCx,
+          this.mappCy,
+          this.mappScale,
           layerCtx,
         );
+        player.territory.dirty = false;
       }
 
       layerCtx.restore();
-      this.lastMappLayerSignature = layerSignature;
       this.lastMappLayerDrawAt = now;
     }
 
@@ -426,14 +436,14 @@ export class HUD {
 
     for (const player of players) {
       if (!player.alive) continue;
-      const px = cx + player.position.x * scale;
-      const py = cy + player.position.z * scale;
-      const dotRadius = player.isHuman ? 4.8 * dpr : 3.8 * dpr;
+      const px = this.mappCx + player.position.x * this.mappScale;
+      const py = this.mappCy + player.position.z * this.mappScale;
+      const dotRadius = player.isHuman ? 5.1 : 3.9;
       ctx.beginPath();
       ctx.arc(px, py, dotRadius, 0, Math.PI * 2);
       ctx.fillStyle = player.colorStr;
       ctx.fill();
-      ctx.lineWidth = player.isHuman ? 2.4 * dpr : 1.4 * dpr;
+      ctx.lineWidth = player.isHuman ? 2.2 : 1.3;
       ctx.strokeStyle = player.isHuman ? "#00A1E4" : "rgba(255,255,255,0.85)";
       ctx.stroke();
     }
@@ -477,13 +487,33 @@ export class HUD {
     ctx.closePath();
   }
 
-  private buildMappTerritorySignature(players: PlayerState[]): string {
-    return players
-      .map((player) =>
-        player.alive
-          ? `${player.id}:${player.territory.computeArea().toFixed(1)}`
-          : `${player.id}:dead`,
-      )
-      .join("|");
+  private refreshMappMetrics(): void {
+    const rect = this.mappCanvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      this.mappWidth = 0;
+      this.mappHeight = 0;
+      return;
+    }
+
+    const dpr = Math.min(
+      window.devicePixelRatio || 1,
+      this.isMobile ? 1.1 : 1.6,
+    );
+    const width = Math.max(1, Math.round(rect.width * dpr));
+    const height = Math.max(1, Math.round(rect.height * dpr));
+    if (this.mappCanvas.width !== width || this.mappCanvas.height !== height) {
+      this.mappCanvas.width = width;
+      this.mappCanvas.height = height;
+      this.mappLayerCanvas.width = width;
+      this.mappLayerCanvas.height = height;
+      this.lastMappLayerDrawAt = 0;
+    }
+
+    this.mappWidth = width;
+    this.mappHeight = height;
+    this.mappCx = width * 0.5;
+    this.mappCy = height * 0.5;
+    this.mappRadius = Math.min(width, height) * 0.44;
+    this.mappScale = this.mappRadius / MAP_RADIUS;
   }
 }

@@ -274,7 +274,23 @@ const ANIMAL_MODELS: {
   },
 ];
 
-export const SKINS: SkinDef[] = [
+function distributeUnlockScores(skins: SkinDef[]): SkinDef[] {
+  const lockedSkins = skins.filter((skin) => !skin.unlockedByDefault);
+  const lockedCount = lockedSkins.length;
+  if (lockedCount === 0) return skins;
+
+  let lockedIndex = 0;
+  return skins.map((skin) => {
+    if (skin.unlockedByDefault) return skin;
+    lockedIndex += 1;
+    return {
+      ...skin,
+      unlockScore: Math.round((lockedIndex * 100) / lockedCount),
+    };
+  });
+}
+
+const BASE_SKINS: SkinDef[] = [
   {
     id: "cyan",
     name: "Cyan",
@@ -346,6 +362,8 @@ export const SKINS: SkinDef[] = [
     unlockScore: a.unlockScore,
   })),
 ];
+
+export const SKINS: SkinDef[] = distributeUnlockScores(BASE_SKINS);
 
 export class SkinSystem {
   private textures: Map<string, THREE.Texture> = new Map();

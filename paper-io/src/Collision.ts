@@ -257,7 +257,7 @@ export function mergePolygons(existing: Vec2[], addition: Vec2[]): Vec2[] {
   // For a game, we'll use a practical simplification.
 
   // Combine and compute convex hull as fallback
-  // But for paper.io, territory can be concave, so we'll keep both polygons
+  // But for colorsplash, territory can be concave, so we'll keep both polygons
   // and use the union of areas.
 
   // Actually, the simplest robust approach: keep territory as multiple polygons

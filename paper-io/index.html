@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Paper.io 3D</title>
+  <title>ColorSplash</title>
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Russo+One&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -124,7 +124,20 @@
     }
     #shop-back-btn:hover { background: rgba(255,255,255,0.9); }
     #shop-back-btn:active { transform: scale(0.97); }
-    #shop-back-btn svg { width: 16px; height: 16px; fill: currentColor; }
+    #shop-back-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+      filter: drop-shadow(0 1px 0 #0a7db0) drop-shadow(0 2px 0 #086890);
+    }
+    .shop-back-label {
+      color: currentColor;
+      font-family: 'Russo One', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-shadow: none;
+    }
 
     .shop-section-label {
       font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
@@ -253,7 +266,7 @@
     #hud-left { display: flex; flex-direction: column; gap: 8px; }
     #hud-player {
       font-family: 'Russo One', sans-serif; font-size: 1.1rem; font-weight: 400;
-      display: flex; align-items: center; gap: 5px; color: var(--hud-accent, var(--countdown-blue));
+      display: flex; align-items: center; gap: 4px; color: var(--hud-accent, var(--countdown-blue));
       text-shadow:
         0 1px 0 var(--hud-depth-1, var(--countdown-depth-1)),
         0 2px 0 var(--hud-depth-2, var(--countdown-depth-2)),
@@ -297,6 +310,87 @@
         0 1px 0 var(--hud-depth-1, var(--countdown-depth-1)),
         0 2px 0 var(--hud-depth-2, var(--countdown-depth-2)),
         0 3px 6px rgba(4,68,92,0.22);
+    }
+    #leaderboard {
+      min-width: 164px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      color: #15316e;
+    }
+    #lb-entries {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+    }
+    .lb-entry {
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-width: 156px;
+      font-weight: 800;
+      --lb-accent: #00A1E4;
+      --lb-accent-dark: #0a7db0;
+    }
+    .lb-entry.dead { opacity: 0.42; }
+    .lb-name {
+      width: 78px;
+      min-width: 0;
+      max-width: 78px;
+      color: #f6f9fb;
+      font-size: 0.76rem;
+      letter-spacing: 0.01em;
+      text-shadow:
+        0 1px 0 var(--countdown-depth-1),
+        0 2px 0 var(--countdown-depth-2),
+        0 3px 0 rgba(4,68,92,0.38);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lb-pct {
+      min-width: 66px;
+      text-align: right;
+      font-weight: 900;
+      font-size: 1.02rem;
+      line-height: 1;
+      letter-spacing: -0.045em;
+      color: var(--lb-accent);
+      -webkit-text-stroke: 0.9px var(--lb-accent-dark);
+      text-shadow:
+        0 1px 0 rgba(255,255,255,0.55),
+        0 2px 0 rgba(4,68,92,0.24);
+    }
+    .lb-rank {
+      width: 26px;
+      display: block;
+      box-sizing: border-box;
+      padding-right: 0;
+      font-size: 0.74rem;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      color: var(--lb-accent);
+      line-height: 1;
+      text-align: right;
+      justify-self: end;
+      text-shadow:
+        0 1px 0 var(--lb-accent-dark),
+        0 2px 0 rgba(4,68,92,0.2);
+    }
+    .lb-entry.rank-1 {
+      --lb-accent: #F6C445;
+      --lb-accent-dark: #A87010;
+    }
+    .lb-entry.rank-2 {
+      --lb-accent: #D9DEE5;
+      --lb-accent-dark: #8893A2;
+    }
+    .lb-entry.rank-3 {
+      --lb-accent: #C8894F;
+      --lb-accent-dark: #8F5730;
     }
     #score-fx-layer {
       position: absolute;
@@ -370,84 +464,6 @@
       font-size: 1.3rem; cursor: pointer; opacity: 0.7; margin-top: 4px;
     }
     #mute-btn:hover { opacity: 1; }
-
-    #leaderboard {
-      min-width: 164px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 4px;
-      color: #15316e;
-    }
-    #lb-entries {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      align-items: flex-end;
-    }
-    .lb-entry {
-      display: grid;
-      grid-template-columns: 22px minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 8px;
-      min-width: 156px;
-      font-weight: 800;
-      will-change: transform;
-      --lb-accent: #00A1E4;
-      --lb-accent-dark: #0a7db0;
-    }
-    .lb-entry.dead { opacity: 0.42; }
-    .lb-name {
-      min-width: 0;
-      color: #f6f9fb;
-      font-size: 0.76rem;
-      letter-spacing: 0.01em;
-      text-shadow:
-        0 1px 0 var(--countdown-depth-1),
-        0 2px 0 var(--countdown-depth-2),
-        0 3px 0 rgba(4,68,92,0.38);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .lb-pct {
-      min-width: 66px;
-      text-align: right;
-      font-weight: 900;
-      font-size: 1.02rem;
-      line-height: 1;
-      letter-spacing: -0.045em;
-      color: var(--lb-accent);
-      -webkit-text-stroke: 0.9px var(--lb-accent-dark);
-      text-shadow:
-        0 1px 0 rgba(255,255,255,0.55),
-        0 2px 0 rgba(4,68,92,0.24);
-    }
-    .lb-rank {
-      width: 22px;
-      height: auto;
-      display: block;
-      font-size: 0.74rem;
-      font-weight: 900;
-      color: var(--lb-accent);
-      line-height: 1;
-      text-align: right;
-      text-shadow:
-        0 1px 0 var(--lb-accent-dark),
-        0 2px 0 rgba(4,68,92,0.2);
-    }
-    .lb-entry.rank-1 {
-      --lb-accent: #F6C445;
-      --lb-accent-dark: #A87010;
-    }
-    .lb-entry.rank-2 {
-      --lb-accent: #D9DEE5;
-      --lb-accent-dark: #8893A2;
-    }
-    .lb-entry.rank-3 {
-      --lb-accent: #C8894F;
-      --lb-accent-dark: #8F5730;
-    }
 
     #mapp-panel {
       position: absolute;
@@ -630,7 +646,7 @@
 
     /* ─── Settings Button ─── */
     #settings-btn {
-      position: absolute; top: 164px; right: 20px; width: 48px; height: 48px;
+      position: absolute; top: 152px; right: 20px; width: 48px; height: 48px;
       border: 2px solid rgba(232,115,108,0.25); border-radius: 14px;
       background: rgba(245,240,232,0.85); color: #E8736C;
       display: grid; place-items: center; z-index: 115; cursor: pointer;
@@ -640,7 +656,7 @@
     #settings-btn:hover { background: rgba(245,240,232,0.95); }
     #settings-btn:active { transform: scale(0.94); }
     #settings-btn svg { width: 22px; height: 22px; fill: currentColor; }
-    @media (pointer: coarse) { #settings-btn { top: 228px; right: 16px; } }
+    @media (pointer: coarse) { #settings-btn { top: 212px; right: 16px; } }
 
     /* ─── Settings Modal ─── */
     #settings-modal {
@@ -727,7 +743,7 @@
 
   <!-- Menu -->
   <div id="menu-screen">
-    <h1>Paper.io</h1>
+    <h1>colorsplash</h1>
     <p class="game-desc">Conquer territory by drawing loops. Don't get caught!</p>
     <button id="shop-open-btn">
       <span class="preview-swatch" id="shop-preview" style="background:#00E5FF"></span>
@@ -737,11 +753,11 @@
     <button id="play-btn">Play</button>
     <div class="how-to-play" id="how-to-toggle">How to Play</div>
     <div id="how-to-content">
-      Arrow Keys / WASD to move<br>
+      Touch and drag anywhere to move<br>
       Leave your territory to draw a trail<br>
       Return home to capture the enclosed area<br>
       Don't let anyone cross your trail!<br>
-      P to Pause &bull; R to Restart
+      Stay moving and close your loop fast
     </div>
   </div>
 
@@ -844,7 +860,7 @@
       </div>
       <button id="shop-back-btn" aria-label="Back from shop">
         <svg viewBox="0 0 24 24"><path d="M14.7 5.3a1 1 0 0 1 0 1.4L10.41 11H20a1 1 0 1 1 0 2h-9.59l4.3 4.3a1 1 0 1 1-1.42 1.4l-6-6a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.41 0z"/></svg>
-        Back
+        <span class="shop-back-label">Back</span>
       </button>
     </div>
   </div>

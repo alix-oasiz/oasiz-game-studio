@@ -1,13 +1,11 @@
 import {
   ARENA_AREA,
   MAP_RADIUS,
-  SPAWN_POINTS,
   PLAYER_NAMES,
   BOT_NAMES,
   START_RADIUS,
   TRAIL_HIT_RADIUS,
   type Vec2,
-  dist2,
 } from "./constants.ts";
 import {
   type PlayerState,
@@ -17,8 +15,8 @@ import {
   sampleTrailPoint,
   InputHandler,
 } from "./Player.ts";
-import { segmentDistanceSq, segmentsHitWithRadius } from "./Collision.ts";
-import { BotController, type BotFrameContext } from "./Bot.ts";
+import { segmentsHitWithRadius } from "./Collision.ts";
+import { BotController } from "./Bot.ts";
 import { Renderer } from "./Renderer.ts";
 import { ParticleSystem } from "./ParticleSystem.ts";
 import { Audio } from "./Audio.ts";
@@ -28,10 +26,7 @@ import { SpatialHash } from "./SpatialHash.ts";
 import { TerritoryGrid, type Territory } from "./Territory.ts";
 import { SkinSystem, type SkinDef } from "./SkinSystem.ts";
 import { oasiz } from "@oasiz/sdk";
-import {
-  buildParallelTerritoryConnectorBridge,
-  getTrailInsideTerritorySegment,
-} from "./trail-geometry.ts";
+import { getTrailInsideTerritorySegment } from "./trail-geometry.ts";
 
 function withLiveTrailHead(trail: Vec2[], head: Vec2): Vec2[] {
   if (trail.length === 0) return [{ x: head.x, z: head.z }];
@@ -42,12 +37,16 @@ function withLiveTrailHead(trail: Vec2[], head: Vec2): Vec2[] {
 
 const BOT_EFFECT_CULL_DIST_SQ = 50 * 50;
 const CAPTURE_SCORE_SCALE = 8;
-const SPAWN_SEARCH_ATTEMPTS = 140;
-const SPAWN_EDGE_MARGIN = START_RADIUS + 1.2;
-const MAX_SAME_MAP_RESPAWNS = 2;
-const VICTORY_CAPTURE_THRESHOLD = 99.95;
+const SPAWN_SEARCH_RADIUS = START_RADIUS + 0.55;
+const SPAWN_EDGE_MARGIN = SPAWN_SEARCH_RADIUS + 0.8;
+const MAX_SAME_MAP_RESPAWNS = 1;
+const VICTORY_CAPTURE_THRESHOLD = 99.75;
 const VICTORY_BONUS_MAX = 20000;
 const VICTORY_BONUS_DECAY_PER_SECOND = 100;
+const VICTORY_CAPTURE_BONUS_SCALE = 100;
+const SHARED_SPAWN_POINT_COUNT = 72;
+const OUTER_RING_SPAWN_COUNT = 36;
+const MID_RING_SPAWN_COUNT = 24;
 
 const SCORE_MILESTONES = [
   { threshold: 1000, message: "Fantastic", color: "#F6C445" },
@@ -57,15 +56,6 @@ const SCORE_MILESTONES = [
   { threshold: 40000, message: "Dominating", color: "#00A1E4" },
   { threshold: 100000, message: "Legendary", color: "#7CFFB2" },
 ] as const;
-
-function randomSpawnCandidate(): Vec2 {
-  const radius = (MAP_RADIUS - SPAWN_EDGE_MARGIN) * Math.sqrt(Math.random());
-  const angle = Math.random() * Math.PI * 2;
-  return {
-    x: Math.cos(angle) * radius,
-    z: Math.sin(angle) * radius,
-  };
-}
 
 function buildSpawnCircleSamples(sampleRadius: number): Vec2[] {
   const samples: Vec2[] = [{ x: 0, z: 0 }];
@@ -84,6 +74,49 @@ function buildSpawnCircleSamples(sampleRadius: number): Vec2[] {
   }
   return samples;
 }
+
+function buildSharedSpawnCandidates(): Vec2[] {
+  const maxRadius = MAP_RADIUS - SPAWN_EDGE_MARGIN;
+  const minRadius = START_RADIUS * 2.4;
+  const buildRing = (
+    count: number,
+    radius: number,
+    offsetScale: number,
+  ): Vec2[] =>
+    Array.from({ length: count }, (_, index) => {
+      const angle =
+        (Math.PI * 2 * index) / count +
+        ((index % 2) * Math.PI) / count +
+        offsetScale;
+      return {
+        x: Math.cos(angle) * radius,
+        z: Math.sin(angle) * radius,
+      };
+    });
+
+  const outerRing = buildRing(OUTER_RING_SPAWN_COUNT, maxRadius * 0.955, 0.12);
+  const midRing = buildRing(MID_RING_SPAWN_COUNT, maxRadius * 0.84, 0.04);
+  const innerCount =
+    SHARED_SPAWN_POINT_COUNT - OUTER_RING_SPAWN_COUNT - MID_RING_SPAWN_COUNT;
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const innerSpawns = Array.from({ length: innerCount }, (_, index) => {
+    const t = (index + 0.5) / Math.max(1, innerCount);
+    const radius = minRadius + (maxRadius * 0.68 - minRadius) * Math.sqrt(t);
+    const angle = index * goldenAngle + Math.sin(index * 12.9898) * 0.28;
+    return {
+      x: Math.cos(angle) * radius,
+      z: Math.sin(angle) * radius,
+    };
+  });
+
+  return [...outerRing, ...midRing, ...innerSpawns];
+}
+
+const SHARED_SPAWN_CANDIDATES = buildSharedSpawnCandidates();
+const INITIAL_LAYOUT_SPAWN_CANDIDATES = [...SHARED_SPAWN_CANDIDATES].sort(
+  (a, b) => Math.atan2(a.z, a.x) - Math.atan2(b.z, b.x),
+);
+const SPAWN_CIRCLE_SAMPLES = buildSpawnCircleSamples(SPAWN_SEARCH_RADIUS);
 
 export class Game {
   private renderer: Renderer;
@@ -108,7 +141,6 @@ export class Game {
   private gameTime = 0;
   private lastFrameTime = 0;
   private hudUpdateTimer = 0;
-  private currentLeaderId = -1;
   private peakPct = 0;
   private score = 0;
   private usedBotNames: Set<string> = new Set();
@@ -116,14 +148,12 @@ export class Game {
   private rafId = 0;
   private idleFrameSkip = 0;
   private territoryBusy = new Set<number>();
-  private territoryOpSeq = 0;
-  private loggedDeadVisualAnomalies = new Set<number>();
-  private deathTimes = new Map<number, number>();
-  private loggedHumanTrailEnemyOverlay = false;
+  private sharedSpawnCursor = 0;
   private startCount = 0;
   private firstStartActive = false;
   private introCountdownRemaining = 0;
   private introCountdownActive = false;
+  private introCountdownDisplayValue: number | null = null;
   private readonly introCountdownEl: HTMLElement | null;
   private readonly introCountdownValueEl: HTMLElement | null;
   private readonly introCountdownInnerEl: HTMLElement | null;
@@ -132,6 +162,8 @@ export class Game {
   private pendingHumanRetryRespawn = false;
   private restartRequiredAfterNoSpawn = false;
   private sameMapRespawnsUsed = 0;
+  private readonly isMobile = window.matchMedia("(pointer: coarse)").matches;
+  private activeBotVisuals = new Set<number>();
 
   constructor() {
     const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
@@ -148,6 +180,16 @@ export class Game {
     this.introCountdownValueEl = document.getElementById(
       "start-countdown-value",
     );
+    const shopModal = document.getElementById("shop-modal");
+    if (shopModal) {
+      const observer = new MutationObserver(() => {
+        this.updateSettingsButtonVisibility();
+      });
+      observer.observe(shopModal, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
 
     this.menu.setCallbacks(
       (config) => this.startGame(config),
@@ -176,6 +218,22 @@ export class Game {
 
   private settingsOpen = false;
 
+  private updateSettingsButtonVisibility(): void {
+    const shopVisible =
+      document.getElementById("shop-modal")?.classList.contains("visible") ??
+      false;
+    const shouldShow =
+      this.running &&
+      !this.gameOver &&
+      !this.paused &&
+      !this.settingsOpen &&
+      !this.introCountdownActive &&
+      !shopVisible;
+    document
+      .getElementById("settings-btn")
+      ?.classList.toggle("hidden", !shouldShow);
+  }
+
   private initSettingsModal(): void {
     const settingsBtn = document.getElementById("settings-btn");
     const settingsModal = document.getElementById("settings-modal");
@@ -185,7 +243,10 @@ export class Game {
       settingsModal?.classList.toggle("visible", this.settingsOpen);
       if (this.settingsOpen && this.running && !this.gameOver) {
         this.paused = true;
+      } else if (this.running && !this.gameOver) {
+        this.paused = false;
       }
+      this.updateSettingsButtonVisibility();
     });
 
     settingsModal?.addEventListener("click", (e) => {
@@ -195,6 +256,7 @@ export class Game {
         if (this.running && !this.gameOver) {
           this.paused = false;
         }
+        this.updateSettingsButtonVisibility();
       }
     });
   }
@@ -203,7 +265,7 @@ export class Game {
     this.stopGame();
     this.menu.showMenu();
     this.hud.hide();
-    document.getElementById("settings-btn")?.classList.remove("hidden");
+    document.getElementById("settings-btn")?.classList.add("hidden");
     const joystick = document.getElementById("joystick-zone");
     if (joystick) {
       joystick.classList.add("hidden");
@@ -215,6 +277,12 @@ export class Game {
     this.pendingHumanRetryRespawn = false;
     this.restartRequiredAfterNoSpawn = false;
     this.sameMapRespawnsUsed = 0;
+    this.sharedSpawnCursor = 0;
+  }
+
+  private setCountdownUiVisible(visible: boolean): void {
+    this.hud.setMappVisible(visible);
+    this.updateSettingsButtonVisibility();
   }
 
   private startGame(config: MenuConfig): void {
@@ -224,6 +292,7 @@ export class Game {
     this.firstStartActive = this.startCount === 1;
     this.introCountdownActive = false;
     this.introCountdownRemaining = 0;
+    this.introCountdownDisplayValue = null;
     this.menu.hideMenu();
     this.menu.hideGameOver();
 
@@ -239,15 +308,14 @@ export class Game {
     this.pendingHumanRetryRespawn = false;
     this.restartRequiredAfterNoSpawn = false;
     this.sameMapRespawnsUsed = 0;
+    this.sharedSpawnCursor = 0;
     this.territoryGrid = new TerritoryGrid();
     this.usedBotNames = new Set();
     this.respawnTimers = new Map();
     this.indexedTrailLengths.clear();
     this.trailHash.clear();
     this.territoryBusy.clear();
-    this.deathTimes.clear();
-    this.loggedHumanTrailEnemyOverlay = false;
-
+    this.activeBotVisuals.clear();
     // Create players with skins
     const playerCreateStartMs = performance.now();
     const playerSkin =
@@ -302,10 +370,16 @@ export class Game {
       }
     };
 
-    createConfiguredPlayer(playerSkin, humanName, SPAWN_POINTS[0], true);
+    const initialSpawns = this.buildInitialSpawnLayout(config.botCount + 1);
+    const humanSpawn = initialSpawns[0] ?? this.pickSpawnPoint(0);
+    if (!humanSpawn) {
+      throw new Error("No spawn available for human player");
+    }
+    createConfiguredPlayer(playerSkin, humanName, humanSpawn, true);
 
     for (let i = 0; i < config.botCount; i++) {
-      const sp = this.pickSpawnPoint(this.players.length);
+      const sp =
+        initialSpawns[i + 1] ?? this.pickSpawnPoint(this.players.length);
       if (!sp) continue;
       createConfiguredPlayer(botSkins[i], this.pickBotName(), sp, false);
     }
@@ -323,7 +397,7 @@ export class Game {
     this.hud.show();
     this.hud.setPlayerName(humanName);
     this.hud.updateRespawns(this.getRemainingSameMapRespawns());
-    document.getElementById("settings-btn")?.classList.remove("hidden");
+    this.setCountdownUiVisible(true);
     const joystick = document.getElementById("joystick-zone");
     if (joystick) {
       joystick.classList.remove("hidden");
@@ -349,11 +423,13 @@ export class Game {
     this.renderer.setCameraTarget(this.human.position);
     this.renderer.prewarmRender();
     if (this.firstStartActive) {
-      this.introCountdownRemaining = 3.15;
+      this.setCountdownUiVisible(false);
+      this.introCountdownRemaining = 3;
       this.introCountdownActive = true;
       this.updateIntroCountdownLabel(3);
       this.introCountdownEl?.classList.add("visible");
     } else {
+      this.setCountdownUiVisible(true);
       this.hideIntroCountdown();
     }
 
@@ -372,8 +448,10 @@ export class Game {
     this.pendingHumanRetryRespawn = false;
     this.restartRequiredAfterNoSpawn = false;
     this.sameMapRespawnsUsed = 0;
+    this.sharedSpawnCursor = 0;
     this.introCountdownActive = false;
     this.introCountdownRemaining = 0;
+    this.introCountdownDisplayValue = null;
     this.hideIntroCountdown();
     this.trailHash.clear();
     this.indexedTrailLengths.clear();
@@ -388,6 +466,7 @@ export class Game {
     this.paused = !this.paused;
     if (this.paused) this.menu.showPause();
     else this.menu.hidePause();
+    this.updateSettingsButtonVisibility();
   }
 
   private computeCaptureScore(area: number): number {
@@ -420,6 +499,8 @@ export class Game {
   private readonly _oldPos: Vec2 = { x: 0, z: 0 };
 
   private updateIntroCountdownLabel(value: number): void {
+    if (this.introCountdownDisplayValue === value) return;
+    this.introCountdownDisplayValue = value;
     if (this.introCountdownValueEl) {
       this.introCountdownValueEl.textContent = String(value);
     }
@@ -431,6 +512,7 @@ export class Game {
   }
 
   private hideIntroCountdown(): void {
+    this.introCountdownDisplayValue = null;
     this.introCountdownEl?.classList.remove("visible");
   }
 
@@ -448,21 +530,21 @@ export class Game {
         this.introCountdownRemaining - dt,
       );
       if (this.introCountdownRemaining > 0) {
-        this.updateIntroCountdownLabel(Math.ceil(this.introCountdownRemaining));
+        const countdownValue = Math.ceil(this.introCountdownRemaining);
+        this.updateIntroCountdownLabel(countdownValue);
       } else {
         this.introCountdownActive = false;
         this.hideIntroCountdown();
+        this.setCountdownUiVisible(true);
       }
       return;
     }
 
     const players = this.players;
     const playerCount = players.length;
-    const botFrameContext = this.buildBotFrameContext(players);
-
     for (let pi = 1; pi < playerCount; pi++) {
       const p = players[pi];
-      if (p.alive) this.botController.update(p, players, botFrameContext, dt);
+      if (p.alive) this.botController.update(p, players, dt);
     }
 
     const oldPos = this._oldPos;
@@ -499,9 +581,6 @@ export class Game {
             appliedHitRadius,
           )
         ) {
-          const hitDistance = Math.sqrt(
-            segmentDistanceSq(oldPos, newPos, trail[si], trail[si + 1]),
-          );
           if (other.id === p.id) {
             this.killPlayer(p);
             hitTrail = true;
@@ -548,9 +627,10 @@ export class Game {
       }
 
       if (p.isTrailing) {
-        if (nowInTerritory && p.trail.length >= 3) {
-          const reentryPoint = p.territory.projectExitPoint(newPos, oldPos);
+        const reentryPoint = p.territory.getTrailReturnContact(oldPos, newPos);
+        if (reentryPoint && p.trail.length >= 3) {
           const captureTrail = [...p.trail];
+          const trailStartTangent = p.trailStartTangent;
           const lastTrailPoint = captureTrail[captureTrail.length - 1];
           if (
             !lastTrailPoint ||
@@ -565,12 +645,11 @@ export class Game {
           p.trailStartTangent = null;
           p.isTrailing = false;
           this.clearIndexedTrail(p.id);
-          const captureOpId = ++this.territoryOpSeq;
-          const captureStartedAt = performance.now();
           this.beginTerritoryOperation([p.id], async () => {
-            const captureResult =
-              await p.territory.captureFromTrail(captureTrail);
-            const captureElapsedMs = performance.now() - captureStartedAt;
+            const captureResult = await p.territory.resolveTrailReturn(
+              captureTrail,
+              trailStartTangent,
+            );
             if (!this.running) return;
 
             for (const otherId of captureResult.affected) {
@@ -618,7 +697,15 @@ export class Game {
     for (let pi = 0; pi < playerCount; pi++) {
       const p = players[pi];
       if (p.alive) {
-        const renderTrail = p.trail;
+        const visualsRelevant = this.isPlayerVisualRelevant(p);
+        if (!visualsRelevant) {
+          this.deactivateBotVisuals(p);
+          continue;
+        }
+
+        const renderTrail = p.isTrailing
+          ? withLiveTrailHead(p.trail, p.position)
+          : p.trail;
         let enemyTerritoryOwner = -1;
         let carveTrail: Vec2[] | null = null;
         let carveStartTangent: Vec2 | null = null;
@@ -628,10 +715,7 @@ export class Game {
             if (!other.alive || other.id === p.id) continue;
             if (other.territory.containsPoint(p.position)) {
               enemyTerritoryOwner = other.id;
-              const carveTrailSource = withLiveTrailHead(
-                renderTrail,
-                p.position,
-              );
+              const carveTrailSource = renderTrail;
               const carveSegment = getTrailInsideTerritorySegment(
                 carveTrailSource,
                 other.territory,
@@ -643,6 +727,10 @@ export class Game {
           }
         }
 
+        if (!p.isHuman) {
+          this.activeBotVisuals.add(p.id);
+          this.renderer.showAvatar(p.id);
+        }
         this.renderer.updateAvatar(p.id, p.position, this.gameTime, p.moveDir);
         this.renderer.updateTrail(
           p.id,
@@ -656,39 +744,6 @@ export class Game {
           carveStartTangent,
           enemyTerritoryOwner >= 0 ? enemyTerritoryOwner : undefined,
         );
-        this.loggedDeadVisualAnomalies.delete(p.id);
-        this.loggedDeadVisualAnomalies.delete(1000 + p.id);
-        if (p.isHuman) {
-          if (
-            p.isTrailing &&
-            p.trail.length >= 2 &&
-            enemyTerritoryOwner >= 0 &&
-            !this.loggedHumanTrailEnemyOverlay
-          ) {
-            this.loggedHumanTrailEnemyOverlay = true;
-          } else if (!p.isTrailing || enemyTerritoryOwner < 0) {
-            this.loggedHumanTrailEnemyOverlay = false;
-          }
-        }
-      } else {
-        const visualState = this.renderer.getDebugVisualState(p.id);
-        const burstState = this.particleSystem.getDebugBurstState(p.id);
-        const deathAt = this.deathTimes.get(p.id) ?? 0;
-        const msSinceDeath = deathAt > 0 ? performance.now() - deathAt : 0;
-        if (
-          visualState.takeoverCount === 0 &&
-          (visualState.territoryTaggedCount > 0 || visualState.trailVisible) &&
-          !this.loggedDeadVisualAnomalies.has(p.id)
-        ) {
-          this.loggedDeadVisualAnomalies.add(p.id);
-        }
-        if (
-          msSinceDeath > 700 &&
-          burstState.sceneCount > 0 &&
-          !this.loggedDeadVisualAnomalies.has(1000 + p.id)
-        ) {
-          this.loggedDeadVisualAnomalies.add(1000 + p.id);
-        }
       }
     }
 
@@ -706,33 +761,6 @@ export class Game {
       if (human && human.alive) {
         const currentPct = (human.territory.computeArea() / ARENA_AREA) * 100;
         if (currentPct > this.peakPct) this.peakPct = currentPct;
-      }
-
-      let leaderId = -1;
-      let bestArea = -1;
-      for (let pi = 0; pi < playerCount; pi++) {
-        const p = players[pi];
-        if (!p.alive) continue;
-        const area = p.territory.computeArea();
-        if (area > bestArea) {
-          bestArea = area;
-          leaderId = p.id;
-        }
-      }
-      if (leaderId !== this.currentLeaderId) {
-        if (this.currentLeaderId >= 0) {
-          const previousLeader = this.players[this.currentLeaderId];
-          if (previousLeader) {
-            this.renderer.setRingColor(
-              this.currentLeaderId,
-              previousLeader.color,
-            );
-          }
-        }
-        if (leaderId >= 0) {
-          this.renderer.setRingColor(leaderId, 0xffd700);
-        }
-        this.currentLeaderId = leaderId;
       }
     }
 
@@ -801,27 +829,9 @@ export class Game {
         player.skinId,
       );
     }
-    this.deathTimes.set(player.id, performance.now());
     if (takeoverKiller) {
       this.beginTerritoryOperation([takeoverKiller.id, player.id], async () => {
-        const extraClaimPaths: Vec2[][] = [];
-        const extraClaimRegions = [];
-        const connectorBridge = buildParallelTerritoryConnectorBridge(
-          takeoverKiller.territory,
-          player.territory,
-        );
-        if (connectorBridge) {
-          extraClaimRegions.push(connectorBridge.region);
-        }
-        if (victimTrail.length >= 2) {
-          extraClaimPaths.push(victimTrail);
-        }
-
-        const takeover = await player.territory.transferTo(
-          takeoverKiller.id,
-          extraClaimPaths,
-          extraClaimRegions,
-        );
+        const takeover = await player.territory.transferTo(takeoverKiller.id);
         if (!this.running) return;
 
         player.territory.invalidateCache();
@@ -861,8 +871,7 @@ export class Game {
           this.awardAreaScore(takeover?.transferredArea ?? 0);
           this.audio.deathSplat();
           this.audio.killConfirm();
-          this.renderer.addCapturedFollower(takeoverKiller.id, player.id);
-          this.renderer.startAvatarAbsorbPulse(
+          this.renderer.growAvatarOnKill(
             takeoverKiller.id,
             takeoverKiller.color,
           );
@@ -877,6 +886,7 @@ export class Game {
 
     this.renderer.hideAvatar(player.id);
     this.renderer.updateTrail(player.id, [], player.color, null, null);
+    this.activeBotVisuals.delete(player.id);
     if (player.isHuman) {
       this.renderer.clearCapturedFollowers(player.id);
       this.audio.playerDeath();
@@ -896,49 +906,35 @@ export class Game {
     return name;
   }
 
-  private releaseBotName(name: string): void {
-    this.usedBotNames.delete(name);
-  }
+  private buildInitialSpawnLayout(totalPlayers: number): Vec2[] {
+    const candidateCount = INITIAL_LAYOUT_SPAWN_CANDIDATES.length;
+    if (totalPlayers <= 0 || candidateCount === 0) return [];
 
-  private pickDifferentBotName(previousName: string): string {
-    const available = BOT_NAMES.filter(
-      (name) => name !== previousName && !this.usedBotNames.has(name),
-    );
-    if (available.length > 0) {
-      const name = available[Math.floor(Math.random() * available.length)];
-      this.usedBotNames.add(name);
-      return name;
-    }
-    let fallback = previousName;
-    while (fallback === previousName) {
-      fallback = `Bot ${Math.floor(Math.random() * 999)}`;
-    }
-    return fallback;
-  }
+    const used = new Set<number>();
+    const step = candidateCount / totalPlayers;
+    const anchor = Math.floor(Math.random() * candidateCount);
+    const layout: Vec2[] = [];
 
-  private pickRespawnBotSkin(previousSkinId: string): SkinDef {
-    const humanSkinId = this.human?.skinId ?? "";
-    const candidates = this.skinSystem.getShuffledBotSkins(
-      humanSkinId,
-      this.players.length + 6,
-    );
-    return (
-      candidates.find((skin) => skin.id !== previousSkinId) ??
-      this.skinSystem.getSkin(previousSkinId) ??
-      this.skinSystem.getDefaultSkin()
-    );
+    for (let i = 0; i < totalPlayers; i++) {
+      let idx = Math.floor(anchor + i * step) % candidateCount;
+      while (used.has(idx)) {
+        idx = (idx + 1) % candidateCount;
+      }
+      used.add(idx);
+      layout.push(INITIAL_LAYOUT_SPAWN_CANDIDATES[idx]);
+    }
+
+    return layout;
   }
 
   private getSpawnOverlapDetail(
     spawn: Vec2,
     excludedPlayerId: number,
   ): { overlappingIds: number[]; sampleCount: number } {
-    const samples = buildSpawnCircleSamples(START_RADIUS + 0.9);
-
     const overlappingIds = new Set<number>();
     for (const player of this.players) {
       if (!player.alive || player.id === excludedPlayerId) continue;
-      for (const sample of samples) {
+      for (const sample of SPAWN_CIRCLE_SAMPLES) {
         if (
           player.territory.containsPoint({
             x: spawn.x + sample.x,
@@ -951,7 +947,10 @@ export class Game {
       }
     }
 
-    return { overlappingIds: [...overlappingIds], sampleCount: samples.length };
+    return {
+      overlappingIds: [...overlappingIds],
+      sampleCount: SPAWN_CIRCLE_SAMPLES.length,
+    };
   }
 
   private beginTrailFromBoundary(
@@ -984,10 +983,9 @@ export class Game {
   }
 
   private isSpawnSafe(spawn: Vec2, excludedPlayerId: number): boolean {
-    const samples = buildSpawnCircleSamples(START_RADIUS + 0.9);
     const maxRadiusSq =
       (MAP_RADIUS - SPAWN_EDGE_MARGIN) * (MAP_RADIUS - SPAWN_EDGE_MARGIN);
-    for (const sample of samples) {
+    for (const sample of SPAWN_CIRCLE_SAMPLES) {
       const sampleX = spawn.x + sample.x;
       const sampleZ = spawn.z + sample.z;
       if (sampleX * sampleX + sampleZ * sampleZ > maxRadiusSq) {
@@ -1002,26 +1000,20 @@ export class Game {
   }
 
   private pickSpawnPoint(playerId: number): Vec2 | null {
-    let bestSafeSpawn: Vec2 | null = null;
-    let bestSafeMinDist = -1;
+    const candidateCount = SHARED_SPAWN_CANDIDATES.length;
+    if (candidateCount === 0) return null;
+    const startIndex =
+      (this.sharedSpawnCursor + this.startCount * 13 + playerId * 7) %
+      candidateCount;
 
-    for (let i = 0; i < SPAWN_SEARCH_ATTEMPTS; i++) {
-      const sp = randomSpawnCandidate();
-      let minDist = Infinity;
-      for (const p of this.players) {
-        if (!p.alive || p.id === playerId) continue;
-        const d = dist2(sp, p.position);
-        if (d < minDist) minDist = d;
-      }
-
+    for (let i = 0; i < candidateCount; i++) {
+      const idx = (startIndex + i) % candidateCount;
+      const sp = SHARED_SPAWN_CANDIDATES[idx];
       if (!this.isSpawnSafe(sp, playerId)) continue;
-
-      if (minDist > bestSafeMinDist) {
-        bestSafeMinDist = minDist;
-        bestSafeSpawn = sp;
-      }
+      this.sharedSpawnCursor = (idx + 1) % candidateCount;
+      return sp;
     }
-    return bestSafeSpawn;
+    return null;
   }
 
   private resetPlayerForRespawn(
@@ -1032,9 +1024,13 @@ export class Game {
       skin?: SkinDef;
       hasInput: boolean;
       speed?: number;
+      enqueueTerritoryRebuild?: boolean;
     },
   ): void {
     const nextSkin = options.skin;
+    const nameChanged =
+      options.name !== undefined && options.name !== player.name;
+    const skinChanged = nextSkin !== undefined && nextSkin.id !== player.skinId;
 
     if (options.name) {
       player.name = options.name;
@@ -1058,57 +1054,55 @@ export class Game {
     }
     this.clearIndexedTrail(player.id);
     this.territoryBusy.delete(player.id);
-    this.deathTimes.delete(player.id);
-
     player.territory.clear();
     player.territory.initAtSpawn(spawn.x, spawn.z);
 
-    const skin = this.skinSystem.getSkin(player.skinId);
-    const texture = this.skinSystem.getTexture(player.skinId);
-    const model = this.skinSystem.getModel(player.skinId);
-
     this.renderer.showAvatar(player.id);
-    this.renderer.updateAvatarLabel(player.id, player.name);
-    this.renderer.updateAvatarAppearance(
-      player.id,
-      player.color,
-      texture,
-      model,
-    );
+    if (nameChanged) {
+      this.renderer.updateAvatarLabel(player.id, player.name);
+    }
+    if (skinChanged) {
+      const texture = this.skinSystem.getTexture(player.skinId);
+      const model = this.skinSystem.getModel(player.skinId);
+      this.renderer.updateAvatarAppearance(
+        player.id,
+        player.color,
+        texture,
+        model,
+      );
+      const skin = this.skinSystem.getSkin(player.skinId);
+      if (skin?.type === "model" && !model) {
+        const modelPromise = this.skinSystem.getModelAsync(skin.id);
+        modelPromise?.then((loadedModel) => {
+          if (
+            this.running &&
+            this.players[player.id]?.alive &&
+            this.players[player.id]?.skinId === skin.id &&
+            loadedModel.children.length > 0
+          ) {
+            this.renderer.replaceAvatarBody(player.id, loadedModel);
+          }
+        });
+      }
+    }
+    this.renderer.resetAvatarGrowth(player.id);
+    this.renderer.clearCapturedFollowers(player.id);
     this.renderer.updateTerritory(
       player.id,
       this.territoryGrid,
       player.color,
       player.skinId,
+      { enqueueOnly: options.enqueueTerritoryRebuild ?? false },
     );
     this.renderer.updateAvatar(player.id, player.position, 0);
-
-    if (skin?.type === "model" && !model) {
-      const modelPromise = this.skinSystem.getModelAsync(skin.id);
-      modelPromise?.then((loadedModel) => {
-        if (
-          this.running &&
-          this.players[player.id]?.alive &&
-          this.players[player.id]?.skinId === skin.id &&
-          loadedModel.children.length > 0
-        ) {
-          this.renderer.replaceAvatarBody(player.id, loadedModel);
-        }
-      });
-    }
   }
 
   private respawnBot(player: PlayerState): void {
-    this.releaseBotName(player.name);
-    const newName = this.pickDifferentBotName(player.name);
-    const newSkin = this.pickRespawnBotSkin(player.skinId);
-
     const sp = this.pickSpawnPoint(player.id);
     if (!sp) return;
     this.resetPlayerForRespawn(player, sp, {
-      name: newName,
-      skin: newSkin,
       hasInput: false,
+      enqueueTerritoryRebuild: true,
     });
     this.botController.initBot(player);
   }
@@ -1126,7 +1120,7 @@ export class Game {
     this.hud.updateScore(0);
     this.inputHandler.updatePlayer(player);
     this.renderer.setCameraTarget(player.position);
-    document.getElementById("settings-btn")?.classList.remove("hidden");
+    this.updateSettingsButtonVisibility();
     const joystick = document.getElementById("joystick-zone");
     if (joystick) {
       joystick.classList.remove("hidden");
@@ -1156,7 +1150,6 @@ export class Game {
   private hideGameplayUiForModal(): void {
     this.paused = false;
     this.menu.hidePause();
-    document.getElementById("settings-btn")?.classList.add("hidden");
     const joystick = document.getElementById("joystick-zone");
     if (joystick) {
       joystick.classList.add("hidden");
@@ -1164,6 +1157,7 @@ export class Game {
     }
     this.settingsOpen = false;
     document.getElementById("settings-modal")?.classList.remove("visible");
+    this.updateSettingsButtonVisibility();
   }
 
   private computeVictoryBonus(elapsedSeconds: number): number {
@@ -1175,16 +1169,25 @@ export class Game {
     );
   }
 
-  private showVictoryGameOver(): void {
+  private computeCaptureVictoryBonus(capturePct: number): number {
+    return Math.max(0, Math.round(capturePct * VICTORY_CAPTURE_BONUS_SCALE));
+  }
+
+  private showVictoryGameOver(
+    reason: "capture" | "elimination" = "capture",
+  ): void {
     const human = this.human;
     if (!human) return;
 
     const elapsedSeconds = this.hud.getElapsedSeconds();
-    const bonus = this.computeVictoryBonus(elapsedSeconds);
-    if (bonus > 0) {
-      this.hud.showFloatingPoints(bonus);
+    const capturePct = (human.territory.computeArea() / ARENA_AREA) * 100;
+    const timeBonus = this.computeVictoryBonus(elapsedSeconds);
+    const captureBonus = this.computeCaptureVictoryBonus(capturePct);
+    const totalBonus = timeBonus + captureBonus;
+    if (totalBonus > 0) {
+      this.hud.showFloatingPoints(totalBonus);
     }
-    this.score += bonus;
+    this.score += totalBonus;
     this.lastDeathScore = this.score;
     this.hud.updateScore(this.score);
     this.hud.updateRespawns(this.getRemainingSameMapRespawns());
@@ -1206,9 +1209,9 @@ export class Game {
       {
         title: "Congratulations!",
         message:
-          bonus > 0
-            ? `You have captured the whole map! Time Bonus: +${bonus.toLocaleString()}`
-            : "You have captured the whole map!",
+          reason === "elimination"
+            ? `All enemies eliminated. Capture Bonus: +${captureBonus.toLocaleString()} • Time Bonus: +${timeBonus.toLocaleString()}`
+            : `Map captured at ${capturePct.toFixed(2)}%. Capture Bonus: +${captureBonus.toLocaleString()} • Time Bonus: +${timeBonus.toLocaleString()}`,
         primaryLabel: "Restart Game",
         respawnsLeftText: `${this.getRemainingSameMapRespawns()}/${MAX_SAME_MAP_RESPAWNS}`,
       },
@@ -1284,9 +1287,17 @@ export class Game {
     }
 
     const currentPct = (human.territory.computeArea() / ARENA_AREA) * 100;
+    const livingEnemies = this.players.filter(
+      (player) => !player.isHuman && player.alive,
+    );
+    if (livingEnemies.length === 0 && this.respawnTimers.size === 0) {
+      this.peakPct = Math.max(this.peakPct, currentPct);
+      this.showVictoryGameOver("elimination");
+      return;
+    }
     if (currentPct >= VICTORY_CAPTURE_THRESHOLD) {
       this.peakPct = Math.max(this.peakPct, 100);
-      this.showVictoryGameOver();
+      this.showVictoryGameOver("capture");
     }
   }
 
@@ -1308,6 +1319,10 @@ export class Game {
 
       const { rank } = this.hud.getHumanScore(this.players);
       const newlyUnlocked = this.skinSystem.tryUnlock(this.peakPct);
+      const remainingRespawns = this.getRemainingSameMapRespawns();
+      if (remainingRespawns <= 0) {
+        this.restartRequiredAfterNoSpawn = true;
+      }
       this.hideGameplayUiForModal();
       this.audio.gameOverLose();
       this.menu.showGameOver(
@@ -1316,7 +1331,10 @@ export class Game {
         this.hud.getElapsedTime(),
         newlyUnlocked.length > 0 ? newlyUnlocked : undefined,
         {
-          respawnsLeftText: `${this.getRemainingSameMapRespawns()}/${MAX_SAME_MAP_RESPAWNS}`,
+          message:
+            remainingRespawns <= 0 ? "No same-map respawns left." : undefined,
+          primaryLabel: remainingRespawns <= 0 ? "Restart Game" : undefined,
+          respawnsLeftText: `${remainingRespawns}/${MAX_SAME_MAP_RESPAWNS}`,
         },
       );
     }
@@ -1388,9 +1406,21 @@ export class Game {
     return (pos.x - humanPos.x) ** 2 + (pos.z - humanPos.z) ** 2;
   }
 
+  private deactivateBotVisuals(player: PlayerState): void {
+    if (player.isHuman) return;
+    if (!this.activeBotVisuals.has(player.id)) return;
+    this.activeBotVisuals.delete(player.id);
+    this.renderer.hideAvatar(player.id);
+    this.renderer.updateTrail(player.id, [], player.color, null, null);
+  }
+
   private isPlayerVisualRelevant(player: PlayerState): boolean {
+    if (!player.alive) return false;
+    if (player.isHuman) return true;
+    if (this.isMobile) {
+      return this.renderer.isInsideMobileViewWindow(player.position);
+    }
     return (
-      player.isHuman ||
       this.getDistanceSqToHuman(player.position) <= BOT_EFFECT_CULL_DIST_SQ
     );
   }
@@ -1443,9 +1473,6 @@ export class Game {
     operation: () => Promise<void>,
   ): void {
     const lockedPlayers = new Set<number>(playerIds);
-    for (const player of this.players) {
-      if (player.alive) lockedPlayers.add(player.id);
-    }
 
     for (const playerId of lockedPlayers) {
       this.territoryBusy.add(playerId);
@@ -1460,19 +1487,5 @@ export class Game {
           this.territoryBusy.delete(playerId);
         }
       });
-  }
-
-  private buildBotFrameContext(players: PlayerState[]): BotFrameContext {
-    let leaderId = -1;
-    let bestArea = -1;
-    for (const player of players) {
-      if (!player.alive) continue;
-      const area = player.territory.computeArea();
-      if (area > bestArea) {
-        bestArea = area;
-        leaderId = player.id;
-      }
-    }
-    return { leaderId };
   }
 }

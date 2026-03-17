@@ -4,7 +4,7 @@ import captureSfxUrl from "./assets/capture.mp3";
 import deathSplatSfxUrl from "./assets/death-splat.mp3";
 import killConfirmSfxUrl from "./assets/kill-confirm-magical.mp3";
 import scoreMilestoneSfxUrl from "./assets/sfx_A_sat_20260315_222942.mp3";
-import uiClickSfxUrl from "./assets/sfx_A_lou_20260315_221950.mp3";
+import uiClickSfxUrl from "../sfx_A_sho_20260316_234830.mp3";
 import { oasiz } from "@oasiz/sdk";
 
 interface Settings {

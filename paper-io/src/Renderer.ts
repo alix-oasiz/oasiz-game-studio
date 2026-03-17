@@ -23,6 +23,8 @@ const TAKEOVER_DURATION = 0.7;
 const TAKEOVER_WAVE_WIDTH = 1.8;
 const CAPTURE_ASSIMILATION_DURATION = 0.62;
 const AVATAR_ABSORB_PULSE_DURATION = 0.28;
+const AVATAR_KILL_GROWTH_STEP = 0.045;
+const AVATAR_KILL_GROWTH_MAX = 0.28;
 const EXTRUDE_CURVE_SEGMENTS = 8;
 const TERRITORY_DEPTH_LAYERS = 3;
 const TERRITORY_DEPTH_OFFSET_X = -0.07;
@@ -53,18 +55,23 @@ const TERRITORY_RENDER_RADIUS_SQ =
 const TERRITORY_UNLOAD_RADIUS_SQ =
   TERRITORY_UNLOAD_RADIUS * TERRITORY_UNLOAD_RADIUS;
 const TERRITORY_CULL_REFRESH_DIST_SQ = 4.5 * 4.5;
-const MOBILE_MIN_PIXEL_RATIO = 0.85;
-const MOBILE_MAX_PIXEL_RATIO = 1.15;
-const MOBILE_DPR_DECREASE_FRAME_MS = 19.5;
-const MOBILE_DPR_INCREASE_FRAME_MS = 14.5;
-const MOBILE_DPR_DECREASE_STREAK = 8;
-const MOBILE_DPR_INCREASE_STREAK = 28;
+const MOBILE_MAX_PIXEL_RATIO = 1.25;
 const CAPTURED_FOLLOWER_SCALE = 0.46;
 const CAPTURED_FOLLOWER_HISTORY_BASE = 9;
 const CAPTURED_FOLLOWER_HISTORY_STEP = 7;
 const CAPTURED_FOLLOWER_MAX_HISTORY = 320;
 const AVATAR_LABEL_Y = 1.76;
 const CAMERA_Z_OFFSET = 11.2;
+const MOBILE_EFFECT_UPDATE_CULL_DIST_SQ = 34 * 34;
+const MAX_PERSISTED_CARVE_SEGMENTS_DESKTOP = 4;
+const MAX_PERSISTED_CARVE_SEGMENTS_MOBILE = 2;
+const MAX_PERSISTED_CARVE_POINTS_DESKTOP = 36;
+const MAX_PERSISTED_CARVE_POINTS_MOBILE = 22;
+const MOBILE_BOT_VIEW_HALF_WIDTH = 10.5;
+const MOBILE_BOT_VIEW_HALF_DEPTH = 13.5;
+const MOBILE_TERRITORY_SIMPLIFY_AREA = 900;
+const MOBILE_TERRITORY_SIMPLIFY_POINT_THRESHOLD = 320;
+const MOBILE_TERRITORY_SIMPLIFY_STEP = 2;
 
 interface TerritoryTakeoverEffect {
   victimId: number;
@@ -145,8 +152,17 @@ interface TerritoryMaterialSet {
   band: THREE.MeshPhongMaterial;
 }
 
+interface TerritoryVisualSet {
+  top: THREE.Mesh;
+  depthLayers: THREE.Mesh[];
+  sideBand: THREE.Mesh | null;
+  shadow: THREE.Mesh | null;
+  contactShadow: THREE.Mesh | null;
+}
+
 interface TerritoryUpdateOptions {
   topOnly?: boolean;
+  enqueueOnly?: boolean;
 }
 
 interface TerritoryRenderCacheEntry {
@@ -217,12 +233,17 @@ export class Renderer {
   private trailCarveLengths: Map<number, number> = new Map();
   private trailCarveSourceLengths: Map<number, number> = new Map();
   private avatars: Map<number, THREE.Group> = new Map();
+  private avatarGrowthScales: Map<number, number> = new Map();
   private avatarFollowHistory: Map<number, AvatarFollowPose[]> = new Map();
   private capturedFollowers: Map<number, CapturedFollowerVisual[]> = new Map();
   private territoryTakeovers: TerritoryTakeoverEffect[] = [];
   private deathSplats: DeathSplatEffect[] = [];
   private captureAssimilations: CaptureAssimilationEffect[] = [];
   private avatarAbsorbPulses: AvatarAbsorbPulseEffect[] = [];
+  private debugRegionMesh: THREE.Mesh | null = null;
+  private debugRegionMaterial: THREE.MeshBasicMaterial | null = null;
+  private debugRegionOutlineGroup: THREE.Group | null = null;
+  private debugRegionOutlineMaterial: THREE.LineBasicMaterial | null = null;
 
   private cameraTarget: Vec2 = { x: 0, z: 0 };
   private lastTerritoryCullCenter: Vec2 = {
@@ -231,11 +252,8 @@ export class Renderer {
   };
   private readonly isMobile: boolean;
   private currentPixelRatio = 1;
-  private frameTimeEma = 16.7;
-  private lastPixelRatioAdjustAt = 0;
-  private slowFrameStreak = 0;
-  private fastFrameStreak = 0;
   private territoryRenderOrder = 0;
+  private readonly effectUpdateCullDistSq: number;
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
@@ -250,13 +268,19 @@ export class Renderer {
     this.camera.lookAt(0, 0, 0);
 
     this.isMobile = window.matchMedia("(pointer: coarse)").matches;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.effectUpdateCullDistSq = this.isMobile
+      ? MOBILE_EFFECT_UPDATE_CULL_DIST_SQ
+      : EFFECT_UPDATE_CULL_DIST_SQ;
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: !this.isMobile,
+    });
     this.renderer.setSize(w, h, false);
     this.currentPixelRatio = this.getTargetPixelRatio();
     this.renderer.setPixelRatio(this.currentPixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = !this.isMobile;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.createBoard();
@@ -286,7 +310,7 @@ export class Renderer {
     dir.position.set(-15, 50, 20);
     dir.target.position.set(0, 0, 0);
     this.scene.add(dir.target);
-    dir.castShadow = true;
+    dir.castShadow = !this.isMobile;
     dir.shadow.mapSize.width = 1024;
     dir.shadow.mapSize.height = 1024;
     dir.shadow.intensity = 0.15;
@@ -325,6 +349,7 @@ export class Renderer {
 
     this.scene.add(group);
     this.avatars.set(id, group);
+    this.avatarGrowthScales.delete(id);
     return group;
   }
 
@@ -477,13 +502,25 @@ export class Renderer {
         body.position.copy(basePosition);
         body.rotation.copy(baseRotation);
         body.scale.copy(baseScale);
+        const growth = this.avatarGrowthScales.get(id) ?? 0;
+        if (growth > 0) {
+          body.scale.multiplyScalar(1 + growth);
+        }
         const pulse = this.getAvatarAbsorbPulse(id);
         if (pulse > 0) {
-          const scaleBoost = 1 + pulse * 0.16;
+          const scaleBoost = 1 + pulse * 0.12;
           body.scale.multiplyScalar(scaleBoost);
-          body.position.y += pulse * 0.08;
+          body.position.y += pulse * 0.15;
         }
       }
+    }
+
+    if (
+      this.isMobile &&
+      !this.isNearCameraXZ(avatar.position.x, avatar.position.z)
+    ) {
+      this.setCapturedFollowersVisible(id, false);
+      return;
     }
 
     this.recordAvatarFollowPose(id, avatar);
@@ -498,6 +535,22 @@ export class Renderer {
   showAvatar(id: number): void {
     const avatar = this.avatars.get(id);
     if (avatar) avatar.visible = true;
+  }
+
+  growAvatarOnKill(id: number, color: number): void {
+    const currentGrowth = this.avatarGrowthScales.get(id) ?? 0;
+    this.avatarGrowthScales.set(
+      id,
+      Math.min(AVATAR_KILL_GROWTH_MAX, currentGrowth + AVATAR_KILL_GROWTH_STEP),
+    );
+    this.startAvatarAbsorbPulse(id, color);
+  }
+
+  resetAvatarGrowth(id: number): void {
+    this.avatarGrowthScales.delete(id);
+    this.avatarAbsorbPulses = this.avatarAbsorbPulses.filter(
+      (effect) => effect.playerId !== id,
+    );
   }
 
   updateAvatarLabel(id: number, name: string): void {
@@ -550,6 +603,14 @@ export class Renderer {
       for (const material of follower.bodyMaterials) material.dispose();
     }
     this.capturedFollowers.delete(ownerId);
+  }
+
+  private setCapturedFollowersVisible(ownerId: number, visible: boolean): void {
+    const followers = this.capturedFollowers.get(ownerId);
+    if (!followers) return;
+    for (const follower of followers) {
+      follower.group.visible = visible;
+    }
   }
 
   private cloneAvatarBody(
@@ -609,6 +670,15 @@ export class Renderer {
     const followers = this.capturedFollowers.get(ownerId);
     const avatar = this.avatars.get(ownerId);
     if (!followers || followers.length === 0 || !avatar) return;
+    if (
+      this.isMobile &&
+      !this.isNearCameraXZ(avatar.position.x, avatar.position.z)
+    ) {
+      this.setCapturedFollowersVisible(ownerId, false);
+      return;
+    }
+
+    this.setCapturedFollowersVisible(ownerId, true);
 
     const history = this.avatarFollowHistory.get(ownerId) ?? [];
     const fallbackPose =
@@ -661,6 +731,9 @@ export class Renderer {
     color: number,
     skinId = "",
   ): void {
+    if (this.isMobile && !this.isNearCameraXZ(position.x, position.z)) {
+      return;
+    }
     this.cleanupDeathSplatsForVictim(victimId);
 
     const group = new THREE.Group();
@@ -1195,6 +1268,81 @@ export class Renderer {
     return { shapes, outerLoops };
   }
 
+  private getPolygonPointCount(polygons: TerritoryMultiPolygon): number {
+    let count = 0;
+    for (const polygon of polygons) {
+      count += polygon.outer.length;
+      for (const hole of polygon.holes) count += hole.length;
+    }
+    return count;
+  }
+
+  private downsampleLoop(loop: Vec2[], step: number): Vec2[] {
+    if (step <= 1 || loop.length <= 6) return loop;
+    const simplified: Vec2[] = [];
+    for (let i = 0; i < loop.length; i += step) {
+      simplified.push(loop[i]);
+    }
+    const last = loop[loop.length - 1];
+    const finalPoint = simplified[simplified.length - 1];
+    if (!finalPoint || finalPoint.x !== last.x || finalPoint.z !== last.z) {
+      simplified.push(last);
+    }
+    return simplified.length >= 3 ? simplified : loop;
+  }
+
+  private maybeSimplifyTerritoryPolygons(
+    polygons: TerritoryMultiPolygon,
+  ): TerritoryMultiPolygon {
+    if (!this.isMobile) return polygons;
+    const pointCount = this.getPolygonPointCount(polygons);
+    const area = territoryArea(polygons);
+    if (
+      area < MOBILE_TERRITORY_SIMPLIFY_AREA &&
+      pointCount < MOBILE_TERRITORY_SIMPLIFY_POINT_THRESHOLD
+    ) {
+      return polygons;
+    }
+    return polygons.map((polygon) => ({
+      outer: this.downsampleLoop(polygon.outer, MOBILE_TERRITORY_SIMPLIFY_STEP),
+      holes: polygon.holes
+        .map((hole) =>
+          this.downsampleLoop(hole, MOBILE_TERRITORY_SIMPLIFY_STEP),
+        )
+        .filter((hole) => hole.length >= 3),
+    }));
+  }
+
+  private createTerritoryMaterials(
+    color: number,
+    skinId: string,
+  ): TerritoryMaterialSet {
+    const patTex = this.getPatternTexture(skinId);
+    return {
+      top: new THREE.MeshPhongMaterial({
+        color: patTex ? 0xffffff : color,
+        map: patTex ?? null,
+        side: THREE.FrontSide,
+        flatShading: false,
+        shininess: 12,
+        specular: new THREE.Color(0x95dff7),
+      }),
+      depth: new THREE.MeshPhongMaterial({
+        color: new THREE.Color(color).multiplyScalar(0.7),
+        flatShading: true,
+        shininess: 10,
+        specular: new THREE.Color(0x72a3c3),
+      }),
+      band: new THREE.MeshPhongMaterial({
+        color: new THREE.Color(color).multiplyScalar(0.56),
+        flatShading: true,
+        shininess: 6,
+        specular: new THREE.Color(0x4c7692),
+        side: THREE.DoubleSide,
+      }),
+    };
+  }
+
   private loopBounds(loop: Vec2[]): {
     width: number;
     height: number;
@@ -1215,52 +1363,90 @@ export class Renderer {
     };
   }
 
-  private clearTerritoryVisuals(id: number, disposeMaterials = false): void {
-    const terr = this.territoryObjects.get(id);
-    if (terr) {
-      this.scene.remove(terr);
-      terr.geometry.dispose();
-      this.territoryObjects.delete(id);
-    }
+  private getTerritoryVisualSet(id: number): TerritoryVisualSet | null {
+    const top = this.territoryObjects.get(id);
+    if (!top) return null;
+    return {
+      top,
+      depthLayers: this.territoryDepthLayers.get(id) ?? [],
+      sideBand: this.territorySideBands.get(id) ?? null,
+      shadow: this.territoryShadows.get(id) ?? null,
+      contactShadow: this.territoryContactShadows.get(id) ?? null,
+    };
+  }
 
-    const depthLayers = this.territoryDepthLayers.get(id);
-    if (depthLayers) {
-      for (const layer of depthLayers) {
-        this.scene.remove(layer);
-        layer.geometry.dispose();
-      }
+  private disposeTerritoryVisualSet(set: TerritoryVisualSet | null): void {
+    if (!set) return;
+    this.scene.remove(set.top);
+    set.top.geometry.dispose();
+    for (const layer of set.depthLayers) {
+      this.scene.remove(layer);
+      layer.geometry.dispose();
+    }
+    if (set.sideBand) {
+      this.scene.remove(set.sideBand);
+      set.sideBand.geometry.dispose();
+    }
+    if (set.shadow) {
+      this.scene.remove(set.shadow);
+      set.shadow.geometry.dispose();
+    }
+    if (set.contactShadow) {
+      this.scene.remove(set.contactShadow);
+      set.contactShadow.geometry.dispose();
+    }
+  }
+
+  private applyTerritoryVisualSet(id: number, set: TerritoryVisualSet): void {
+    this.territoryObjects.set(id, set.top);
+    if (set.depthLayers.length > 0) {
+      this.territoryDepthLayers.set(id, set.depthLayers);
+    } else {
       this.territoryDepthLayers.delete(id);
     }
-
-    const sideBand = this.territorySideBands.get(id);
-    if (sideBand) {
-      this.scene.remove(sideBand);
-      sideBand.geometry.dispose();
+    if (set.sideBand) {
+      this.territorySideBands.set(id, set.sideBand);
+    } else {
       this.territorySideBands.delete(id);
     }
-
-    const shadow = this.territoryShadows.get(id);
-    if (shadow) {
-      this.scene.remove(shadow);
-      shadow.geometry.dispose();
+    if (set.shadow) {
+      this.territoryShadows.set(id, set.shadow);
+    } else {
       this.territoryShadows.delete(id);
     }
-
-    const contactShadow = this.territoryContactShadows.get(id);
-    if (contactShadow) {
-      this.scene.remove(contactShadow);
-      contactShadow.geometry.dispose();
+    if (set.contactShadow) {
+      this.territoryContactShadows.set(id, set.contactShadow);
+    } else {
       this.territoryContactShadows.delete(id);
     }
+  }
+
+  private swapTerritoryVisuals(id: number, set: TerritoryVisualSet): void {
+    const previous = this.getTerritoryVisualSet(id);
+    this.applyTerritoryVisualSet(id, set);
+    this.disposeTerritoryVisualSet(previous);
+  }
+
+  private disposeTerritoryMaterials(
+    materials: TerritoryMaterialSet | null,
+  ): void {
+    if (!materials) return;
+    materials.top.dispose();
+    materials.depth.dispose();
+    materials.band.dispose();
+  }
+
+  private clearTerritoryVisuals(id: number, disposeMaterials = false): void {
+    this.disposeTerritoryVisualSet(this.getTerritoryVisualSet(id));
+    this.territoryObjects.delete(id);
+    this.territoryDepthLayers.delete(id);
+    this.territorySideBands.delete(id);
+    this.territoryShadows.delete(id);
+    this.territoryContactShadows.delete(id);
 
     if (disposeMaterials) {
-      const materials = this.territoryMaterials.get(id);
-      if (materials) {
-        materials.top.dispose();
-        materials.depth.dispose();
-        materials.band.dispose();
-        this.territoryMaterials.delete(id);
-      }
+      this.disposeTerritoryMaterials(this.territoryMaterials.get(id) ?? null);
+      this.territoryMaterials.delete(id);
       this.territorySkinIds.delete(id);
       this.territoryRenderCache.delete(id);
       this.territoryDirtyIds.delete(id);
@@ -1274,47 +1460,9 @@ export class Renderer {
     return Math.min(window.devicePixelRatio || 1, MOBILE_MAX_PIXEL_RATIO);
   }
 
-  private applyPixelRatio(pixelRatio: number): void {
-    this.currentPixelRatio = pixelRatio;
-    this.renderer.setPixelRatio(pixelRatio);
-    this.onResize();
-  }
-
   reportFrameTime(frameMs: number): void {
     if (!this.isMobile) return;
-    this.frameTimeEma = this.frameTimeEma * 0.92 + frameMs * 0.08;
-    if (this.frameTimeEma > MOBILE_DPR_DECREASE_FRAME_MS) {
-      this.slowFrameStreak += 1;
-      this.fastFrameStreak = 0;
-    } else if (this.frameTimeEma < MOBILE_DPR_INCREASE_FRAME_MS) {
-      this.fastFrameStreak += 1;
-      this.slowFrameStreak = 0;
-    } else {
-      this.slowFrameStreak = 0;
-      this.fastFrameStreak = 0;
-    }
-    const now = performance.now();
-    if (
-      this.slowFrameStreak >= MOBILE_DPR_DECREASE_STREAK &&
-      this.currentPixelRatio > MOBILE_MIN_PIXEL_RATIO &&
-      now - this.lastPixelRatioAdjustAt > 1400
-    ) {
-      this.lastPixelRatioAdjustAt = now;
-      this.slowFrameStreak = 0;
-      this.applyPixelRatio(
-        Math.max(MOBILE_MIN_PIXEL_RATIO, this.currentPixelRatio - 0.1),
-      );
-    } else if (
-      this.fastFrameStreak >= MOBILE_DPR_INCREASE_STREAK &&
-      this.currentPixelRatio < this.getTargetPixelRatio() &&
-      now - this.lastPixelRatioAdjustAt > 2400
-    ) {
-      this.lastPixelRatioAdjustAt = now;
-      this.fastFrameStreak = 0;
-      this.applyPixelRatio(
-        Math.min(this.getTargetPixelRatio(), this.currentPixelRatio + 0.05),
-      );
-    }
+    void frameMs;
   }
 
   private getBoundsDistanceSq(bounds: {
@@ -1420,20 +1568,6 @@ export class Renderer {
     }
   }
 
-  private countTaggedTerritorySceneObjects(playerId?: number): number {
-    let count = 0;
-    this.scene.traverse((obj) => {
-      const data = obj.userData as {
-        territoryVisual?: boolean;
-        territoryPlayerId?: number;
-      };
-      if (!data?.territoryVisual) return;
-      if (playerId !== undefined && data.territoryPlayerId !== playerId) return;
-      count++;
-    });
-    return count;
-  }
-
   updateTerritory(
     id: number,
     grid: TerritoryGrid,
@@ -1442,6 +1576,7 @@ export class Renderer {
     options: TerritoryUpdateOptions = {},
   ): void {
     const topOnly = options.topOnly ?? false;
+    const enqueueOnly = options.enqueueOnly ?? false;
     const bounds = grid.getBounds(id);
     if (!bounds) {
       this.clearTerritoryVisuals(id, true);
@@ -1470,7 +1605,7 @@ export class Renderer {
     const effectiveTopOnly =
       cached.requestedTopOnly ||
       this.shouldRenderTerritoryTopOnly(cached.bounds);
-    if (this.shouldRebuildTerritoryImmediately(cached.bounds)) {
+    if (!enqueueOnly && this.shouldRebuildTerritoryImmediately(cached.bounds)) {
       this.rebuildTerritoryVisuals(id, cached, effectiveTopOnly);
       cached.renderedTopOnly = effectiveTopOnly;
     } else {
@@ -1484,74 +1619,6 @@ export class Renderer {
     topOnly: boolean,
   ): void {
     const { grid, color, skinId, bounds } = cached;
-    // Recreate material if skin changed
-    const prevSkinId = this.territorySkinIds.get(id);
-    if (prevSkinId !== skinId) {
-      const oldMat = this.territoryMaterials.get(id);
-      if (oldMat) {
-        oldMat.top.dispose();
-        oldMat.depth.dispose();
-        oldMat.band.dispose();
-        this.territoryMaterials.delete(id);
-      }
-      this.territorySkinIds.set(id, skinId);
-    }
-
-    this.clearTerritoryVisuals(id);
-
-    let materials = this.territoryMaterials.get(id);
-    if (!materials) {
-      const patTex = this.getPatternTexture(skinId);
-      const topMat = new THREE.MeshPhongMaterial({
-        color: patTex ? 0xffffff : color,
-        map: patTex ?? null,
-        side: THREE.FrontSide,
-        flatShading: false,
-        shininess: 12,
-        specular: new THREE.Color(0x95dff7),
-      });
-      const depthMat = new THREE.MeshPhongMaterial({
-        color: new THREE.Color(color).multiplyScalar(0.7),
-        flatShading: true,
-        shininess: 10,
-        specular: new THREE.Color(0x72a3c3),
-      });
-      const bandMat = new THREE.MeshPhongMaterial({
-        color: new THREE.Color(color).multiplyScalar(0.56),
-        flatShading: true,
-        shininess: 6,
-        specular: new THREE.Color(0x4c7692),
-        side: THREE.DoubleSide,
-      });
-      materials = { top: topMat, depth: depthMat, band: bandMat };
-      this.territoryMaterials.set(id, materials);
-    }
-    const patTex = this.getPatternTexture(skinId);
-    const mapChanged = materials.top.map !== (patTex ?? null);
-    materials.top.color.setHex(patTex ? 0xffffff : color);
-    materials.top.map = patTex ?? null;
-    // needsUpdate only when the texture map is added/removed — color changes don't require it
-    if (mapChanged) materials.top.needsUpdate = true;
-    materials.depth.color.copy(new THREE.Color(color).multiplyScalar(0.7));
-    materials.band.color.copy(new THREE.Color(color).multiplyScalar(0.56));
-    if (!this.shadowMaterial) {
-      this.shadowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8fb3d2,
-        transparent: true,
-        opacity: 0.14,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      });
-    }
-    if (!this.contactShadowMaterial) {
-      this.contactShadowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x7288aa,
-        transparent: true,
-        opacity: 0.12,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      });
-    }
     const polygons = grid.getPolygons(id);
     if (!polygons) {
       this.clearTerritoryVisuals(id, true);
@@ -1583,137 +1650,183 @@ export class Renderer {
     const bMaxX = bounds.maxX;
     const bMaxZ = bounds.maxZ;
 
-    const { shapes: rawShapes, outerLoops } =
-      this.buildShapesFromPolygons(polygons);
+    const { shapes: rawShapes, outerLoops } = this.buildShapesFromPolygons(
+      this.maybeSimplifyTerritoryPolygons(polygons),
+    );
     if (rawShapes.length === 0) {
+      this.clearTerritoryVisuals(id);
       return;
     }
 
+    if (!this.shadowMaterial) {
+      this.shadowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x8fb3d2,
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+    }
+    if (!this.contactShadowMaterial) {
+      this.contactShadowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x7288aa,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+    }
+
+    const previousMaterials = this.territoryMaterials.get(id) ?? null;
+    const previousSkinId = this.territorySkinIds.get(id);
+    const materials =
+      previousMaterials && previousSkinId === skinId
+        ? previousMaterials
+        : this.createTerritoryMaterials(color, skinId);
+    const patTex = this.getPatternTexture(skinId);
+    const mapChanged = materials.top.map !== (patTex ?? null);
+    materials.top.color.setHex(patTex ? 0xffffff : color);
+    materials.top.map = patTex ?? null;
+    if (mapChanged) materials.top.needsUpdate = true;
+    materials.depth.color.copy(new THREE.Color(color).multiplyScalar(0.7));
+    materials.band.color.copy(new THREE.Color(color).multiplyScalar(0.56));
+
     const order = ++this.territoryRenderOrder;
-    // Triangulate once — depth layers and footprint share clones of this geometry
-    // ShapeGeometry already produces correct up-facing normals; no need to recompute
     const topGeo = new THREE.ShapeGeometry(rawShapes, EXTRUDE_CURVE_SEGMENTS);
     topGeo.rotateX(-Math.PI / 2);
 
-    const mesh = new THREE.Mesh(topGeo, materials.top);
-    mesh.userData.territoryVisual = true;
-    mesh.userData.territoryPlayerId = id;
-    mesh.userData.territoryVisualType = "top";
-    mesh.position.y = TERRITORY_Y;
-    mesh.renderOrder = order;
-    mesh.castShadow = false;
-    mesh.receiveShadow = !topOnly;
-    this.scene.add(mesh);
-    this.territoryObjects.set(id, mesh);
+    const topMesh = new THREE.Mesh(topGeo, materials.top);
+    topMesh.userData.territoryVisual = true;
+    topMesh.userData.territoryPlayerId = id;
+    topMesh.userData.territoryVisualType = "top";
+    topMesh.position.y = TERRITORY_Y;
+    topMesh.renderOrder = order;
+    topMesh.castShadow = false;
+    topMesh.receiveShadow = !topOnly;
+    this.scene.add(topMesh);
 
-    if (topOnly) {
-      return;
-    }
+    const nextVisuals: TerritoryVisualSet = {
+      top: topMesh,
+      depthLayers: [],
+      sideBand: null,
+      shadow: null,
+      contactShadow: null,
+    };
 
-    const depthLayers: THREE.Mesh[] = [];
-    for (let layer = 1; layer <= TERRITORY_DEPTH_LAYERS; layer++) {
-      const t = layer / TERRITORY_DEPTH_LAYERS;
-      // Clone already-triangulated geometry — no re-triangulation cost
-      const layerGeo = topGeo.clone();
-      const layerMesh = new THREE.Mesh(layerGeo, materials.depth);
-      layerMesh.userData.territoryVisual = true;
-      layerMesh.userData.territoryPlayerId = id;
-      layerMesh.userData.territoryVisualType = "depth";
-      layerMesh.position.set(
-        TERRITORY_DEPTH_OFFSET_X * t,
-        TERRITORY_Y - TERRITORY_DEPTH_DROP * t,
-        TERRITORY_DEPTH_OFFSET_Z * t,
+    if (!topOnly) {
+      for (let layer = 1; layer <= TERRITORY_DEPTH_LAYERS; layer++) {
+        const t = layer / TERRITORY_DEPTH_LAYERS;
+        const layerGeo = topGeo.clone();
+        const layerMesh = new THREE.Mesh(layerGeo, materials.depth);
+        layerMesh.userData.territoryVisual = true;
+        layerMesh.userData.territoryPlayerId = id;
+        layerMesh.userData.territoryVisualType = "depth";
+        layerMesh.position.set(
+          TERRITORY_DEPTH_OFFSET_X * t,
+          TERRITORY_Y - TERRITORY_DEPTH_DROP * t,
+          TERRITORY_DEPTH_OFFSET_Z * t,
+        );
+        layerMesh.renderOrder = order - 0.3 - layer * 0.01;
+        layerMesh.castShadow = false;
+        layerMesh.receiveShadow = true;
+        this.scene.add(layerMesh);
+        nextVisuals.depthLayers.push(layerMesh);
+      }
+
+      const sideBandGeo = this.buildSideBandGeometry(
+        outerLoops,
+        TERRITORY_DEPTH_OFFSET_X,
+        TERRITORY_DEPTH_OFFSET_Z,
+        TERRITORY_DEPTH_DROP,
       );
-      layerMesh.renderOrder = order - 0.3 - layer * 0.01;
-      layerMesh.castShadow = false;
-      layerMesh.receiveShadow = true;
-      this.scene.add(layerMesh);
-      depthLayers.push(layerMesh);
-    }
-    this.territoryDepthLayers.set(id, depthLayers);
-
-    const sideBandGeo = this.buildSideBandGeometry(
-      outerLoops,
-      TERRITORY_DEPTH_OFFSET_X,
-      TERRITORY_DEPTH_OFFSET_Z,
-      TERRITORY_DEPTH_DROP,
-    );
-    if (sideBandGeo) {
-      const sideBandMesh = new THREE.Mesh(sideBandGeo, materials.band);
-      sideBandMesh.userData.territoryVisual = true;
-      sideBandMesh.userData.territoryPlayerId = id;
-      sideBandMesh.userData.territoryVisualType = "band";
-      sideBandMesh.position.y = TERRITORY_Y;
-      sideBandMesh.renderOrder = order - 0.12;
-      sideBandMesh.castShadow = false;
-      sideBandMesh.receiveShadow = true;
-      this.scene.add(sideBandMesh);
-      this.territorySideBands.set(id, sideBandMesh);
+      if (sideBandGeo) {
+        const sideBandMesh = new THREE.Mesh(sideBandGeo, materials.band);
+        sideBandMesh.userData.territoryVisual = true;
+        sideBandMesh.userData.territoryPlayerId = id;
+        sideBandMesh.userData.territoryVisualType = "band";
+        sideBandMesh.position.y = TERRITORY_Y;
+        sideBandMesh.renderOrder = order - 0.12;
+        sideBandMesh.castShadow = false;
+        sideBandMesh.receiveShadow = true;
+        this.scene.add(sideBandMesh);
+        nextVisuals.sideBand = sideBandMesh;
+      }
     }
 
     const shadowCenterX = (bMinX + bMaxX) * 0.5;
     const shadowCenterZ = (bMinZ + bMaxZ) * 0.5;
-    // Clone the already-triangulated top geometry — no re-triangulation cost
     const footprintGeo = topGeo.clone();
 
-    // Drop shadow: wide soft shadow on the ground
-    const shadowOffset = 0.16;
-    const shadowSpread = 1.02;
-    const shadowGeo = footprintGeo.clone();
-    const shadowPositions = (
-      shadowGeo.getAttribute("position") as THREE.BufferAttribute
-    ).array as Float32Array;
-    for (let i = 0; i < shadowPositions.length; i += 3) {
-      shadowPositions[i] =
-        shadowCenterX +
-        (shadowPositions[i] - shadowCenterX) * shadowSpread -
-        shadowOffset;
-      shadowPositions[i + 1] = 0.015;
-      shadowPositions[i + 2] =
-        shadowCenterZ +
-        (shadowPositions[i + 2] - shadowCenterZ) * shadowSpread -
-        shadowOffset * 0.9;
+    if (!topOnly) {
+      const shadowOffset = 0.16;
+      const shadowSpread = 1.02;
+      const shadowGeo = footprintGeo.clone();
+      const shadowPositions = (
+        shadowGeo.getAttribute("position") as THREE.BufferAttribute
+      ).array as Float32Array;
+      for (let i = 0; i < shadowPositions.length; i += 3) {
+        shadowPositions[i] =
+          shadowCenterX +
+          (shadowPositions[i] - shadowCenterX) * shadowSpread -
+          shadowOffset;
+        shadowPositions[i + 1] = 0.015;
+        shadowPositions[i + 2] =
+          shadowCenterZ +
+          (shadowPositions[i + 2] - shadowCenterZ) * shadowSpread -
+          shadowOffset * 0.9;
+      }
+      (
+        shadowGeo.getAttribute("position") as THREE.BufferAttribute
+      ).needsUpdate = true;
+
+      const shadowMesh = new THREE.Mesh(shadowGeo, this.shadowMaterial!);
+      shadowMesh.userData.territoryVisual = true;
+      shadowMesh.userData.territoryPlayerId = id;
+      shadowMesh.userData.territoryVisualType = "shadow";
+      shadowMesh.renderOrder = order - 1;
+      this.scene.add(shadowMesh);
+      nextVisuals.shadow = shadowMesh;
+
+      const contactOffset = 0.045;
+      const contactSpread = 1.006;
+      const contactGeo = footprintGeo.clone();
+      const contactPositions = (
+        contactGeo.getAttribute("position") as THREE.BufferAttribute
+      ).array as Float32Array;
+      for (let i = 0; i < contactPositions.length; i += 3) {
+        contactPositions[i] =
+          shadowCenterX +
+          (contactPositions[i] - shadowCenterX) * contactSpread -
+          contactOffset;
+        contactPositions[i + 1] = TERRITORY_Y - TERRITORY_DEPTH_DROP * 0.55;
+        contactPositions[i + 2] =
+          shadowCenterZ +
+          (contactPositions[i + 2] - shadowCenterZ) * contactSpread -
+          contactOffset * 0.85;
+      }
+      (
+        contactGeo.getAttribute("position") as THREE.BufferAttribute
+      ).needsUpdate = true;
+
+      const contactMesh = new THREE.Mesh(
+        contactGeo,
+        this.contactShadowMaterial!,
+      );
+      contactMesh.userData.territoryVisual = true;
+      contactMesh.userData.territoryPlayerId = id;
+      contactMesh.userData.territoryVisualType = "contact-shadow";
+      contactMesh.renderOrder = order - 0.5;
+      this.scene.add(contactMesh);
+      nextVisuals.contactShadow = contactMesh;
     }
-    (shadowGeo.getAttribute("position") as THREE.BufferAttribute).needsUpdate =
-      true;
-
-    const shadowMesh = new THREE.Mesh(shadowGeo, this.shadowMaterial!);
-    shadowMesh.userData.territoryVisual = true;
-    shadowMesh.userData.territoryPlayerId = id;
-    shadowMesh.userData.territoryVisualType = "shadow";
-    shadowMesh.renderOrder = order - 1;
-    this.scene.add(shadowMesh);
-    this.territoryShadows.set(id, shadowMesh);
-
-    // Contact shadow: tighter edge shadow to make the territory feel thicker.
-    const contactOffset = 0.045;
-    const contactSpread = 1.006;
-    const contactGeo = footprintGeo.clone();
-    const contactPositions = (
-      contactGeo.getAttribute("position") as THREE.BufferAttribute
-    ).array as Float32Array;
-    for (let i = 0; i < contactPositions.length; i += 3) {
-      contactPositions[i] =
-        shadowCenterX +
-        (contactPositions[i] - shadowCenterX) * contactSpread -
-        contactOffset;
-      contactPositions[i + 1] = TERRITORY_Y - TERRITORY_DEPTH_DROP * 0.55;
-      contactPositions[i + 2] =
-        shadowCenterZ +
-        (contactPositions[i + 2] - shadowCenterZ) * contactSpread -
-        contactOffset * 0.85;
-    }
-    (contactGeo.getAttribute("position") as THREE.BufferAttribute).needsUpdate =
-      true;
-
-    const contactMesh = new THREE.Mesh(contactGeo, this.contactShadowMaterial!);
-    contactMesh.userData.territoryVisual = true;
-    contactMesh.userData.territoryPlayerId = id;
-    contactMesh.userData.territoryVisualType = "contact-shadow";
-    contactMesh.renderOrder = order - 0.5;
-    this.scene.add(contactMesh);
-    this.territoryContactShadows.set(id, contactMesh);
     footprintGeo.dispose();
+
+    this.swapTerritoryVisuals(id, nextVisuals);
+    this.territoryMaterials.set(id, materials);
+    this.territorySkinIds.set(id, skinId);
+    if (previousMaterials && previousMaterials !== materials) {
+      this.disposeTerritoryMaterials(previousMaterials);
+    }
   }
 
   private static readonly INITIAL_TRAIL_CAPACITY = 512;
@@ -1780,6 +1893,35 @@ export class Renderer {
     mesh.frustumCulled = false;
     this.scene.add(mesh);
     return mesh;
+  }
+
+  private getMaxPersistedCarveSegments(): number {
+    return this.isMobile
+      ? MAX_PERSISTED_CARVE_SEGMENTS_MOBILE
+      : MAX_PERSISTED_CARVE_SEGMENTS_DESKTOP;
+  }
+
+  private getMaxPersistedCarvePoints(): number {
+    return this.isMobile
+      ? MAX_PERSISTED_CARVE_POINTS_MOBILE
+      : MAX_PERSISTED_CARVE_POINTS_DESKTOP;
+  }
+
+  private compressPersistedCarvePath(path: Vec2[]): Vec2[] {
+    const maxPoints = this.getMaxPersistedCarvePoints();
+    if (path.length <= maxPoints) {
+      return path.map((point) => ({ x: point.x, z: point.z }));
+    }
+
+    const result: Vec2[] = [];
+    const lastIndex = path.length - 1;
+    const step = lastIndex / Math.max(1, maxPoints - 1);
+    for (let i = 0; i < maxPoints; i++) {
+      const sampleIndex = Math.min(lastIndex, Math.round(i * step));
+      const point = path[sampleIndex];
+      result.push({ x: point.x, z: point.z });
+    }
+    return result;
   }
 
   private createDynamicTrailMesh(
@@ -2409,7 +2551,7 @@ export class Renderer {
     const persistedList = this.trailCarvePathPersisted.get(id) ?? [];
     if (carveEnemyTerritory) {
       this.trailLastCarveWhenInside.set(id, {
-        path: [...carvePath],
+        path: this.compressPersistedCarvePath(carvePath),
         color: carveSourceColor,
         territoryOwnerId: carveOwnerId ?? null,
         startTangent: carveStartTangent,
@@ -2418,11 +2560,14 @@ export class Renderer {
       const last = this.trailLastCarveWhenInside.get(id);
       if (last && last.path.length >= 2) {
         persistedList.push({
-          path: [...last.path],
+          path: this.compressPersistedCarvePath(last.path),
           color: last.color,
           territoryOwnerId: last.territoryOwnerId,
           startTangent: last.startTangent,
         });
+        while (persistedList.length > this.getMaxPersistedCarveSegments()) {
+          persistedList.shift();
+        }
         this.trailCarvePathPersisted.set(id, persistedList);
         this.trailLastCarveWhenInside.delete(id);
       }
@@ -2450,6 +2595,15 @@ export class Renderer {
       meshList.push(mesh);
       materialList.push(mat);
     }
+    while (meshList.length > segmentsToDraw.length) {
+      const mesh = meshList.pop();
+      const material = materialList.pop();
+      if (mesh) {
+        this.scene.remove(mesh);
+        mesh.geometry.dispose();
+      }
+      material?.dispose();
+    }
     this.trailEnemyBoardCarveMeshList.set(id, meshList);
     this.trailEnemyBoardCarveMaterials.set(id, materialList);
 
@@ -2464,69 +2618,6 @@ export class Renderer {
         mesh.material = mat;
         mat.color.setHex(seg.color).multiplyScalar(0.95);
         if (seg.path.length >= 2) {
-          if (id === 0 && i === segmentsToDraw.length - 1 && seg.startTangent) {
-            const normalize = (x: number, z: number): Vec2 => {
-              const len = Math.sqrt(x * x + z * z) || 1;
-              return { x: x / len, z: z / len };
-            };
-            const p0 = seg.path[0];
-            const p1 = seg.path[1];
-            const alongDir = normalize(p1.x - p0.x, p1.z - p0.z);
-            const trailSide = { x: -alongDir.z, z: alongDir.x };
-            let tangent = normalize(seg.startTangent.x, seg.startTangent.z);
-            if (tangent.x * trailSide.x + tangent.z * trailSide.z < 0) {
-              tangent = { x: -tangent.x, z: -tangent.z };
-            }
-            const widthDir = normalize(tangent.x, tangent.z);
-            const effectiveHalfWidth = this.getTrailEndpointHalfWidth(
-              seg.path,
-              0,
-              BOARD_CARVE_HALF_WIDTH_ENEMY,
-              true,
-            );
-            const territoryVisualOverhang = Math.max(
-              0,
-              -(
-                alongDir.x * TERRITORY_DEPTH_OFFSET_X +
-                alongDir.z * TERRITORY_DEPTH_OFFSET_Z
-              ),
-            );
-            const startForwardOffset =
-              Math.max(
-                0,
-                Math.abs(widthDir.x * alongDir.x + widthDir.z * alongDir.z) *
-                  effectiveHalfWidth,
-              ) + territoryVisualOverhang;
-            fetch(
-              "http://127.0.0.1:7401/ingest/dc4ad8c8-bd58-49bd-b6f9-2a498299fa8e",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Debug-Session-Id": "304a5f",
-                },
-                body: JSON.stringify({
-                  sessionId: "304a5f",
-                  runId: "groove-entry-curve-2",
-                  hypothesisId: "H2",
-                  location: "Renderer.ts:updateTrail",
-                  message: "enemy groove first segment geometry",
-                  data: {
-                    startPoint: p0,
-                    secondPoint: p1,
-                    startTangent: seg.startTangent,
-                    alongDir,
-                    trailSide,
-                    widthDir,
-                    effectiveHalfWidth,
-                    territoryVisualOverhang,
-                    startForwardOffset,
-                  },
-                  timestamp: Date.now(),
-                }),
-              },
-            ).catch(() => {});
-          }
           mesh.visible = true;
           this.writeTrailRibbonPositions(
             mesh,
@@ -2549,69 +2640,6 @@ export class Renderer {
       } else {
         mesh.visible = false;
       }
-    }
-    if (id === 0 && (persistedList.length > 0 || carveEnemyTerritory)) {
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7401/ingest/dc4ad8c8-bd58-49bd-b6f9-2a498299fa8e",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "304a5f",
-          },
-          body: JSON.stringify({
-            sessionId: "304a5f",
-            runId: "groove-entry-curve-1",
-            hypothesisId: "H1",
-            location: "Renderer.ts:updateTrail",
-            message: "enemy groove segment entry tangents",
-            data: {
-              persistedCount: persistedList.length,
-              drawingCount: segmentsToDraw.length,
-              carveEnemyTerritory,
-              currentCarveColor: carveEnemyTerritory ? carveSourceColor : null,
-              meshCount: meshList.length,
-              tangentCount: segmentsToDraw.filter((seg) => seg.startTangent)
-                .length,
-              segmentStarts: segmentsToDraw.map((seg) => seg.path[0] ?? null),
-              segmentTangents: segmentsToDraw.map(
-                (seg) => seg.startTangent ?? null,
-              ),
-              segmentColors: segmentsToDraw.map((seg) => seg.color),
-              territoryOwnerIds: segmentsToDraw.map(
-                (seg) => seg.territoryOwnerId,
-              ),
-              materialCount: new Set(
-                meshList.map((mesh) => {
-                  const material = Array.isArray(mesh.material)
-                    ? mesh.material[0]
-                    : mesh.material;
-                  return material.uuid;
-                }),
-              ).size,
-              meshMaterialUuids: meshList.map((mesh) => {
-                const material = (
-                  Array.isArray(mesh.material)
-                    ? mesh.material[0]
-                    : mesh.material
-                ) as THREE.MeshLambertMaterial;
-                return material.uuid;
-              }),
-              meshColors: meshList.map((mesh) => {
-                const material = (
-                  Array.isArray(mesh.material)
-                    ? mesh.material[0]
-                    : mesh.material
-                ) as THREE.MeshLambertMaterial;
-                return material.color.getHex();
-              }),
-            },
-            timestamp: Date.now(),
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
     }
   }
 
@@ -2637,10 +2665,18 @@ export class Renderer {
     this.refreshTerritoryVisibility();
   }
 
+  isInsideMobileViewWindow(pos: Vec2): boolean {
+    if (!this.isMobile) return true;
+    return (
+      Math.abs(pos.x - this.cameraTarget.x) <= MOBILE_BOT_VIEW_HALF_WIDTH &&
+      Math.abs(pos.z - this.cameraTarget.z) <= MOBILE_BOT_VIEW_HALF_DEPTH
+    );
+  }
+
   private isNearCameraXZ(
     x: number,
     z: number,
-    radiusSq = EFFECT_UPDATE_CULL_DIST_SQ,
+    radiusSq = this.effectUpdateCullDistSq,
   ): boolean {
     const dx = x - this.cameraTarget.x;
     const dz = z - this.cameraTarget.z;
@@ -2649,54 +2685,6 @@ export class Renderer {
 
   removeTerritory(id: number): void {
     this.clearTerritoryVisuals(id, true);
-  }
-
-  getDebugVisualState(id: number): {
-    territoryTaggedCount: number;
-    trailExists: boolean;
-    trailVisible: boolean;
-    takeoverCount: number;
-  } {
-    const trail = this.trailMeshes.get(id);
-    let takeoverCount = 0;
-    for (const effect of this.territoryTakeovers) {
-      if (effect.victimId === id) takeoverCount++;
-    }
-    return {
-      territoryTaggedCount: this.countTaggedTerritorySceneObjects(id),
-      trailExists: Boolean(trail),
-      trailVisible: Boolean(trail?.visible),
-      takeoverCount,
-    };
-  }
-
-  getTrailDebugState(id: number): {
-    exists: boolean;
-    visible: boolean;
-    renderOrder: number;
-    y: number;
-    depthTest: boolean;
-    depthWrite: boolean;
-    sourceLength: number;
-    visibleLength: number;
-    territoryRenderOrder: number;
-  } {
-    const trail = this.trailMeshes.get(id);
-    const material = trail?.material;
-    const meshMaterial = Array.isArray(material) ? material[0] : material;
-    return {
-      exists: Boolean(trail),
-      visible: Boolean(trail?.visible),
-      renderOrder: trail?.renderOrder ?? 0,
-      y: TRAIL_Y,
-      depthTest:
-        meshMaterial instanceof THREE.Material ? meshMaterial.depthTest : true,
-      depthWrite:
-        meshMaterial instanceof THREE.Material ? meshMaterial.depthWrite : true,
-      sourceLength: this.trailSourceLengths.get(id) ?? 0,
-      visibleLength: this.trailLengths.get(id) ?? 0,
-      territoryRenderOrder: this.territoryRenderOrder,
-    };
   }
 
   startTerritoryTakeover(
@@ -2712,6 +2700,11 @@ export class Renderer {
       maxZ: number;
     } | null = null,
   ): void {
+    if (this.isMobile && !this.isNearCameraXZ(origin.x, origin.z)) {
+      this.removeTerritory(victimId);
+      this.hideAvatar(victimId);
+      return;
+    }
     const victimMesh = this.territoryObjects.get(victimId);
     if (!victimMesh) return;
     this.cleanupTakeoversForVictim(victimId);
@@ -2816,7 +2809,7 @@ export class Renderer {
     ownerColor: number,
     origin: Vec2,
   ): void {
-    if (!this.isNearCameraXZ(origin.x, origin.z)) return;
+    if (this.isMobile && !this.isNearCameraXZ(origin.x, origin.z)) return;
     const { shapes } = this.buildShapesFromPolygons(capturedRegion);
     if (shapes.length === 0) return;
 
@@ -2855,7 +2848,75 @@ export class Renderer {
     });
   }
 
+  updateDebugRegion(region: TerritoryMultiPolygon, color: number): void {
+    if (region.length === 0) {
+      this.clearDebugRegion();
+      return;
+    }
+
+    const { shapes } = this.buildShapesFromPolygons(region);
+    if (shapes.length === 0) {
+      this.clearDebugRegion();
+      return;
+    }
+
+    this.clearDebugRegion();
+
+    const geometry = new THREE.ShapeGeometry(shapes, EXTRUDE_CURVE_SEGMENTS);
+    geometry.rotateX(-Math.PI / 2);
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.34,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = TRAIL_Y + 0.008;
+    mesh.renderOrder =
+      this.territoryRenderOrder + TRAIL_RENDER_ORDER_OFFSET + 4;
+    this.scene.add(mesh);
+    this.debugRegionMesh = mesh;
+    this.debugRegionMaterial = material;
+
+    const outlineMaterial = new THREE.LineBasicMaterial({
+      color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.14),
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const outlineGroup = new THREE.Group();
+    const loops = region.flatMap((polygon) => [
+      polygon.outer,
+      ...polygon.holes,
+    ]);
+    for (const loop of loops) {
+      if (loop.length < 2) continue;
+      const points = [...loop, loop[0]].map(
+        (point) => new THREE.Vector3(point.x, TRAIL_Y + 0.012, point.z),
+      );
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(lineGeometry, outlineMaterial);
+      line.renderOrder = mesh.renderOrder + 0.1;
+      outlineGroup.add(line);
+    }
+    this.scene.add(outlineGroup);
+    this.debugRegionOutlineGroup = outlineGroup;
+    this.debugRegionOutlineMaterial = outlineMaterial;
+  }
+
   startAvatarAbsorbPulse(id: number, color: number, delayMs = 0): void {
+    if (this.isMobile) {
+      const avatar = this.avatars.get(id);
+      if (
+        !avatar ||
+        !this.isNearCameraXZ(avatar.position.x, avatar.position.z)
+      ) {
+        return;
+      }
+    }
     this.avatarAbsorbPulses.push({
       playerId: id,
       color: new THREE.Color(color),
@@ -2898,7 +2959,9 @@ export class Renderer {
     const now = performance.now();
     this.territoryTakeovers = this.territoryTakeovers.filter((effect) => {
       const t = Math.min(1, (now - effect.startMs) / effect.durationMs);
-      if (this.isNearCameraXZ(effect.origin.x, effect.origin.y)) {
+      const visible = this.isNearCameraXZ(effect.origin.x, effect.origin.y);
+      effect.mesh.visible = visible;
+      if (visible) {
         effect.uniforms.rippleRadius.value = effect.maxRadius * t;
       }
       if (t < 1) return true;
@@ -2914,7 +2977,9 @@ export class Renderer {
     const now = performance.now();
     this.captureAssimilations = this.captureAssimilations.filter((effect) => {
       const t = Math.min(1, (now - effect.startMs) / effect.durationMs);
-      if (this.isNearCameraXZ(effect.origin.x, effect.origin.y)) {
+      const visible = this.isNearCameraXZ(effect.origin.x, effect.origin.y);
+      effect.mesh.visible = visible;
+      if (visible) {
         const easeOut = 1 - Math.pow(1 - t, 3);
         const brightness = Math.sin(Math.min(1, t * 1.25) * Math.PI);
         effect.material.color
@@ -3009,7 +3074,9 @@ export class Renderer {
       const elapsed = now - effect.startMs;
       const squashT = Math.min(1, elapsed / effect.squashDurationMs);
       const lifeT = Math.min(1, elapsed / effect.durationMs);
-      if (this.isNearCameraXZ(effect.origin.x, effect.origin.y)) {
+      const visible = this.isNearCameraXZ(effect.origin.x, effect.origin.y);
+      effect.group.visible = visible;
+      if (visible) {
         const easeOut = 1 - Math.pow(1 - squashT, 3);
 
         effect.splatMesh.scale.setScalar(0.2 + easeOut * 1.05);
@@ -3603,6 +3670,7 @@ export class Renderer {
 
   cleanupPlayer(id: number): void {
     this.clearCapturedFollowers(id);
+    this.avatarGrowthScales.delete(id);
     this.avatarFollowHistory.delete(id);
     this.removeTerritory(id);
     this.cleanupTakeoversForVictim(id);
@@ -3693,6 +3761,7 @@ export class Renderer {
     this.cleanupDeathSplatsForVictim(-1);
     this.cleanupCaptureAssimilations(true);
     this.avatarAbsorbPulses = [];
+    this.clearDebugRegion();
     for (const tex of this.patternTextures.values()) tex?.dispose();
     this.patternTextures.clear();
     this.renderer.dispose();
@@ -3706,5 +3775,30 @@ export class Renderer {
       effect.material.dispose();
       return false;
     });
+  }
+
+  private clearDebugRegion(): void {
+    if (this.debugRegionMesh) {
+      this.scene.remove(this.debugRegionMesh);
+      this.debugRegionMesh.geometry.dispose();
+      this.debugRegionMesh = null;
+    }
+    if (this.debugRegionMaterial) {
+      this.debugRegionMaterial.dispose();
+      this.debugRegionMaterial = null;
+    }
+    if (this.debugRegionOutlineGroup) {
+      this.scene.remove(this.debugRegionOutlineGroup);
+      for (const child of this.debugRegionOutlineGroup.children) {
+        if (child instanceof THREE.Line) {
+          child.geometry.dispose();
+        }
+      }
+      this.debugRegionOutlineGroup = null;
+    }
+    if (this.debugRegionOutlineMaterial) {
+      this.debugRegionOutlineMaterial.dispose();
+      this.debugRegionOutlineMaterial = null;
+    }
   }
 }

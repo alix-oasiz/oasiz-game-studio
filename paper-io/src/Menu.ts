@@ -398,7 +398,7 @@ export class Menu {
     document.getElementById("go-rank")!.textContent = rank;
     document.getElementById("go-time")!.textContent = time;
     document.getElementById("go-respawns")!.textContent =
-      options.respawnsLeftText ?? "3/3";
+      options.respawnsLeftText ?? "1/1";
     document.getElementById("go-play-again")!.textContent =
       options.primaryLabel ?? "Retry";
 

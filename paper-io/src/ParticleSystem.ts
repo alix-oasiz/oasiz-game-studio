@@ -112,34 +112,6 @@ export class ParticleSystem {
     return this.activeCount > 0;
   }
 
-  getDebugBurstState(ownerId: number): {
-    activeCount: number;
-    visibleCount: number;
-    sceneCount: number;
-  } {
-    let activeCount = 0;
-    let visibleCount = 0;
-    for (let i = 0; i < this.activeCount; i++) {
-      const p = this.particles[i];
-      if (p.ownerId !== ownerId) continue;
-      activeCount++;
-      if (p.mesh.visible) visibleCount++;
-    }
-
-    let sceneCount = 0;
-    this.scene.traverse((obj) => {
-      const data = obj.userData as {
-        deathBurstParticle?: boolean;
-        deathBurstOwnerId?: number;
-      };
-      if (data?.deathBurstParticle && data.deathBurstOwnerId === ownerId) {
-        sceneCount++;
-      }
-    });
-
-    return { activeCount, visibleCount, sceneCount };
-  }
-
   dispose(): void {
     for (let i = 0; i < this.activeCount; i++) {
       const p = this.particles[i];

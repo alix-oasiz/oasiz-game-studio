@@ -1,4 +1,6 @@
 import { ParticleSystem } from "./ParticleSystem.ts";
+import * as THREE from "three";
+import { pointInPolygon } from "./Collision.ts";
 import {
   createPlayer,
   type PlayerState,
@@ -10,7 +12,12 @@ import {
 import { TerritoryGrid, type Territory } from "./Territory.ts";
 import { Renderer } from "./Renderer.ts";
 import { PLAYER_COLORS, PLAYER_COLOR_STRINGS, type Vec2 } from "./constants.ts";
-import { createCircleTerritory, unionTerritories } from "./polygon-ops.ts";
+import {
+  createCircleTerritory,
+  createPolylineStroke,
+  unionTerritories,
+  type TerritoryMultiPolygon,
+} from "./polygon-ops.ts";
 import {
   getTrailInsideTerritorySegment,
   insetBoundaryIntoTerritory,
@@ -21,7 +28,13 @@ type PlaygroundActor = PlayerState & {
   trailVisualLeadInPoints: Vec2[];
 };
 
+type ConnectorLabelKey = "a" | "b" | "c" | "d";
+type ScreenPoint = { x: number; y: number };
+
 const PLAYGROUND_TRAIL_TAIL_INSET = 0.5;
+const RECONNECT_TRACER_COLOR = 0xf6c445;
+const RECONNECT_TRACER_WIDTH = 0.5;
+const TRAIL_LABEL_HALF_WIDTH = 0.27;
 
 function withLiveTrailHead(trail: Vec2[], head: Vec2): Vec2[] {
   if (trail.length === 0) return [{ x: head.x, z: head.z }];
@@ -35,11 +48,13 @@ class CarvePlayground {
   private readonly renderer: Renderer;
   private readonly particleSystem: ParticleSystem;
   private readonly territoryGrid = new TerritoryGrid();
+  private readonly gameWrapper: HTMLElement;
   private readonly statusEl: HTMLElement;
   private readonly openOfficialBtn: HTMLButtonElement;
   private readonly splashPlayerBtn: HTMLButtonElement;
   private readonly splashEnemyBtn: HTMLButtonElement;
   private readonly spawnEnemyTrailBtn: HTMLButtonElement;
+  private readonly reconnectScenarioBtn: HTMLButtonElement;
   private readonly enemyFollowBtn: HTMLButtonElement;
   private readonly spawnKillEnemyBtn: HTMLButtonElement;
   private readonly resetTrailBtn: HTMLButtonElement;
@@ -50,6 +65,11 @@ class CarvePlayground {
   private readonly human: PlaygroundActor;
   private readonly enemyTargets: PlaygroundActor[];
   private readonly inputHandler: InputHandler;
+  private readonly connectorLabels: Record<ConnectorLabelKey, HTMLElement>;
+  private readonly connectorLines: {
+    ac: SVGPolylineElement;
+    bd: SVGPolylineElement;
+  };
 
   private lastTime = performance.now();
   private rafId = 0;
@@ -59,9 +79,12 @@ class CarvePlayground {
   private movementEnabled = true;
   private killAndDieEnabled = true;
   private lastExitPoint: Vec2 | null = null;
+  private lastExitInsidePoint: Vec2 | null = null;
+  private reconnectGuideRegion: TerritoryMultiPolygon = [];
 
   constructor() {
     this.canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
+    this.gameWrapper = document.getElementById("game-wrapper") as HTMLElement;
     this.statusEl = document.getElementById("status") as HTMLElement;
     this.openOfficialBtn = document.getElementById(
       "open-official-btn",
@@ -74,6 +97,9 @@ class CarvePlayground {
     ) as HTMLButtonElement;
     this.spawnEnemyTrailBtn = document.getElementById(
       "spawn-enemy-trail-btn",
+    ) as HTMLButtonElement;
+    this.reconnectScenarioBtn = document.getElementById(
+      "reconnect-scenario-btn",
     ) as HTMLButtonElement;
     this.enemyFollowBtn = document.getElementById(
       "enemy-follow-btn",
@@ -93,6 +119,20 @@ class CarvePlayground {
     this.toggleKillBtn = document.getElementById(
       "toggle-kill-btn",
     ) as HTMLButtonElement;
+    this.connectorLabels = {
+      a: document.getElementById("connector-label-a") as HTMLElement,
+      b: document.getElementById("connector-label-b") as HTMLElement,
+      c: document.getElementById("connector-label-c") as HTMLElement,
+      d: document.getElementById("connector-label-d") as HTMLElement,
+    };
+    this.connectorLines = {
+      ac: document.getElementById(
+        "connector-line-ac",
+      ) as unknown as SVGPolylineElement,
+      bd: document.getElementById(
+        "connector-line-bd",
+      ) as unknown as SVGPolylineElement,
+    };
 
     this.renderer = new Renderer(this.canvas);
     this.particleSystem = new ParticleSystem(this.renderer.scene);
@@ -160,6 +200,12 @@ class CarvePlayground {
 
     this.spawnEnemyTrailBtn.addEventListener("click", () => {
       this.spawnHumanInsideEnemyTerritory();
+      this.updateUiState();
+      this.updateStatus();
+    });
+
+    this.reconnectScenarioBtn.addEventListener("click", () => {
+      this.setupReconnectScenario();
       this.updateUiState();
       this.updateStatus();
     });
@@ -390,6 +436,69 @@ class CarvePlayground {
     this.updateStatus();
   }
 
+  private setupReconnectScenario(): void {
+    this.clearTrail();
+    this.captureInFlight = false;
+    this.movementEnabled = true;
+    this.killAndDieEnabled = false;
+
+    const [enemyA, enemyB, enemyC] = this.enemyTargets;
+    this.setBlobTerritory(enemyA, [
+      { x: 12, z: -10 },
+      { x: 17, z: -6 },
+      { x: 9, z: -15 },
+    ]);
+    this.setBlobTerritory(enemyB, [
+      { x: 24, z: 16 },
+      { x: 28, z: 11 },
+      { x: 20, z: 20 },
+    ]);
+    this.setBlobTerritory(enemyC, [
+      { x: 2, z: -26 },
+      { x: -3, z: -22 },
+      { x: 6, z: -21 },
+    ]);
+
+    this.setDisconnectedTerritory(this.human, [
+      { x: -28, z: 12 },
+      { x: -11, z: 12 },
+    ]);
+    this.reconnectGuideRegion = [];
+    this.human.position = { x: -28, z: 12 };
+    this.human.moveDir = { x: 1, z: 0 };
+    this.lastExitPoint = null;
+    this.lastExitInsidePoint = null;
+
+    for (const enemy of this.enemyTargets) {
+      enemy.alive = true;
+      enemy.position = { x: enemy.spawn.x, z: enemy.spawn.z };
+      enemy.moveDir = { x: 0, z: 1 };
+      enemy.trail = [];
+      enemy.trailStartTangent = null;
+      enemy.trailVisualLeadInPoints = [];
+      enemy.isTrailing = false;
+      this.refreshTerritory(enemy);
+      this.renderer.showAvatar(enemy.id);
+      this.renderer.updateTrail(enemy.id, [], enemy.color, null, null);
+      this.renderer.updateAvatar(
+        enemy.id,
+        enemy.position,
+        this.elapsedTime,
+        enemy.moveDir,
+      );
+    }
+
+    this.refreshTerritory(this.human);
+    this.renderer.updateAvatar(
+      this.human.id,
+      this.human.position,
+      this.elapsedTime,
+      this.human.moveDir,
+    );
+    this.renderer.updateTrail(this.human.id, [], this.human.color, null, null);
+    this.renderer.setCameraTarget(this.human.position);
+  }
+
   private spawnEnemyWithTrail(): PlaygroundActor {
     const enemy = this.enemyTargets[this.splashTargetIndex];
     enemy.alive = true;
@@ -472,6 +581,17 @@ class CarvePlayground {
     (player.territory as any).setPolygons(polygons, "playground-seed");
   }
 
+  private setDisconnectedTerritory(
+    player: PlaygroundActor,
+    centers: Vec2[],
+    radius = 4.6,
+  ): void {
+    const polygons = centers.flatMap((center) =>
+      createCircleTerritory(center.x, center.z, radius),
+    );
+    (player.territory as any).setPolygons(polygons, "playground-disconnected");
+  }
+
   private startLoop(): void {
     if (this.rafId) return;
     this.lastTime = performance.now();
@@ -544,16 +664,20 @@ class CarvePlayground {
     }
 
     if (this.human.isTrailing) {
-      if (nowInTerritory && this.human.trail.length >= 2) {
-        const reentryPoint = this.human.territory.projectExitPoint(
-          nextPos,
-          previousPos,
-        );
+      const reentryPoint = this.human.territory.getTrailReturnContact(
+        previousPos,
+        nextPos,
+      );
+      if (reentryPoint && this.human.trail.length >= 2) {
         const captureTrail = [...this.human.trail, reentryPoint];
+        const trailStartTangent = this.human.trailStartTangent;
         this.captureInFlight = true;
         try {
-          const captureResult =
-            await this.human.territory.captureFromTrail(captureTrail);
+          const captureResult = await this.human.territory.resolveTrailReturn(
+            captureTrail,
+            trailStartTangent,
+          );
+          this.reconnectGuideRegion = captureResult.capturedRegion;
           this.refreshTerritory(this.human);
           for (const id of captureResult.affected) {
             const player = this.players.find((entry) => entry.id === id);
@@ -561,7 +685,7 @@ class CarvePlayground {
           }
         } finally {
           this.captureInFlight = false;
-          this.clearTrail();
+          this.clearTrail(false);
         }
       } else {
         sampleTrailPoint(this.human);
@@ -579,14 +703,12 @@ class CarvePlayground {
     const dirZ = outsidePos.z - insidePos.z;
     const dirLen = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
     const moveDir = { x: dirX / dirLen, z: dirZ / dirLen };
-    const insetStart = {
-      x: exitPoint.x + moveDir.x * PLAYGROUND_TRAIL_TAIL_INSET,
-      z: exitPoint.z + moveDir.z * PLAYGROUND_TRAIL_TAIL_INSET,
-    };
 
     player.isTrailing = true;
-    player.trail = [insetStart];
+    player.trail = [exitPoint];
     this.lastExitPoint = { x: exitPoint.x, z: exitPoint.z };
+    this.lastExitInsidePoint = { x: insidePos.x, z: insidePos.z };
+    this.reconnectGuideRegion = [];
     player.trailVisualLeadInPoints = [];
     for (const distance of [1.8, 1.25, 0.8, 0.4]) {
       const candidate = {
@@ -603,17 +725,24 @@ class CarvePlayground {
     );
   }
 
-  private clearTrail(): void {
+  private clearTrail(clearDebugRegion = true): void {
     this.human.trail = [];
     this.human.trailStartTangent = null;
     this.human.trailVisualLeadInPoints = [];
     this.human.isTrailing = false;
     this.lastExitPoint = null;
+    this.lastExitInsidePoint = null;
+    if (clearDebugRegion) {
+      this.reconnectGuideRegion = [];
+    }
     this.renderer.updateTrail(this.human.id, [], this.human.color, null, null);
+    this.hideConnectorLabels();
   }
 
   private resetScene(): void {
     this.clearTrail();
+    this.reconnectGuideRegion = [];
+    this.renderer.updateDebugRegion([], RECONNECT_TRACER_COLOR);
     this.movementEnabled = true;
     for (const player of this.players) {
       player.position = { x: player.spawn.x, z: player.spawn.z };
@@ -631,9 +760,219 @@ class CarvePlayground {
     );
   }
 
+  private updateReconnectTracer(
+    previousPos: Vec2,
+    nextPos: Vec2,
+    reentryPoint: Vec2,
+  ): void {
+    if (!this.lastExitPoint || !this.lastExitInsidePoint) {
+      this.reconnectGuideRegion = [];
+      return;
+    }
+
+    const fromPolygonIndex = this.findContainingOwnedPolygonIndex(
+      this.lastExitInsidePoint,
+    );
+    const toPolygonIndex = this.findContainingOwnedPolygonIndex(nextPos);
+    if (
+      fromPolygonIndex === null ||
+      toPolygonIndex === null ||
+      fromPolygonIndex === toPolygonIndex
+    ) {
+      this.reconnectGuideRegion = [];
+      return;
+    }
+
+    const captureTrail = [...this.human.trail];
+    const lastTrailPoint = captureTrail[captureTrail.length - 1];
+    if (
+      !lastTrailPoint ||
+      Math.abs(lastTrailPoint.x - reentryPoint.x) > 0.001 ||
+      Math.abs(lastTrailPoint.z - reentryPoint.z) > 0.001
+    ) {
+      captureTrail.push(reentryPoint);
+    }
+    this.reconnectGuideRegion = createPolylineStroke(
+      captureTrail,
+      RECONNECT_TRACER_WIDTH,
+    );
+  }
+
+  private updateLiveTrailPreview(): void {
+    if (!this.human.isTrailing) return;
+    const liveTrail = withLiveTrailHead(this.human.trail, this.human.position);
+    if (liveTrail.length < 2) return;
+    this.reconnectGuideRegion = createPolylineStroke(
+      liveTrail,
+      RECONNECT_TRACER_WIDTH,
+    );
+  }
+
+  private findContainingOwnedPolygonIndex(point: Vec2): number | null {
+    const polygons = this.human.territory.getPolygonsView();
+    for (let i = 0; i < polygons.length; i++) {
+      const polygon = polygons[i];
+      if (!pointInPolygon(point, polygon.outer)) continue;
+      const insideHole = polygon.holes.some((hole) =>
+        pointInPolygon(point, hole),
+      );
+      if (!insideHole) return i;
+    }
+    return null;
+  }
+
+  private updateConnectorLabels(): void {
+    if (
+      !this.human.isTrailing ||
+      !this.lastExitPoint ||
+      !this.human.trailStartTangent
+    ) {
+      this.hideConnectorLabels();
+      return;
+    }
+
+    const liveTrail = withLiveTrailHead(this.human.trail, this.human.position);
+    if (liveTrail.length < 2) {
+      this.hideConnectorLabels();
+      return;
+    }
+
+    const leftPath = this.buildTrailEdgeScreenPath(liveTrail, 1);
+    const rightPath = this.buildTrailEdgeScreenPath(liveTrail, -1);
+    if (leftPath.length < 2 || rightPath.length < 2) {
+      this.hideConnectorLabels();
+      return;
+    }
+
+    const points: Record<ConnectorLabelKey, ScreenPoint> = {
+      a: leftPath[leftPath.length - 1],
+      b: rightPath[rightPath.length - 1],
+      c: leftPath[0],
+      d: rightPath[0],
+    };
+
+    for (const key of Object.keys(points) as ConnectorLabelKey[]) {
+      this.positionConnectorLabel(key, points[key]);
+    }
+    this.positionConnectorLine(this.connectorLines.ac, leftPath);
+    this.positionConnectorLine(this.connectorLines.bd, rightPath);
+  }
+
+  private positionConnectorLabel(
+    key: ConnectorLabelKey,
+    point: ScreenPoint,
+  ): void {
+    const label = this.connectorLabels[key];
+    label.style.left = `${point.x}px`;
+    label.style.top = `${point.y}px`;
+    label.classList.add("visible");
+  }
+
+  private hideConnectorLabels(): void {
+    for (const label of Object.values(this.connectorLabels)) {
+      label.classList.remove("visible");
+    }
+    for (const line of Object.values(this.connectorLines)) {
+      line.classList.remove("visible");
+    }
+  }
+
+  private positionConnectorLine(
+    element: SVGPolylineElement,
+    points: ScreenPoint[],
+  ): void {
+    if (points.length < 2) {
+      element.classList.remove("visible");
+      return;
+    }
+    element.setAttribute(
+      "points",
+      points.map((point) => `${point.x},${point.y}`).join(" "),
+    );
+    element.classList.add("visible");
+  }
+
+  private buildTrailEdgeScreenPath(
+    trail: Vec2[],
+    sideSign: 1 | -1,
+  ): ScreenPoint[] {
+    if (trail.length < 2) return [];
+
+    const result: ScreenPoint[] = [];
+    const blendPoints = 4;
+    const startTangent = this.normalizeVec2(
+      this.human.trailStartTangent ?? {
+        x: 0,
+        z: 0,
+      },
+    );
+
+    for (let i = 0; i < trail.length; i++) {
+      let dx: number;
+      let dz: number;
+      if (i === 0) {
+        dx = trail[1].x - trail[0].x;
+        dz = trail[1].z - trail[0].z;
+      } else if (i === trail.length - 1) {
+        dx = trail[i].x - trail[i - 1].x;
+        dz = trail[i].z - trail[i - 1].z;
+      } else {
+        dx = trail[i + 1].x - trail[i - 1].x;
+        dz = trail[i + 1].z - trail[i - 1].z;
+      }
+
+      const alongDir = this.normalizeVec2({ x: dx, z: dz });
+      const trailSide = { x: -alongDir.z, z: alongDir.x };
+      let widthDir = trailSide;
+
+      if (i < blendPoints && (startTangent.x !== 0 || startTangent.z !== 0)) {
+        let tangent = startTangent;
+        if (tangent.x * trailSide.x + tangent.z * trailSide.z < 0) {
+          tangent = { x: -tangent.x, z: -tangent.z };
+        }
+        const t = i / Math.max(1, blendPoints - 1);
+        widthDir = this.normalizeVec2({
+          x: tangent.x * (1 - t) + trailSide.x * t,
+          z: tangent.z * (1 - t) + trailSide.z * t,
+        });
+      }
+
+      const edgePoint = {
+        x: trail[i].x + widthDir.x * TRAIL_LABEL_HALF_WIDTH * sideSign,
+        z: trail[i].z + widthDir.z * TRAIL_LABEL_HALF_WIDTH * sideSign,
+      };
+      const screenPoint = this.worldToScreen(edgePoint);
+      if (screenPoint) {
+        result.push(screenPoint);
+      }
+    }
+
+    return result;
+  }
+
+  private worldToScreen(point: Vec2): ScreenPoint | null {
+    const projected = new THREE.Vector3(point.x, 0.18, point.z).project(
+      this.renderer.camera,
+    );
+    if (projected.z < -1 || projected.z > 1) {
+      return null;
+    }
+    return {
+      x: (projected.x + 1) * 0.5 * this.gameWrapper.clientWidth,
+      y: (1 - projected.y) * 0.5 * this.gameWrapper.clientHeight,
+    };
+  }
+
+  private normalizeVec2(vector: Vec2): Vec2 {
+    const length = Math.sqrt(vector.x * vector.x + vector.z * vector.z) || 1;
+    return { x: vector.x / length, z: vector.z / length };
+  }
+
   private syncRenderState(): void {
     for (const player of this.players) {
-      const renderTrail = player.trail;
+      const renderTrail = player.isTrailing
+        ? withLiveTrailHead(player.trail, player.position)
+        : player.trail;
       const activeEnemy =
         player.id === this.human.id && player.isTrailing
           ? (this.enemyTargets.find((enemy) =>
@@ -666,7 +1005,12 @@ class CarvePlayground {
       );
     }
 
+    this.renderer.updateDebugRegion(
+      this.reconnectGuideRegion,
+      this.human.color,
+    );
     this.renderer.setCameraTarget(this.human.position);
+    this.updateConnectorLabels();
   }
 
   private spawnSplash(position: Vec2, color: number, ownerId: number): void {
@@ -689,6 +1033,12 @@ class CarvePlayground {
       "\n" +
       "Inside own territory: " +
       (insideOwn ? "yes" : "no") +
+      "\n" +
+      "Own territory parts: " +
+      this.human.territory.getPolygonsView().length +
+      "\n" +
+      "Captured area overlay: " +
+      (this.reconnectGuideRegion.length > 0 ? "visible" : "hidden") +
       "\n" +
       "Carving enemy territory: " +
       (activeEnemy ? activeEnemy.name : "no") +

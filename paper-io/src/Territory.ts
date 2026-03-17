@@ -1,5 +1,5 @@
 import { ARENA_AREA, START_RADIUS, type Vec2 } from "./constants.ts";
-import { nearestPointOnPolygon } from "./Collision.ts";
+import { nearestPointOnPolygon, pointInPolygon } from "./Collision.ts";
 import {
   booleanGeomToTerritory,
   cloneLoop,
@@ -56,6 +56,13 @@ function pointsEqual(a: Vec2, b: Vec2): boolean {
   return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
 }
 
+function triangleCentroid(a: Vec2, b: Vec2, c: Vec2): Vec2 {
+  return {
+    x: (a.x + b.x + c.x) / 3,
+    z: (a.z + b.z + c.z) / 3,
+  };
+}
+
 function normalizeLoop(loop: Vec2[]): Vec2[] {
   const deduped: Vec2[] = [];
   for (const point of loop) {
@@ -73,6 +80,78 @@ function normalizeLoop(loop: Vec2[]): Vec2[] {
     deduped.pop();
   }
   return deduped;
+}
+
+function normalizeVec2(vector: Vec2): Vec2 {
+  const length = Math.sqrt(vector.x * vector.x + vector.z * vector.z) || 1;
+  return { x: vector.x / length, z: vector.z / length };
+}
+
+function createTrailRibbonRegion(
+  trailPoints: Vec2[],
+  width: number,
+  startTangent: Vec2 | null = null,
+): TerritoryMultiPolygon {
+  if (trailPoints.length < 2) return [];
+
+  const halfWidth = width * 0.5;
+  const blendPoints = 4;
+  const normalizedStartTangent =
+    startTangent && (startTangent.x !== 0 || startTangent.z !== 0)
+      ? normalizeVec2(startTangent)
+      : null;
+  const leftPath: Vec2[] = [];
+  const rightPath: Vec2[] = [];
+
+  for (let i = 0; i < trailPoints.length; i++) {
+    let dx: number;
+    let dz: number;
+    if (i === 0) {
+      dx = trailPoints[1].x - trailPoints[0].x;
+      dz = trailPoints[1].z - trailPoints[0].z;
+    } else if (i === trailPoints.length - 1) {
+      dx = trailPoints[i].x - trailPoints[i - 1].x;
+      dz = trailPoints[i].z - trailPoints[i - 1].z;
+    } else {
+      dx = trailPoints[i + 1].x - trailPoints[i - 1].x;
+      dz = trailPoints[i + 1].z - trailPoints[i - 1].z;
+    }
+
+    const alongDir = normalizeVec2({ x: dx, z: dz });
+    const trailSide = { x: -alongDir.z, z: alongDir.x };
+    let widthDir = trailSide;
+
+    if (normalizedStartTangent && i < blendPoints) {
+      let tangent = normalizedStartTangent;
+      if (tangent.x * trailSide.x + tangent.z * trailSide.z < 0) {
+        tangent = { x: -tangent.x, z: -tangent.z };
+      }
+      const t = i / Math.max(1, blendPoints - 1);
+      widthDir = normalizeVec2({
+        x: tangent.x * (1 - t) + trailSide.x * t,
+        z: tangent.z * (1 - t) + trailSide.z * t,
+      });
+    }
+
+    leftPath.push({
+      x: trailPoints[i].x + widthDir.x * halfWidth,
+      z: trailPoints[i].z + widthDir.z * halfWidth,
+    });
+    rightPath.push({
+      x: trailPoints[i].x - widthDir.x * halfWidth,
+      z: trailPoints[i].z - widthDir.z * halfWidth,
+    });
+  }
+
+  const outer = normalizeLoop([...leftPath, ...rightPath.reverse()]);
+  if (outer.length < 3) {
+    return createPolylineStroke(trailPoints, width);
+  }
+
+  const ribbonRegion = sanitizeTerritory([{ outer, holes: [] }]);
+  return ribbonRegion.length > 0
+    ? ribbonRegion
+    : createPolylineStroke(trailPoints, width);
 }
 
 function nearestLoopVertexIndex(point: Vec2, loop: Vec2[]): number {
@@ -271,12 +350,35 @@ export class Territory {
     return cloneTerritory(this.polygons);
   }
 
+  getPolygonsView(): TerritoryMultiPolygon {
+    return this.polygons;
+  }
+
   initAtSpawn(cx: number, cz: number): void {
     this.setPolygons(createCircleTerritory(cx, cz, START_RADIUS), "spawn");
   }
 
   containsPoint(point: Vec2): boolean {
     return pointInTerritory(point, this.polygons);
+  }
+
+  async resolveTrailReturn(
+    trailPoints: Vec2[],
+    trailStartTangent: Vec2 | null = null,
+  ): Promise<CaptureResult> {
+    const path = normalizeLoop(trailPoints);
+    if (path.length < 2) {
+      return {
+        affected: new Set(),
+        capturedRegion: [],
+        netAreaGained: 0,
+      };
+    }
+    const reconnectClaim = this.getReconnectTrailClaim(path, trailStartTangent);
+    if (reconnectClaim) {
+      return this.connectDisconnectedTerritoriesWithTrail(reconnectClaim);
+    }
+    return this.captureFromTrail(path);
   }
 
   async captureFromTrail(trailPoints: Vec2[]): Promise<CaptureResult> {
@@ -302,10 +404,16 @@ export class Territory {
 
     this.setPolygons(nextPolygons, "capture");
     const affected = await this.cropRegionFromOthers(capturedRegion);
+    const fillRegion = this.fillEnclosedVoids();
+    const finalCapturedRegion =
+      fillRegion.length > 0
+        ? unionTerritories(capturedRegion, fillRegion)
+        : capturedRegion;
+    const finalArea = this.computeArea();
     return {
       affected,
-      capturedRegion,
-      netAreaGained: Math.max(0, nextArea - previousArea),
+      capturedRegion: finalCapturedRegion,
+      netAreaGained: Math.max(0, finalArea - previousArea),
     };
   }
 
@@ -319,6 +427,7 @@ export class Territory {
       "claimTrailLine",
     );
     const affected = await this.cropRegionFromOthers(claimedRegion);
+    this.fillEnclosedVoids();
     return affected;
   }
 
@@ -368,6 +477,29 @@ export class Territory {
 
     const approxBoundary = { x: (a.x + b.x) * 0.5, z: (a.z + b.z) * 0.5 };
     return this.getNearestBoundaryPoint(approxBoundary);
+  }
+
+  getTrailReturnContact(fromPoint: Vec2, toPoint: Vec2): Vec2 | null {
+    if (!this.hasTerritory()) return null;
+    if (this.containsPoint(toPoint)) {
+      return this.projectExitPoint(toPoint, fromPoint);
+    }
+
+    const STEPS = 10;
+    let previousSample = { x: fromPoint.x, z: fromPoint.z };
+    for (let i = 1; i <= STEPS; i++) {
+      const t = i / STEPS;
+      const sample = {
+        x: fromPoint.x + (toPoint.x - fromPoint.x) * t,
+        z: fromPoint.z + (toPoint.z - fromPoint.z) * t,
+      };
+      if (this.containsPoint(sample)) {
+        return this.projectExitPoint(sample, previousSample);
+      }
+      previousSample = sample;
+    }
+
+    return null;
   }
 
   getBoundaryTangent(point: Vec2, moveDir: Vec2): Vec2 {
@@ -453,6 +585,7 @@ export class Territory {
       new Set([this.playerId, playerId]),
     );
     target.unionRegion(claimedRegion);
+    target.fillEnclosedVoids();
     const killerAfterArea = target.computeArea();
     this.clear();
     return {
@@ -477,6 +610,108 @@ export class Territory {
 
   private unionRegion(region: TerritoryMultiPolygon): void {
     this.setPolygons(unionTerritories(this.polygons, region), "unionRegion");
+  }
+
+  private getReconnectTrailClaim(
+    trailPoints: Vec2[],
+    trailStartTangent: Vec2 | null = null,
+  ): TerritoryMultiPolygon | null {
+    if (this.polygons.length < 2 || trailPoints.length < 2) return null;
+    const claimedRegion = createTrailRibbonRegion(
+      trailPoints,
+      TRAIL_CLAIM_WIDTH,
+      trailStartTangent,
+    );
+    if (claimedRegion.length === 0) return null;
+    const previousArea = this.computeArea();
+    const nextPolygons = unionTerritories(this.polygons, claimedRegion);
+    const nextArea = territoryArea(nextPolygons);
+    if (nextArea <= previousArea + AREA_EPSILON) return null;
+    if (nextPolygons.length >= this.polygons.length) return null;
+    return claimedRegion;
+  }
+
+  private async connectDisconnectedTerritoriesWithTrail(
+    claimedRegion: TerritoryMultiPolygon,
+  ): Promise<CaptureResult> {
+    const previousArea = this.computeArea();
+    const nextPolygons = unionTerritories(this.polygons, claimedRegion);
+    this.setPolygons(nextPolygons, "reconnectTrail");
+    const affected = await this.cropRegionFromOthers(claimedRegion);
+    const fillRegion = this.fillEnclosedVoids();
+    const finalCapturedRegion =
+      fillRegion.length > 0
+        ? unionTerritories(claimedRegion, fillRegion)
+        : claimedRegion;
+    const finalArea = this.computeArea();
+    return {
+      affected,
+      capturedRegion: finalCapturedRegion,
+      netAreaGained: Math.max(0, finalArea - previousArea),
+    };
+  }
+
+  private findInteriorPoint(loop: Vec2[]): Vec2 | null {
+    if (loop.length < 3) return null;
+
+    const centroid = territoryCentroid([{ outer: loop, holes: [] }]);
+    if (pointInPolygon(centroid, loop)) {
+      return centroid;
+    }
+
+    for (let i = 1; i < loop.length - 1; i++) {
+      const candidate = triangleCentroid(loop[0], loop[i], loop[i + 1]);
+      if (pointInPolygon(candidate, loop)) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  private fillEnclosedVoids(): TerritoryMultiPolygon {
+    let fillRegion: TerritoryMultiPolygon = [];
+
+    for (const polygon of this.polygons) {
+      for (const hole of polygon.holes) {
+        if (loopArea(hole) <= AREA_EPSILON) continue;
+
+        const samplePoint = this.findInteriorPoint(hole);
+        if (!samplePoint) continue;
+
+        let occupiedByOther = false;
+        for (const territory of this.grid.getTerritories()) {
+          if (
+            territory.playerId === this.playerId ||
+            !territory.hasTerritory()
+          ) {
+            continue;
+          }
+          if (territory.containsPoint(samplePoint)) {
+            occupiedByOther = true;
+            break;
+          }
+        }
+
+        if (!occupiedByOther) {
+          fillRegion = unionTerritories(fillRegion, [
+            {
+              outer: cloneLoop(hole),
+              holes: [],
+            },
+          ]);
+        }
+      }
+    }
+
+    if (fillRegion.length > 0) {
+      this.setPolygons(
+        unionTerritories(this.polygons, fillRegion),
+        "fillEnclosedVoids",
+      );
+    }
+
+    return fillRegion;
   }
 
   private async cropRegionFromOthers(
