@@ -21,6 +21,7 @@ Do not duplicate detailed conventions here.
 - When a change is ready to test, always produce a new build before handoff.
 - Before each test build, increment `const BUILD_VERSION = "x.y.z"` in `src/main.ts`.
 - Do not reuse an old build number for a new testable change.
+- Marble Madness now uses the shared repo-level dev automation under `../tools/dev-auto/` with local config in `dev-auto.config.json`.
 - Use `npm run build:versioned` for test builds so version bump + build happens consistently.
 - For WSL/local testing where hot reload is unreliable, use `npm run build:versioned:serve` to build then restart Vite on `127.0.0.1:5173` in one command.
 - If local dev shows stale behavior or an old build label, run `npm run dev:restart` to restart the Vite server cleanly.

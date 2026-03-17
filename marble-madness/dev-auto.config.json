@@ -1,0 +1,10 @@
+{
+  "host": "127.0.0.1",
+  "port": 5173,
+  "versionFile": "src/main.ts",
+  "versionRegex": "const BUILD_VERSION = \"(\\d+)\\.(\\d+)\\.(\\d+)\";",
+  "watchDirs": ["src", "public"],
+  "watchFiles": ["index.html", "vite.config.js", "tsconfig.json"],
+  "buildCommand": ["$NODE", "$VITE", "build"],
+  "devCommand": ["$NODE", "$VITE", "--host", "$HOST", "--port", "$PORT", "--strictPort"]
+}
